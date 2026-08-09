@@ -5,12 +5,22 @@ import test from 'node:test';
 
 import { createDatabase } from '../src/db.js';
 import { one, run } from '../src/db-compat.js';
+import { converactMigrationPoolConfig } from '../src/converact-migrations.js';
 import { createTenant } from '../src/platform/tenant-core.js';
 import { createLiveKitMediaModule, LiveKitRoomStore } from '../src/agent-runtime/livekit/index.js';
 
 const policy = JSON.parse(readFileSync('services/converact-service/source-policy.json', 'utf8')) as {
   migrations: string[];
 };
+
+test('standalone migration entrypoint honors DATABASE_URL without weakening discrete PG fallback', () => {
+  assert.deepEqual(
+    converactMigrationPoolConfig({ DATABASE_URL: 'postgres://migration.example/converact' }),
+    { connectionString: 'postgres://migration.example/converact', max: 1 },
+  );
+  assert.deepEqual(converactMigrationPoolConfig({ PGHOST: 'postgres.internal' }), { max: 1 });
+  assert.deepEqual(converactMigrationPoolConfig({ DATABASE_URL: '   ' }), { max: 1 });
+});
 
 test('standalone foundation creates only the communication prerequisites', () => {
   const sql = readFileSync('services/converact-service/migrations/000_ivekit_foundation.sql', 'utf8');
@@ -102,6 +112,8 @@ test('standalone migration order includes RLS and communication overlays but exc
   assert.equal(migrations.includes('110_converact_platform_usage_ledger.sql'), true);
   assert.equal(migrations.includes('111_converact_platform_key_lifecycle.sql'), true);
   assert.equal(migrations.includes('112_converact_platform_history_receipt_integrity.sql'), true);
+  assert.equal(migrations.includes('113_converact_sip_effect_transport_completed.sql'), true);
+  assert.equal(migrations.includes('114_converact_sip_effect_transport_completed_validate.sql'), true);
   assert.equal(
     migrations.indexOf('043_ivekit_intelligence_translation.sql') <
       migrations.indexOf('044_quality_review_policy_routing.sql') &&
@@ -230,10 +242,14 @@ test('standalone migration order includes RLS and communication overlays but exc
       migrations.indexOf('110_converact_platform_usage_ledger.sql') <
       migrations.indexOf('111_converact_platform_key_lifecycle.sql') &&
       migrations.indexOf('111_converact_platform_key_lifecycle.sql') <
-      migrations.indexOf('112_converact_platform_history_receipt_integrity.sql'),
+      migrations.indexOf('112_converact_platform_history_receipt_integrity.sql') &&
+      migrations.indexOf('112_converact_platform_history_receipt_integrity.sql') <
+      migrations.indexOf('113_converact_sip_effect_transport_completed.sql') &&
+      migrations.indexOf('113_converact_sip_effect_transport_completed.sql') <
+      migrations.indexOf('114_converact_sip_effect_transport_completed_validate.sql'),
     true
   );
-  assert.equal(migrations.at(-1), '112_converact_platform_history_receipt_integrity.sql');
+  assert.equal(migrations.at(-1), '114_converact_sip_effect_transport_completed_validate.sql');
   const runtimeSecurity = readFileSync(
     'services/converact-service/migrations/090_ivekit_runtime_security.sql',
     'utf8'

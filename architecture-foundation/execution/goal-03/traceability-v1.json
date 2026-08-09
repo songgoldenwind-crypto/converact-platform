@@ -193,7 +193,9 @@
       "implementation_paths": [
         "src/agent-runtime/converact/voice/sip-foundation/effect-oracle.ts",
         "src/agent-runtime/converact/voice/sip-foundation/postgres-effect-store.ts",
-        "src/migrations/107_ivekit_sip_effect_oracle.sql"
+        "src/migrations/107_ivekit_sip_effect_oracle.sql",
+        "src/migrations/113_converact_sip_effect_transport_completed.sql",
+        "src/migrations/114_converact_sip_effect_transport_completed_validate.sql"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
@@ -217,7 +219,9 @@
       "implementation_paths": [
         "src/agent-runtime/converact/voice/sip-foundation/effect-oracle.ts",
         "src/agent-runtime/converact/voice/sip-foundation/postgres-effect-store.ts",
-        "src/migrations/107_ivekit_sip_effect_oracle.sql"
+        "src/migrations/107_ivekit_sip_effect_oracle.sql",
+        "src/migrations/113_converact_sip_effect_transport_completed.sql",
+        "src/migrations/114_converact_sip_effect_transport_completed_validate.sql"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
@@ -930,7 +934,9 @@
       "implementation_paths": [
         "src/agent-runtime/converact/voice/sip-foundation/effect-oracle.ts",
         "src/agent-runtime/converact/voice/sip-foundation/postgres-effect-store.ts",
-        "src/migrations/107_ivekit_sip_effect_oracle.sql"
+        "src/migrations/107_ivekit_sip_effect_oracle.sql",
+        "src/migrations/113_converact_sip_effect_transport_completed.sql",
+        "src/migrations/114_converact_sip_effect_transport_completed_validate.sql"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
@@ -1029,7 +1035,9 @@
       "implementation_paths": [
         "src/agent-runtime/converact/voice/sip-foundation/effect-oracle.ts",
         "src/agent-runtime/converact/voice/sip-foundation/postgres-effect-store.ts",
-        "src/migrations/107_ivekit_sip_effect_oracle.sql"
+        "src/migrations/107_ivekit_sip_effect_oracle.sql",
+        "src/migrations/113_converact_sip_effect_transport_completed.sql",
+        "src/migrations/114_converact_sip_effect_transport_completed_validate.sql"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
@@ -1101,7 +1109,9 @@
       "implementation_paths": [
         "src/agent-runtime/converact/voice/sip-foundation/effect-oracle.ts",
         "src/agent-runtime/converact/voice/sip-foundation/postgres-effect-store.ts",
-        "src/migrations/107_ivekit_sip_effect_oracle.sql"
+        "src/migrations/107_ivekit_sip_effect_oracle.sql",
+        "src/migrations/113_converact_sip_effect_transport_completed.sql",
+        "src/migrations/114_converact_sip_effect_transport_completed_validate.sql"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
@@ -1625,7 +1635,9 @@
       "implementation_paths": [
         "src/agent-runtime/converact/voice/sip-foundation/effect-oracle.ts",
         "src/agent-runtime/converact/voice/sip-foundation/postgres-effect-store.ts",
-        "src/migrations/107_ivekit_sip_effect_oracle.sql"
+        "src/migrations/107_ivekit_sip_effect_oracle.sql",
+        "src/migrations/113_converact_sip_effect_transport_completed.sql",
+        "src/migrations/114_converact_sip_effect_transport_completed_validate.sql"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",

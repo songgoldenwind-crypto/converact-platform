@@ -10,22 +10,36 @@ const EXPECTED = [
   '109_converact_platform_event_receipts.sql',
   '110_converact_platform_usage_ledger.sql',
   '111_converact_platform_key_lifecycle.sql',
-  '112_converact_platform_history_receipt_integrity.sql'
+  '112_converact_platform_history_receipt_integrity.sql',
+  '113_converact_sip_effect_transport_completed.sql',
+  '114_converact_sip_effect_transport_completed_validate.sql'
 ] as const;
 
 test('platform foundation migrations are additive and ordered immediately after 107', () => {
   const plan = readPostgresMigrationPlan(new URL('../src/migrations', import.meta.url).pathname);
-  assert.deepEqual(plan.slice(-6).map((entry) => entry.file), [
+  assert.deepEqual(plan.slice(-8).map((entry) => entry.file), [
     '107_ivekit_sip_effect_oracle.sql', ...EXPECTED
   ]);
-  for (const file of EXPECTED) assert.match(readFileSync(new URL(`../src/migrations/${file}`, import.meta.url), 'utf8'), /tenant_id/i);
-  assert.deepEqual(REQUIRED_MIGRATIONS.slice(-6), [
+  for (const file of EXPECTED) {
+    const sql = readFileSync(
+      new URL(`../src/migrations/${file}`, import.meta.url),
+      'utf8'
+    );
+    if (file.startsWith('114_')) {
+      assert.match(sql, /VALIDATE CONSTRAINT/i);
+    } else {
+      assert.match(sql, /tenant_id/i);
+    }
+  }
+  assert.deepEqual(REQUIRED_MIGRATIONS.slice(-8), [
     '107_ivekit_sip_effect_oracle',
     '108_converact_platform_identity_consent',
     '109_converact_platform_event_receipts',
     '110_converact_platform_usage_ledger',
     '111_converact_platform_key_lifecycle',
-    '112_converact_platform_history_receipt_integrity'
+    '112_converact_platform_history_receipt_integrity',
+    '113_converact_sip_effect_transport_completed',
+    '114_converact_sip_effect_transport_completed_validate'
   ]);
 });
 
@@ -100,7 +114,7 @@ test('standalone package and delivery allowlists include all platform migrations
   const sourcePolicy = JSON.parse(readFileSync(new URL(
     '../services/converact-service/source-policy.json', import.meta.url
   ), 'utf8')) as { migrations: string[] };
-  assert.deepEqual(sourcePolicy.migrations.slice(-5), [...EXPECTED]);
+  assert.deepEqual(sourcePolicy.migrations.slice(-EXPECTED.length), [...EXPECTED]);
   const delivery = readFileSync(new URL('../scripts/converact-delivery-bundle.ts', import.meta.url), 'utf8');
   for (const file of EXPECTED) assert.match(delivery, new RegExp(file.replace('.', '\\.')));
 });

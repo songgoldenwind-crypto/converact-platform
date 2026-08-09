@@ -471,6 +471,45 @@ endpoint event/effect activation, protocol-completion observation and host
 requalification remain `not_run`; `G03-E16-NATIVE-AUTHORITY` and production
 eligibility remain unpromoted.
 
+ivekit.59 makes transport and protocol observations separate durable facts.
+rsipstack now accepts a protocol-completion receipt only from its private
+network-ingress path after exact transaction, CSeq and Dialog matching; local
+timeouts have a distinct event and cannot impersonate a peer response or ACK.
+The first frozen wire attempt carries the actual datagram destination or a
+stable connected-flow identity/generation. Cancellation of any pending
+transport future records one bounded `TransportUnknown` observation through an
+RAII guard and cannot authorize a second blind send.
+
+RustPBX writes the closed nested wire-attempt v2 facts and keeps a strict v1
+reader for draining effects. `transport_completed` is an independent terminal
+state for a wire whose frozen policy ends at local transport acceptance; it is
+never reported as `protocol_observed`. The PostgreSQL adapter prepares the
+effect, durable decision and send attempt in one transaction/one commit, and
+applies each transport or protocol observation in one transaction without a
+hot-path query-then-apply round trip. Fixed hash shards, separate transport and
+protocol semaphores, reserved bounded queue slots and cancellation-safe retry
+ownership prevent per-effect tasks, unbounded memory, global scans and dropped
+receipts. Database time owns `prepared_at`, `updated_at` and terminal ordering;
+caller time supplies only a bounded audit duration.
+
+The exact local Rust 1.94.1 sources pass the rsipstack library suite (`300`
+passed) and the RustPBX library suite (`1,998` passed, `7` ignored). The same
+RustPBX library suite also passes on the authorized isolated validation host
+with the same `1,998`/`7` result. Six physical PostgreSQL cases pass on that
+host after migrations through `114`: atomic prepare/replay, receipt transition,
+pool reconnect, Unknown fencing/reconcile, bounded repair exhaustion,
+`TransportCompleted`, and caller clocks skewed by plus/minus 365 days. These
+are exact-source component results, not an exact `.59` release-image or fleet
+qualification claim. The controlled raw bundle is
+`architecture-foundation/execution/goal-03/evidence/raw/native-protocol-observation-fe4c38b-05/`.
+
+Live endpoint activation, automatic derived ACK intent, automatic
+200-to-CANCEL, UAS-Core 2xx ACK ownership, stale nonterminal recovery after an
+observer-process crash, rolling mixed-binary activation, exact `.59` image,
+real-peer, long-call, fault/OOM and capacity campaigns remain `not_run`.
+`G03-E16-NATIVE-AUTHORITY` is not promoted, and production eligibility remains
+false.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

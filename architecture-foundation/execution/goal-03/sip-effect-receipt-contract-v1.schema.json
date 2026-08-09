@@ -17,6 +17,8 @@
     "schema_identity",
     "states",
     "semantic_receipt_classes",
+    "completion_scopes",
+    "completion_scope_invariants",
     "identity_fields",
     "transitions",
     "atomic_boundaries",
@@ -110,6 +112,7 @@
         "schema_id",
         "current_schema_version",
         "current_schema_hash",
+        "supported_read_schemas",
         "writer_identity",
         "physical_activation_status"
       ],
@@ -118,10 +121,58 @@
           "const": "ivekit.sip-effect-oracle"
         },
         "current_schema_version": {
-          "const": 1
+          "const": 2
         },
         "current_schema_hash": {
-          "const": "ae27a73dac95c90686f8020c2fb5e92dd016cc1712216d03b227ec3a6d6ca5ba"
+          "const": "7f4cd00c42bb4607c6b443261a06b06bd42117718c1f858293f1471e3ccb153b"
+        },
+        "supported_read_schemas": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "prefixItems": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "schema_version",
+                "schema_hash",
+                "write_scope"
+              ],
+              "properties": {
+                "schema_version": {
+                  "const": 1
+                },
+                "schema_hash": {
+                  "const": "ae27a73dac95c90686f8020c2fb5e92dd016cc1712216d03b227ec3a6d6ca5ba"
+                },
+                "write_scope": {
+                  "const": "drain_existing_effects_only"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "schema_version",
+                "schema_hash",
+                "write_scope"
+              ],
+              "properties": {
+                "schema_version": {
+                  "const": 2
+                },
+                "schema_hash": {
+                  "const": "7f4cd00c42bb4607c6b443261a06b06bd42117718c1f858293f1471e3ccb153b"
+                },
+                "write_scope": {
+                  "const": "new_effects_after_activation_receipt"
+                }
+              }
+            }
+          ],
+          "items": false
         },
         "writer_identity": {
           "const": "unified-rustpbx.sip-foundation"
@@ -133,8 +184,8 @@
     },
     "states": {
       "type": "array",
-      "minItems": 7,
-      "maxItems": 7,
+      "minItems": 8,
+      "maxItems": 8,
       "prefixItems": [
         {
           "const": "prepared"
@@ -147,6 +198,9 @@
         },
         {
           "const": "transport_accepted"
+        },
+        {
+          "const": "transport_completed"
         },
         {
           "const": "protocol_observed"
@@ -166,6 +220,7 @@
       "required": [
         "accepted",
         "completed",
+        "transport_completed",
         "state_observed",
         "unknown"
       ],
@@ -200,7 +255,8 @@
           "required": [
             "level",
             "from_states",
-            "proves"
+            "proves",
+            "peer_received_proof"
           ],
           "properties": {
             "level": {
@@ -221,7 +277,34 @@
               "items": false
             },
             "proves": {
-              "const": "selected_protocol_completion_observed_on_primary_path"
+              "const": "frozen_completion_scope_satisfied_on_primary_path"
+            },
+            "peer_received_proof": {
+              "const": "only_for_transaction_peer_observation_scope_not_transport_accepted_terminal"
+            }
+          }
+        },
+        "transport_completed": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "level",
+            "from_state",
+            "proves",
+            "does_not_prove"
+          ],
+          "properties": {
+            "level": {
+              "const": "transport_completed"
+            },
+            "from_state": {
+              "const": "transport_accepted"
+            },
+            "proves": {
+              "const": "local_transport_terminal_policy_satisfied"
+            },
+            "does_not_prove": {
+              "const": "peer_received_or_protocol_completed"
             }
           }
         },
@@ -262,6 +345,127 @@
           }
         }
       }
+    },
+    "completion_scopes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "wire_fact",
+        "writer_authority",
+        "missing_or_unrecognized",
+        "transaction_peer_observation",
+        "transport_accepted_terminal",
+        "uas_core_deferred"
+      ],
+      "properties": {
+        "wire_fact": {
+          "const": "completion_scope"
+        },
+        "writer_authority": {
+          "const": "Unified RustPBX rsipstack frozen effect classifier"
+        },
+        "missing_or_unrecognized": {
+          "const": "fail_closed_before_terminal_receipt"
+        },
+        "transaction_peer_observation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "applies_to",
+            "terminal_condition",
+            "transport_acceptance_alone"
+          ],
+          "properties": {
+            "applies_to": {
+              "const": "client_requests_except_ACK_and_server_non_2xx_INVITE_final_responses"
+            },
+            "terminal_condition": {
+              "const": "exact_matching_final_response_or_ACK"
+            },
+            "transport_acceptance_alone": {
+              "const": "non_terminal"
+            }
+          }
+        },
+        "transport_accepted_terminal": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "applies_to",
+            "terminal_condition",
+            "receipt_level",
+            "does_not_prove",
+            "terminal_payload_compaction"
+          ],
+          "properties": {
+            "applies_to": {
+              "const": "ACK_and_server_responses_without_a_transaction_layer_peer_completion"
+            },
+            "terminal_condition": {
+              "const": "durable_transport_accepted_then_transport_terminal_policy_observation"
+            },
+            "receipt_level": {
+              "const": "transport_completed"
+            },
+            "does_not_prove": {
+              "const": "peer_received_message"
+            },
+            "terminal_payload_compaction": {
+              "const": "allowed_only_after_terminal_receipt"
+            }
+          }
+        },
+        "uas_core_deferred": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "applies_to",
+            "current_owner_wiring",
+            "transaction_layer_disposition",
+            "terminal_condition"
+          ],
+          "properties": {
+            "applies_to": {
+              "const": "server_2xx_INVITE_responses"
+            },
+            "current_owner_wiring": {
+              "const": "not_run"
+            },
+            "transaction_layer_disposition": {
+              "const": "unknown_not_completed"
+            },
+            "terminal_condition": {
+              "const": "UAS_Core_exact_ACK_observation_future_gate"
+            }
+          }
+        }
+      }
+    },
+    "completion_scope_invariants": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "prefixItems": [
+        {
+          "const": "completion_scope_is_hashed_inside_wire_attempt_facts_before_send"
+        },
+        {
+          "const": "completion_scope_mismatch_never_fabricates_protocol_observed"
+        },
+        {
+          "const": "transport_completed_never_aliases_protocol_observed"
+        },
+        {
+          "const": "transport_terminal_requires_prior_durable_transport_accepted"
+        },
+        {
+          "const": "uas_core_deferred_never_terminalizes_in_transaction_layer"
+        },
+        {
+          "const": "restart_and_drain_count_queued_inflight_retry_and_quarantined_observations"
+        }
+      ],
+      "items": false
     },
     "identity_fields": {
       "type": "array",
@@ -318,8 +522,8 @@
     },
     "transitions": {
       "type": "array",
-      "minItems": 14,
-      "maxItems": 14,
+      "minItems": 15,
+      "maxItems": 15,
       "prefixItems": [
         {
           "type": "object",
@@ -462,6 +666,22 @@
             },
             "to": {
               "const": "protocol_observed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "to"
+          ],
+          "properties": {
+            "from": {
+              "const": "transport_accepted"
+            },
+            "to": {
+              "const": "transport_completed"
             }
           }
         },

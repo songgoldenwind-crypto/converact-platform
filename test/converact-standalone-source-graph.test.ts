@@ -117,11 +117,11 @@ test('standalone source policy is explicit and keeps build assets out of Convera
     'src/agent-runtime/converact/contact-center/index.ts'
   ]);
   assert.deepEqual(policy.migrations.slice(-5), [
-    '108_converact_platform_identity_consent.sql',
-    '109_converact_platform_event_receipts.sql',
     '110_converact_platform_usage_ledger.sql',
     '111_converact_platform_key_lifecycle.sql',
-    '112_converact_platform_history_receipt_integrity.sql'
+    '112_converact_platform_history_receipt_integrity.sql',
+    '113_converact_sip_effect_transport_completed.sql',
+    '114_converact_sip_effect_transport_completed_validate.sql'
   ]);
   for (const prefix of [
     'src/agent-runtime/call-center/',

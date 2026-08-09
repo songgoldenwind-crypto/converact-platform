@@ -23,13 +23,16 @@ import {
   SIP_WIRE_BRANCH_PLACEHOLDER,
   sipRouteBindingSha256,
   sipWireAttemptFactsSha256,
-  sipWireFreezeSha256
+  sipWireFreezeSha256,
+  validateBoundSipWireAttemptFacts
 } from '../src/agent-runtime/converact/voice/sip-foundation/route-binding.js';
 import {
   SIP_FOUNDATION_TYPESCRIPT_ROLE,
   SipFoundationError,
   type BackendCapabilitySet,
   type BackendCapabilitySetInput,
+  type BoundSipWireAttemptFacts,
+  type BoundSipWireAttemptFactsV2,
   type SipFoundationAdapterSelection,
   type SipFoundationCapabilityId,
   type SipProtocolSessionBinding,
@@ -544,15 +547,19 @@ test('Protocol Session registry applies an O(1) global attempt budget and releas
 
 test('the adapter owns collision-resistant Via branches across live Protocol Sessions', () => {
   const adapter = new RsipstackFoundationAdapter(capabilitySet());
-  const registry = new SipFoundationSessionRegistry({
-    maximum_sessions: 2,
-    maximum_attempts: 2
+  const firstRegistry = new SipFoundationSessionRegistry({
+    maximum_sessions: 1,
+    maximum_attempts: 1
   });
-  const first = registry.openProtocolSession(adapter, {
+  const secondRegistry = new SipFoundationSessionRegistry({
+    maximum_sessions: 1,
+    maximum_attempts: 1
+  });
+  const first = firstRegistry.openProtocolSession(adapter, {
     protocol_session_id: 'branch-session-a',
     session_binding: sessionBinding(routeBinding())
   });
-  const second = registry.openProtocolSession(adapter, {
+  const second = secondRegistry.openProtocolSession(adapter, {
     protocol_session_id: 'branch-session-b',
     session_binding: sessionBinding(routeBinding())
   });
@@ -571,6 +578,12 @@ test('the adapter owns collision-resistant Via branches across live Protocol Ses
     firstPrepared.wire_attempt_facts.via_branch,
     secondPrepared.wire_attempt_facts.via_branch
   );
+  assertV2WireAttemptFacts(firstPrepared.wire_attempt_facts);
+  assertV2WireAttemptFacts(secondPrepared.wire_attempt_facts);
+  assert.notEqual(
+    firstPrepared.wire_attempt_facts.transaction_binding_sha256,
+    secondPrepared.wire_attempt_facts.transaction_binding_sha256
+  );
   assert.notEqual(
     firstPrepared.wire_attempt_facts.via_branch,
     SIP_WIRE_BRANCH_PLACEHOLDER
@@ -578,6 +591,19 @@ test('the adapter owns collision-resistant Via branches across live Protocol Ses
   assert.match(
     firstPrepared.wire_attempt_facts.via_branch,
     /^z9hG4bK-opc-[a-f0-9]{40}$/
+  );
+  const expectedFirstBranch = createHash('sha256')
+    .update(first.protocol_session_id)
+    .update('\0')
+    .update(first.protocol_session_generation)
+    .update('\0')
+    .update('shared-caller-effect-id')
+    .digest('hex')
+    .slice(0, 40);
+  assert.equal(
+    firstPrepared.wire_attempt_facts.via_branch,
+    `z9hG4bK-opc-${expectedFirstBranch}`,
+    'the globally stable session identity must be part of transaction identity'
   );
 });
 
@@ -674,6 +700,7 @@ test('prepare freezes exact wire identity, route binding, owner epoch and comman
     wire_attempt_facts: wireAttempt('effect-1'),
     canonical_wire_template: wire
   });
+  assertV2WireAttemptFacts(prepared.wire_attempt_facts);
 
   route.route.revision = 99;
   route.transport.next_hop.address = '2001:db8::99';
@@ -692,6 +719,32 @@ test('prepare freezes exact wire identity, route binding, owner epoch and comman
   assert.notEqual(
     prepared.wire_attempt_facts.via_branch,
     SIP_WIRE_BRANCH_PLACEHOLDER
+  );
+  assert.equal(
+    prepared.wire_attempt_facts.schema_id,
+    'sip-foundation-effect-wire-attempt-v2'
+  );
+  assert.equal(prepared.wire_attempt_facts.schema_version, '2.0.0');
+  assert.deepEqual(
+    prepared.wire_attempt_facts.lineage,
+    wireAttempt('effect-1')
+  );
+  assert.deepEqual(prepared.wire_attempt_facts.canonical_destination, {
+    transport_id: 'transport-tls-primary',
+    protocol: 'tls',
+    address: '2001:db8::20',
+    port: 5061,
+    selection_kind: 'route_candidate',
+    flow_id: null,
+    flow_generation: null
+  });
+  assert.match(
+    prepared.wire_attempt_facts.transaction_binding_sha256,
+    /^[a-f0-9]{64}$/
+  );
+  assert.equal(
+    prepared.wire_attempt_facts.completion_scope,
+    'transaction_peer_observation'
   );
   assert.equal(prepared.wire_identity.effect_id, 'effect-1');
   assert.equal(prepared.wire_identity.command_id, 'command-1');
@@ -1151,8 +1204,9 @@ test('route, fence, identity and wire inputs are bounded with stable error codes
     wire_attempt_facts: wireAttempt('effect-independent-root'),
     canonical_wire_template: sipWire(wireAttempt('effect-independent-root'))
   });
+  assertV2WireAttemptFacts(independentTransaction.wire_attempt_facts);
   assert.equal(
-    independentTransaction.wire_attempt_facts.parent_attempt_id,
+    independentTransaction.wire_attempt_facts.lineage.parent_attempt_id,
     null
   );
   assert.equal(registry.active_attempt_count, 3);
@@ -1308,6 +1362,153 @@ test('route, fence, identity and wire inputs are bounded with stable error codes
   );
 });
 
+test('wire-attempt v2 derives completion scope from the final message and rejects unavailable context', () => {
+  const adapter = new RsipstackFoundationAdapter(capabilitySet());
+  const registry = new SipFoundationSessionRegistry({
+    maximum_sessions: 8,
+    maximum_attempts: 64
+  });
+  const route = routeBinding();
+  const session = registry.openProtocolSession(adapter, {
+    protocol_session_id: 'protocol-session-completion-scope',
+    session_binding: sessionBinding(route)
+  });
+  const prepare = (
+    effectId: string,
+    canonicalWireTemplate: Uint8Array
+  ) => session.prepareEffect({
+    effect_id: effectId,
+    command_id: `command-${effectId}`,
+    owner_epoch: '9',
+    command_sequence: '3',
+    route_binding: route,
+    wire_attempt_facts: wireAttempt(effectId),
+    canonical_wire_template: canonicalWireTemplate
+  });
+
+  const scopeOf = (
+    effectId: string,
+    wire: Uint8Array
+  ) => {
+    const facts = prepare(effectId, wire).wire_attempt_facts;
+    assertV2WireAttemptFacts(facts);
+    return facts.completion_scope;
+  };
+
+  assert.equal(
+    scopeOf(
+      'effect-ack',
+      sipWire(wireAttempt('effect-ack'), route, 'ACK')
+    ),
+    'transport_accepted_terminal'
+  );
+  assert.equal(
+    scopeOf(
+      'effect-invite-200',
+      sipResponseWire(200, 'INVITE', route)
+    ),
+    'uas_core_deferred'
+  );
+  assert.equal(
+    scopeOf(
+      'effect-invite-486',
+      sipResponseWire(486, 'INVITE', route)
+    ),
+    'transaction_peer_observation'
+  );
+  assert.equal(
+    scopeOf(
+      'effect-options-200',
+      sipResponseWire(200, 'OPTIONS', route)
+    ),
+    'transport_accepted_terminal'
+  );
+  assert.throws(
+    () => prepare(
+      'effect-response-without-cseq',
+      sipResponseWire(200, null, route)
+    ),
+    hasCode('sip_foundation_wire_attempt_invalid')
+  );
+});
+
+test('wire-attempt rolling reads keep v1 exact and v2 hashes every adapter-owned fact', () => {
+  const v1 = Object.freeze({
+    ...wireAttempt('effect-v1-reader'),
+    via_branch: `z9hG4bK${'a'.repeat(32)}`
+  });
+  assert.deepEqual(
+    validateBoundSipWireAttemptFacts(v1, 'effect-v1-reader'),
+    v1
+  );
+  assert.throws(
+    () => validateBoundSipWireAttemptFacts(
+      { ...v1, completion_scope: 'transaction_peer_observation' } as never,
+      'effect-v1-reader'
+    ),
+    hasCode('sip_foundation_wire_attempt_invalid')
+  );
+
+  const adapter = new RsipstackFoundationAdapter(capabilitySet());
+  const registry = new SipFoundationSessionRegistry({
+    maximum_sessions: 4,
+    maximum_attempts: 16
+  });
+  const route = routeBinding();
+  const session = registry.openProtocolSession(adapter, {
+    protocol_session_id: 'protocol-session-v2-hash',
+    session_binding: sessionBinding(route)
+  });
+  const prepared = session.prepareEffect({
+    effect_id: 'effect-v2-hash',
+    command_id: 'command-v2-hash',
+    owner_epoch: '11',
+    command_sequence: '4',
+    route_binding: route,
+    wire_attempt_facts: wireAttempt('effect-v2-hash'),
+    canonical_wire_template: sipWire(
+      wireAttempt('effect-v2-hash'),
+      route,
+      'OPTIONS'
+    )
+  });
+  const preparedFacts = prepared.wire_attempt_facts;
+  assertV2WireAttemptFacts(preparedFacts);
+  const originalHash = sipWireAttemptFactsSha256(preparedFacts);
+  for (const changed of [
+    {
+      ...structuredClone(preparedFacts),
+      completion_scope: 'transport_accepted_terminal'
+    },
+    {
+      ...structuredClone(preparedFacts),
+      transaction_binding_sha256: 'f'.repeat(64)
+    },
+    {
+      ...structuredClone(preparedFacts),
+      canonical_destination: {
+        ...preparedFacts.canonical_destination,
+        port: 5060
+      }
+    }
+  ]) {
+    assert.notEqual(
+      sipWireAttemptFactsSha256(changed as never),
+      originalHash
+    );
+  }
+  assert.throws(
+    () => validateBoundSipWireAttemptFacts({
+      ...structuredClone(preparedFacts),
+      lineage: {
+        ...preparedFacts.lineage,
+        unchecked_scope: 'transaction_peer_observation'
+      }
+    } as never, 'effect-v2-hash'),
+    hasCode('sip_foundation_wire_attempt_invalid')
+  );
+});
+
 test('the Converact-owned seam does not import rvoip implementation types', () => {
   for (const file of [
     'src/agent-runtime/converact/voice/sip-foundation/types.ts',
@@ -1459,6 +1660,7 @@ function sipWire(
       `${sentByHost}:${route.advertised_via_sent_by.port};` +
       `branch=${SIP_WIRE_BRANCH_PLACEHOLDER}`,
     'From: "测试用户" <sip:1001@example.test>',
+    `CSeq: 1 ${method}`,
     ...route.route_set.map((value) => `Route: <${value}>`),
     ...authorizationHeaders.map((header) =>
       `${header.name}: ${header.value}`
@@ -1495,6 +1697,28 @@ function sipWire(
   );
   assert.equal(headers.byteLength + bodyLength, totalLength);
   return Buffer.concat([headers, Buffer.alloc(bodyLength)], totalLength);
+}
+
+function sipResponseWire(
+  status: number,
+  cseqMethod: string | null,
+  route: SipRouteBinding = routeBinding()
+): Buffer {
+  const sentByHost = route.advertised_via_sent_by.host.includes(':')
+    ? `[${route.advertised_via_sent_by.host}]`
+    : route.advertised_via_sent_by.host;
+  return Buffer.from([
+    `SIP/2.0 ${status} Test Response`,
+    `Via: SIP/2.0/${route.transport.protocol.toUpperCase()} ` +
+      `${sentByHost}:${route.advertised_via_sent_by.port};` +
+      `branch=${SIP_WIRE_BRANCH_PLACEHOLDER}`,
+    'From: <sip:1001@example.test>',
+    ...route.route_set.map((value) => `Route: <${value}>`),
+    ...(cseqMethod === null ? [] : [`CSeq: 1 ${cseqMethod}`]),
+    'Content-Length: 0',
+    '',
+    ''
+  ].join('\r\n'), 'utf8');
 }
 
 function materializeSipWire(
@@ -1536,6 +1760,15 @@ function sessionBinding(
     },
     authorization_identity: route.authorization_identity
   };
+}
+
+function assertV2WireAttemptFacts(
+  facts: BoundSipWireAttemptFacts
+): asserts facts is BoundSipWireAttemptFactsV2 {
+  assert.equal(
+    facts.schema_id,
+    'sip-foundation-effect-wire-attempt-v2'
+  );
 }
 
 function hasCode(code: string): (error: unknown) => boolean {

@@ -284,7 +284,9 @@ const STANDALONE_MIGRATIONS = [
   '109_converact_platform_event_receipts.sql',
   '110_converact_platform_usage_ledger.sql',
   '111_converact_platform_key_lifecycle.sql',
-  '112_converact_platform_history_receipt_integrity.sql'
+  '112_converact_platform_history_receipt_integrity.sql',
+  '113_converact_sip_effect_transport_completed.sql',
+  '114_converact_sip_effect_transport_completed_validate.sql'
 ];
 
 const CAPACITY_RUNTIME_SOURCE_PATHS = [

@@ -4,14 +4,17 @@ import { fileURLToPath } from 'node:url';
 
 import { Pool } from 'pg';
 
-import { applyConveractFabricMigrations } from './converact-migrations.js';
+import {
+  applyConveractFabricMigrations,
+  converactMigrationPoolConfig,
+} from './converact-migrations.js';
 
 async function main(): Promise<void> {
   const migrationsDirectory = resolve(
     resolveFabricEnv(process.env, 'MIGRATIONS_DIR') ||
     resolve(dirname(fileURLToPath(import.meta.url)), '..', 'migrations')
   );
-  const pool = new Pool({ max: 1 });
+  const pool = new Pool(converactMigrationPoolConfig(process.env));
   try {
     await pool.query('SELECT 1');
     await applyConveractFabricMigrations(pool, {

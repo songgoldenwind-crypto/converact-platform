@@ -157,6 +157,7 @@
       "durable_decision",
       "send_attempted",
       "transport_accepted",
+      "transport_completed",
       "protocol_observed",
       "failed",
       "unknown"
@@ -164,6 +165,8 @@
     "network_exactly_once": false,
     "query_scope": "local_durable_facts",
     "transport_acceptance_proves_peer_receipt": false,
+    "transport_completion_proves_peer_receipt": false,
+    "transport_completion_scope": "local_transport_terminal_policy_only",
     "protocol_observation_required_for_peer_effect": true,
     "unknown_effect_policy": "query_and_reconcile_same_attempt_identity",
     "retransmission_rule": "same_transaction_identity_and_wire_bytes_hash",

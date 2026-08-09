@@ -17,10 +17,13 @@ import {
   SIP_EFFECT_SCHEMA_HASH,
   SIP_EFFECT_SCHEMA_ID,
   SIP_EFFECT_SCHEMA_VERSION,
+  SIP_EFFECT_SCHEMA_V1_HASH,
+  SIP_EFFECT_SCHEMA_V1_VERSION,
   SipEffectError,
   SipEffectMetricBook,
   SipEffectOracle,
   canonicalSipEffectHash,
+  classifyProtocolEffectReceipt,
   cloneProtocolEffect,
   createAtomicBoundaryCommit,
   createStoreFailureSip503,
@@ -55,6 +58,7 @@ import {
 } from '../src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.js';
 import {
   SIP_WIRE_BRANCH_PLACEHOLDER,
+  finalizeSipWireAttemptFacts,
   sipRouteBindingSha256,
   sipWireAttemptFactsSha256,
   sipWireFreezeSha256
@@ -168,6 +172,11 @@ interface PreparedFixtureOverrides {
   owner_epoch?: string;
   command_sequence?: string;
   audit_until?: Date;
+  wire_attempt_version?: 1 | 2;
+  completion_scope?:
+    | 'transaction_peer_observation'
+    | 'transport_accepted_terminal'
+    | 'uas_core_deferred';
 }
 
 const TEST_ADAPTER_IDENTITY: BackendRuntimeIdentity = Object.freeze({
@@ -211,7 +220,7 @@ function preparedInput(
   const wireHash = overrides.wire_bytes_hash ?? sha256(wireBytes);
   const route = overrides.route_binding ?? effectFoundationRoute();
   const routeHash = sipRouteBindingSha256(route);
-  const attempt: BoundSipWireAttemptFacts = Object.freeze({
+  const legacyAttempt = Object.freeze({
     schema_id: 'sip-foundation-wire-attempt-v1',
     schema_version: '1.0.0',
     attempt_id: effectId,
@@ -221,6 +230,25 @@ function preparedInput(
     lineage_reason: 'transaction_root',
     via_branch: `z9hG4bK-opc-${sha256(effectId).slice(0, 40)}`
   });
+  const attempt: BoundSipWireAttemptFacts =
+    overrides.wire_attempt_version === 1
+      ? legacyAttempt
+      : finalizeSipWireAttemptFacts(legacyAttempt, {
+          canonical_destination: {
+            transport_id: route.transport.id,
+            protocol: route.transport.protocol,
+            address: route.transport.next_hop.address,
+            port: route.transport.next_hop.port,
+            selection_kind: 'route_candidate',
+            flow_id: null,
+            flow_generation: null
+          },
+          transaction_binding_sha256: sha256(
+            `${effectId}:${legacyAttempt.via_branch}`
+          ),
+          completion_scope:
+            overrides.completion_scope ?? 'transaction_peer_observation'
+        });
   const attemptHash = sipWireAttemptFactsSha256(attempt);
   const prepared: PreparedProtocolEffect = {
     adapter_identity: TEST_ADAPTER_IDENTITY,
@@ -383,7 +411,8 @@ class MemoryEffectStore implements ProtocolEffectStore {
         ? {
             receipt_id: input.receipt_id,
             receipt_hash: input.receipt_hash,
-            state: input.level as 'protocol_observed' | 'failed',
+            state: input.level as
+              'transport_completed' | 'protocol_observed' | 'failed',
             terminal_at: input.observed_at
           }
         : current!.terminal_tombstone
@@ -1251,6 +1280,104 @@ test('unknown receipt identity binds the repair delay policy', async () => {
       error instanceof SipEffectError &&
       error.code === 'sip_effect_receipt_conflict'
   );
+});
+
+test('transport completion is terminal local evidence and never peer protocol evidence', async () => {
+  const oracle = testSipEffectOracle({
+    store: new MemoryEffectStore(),
+    now: () => new Date('2026-07-30T00:00:00.000Z')
+  });
+  const input = preparedInput({
+    audit_until: new Date('2026-07-30T00:00:01.000Z'),
+    completion_scope: 'transport_accepted_terminal'
+  });
+  const effectIdentity = identity(input);
+  await oracle.prepare(input);
+  await oracle.recordDurableDecision(effectIdentity, 'receipt-durable');
+  await oracle.recordSendAttempted(effectIdentity, 'receipt-send');
+  await oracle.recordTransportAccepted(effectIdentity, 'receipt-accepted');
+
+  const completed = await oracle.recordTransportCompleted(
+    effectIdentity,
+    'receipt-transport-completed'
+  );
+  assert.equal(completed.state, 'transport_completed');
+  assert.equal(completed.terminal_tombstone?.state, 'transport_completed');
+  assert.equal(classifyProtocolEffectReceipt({
+    level: 'transport_completed',
+    from_state: 'transport_accepted'
+  }), 'transport_completed');
+  assert.notEqual(completed.state, 'protocol_observed');
+  await assert.rejects(
+    oracle.recordProtocolObserved(effectIdentity, 'receipt-peer-observed'),
+    (error: unknown) =>
+      error instanceof SipEffectError && error.code === 'sip_effect_terminal'
+  );
+  assert.equal(await oracle.pruneTerminalPayloads({
+    tenant_id: 'tenant-a',
+    cutoff: new Date('2026-07-30T00:00:02.000Z'),
+    limit: 1
+  }), 1);
+});
+
+test('rolling readers keep v1 effects drainable without granting them v2 transport completion', async () => {
+  const oracle = testSipEffectOracle({
+    store: new MemoryEffectStore(),
+    now: () => new Date('2026-07-30T00:00:00.000Z')
+  });
+  const legacyInput = preparedInput({ wire_attempt_version: 1 });
+  const legacyIdentity = identity(legacyInput);
+  await oracle.prepare(legacyInput);
+  await oracle.recordDurableDecision(
+    legacyIdentity,
+    'receipt-durable-v1'
+  );
+  const attempted = await oracle.recordSendAttempted(
+    legacyIdentity,
+    'receipt-send-v1'
+  );
+  const legacy = cloneEffect(attempted);
+  legacy.schema_version = SIP_EFFECT_SCHEMA_V1_VERSION;
+  legacy.schema_hash = SIP_EFFECT_SCHEMA_V1_HASH;
+  assert.equal(cloneProtocolEffect(legacy).schema_version, 1);
+
+  const pg = new TransitionCapturePg(effectRow(legacy));
+  const store = new PostgresEffectStore(pg);
+  const receiptId = 'receipt-unknown-v1-drain';
+  await assert.rejects(store.transition({
+    identity: legacyIdentity,
+    receipt_id: receiptId,
+    receipt_hash: canonicalSipEffectHash({
+      identity: legacyIdentity,
+      receipt_id: receiptId,
+      level: 'unknown',
+      failure_code: '',
+      repair_delay_ms: 1_000
+    }),
+    level: 'unknown',
+    allowed_from: ['send_attempted', 'transport_accepted'],
+    observed_at: '2026-07-30T00:00:01.000Z',
+    failure_code: '',
+    repair_delay_ms: 1_000,
+    terminal: false,
+    repair_fence: null
+  }), isFenceLost);
+  const receiptInsert = pg.queries.find((query) =>
+    query.text.includes('receipt-insert')
+  )!;
+  assert.equal(receiptInsert.params[16], SIP_EFFECT_SCHEMA_ID);
+  assert.equal(receiptInsert.params[17], SIP_EFFECT_SCHEMA_V1_VERSION);
+  assert.equal(receiptInsert.params[18], SIP_EFFECT_SCHEMA_V1_HASH);
+
+  const forgedV1Terminal = cloneEffect(legacy);
+  forgedV1Terminal.state = 'transport_completed';
+  forgedV1Terminal.terminal_tombstone = {
+    receipt_id: forgedV1Terminal.last_receipt_id!,
+    receipt_hash: forgedV1Terminal.last_receipt_hash!,
+    state: 'transport_completed',
+    terminal_at: forgedV1Terminal.updated_at
+  };
+  assert.throws(() => cloneProtocolEffect(forgedV1Terminal), isValidationError);
 });
 
 test('persisted effects reject inconsistent receipt, repair and timestamp groups', async () => {
@@ -2296,12 +2423,26 @@ test('Postgres NUMERIC uint64 values decode only from canonical decimal strings'
   );
 });
 
-test('migration 107 is authoritative; local projection has no duplicate DDL and rollout state is honest', async () => {
+test('migration 107 remains immutable while 113 expands v2 without activating it', async () => {
   const migrationUrl = new URL(
     '../src/migrations/107_ivekit_sip_effect_oracle.sql',
     import.meta.url
   );
   const migration = await readFile(migrationUrl, 'utf8');
+  const transportCompletedMigration = await readFile(
+    new URL(
+      '../src/migrations/113_converact_sip_effect_transport_completed.sql',
+      import.meta.url
+    ),
+    'utf8'
+  );
+  const transportCompletedValidation = await readFile(
+    new URL(
+      '../src/migrations/114_converact_sip_effect_transport_completed_validate.sql',
+      import.meta.url
+    ),
+    'utf8'
+  );
   const projection = await readFile(
     new URL(
       '../src/agent-runtime/converact/voice/sip-foundation/migrations/001_effect_oracle.sql',
@@ -2375,7 +2516,29 @@ test('migration 107 is authoritative; local projection has no duplicate DDL and 
     /jsonb_typeof\(fact_payload\) = 'object'/
   );
   assert.match(migration, /schema_version IN \(1,\s*2\)/);
-  assert.match(migration, new RegExp(SIP_EFFECT_SCHEMA_HASH));
+  assert.match(migration, new RegExp(SIP_EFFECT_SCHEMA_V1_HASH));
+  assert.doesNotMatch(migration, /transport_completed/);
+  assert.match(transportCompletedMigration, new RegExp(SIP_EFFECT_SCHEMA_HASH));
+  assert.match(transportCompletedMigration, /transport_completed/);
+  assert.match(transportCompletedMigration, /compatibility_slot[^;]*'N\+1'/s);
+  assert.match(transportCompletedMigration, /enabled\)\s*VALUES[\s\S]*FALSE/);
+  assert.doesNotMatch(
+    transportCompletedMigration,
+    /UPDATE\s+ivekit_sip_protocol_effects\s+SET/i
+  );
+  assert.doesNotMatch(transportCompletedMigration, /VALIDATE CONSTRAINT/);
+  for (const constraint of [
+    'ivekit_sip_protocol_effects_state_v2_check',
+    'ivekit_sip_protocol_effects_terminal_v2_check',
+    'ivekit_sip_effect_receipts_level_v2_check',
+    'ivekit_sip_effect_receipts_transition_v2_check'
+  ]) {
+    assert.match(
+      transportCompletedValidation,
+      new RegExp(`VALIDATE CONSTRAINT ${constraint}`)
+    );
+  }
+  assert.doesNotMatch(transportCompletedValidation, /DROP CONSTRAINT|UPDATE\s/i);
   assert.match(
     migration,
     /GRANT USAGE ON SCHEMA public TO opc_sip_effect_executor/
@@ -2425,13 +2588,32 @@ test('migration 107 is authoritative; local projection has no duplicate DDL and 
 
   const plan = readPostgresMigrationPlan(new URL('../src/migrations', import.meta.url).pathname);
   const sipEffectMigration = plan.find((entry) => entry.file === '107_ivekit_sip_effect_oracle.sql');
+  const transportCompletedEntry = plan.find((entry) =>
+    entry.file === '113_converact_sip_effect_transport_completed.sql'
+  );
+  const transportCompletedValidationEntry = plan.find((entry) =>
+    entry.file === '114_converact_sip_effect_transport_completed_validate.sql'
+  );
   assert.ok(sipEffectMigration);
+  assert.ok(transportCompletedEntry);
+  assert.ok(transportCompletedValidationEntry);
   const runner = new MigrationRecorder();
-  await runPostgresMigrationsOnClient(runner, [sipEffectMigration]);
-  assert.deepEqual(runner.applied, ['107_ivekit_sip_effect_oracle']);
+  await runPostgresMigrationsOnClient(
+    runner,
+    [
+      sipEffectMigration,
+      transportCompletedEntry,
+      transportCompletedValidationEntry
+    ]
+  );
+  assert.deepEqual(runner.applied, [
+    '107_ivekit_sip_effect_oracle',
+    '113_converact_sip_effect_transport_completed',
+    '114_converact_sip_effect_transport_completed_validate'
+  ]);
 
   assert.equal(SIP_EFFECT_SCHEMA_ID, 'ivekit.sip-effect-oracle');
-  assert.equal(SIP_EFFECT_SCHEMA_VERSION, 1);
+  assert.equal(SIP_EFFECT_SCHEMA_VERSION, 2);
   assert.match(SIP_EFFECT_SCHEMA_HASH, /^[a-f0-9]{64}$/);
   assert.equal(
     canonicalSipEffectHash(SIP_EFFECT_MACHINE_SCHEMA_DESCRIPTOR),

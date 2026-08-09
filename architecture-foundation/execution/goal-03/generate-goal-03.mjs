@@ -26,7 +26,7 @@ const sourceIdentity = Object.freeze({
   rustpbx_commit: '6c49ee76baa54fdbf8f98020cc9bee158c7c15de',
   rsipstack_commit: '8318e97b1170de4e5245b120afec1cdf53e3d716',
   rustrtc_commit: '166c6d22984429eb6b509920c14fcd69f974f0b3',
-  patchset: 'ivekit.58',
+  patchset: 'ivekit.59',
   current_adapter: 'rsipstack',
   target_adapter: 'rvoip_low_level_slices_after_separate_gates',
   native_runtime_authority: 'Unified RustPBX process',
@@ -1176,14 +1176,27 @@ function effectReceiptContract() {
     persistence: 'PostgreSQL Region durable store',
     schema_identity: {
       schema_id: 'ivekit.sip-effect-oracle',
-      current_schema_version: 1,
-      current_schema_hash: 'ae27a73dac95c90686f8020c2fb5e92dd016cc1712216d03b227ec3a6d6ca5ba',
+      current_schema_version: 2,
+      current_schema_hash: '7f4cd00c42bb4607c6b443261a06b06bd42117718c1f858293f1471e3ccb153b',
+      supported_read_schemas: [
+        {
+          schema_version: 1,
+          schema_hash: 'ae27a73dac95c90686f8020c2fb5e92dd016cc1712216d03b227ec3a6d6ca5ba',
+          write_scope: 'drain_existing_effects_only',
+        },
+        {
+          schema_version: 2,
+          schema_hash: '7f4cd00c42bb4607c6b443261a06b06bd42117718c1f858293f1471e3ccb153b',
+          write_scope: 'new_effects_after_activation_receipt',
+        },
+      ],
       writer_identity: 'unified-rustpbx.sip-foundation',
       physical_activation_status: 'not_run',
     },
     states: [
       'prepared', 'durable_decision', 'send_attempted',
-      'transport_accepted', 'protocol_observed', 'failed', 'unknown',
+      'transport_accepted', 'transport_completed',
+      'protocol_observed', 'failed', 'unknown',
     ],
     semantic_receipt_classes: {
       accepted: {
@@ -1195,7 +1208,15 @@ function effectReceiptContract() {
       completed: {
         level: 'protocol_observed',
         from_states: ['send_attempted', 'transport_accepted'],
-        proves: 'selected_protocol_completion_observed_on_primary_path',
+        proves: 'frozen_completion_scope_satisfied_on_primary_path',
+        peer_received_proof:
+          'only_for_transaction_peer_observation_scope_not_transport_accepted_terminal',
+      },
+      transport_completed: {
+        level: 'transport_completed',
+        from_state: 'transport_accepted',
+        proves: 'local_transport_terminal_policy_satisfied',
+        does_not_prove: 'peer_received_or_protocol_completed',
       },
       state_observed: {
         level: 'protocol_observed',
@@ -1207,6 +1228,40 @@ function effectReceiptContract() {
         retry_policy: 'never_blindly_issue_new_effect_identity',
       },
     },
+    completion_scopes: {
+      wire_fact: 'completion_scope',
+      writer_authority: 'Unified RustPBX rsipstack frozen effect classifier',
+      missing_or_unrecognized: 'fail_closed_before_terminal_receipt',
+      transaction_peer_observation: {
+        applies_to:
+          'client_requests_except_ACK_and_server_non_2xx_INVITE_final_responses',
+        terminal_condition: 'exact_matching_final_response_or_ACK',
+        transport_acceptance_alone: 'non_terminal',
+      },
+      transport_accepted_terminal: {
+        applies_to:
+          'ACK_and_server_responses_without_a_transaction_layer_peer_completion',
+        terminal_condition:
+          'durable_transport_accepted_then_transport_terminal_policy_observation',
+        receipt_level: 'transport_completed',
+        does_not_prove: 'peer_received_message',
+        terminal_payload_compaction: 'allowed_only_after_terminal_receipt',
+      },
+      uas_core_deferred: {
+        applies_to: 'server_2xx_INVITE_responses',
+        current_owner_wiring: 'not_run',
+        transaction_layer_disposition: 'unknown_not_completed',
+        terminal_condition: 'UAS_Core_exact_ACK_observation_future_gate',
+      },
+    },
+    completion_scope_invariants: [
+      'completion_scope_is_hashed_inside_wire_attempt_facts_before_send',
+      'completion_scope_mismatch_never_fabricates_protocol_observed',
+      'transport_completed_never_aliases_protocol_observed',
+      'transport_terminal_requires_prior_durable_transport_accepted',
+      'uas_core_deferred_never_terminalizes_in_transaction_layer',
+      'restart_and_drain_count_queued_inflight_retry_and_quarantined_observations',
+    ],
     identity_fields: [
       'tenant_id', 'protocol_effect_id', 'protocol_session_id',
       'protocol_session_generation', 'decision_id', 'idempotency_key',
@@ -1224,6 +1279,7 @@ function effectReceiptContract() {
       ['send_attempted', 'unknown'],
       ['send_attempted', 'failed'],
       ['transport_accepted', 'protocol_observed'],
+      ['transport_accepted', 'transport_completed'],
       ['transport_accepted', 'unknown'],
       ['transport_accepted', 'failed'],
       ['unknown', 'protocol_observed'],
@@ -1701,6 +1757,8 @@ const sourceMaps = Object.freeze({
       'src/agent-runtime/converact/voice/sip-foundation/effect-oracle.ts',
       'src/agent-runtime/converact/voice/sip-foundation/postgres-effect-store.ts',
       'src/migrations/107_ivekit_sip_effect_oracle.sql',
+      'src/migrations/113_converact_sip_effect_transport_completed.sql',
+      'src/migrations/114_converact_sip_effect_transport_completed_validate.sql',
     ],
     test_paths: [
       'test/converact-sip-receipt-drain.test.ts',

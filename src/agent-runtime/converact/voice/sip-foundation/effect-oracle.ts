@@ -17,6 +17,7 @@ import {
   bindSipRoute,
   sipRouteBindingSha256,
   sipWireAttemptFactsSha256,
+  sipWireAttemptLineage,
   sipWireFreezeSha256,
   validateBoundSipWireAttemptFacts
 } from './route-binding.js';
@@ -31,11 +32,14 @@ import {
 
 export type UInt64Decimal = string;
 
+export type SipEffectSchemaVersion = 1 | 2;
+
 export type ProtocolEffectState =
   | 'prepared'
   | 'durable_decision'
   | 'send_attempted'
   | 'transport_accepted'
+  | 'transport_completed'
   | 'protocol_observed'
   | 'failed'
   | 'unknown';
@@ -98,6 +102,7 @@ export type ProtocolEffectReceiptSemanticClass =
   | 'durable_decision'
   | 'send_attempted'
   | 'accepted'
+  | 'transport_completed'
   | 'completed'
   | 'state_observed'
   | 'unknown'
@@ -134,6 +139,10 @@ export function classifyProtocolEffectReceipt(
   }
   if (level === 'transport_accepted' && fromState === 'send_attempted') {
     return 'accepted';
+  }
+  if (level === 'transport_completed' &&
+      fromState === 'transport_accepted') {
+    return 'transport_completed';
   }
   if (level === 'protocol_observed' &&
       (fromState === 'send_attempted' ||
@@ -198,14 +207,14 @@ export interface ProtocolEffectIdentity {
 export interface ProtocolEffectTombstone {
   receipt_id: string;
   receipt_hash: string;
-  state: 'protocol_observed' | 'failed';
+  state: 'transport_completed' | 'protocol_observed' | 'failed';
   terminal_at: string;
 }
 
 export interface ProtocolEffectRecord extends ProtocolEffectIdentity {
   schema_id: typeof SIP_EFFECT_SCHEMA_ID;
-  schema_version: typeof SIP_EFFECT_SCHEMA_VERSION;
-  schema_hash: typeof SIP_EFFECT_SCHEMA_HASH;
+  schema_version: SipEffectSchemaVersion;
+  schema_hash: string;
   adapter_identity: BackendRuntimeIdentity;
   canonical_wire_bytes: Uint8Array;
   route_binding: BoundSipRouteBinding;
@@ -402,10 +411,27 @@ const MAX_ERROR_DETAIL_STRING_UTF8_BYTES = 1_024;
 const MAX_ERROR_DETAIL_KEY_UTF8_BYTES = 128;
 
 export const SIP_EFFECT_SCHEMA_ID = 'ivekit.sip-effect-oracle' as const;
-export const SIP_EFFECT_SCHEMA_VERSION = 1 as const;
+export const SIP_EFFECT_SCHEMA_V1_VERSION = 1 as const;
+export const SIP_EFFECT_SCHEMA_V1_HASH =
+  'ae27a73dac95c90686f8020c2fb5e92dd016cc1712216d03b227ec3a6d6ca5ba' as const;
+export const SIP_EFFECT_SCHEMA_VERSION = 2 as const;
 export const SIP_EFFECT_MACHINE_SCHEMA_DESCRIPTOR = deepFreezeJson({
   schema_id: SIP_EFFECT_SCHEMA_ID,
   schema_version: SIP_EFFECT_SCHEMA_VERSION,
+  supported_read_schemas: [
+    {
+      schema_version: SIP_EFFECT_SCHEMA_V1_VERSION,
+      schema_hash: SIP_EFFECT_SCHEMA_V1_HASH,
+      writes: 'drain_existing_effects_only',
+      transport_completed: false
+    },
+    {
+      schema_version: SIP_EFFECT_SCHEMA_VERSION,
+      schema_hash: 'self:canonical-descriptor-sha256',
+      writes: 'new_effects_after_activation_receipt',
+      transport_completed: true
+    }
+  ],
   closedness: {
     records: 'exact-enumerable-own-data-properties-only',
     arrays: 'dense-exact-array-prototype-no-symbols-or-extra-keys',
@@ -472,6 +498,27 @@ export const SIP_EFFECT_MACHINE_SCHEMA_DESCRIPTOR = deepFreezeJson({
       'parent_attempt_id',
       'lineage_reason',
       'via_branch'
+    ],
+    effect_wire_attempt_facts_v2: [
+      'schema_id',
+      'schema_version',
+      'lineage.schema_id',
+      'lineage.schema_version',
+      'lineage.attempt_id',
+      'lineage.transaction_lineage_id',
+      'lineage.semantic_intent_sha256',
+      'lineage.parent_attempt_id',
+      'lineage.lineage_reason',
+      'via_branch',
+      'canonical_destination.transport_id',
+      'canonical_destination.protocol',
+      'canonical_destination.address',
+      'canonical_destination.port',
+      'canonical_destination.selection_kind',
+      'canonical_destination.flow_id',
+      'canonical_destination.flow_generation',
+      'transaction_binding_sha256',
+      'completion_scope'
     ]
   },
   protocol_effect_identity_fields: [
@@ -547,6 +594,7 @@ export const SIP_EFFECT_MACHINE_SCHEMA_DESCRIPTOR = deepFreezeJson({
     'durable_decision',
     'send_attempted',
     'transport_accepted',
+    'transport_completed',
     'protocol_observed',
     'failed',
     'unknown'
@@ -560,8 +608,14 @@ export const SIP_EFFECT_MACHINE_SCHEMA_DESCRIPTOR = deepFreezeJson({
       'failed',
       'unknown'
     ],
-    transport_accepted: ['protocol_observed', 'failed', 'unknown'],
+    transport_accepted: [
+      'transport_completed',
+      'protocol_observed',
+      'failed',
+      'unknown'
+    ],
     unknown: ['unknown', 'protocol_observed', 'failed'],
+    transport_completed: [],
     protocol_observed: [],
     failed: []
   },
@@ -596,6 +650,24 @@ export const SIP_EFFECT_MACHINE_SCHEMA_DESCRIPTOR = deepFreezeJson({
       'transport_accepted'
     ],
     unknown_requires_repair_fence: true
+  },
+  completion_scope_contract: {
+    persisted_in: 'sip-foundation-effect-wire-attempt-v2',
+    values: [
+      'transaction_peer_observation',
+      'transport_accepted_terminal',
+      'uas_core_deferred'
+    ],
+    writer: 'rsipstack-final-wire-classifier',
+    derived_against_frozen_message: true,
+    missing_or_mismatched: 'fail_closed',
+    transport_completed: {
+      requires_scope: 'transport_accepted_terminal',
+      requires_prior_state: 'transport_accepted',
+      proves: 'local_transport_completion_policy_only',
+      does_not_prove: 'peer_received_or_protocol_completed'
+    },
+    legacy_v1_missing_scope: 'never_transport_completed'
   },
   repair: {
     delay_ms: '0..86400000',
@@ -659,6 +731,22 @@ export const SIP_EFFECT_MACHINE_SCHEMA_DESCRIPTOR = deepFreezeJson({
 export const SIP_EFFECT_SCHEMA_HASH = canonicalSipEffectHash(
   SIP_EFFECT_MACHINE_SCHEMA_DESCRIPTOR
 );
+
+export function isSupportedSipEffectSchema(input: {
+  schema_id: unknown;
+  schema_version: unknown;
+  schema_hash: unknown;
+}): input is {
+  schema_id: typeof SIP_EFFECT_SCHEMA_ID;
+  schema_version: SipEffectSchemaVersion;
+  schema_hash: string;
+} {
+  return input.schema_id === SIP_EFFECT_SCHEMA_ID &&
+    ((input.schema_version === SIP_EFFECT_SCHEMA_V1_VERSION &&
+      input.schema_hash === SIP_EFFECT_SCHEMA_V1_HASH) ||
+     (input.schema_version === SIP_EFFECT_SCHEMA_VERSION &&
+      input.schema_hash === SIP_EFFECT_SCHEMA_HASH));
+}
 
 export const SIP_EFFECT_ATOMIC_DOMAIN_WRITES_STATUS = Object.freeze({
   status: 'not_wired_not_production' as const,
@@ -993,6 +1081,30 @@ export class SipEffectOracle {
       receiptId,
       'protocol_observed',
       ['send_attempted', 'transport_accepted'],
+      { terminal: true }
+    );
+  }
+
+  async recordTransportCompleted(
+    identity: ProtocolEffectIdentity,
+    receiptId: string
+  ): Promise<ProtocolEffectRecord> {
+    const current = await this.#required(identity);
+    const facts = current.wire_attempt_facts;
+    if (current.schema_version !== SIP_EFFECT_SCHEMA_VERSION ||
+        facts.schema_id !== 'sip-foundation-effect-wire-attempt-v2' ||
+        facts.completion_scope !== 'transport_accepted_terminal') {
+      throw new SipEffectError({
+        code: 'sip_effect_transition_conflict',
+        status: 409,
+        details: { reason: 'transport_completion_scope_not_authorized' }
+      });
+    }
+    return this.#transition(
+      identity,
+      receiptId,
+      'transport_completed',
+      ['transport_accepted'],
       { terminal: true }
     );
   }
@@ -1718,10 +1830,14 @@ export function cloneProtocolEffect(
     'protocol_effect'
   );
   const identity = validateProtocolEffectIdentity(pickIdentity(record));
-  if (record.schema_id !== SIP_EFFECT_SCHEMA_ID ||
-      record.schema_version !== SIP_EFFECT_SCHEMA_VERSION ||
-      record.schema_hash !== SIP_EFFECT_SCHEMA_HASH ||
+  if (!isSupportedSipEffectSchema({
+        schema_id: record.schema_id,
+        schema_version: record.schema_version,
+        schema_hash: record.schema_hash
+      }) ||
       !EFFECT_STATES.has(record.state as ProtocolEffectState) ||
+      (record.schema_version === SIP_EFFECT_SCHEMA_V1_VERSION &&
+       record.state === 'transport_completed') ||
       typeof record.payload_retained !== 'boolean') {
     validation('protocol_effect');
   }
@@ -1752,7 +1868,8 @@ export function cloneProtocolEffect(
         wire_sha256: identity.wire_bytes_hash,
         wire_length_bytes: identity.wire_length_bytes
       }) !== identity.wire_freeze_sha256 ||
-      wireAttemptFacts.semantic_intent_sha256 !== identity.request_hash ||
+      sipWireAttemptLineage(wireAttemptFacts).semantic_intent_sha256 !==
+        identity.request_hash ||
       (record.payload_retained &&
        (sha256(wireBytes) !== identity.wire_bytes_hash ||
         wireBytes.byteLength !== identity.wire_length_bytes))) {
@@ -1921,7 +2038,8 @@ export function cloneProtocolEffect(
       ['receipt_id', 'receipt_hash', 'state', 'terminal_at'],
       'terminal_tombstone'
     );
-    if (terminal.state !== 'protocol_observed' &&
+    if (terminal.state !== 'transport_completed' &&
+        terminal.state !== 'protocol_observed' &&
         terminal.state !== 'failed') {
       validation('terminal_tombstone.state');
     }
@@ -1933,7 +2051,9 @@ export function cloneProtocolEffect(
     };
   }
   const terminalState =
-    state === 'protocol_observed' || state === 'failed';
+    state === 'transport_completed' ||
+    state === 'protocol_observed' ||
+    state === 'failed';
   if (terminalState !== (tombstone !== null) ||
       (tombstone && tombstone.state !== state) ||
       (tombstone &&
@@ -2086,6 +2206,7 @@ const EFFECT_STATES = new Set<ProtocolEffectState>([
   'durable_decision',
   'send_attempted',
   'transport_accepted',
+  'transport_completed',
   'protocol_observed',
   'failed',
   'unknown'
@@ -2300,7 +2421,8 @@ function preparedEffect(
     });
   }
   const requestHash = hash(record.request_hash, 'request_hash');
-  if (requestHash !== wireAttemptFacts.semantic_intent_sha256) {
+  if (requestHash !==
+      sipWireAttemptLineage(wireAttemptFacts).semantic_intent_sha256) {
     validation('request_hash');
   }
   const checkedIdentity = validateProtocolEffectIdentity({

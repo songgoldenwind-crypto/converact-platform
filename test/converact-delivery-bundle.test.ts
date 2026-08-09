@@ -946,13 +946,15 @@ test('Converact Fabric delivery bundle contains only curated handoff artifacts w
       '109_converact_platform_event_receipts.sql',
       '110_converact_platform_usage_ledger.sql',
       '111_converact_platform_key_lifecycle.sql',
-      '112_converact_platform_history_receipt_integrity.sql'
+      '112_converact_platform_history_receipt_integrity.sql',
+      '113_converact_sip_effect_transport_completed.sql',
+      '114_converact_sip_effect_transport_completed_validate.sql'
     ]) assert.equal(files.includes(`database/migrations/${migration}`), true, migration);
     const migrationManifest = JSON.parse(readFileSync(
       join(outputDir, 'service', 'migration-manifest.json'),
       'utf8'
     )) as { migrations: Array<{ file: string; sha256: string }> };
-    assert.equal(migrationManifest.migrations.length, 96);
+    assert.equal(migrationManifest.migrations.length, 98);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '041_tinode_inbound_sync.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '042_ivekit_tenant_events.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '043_ivekit_intelligence_translation.sql'), true);
@@ -1019,6 +1021,8 @@ test('Converact Fabric delivery bundle contains only curated handoff artifacts w
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '110_converact_platform_usage_ledger.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '111_converact_platform_key_lifecycle.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '112_converact_platform_history_receipt_integrity.sql'), true);
+    assert.equal(migrationManifest.migrations.some((entry) => entry.file === '113_converact_sip_effect_transport_completed.sql'), true);
+    assert.equal(migrationManifest.migrations.some((entry) => entry.file === '114_converact_sip_effect_transport_completed_validate.sql'), true);
     assert.equal(migrationManifest.migrations.every((entry) => /^[a-f0-9]{64}$/.test(entry.sha256)), true);
     const imageMetadata = JSON.parse(readFileSync(
       join(outputDir, 'service', 'image-metadata.json'),

@@ -116,10 +116,9 @@
  }
  
  fn map_native_leg_registration_error(error: NativeCallError) -> ActiveCallRegistryError {
-@@ -1636,4 +1643,54 @@
+@@ -1636,3 +1643,53 @@
          assert_eq!(registry.handles_by_dialog_count(), 0);
      }
- 
 +    #[test]
 +    fn live_standalone_registration_uses_native_identity_and_admission_authority() {
 +        let registry = ActiveProxyCallRegistry::with_limits(4, 16);

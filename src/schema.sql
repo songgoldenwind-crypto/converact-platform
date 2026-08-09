@@ -2570,7 +2570,7 @@ CREATE INDEX IF NOT EXISTS idx_rustdesk_device_commands_claim
 
 -- ===== Revision 4 SIP effect authority (SQLite/dev projection) =====
 -- "Oracle" in the machine schema id means a fact arbiter, not Oracle Database.
--- PostgreSQL authority: src/migrations/107_ivekit_sip_effect_oracle.sql.
+-- PostgreSQL authority: migrations 107 (v1 base) and 113 (v2 expand).
 -- All uint64 authority values stay canonical decimal TEXT in this projection.
 
 CREATE TABLE IF NOT EXISTS ivekit_sip_effect_schema_registry (
@@ -2642,7 +2642,9 @@ CREATE TABLE IF NOT EXISTS ivekit_sip_protocol_effects (
   writer_identity TEXT NOT NULL,
   state TEXT NOT NULL CHECK (
     state IN ('prepared', 'durable_decision', 'send_attempted',
-              'transport_accepted', 'protocol_observed', 'failed', 'unknown')
+              'transport_accepted', 'transport_completed',
+              'protocol_observed', 'failed', 'unknown') AND
+    (schema_version <> 1 OR state <> 'transport_completed')
   ),
   revision TEXT NOT NULL DEFAULT '1',
   unknown_count INTEGER NOT NULL DEFAULT 0 CHECK (unknown_count >= 0),
@@ -2684,6 +2686,21 @@ CREATE TABLE IF NOT EXISTS ivekit_sip_protocol_effects (
   UNIQUE (tenant_id, idempotency_key),
   CHECK (
     payload_retained = 0 OR length(canonical_wire_bytes) = wire_length_bytes
+  ),
+  CHECK (
+    (
+      terminal_tombstone_id IS NULL AND
+      terminal_tombstone_hash IS NULL AND
+      terminal_at IS NULL AND
+      state NOT IN ('transport_completed', 'protocol_observed', 'failed')
+    ) OR (
+      terminal_tombstone_id IS NOT NULL AND
+      terminal_tombstone_hash IS NOT NULL AND
+      terminal_at IS NOT NULL AND
+      state IN ('transport_completed', 'protocol_observed', 'failed') AND
+      terminal_tombstone_id = last_receipt_id AND
+      terminal_tombstone_hash = last_receipt_hash
+    )
   )
 );
 
@@ -2700,8 +2717,19 @@ CREATE TABLE IF NOT EXISTS ivekit_sip_effect_receipts (
   owner_epoch TEXT NOT NULL,
   command_sequence TEXT NOT NULL,
   receipt_hash TEXT NOT NULL,
-  level TEXT NOT NULL,
-  from_state TEXT NOT NULL,
+  level TEXT NOT NULL CHECK (
+    level IN (
+      'durable_decision', 'send_attempted', 'transport_accepted',
+      'transport_completed', 'protocol_observed', 'failed', 'unknown'
+    ) AND
+    (schema_version <> 1 OR level <> 'transport_completed')
+  ),
+  from_state TEXT NOT NULL CHECK (
+    from_state IN (
+      'prepared', 'durable_decision', 'send_attempted',
+      'transport_accepted', 'unknown'
+    )
+  ),
   failure_code TEXT NOT NULL DEFAULT '',
   repair_delay_ms INTEGER CHECK (
     repair_delay_ms IS NULL OR repair_delay_ms BETWEEN 0 AND 86400000
@@ -2714,7 +2742,32 @@ CREATE TABLE IF NOT EXISTS ivekit_sip_effect_receipts (
   PRIMARY KEY (tenant_id, receipt_id),
   FOREIGN KEY (tenant_id, protocol_effect_id)
     REFERENCES ivekit_sip_protocol_effects(tenant_id, protocol_effect_id)
-    ON DELETE RESTRICT
+    ON DELETE RESTRICT,
+  CHECK (
+    (level = 'durable_decision' AND from_state = 'prepared') OR
+    (level = 'send_attempted' AND from_state = 'durable_decision') OR
+    (level = 'transport_accepted' AND from_state = 'send_attempted') OR
+    (
+      level = 'transport_completed' AND
+      schema_version = 2 AND
+      from_state = 'transport_accepted'
+    ) OR
+    (
+      level = 'protocol_observed' AND
+      from_state IN ('send_attempted', 'transport_accepted', 'unknown')
+    ) OR
+    (
+      level = 'failed' AND
+      from_state IN (
+        'prepared', 'durable_decision', 'send_attempted',
+        'transport_accepted', 'unknown'
+      )
+    ) OR
+    (
+      level = 'unknown' AND
+      from_state IN ('send_attempted', 'transport_accepted', 'unknown')
+    )
+  )
 );
 
 CREATE TABLE IF NOT EXISTS ivekit_sip_durable_boundaries (

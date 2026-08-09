@@ -1,5 +1,17 @@
 import { runMigrations, type PgQueryable } from './db-pg.js';
 
+export interface ConveractMigrationPoolConfig {
+  connectionString?: string;
+  max: 1;
+}
+
+export function converactMigrationPoolConfig(
+  env: Readonly<Record<string, string | undefined>>,
+): ConveractMigrationPoolConfig {
+  const connectionString = env.DATABASE_URL?.trim();
+  return connectionString ? { connectionString, max: 1 } : { max: 1 };
+}
+
 export interface ApplyConveractFabricMigrationsOptions {
   directory: string;
   advisoryLockName?: string;

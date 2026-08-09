@@ -172,7 +172,7 @@ export interface SipWireAttemptFacts {
   lineage_reason: 'transaction_root' | 'derived_attempt';
 }
 
-export interface BoundSipWireAttemptFacts {
+export interface BoundSipWireAttemptFactsV1 {
   readonly schema_id: 'sip-foundation-wire-attempt-v1';
   readonly schema_version: '1.0.0';
   readonly attempt_id: string;
@@ -182,6 +182,46 @@ export interface BoundSipWireAttemptFacts {
   readonly lineage_reason: 'transaction_root' | 'derived_attempt';
   readonly via_branch: string;
 }
+
+export type SipWireAttemptCompletionScope =
+  | 'transaction_peer_observation'
+  | 'transport_accepted_terminal'
+  | 'uas_core_deferred';
+
+export interface SipWireAttemptCanonicalDestination {
+  readonly transport_id: string;
+  readonly protocol: SipTransportProtocol;
+  readonly address: string;
+  readonly port: number;
+  readonly selection_kind:
+    | 'route_candidate'
+    | 'datagram_destination'
+    | 'connected_flow';
+  readonly flow_id: string | null;
+  readonly flow_generation: string | null;
+}
+
+export interface BoundSipWireAttemptFactsV2 {
+  readonly schema_id: 'sip-foundation-effect-wire-attempt-v2';
+  readonly schema_version: '2.0.0';
+  readonly lineage: Readonly<SipWireAttemptFacts>;
+  readonly via_branch: string;
+  /**
+   * The final transport selection. A live native adapter must compare this to
+   * the actual selected connection/destination and fail closed when that
+   * send-time fact is unavailable; a caller-provided destination is not
+   * authoritative. Native Rust alignment is `not_run` pending a typed actual
+   * transport binding; this TypeScript conformance value is route-bound only.
+   */
+  readonly canonical_destination: SipWireAttemptCanonicalDestination;
+  readonly transaction_binding_sha256: string;
+  /** Derived by the adapter from the final SIP message, never caller-selected. */
+  readonly completion_scope: SipWireAttemptCompletionScope;
+}
+
+export type BoundSipWireAttemptFacts =
+  | BoundSipWireAttemptFactsV1
+  | BoundSipWireAttemptFactsV2;
 
 export interface OpenProtocolSessionInput {
   protocol_session_id: string;

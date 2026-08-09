@@ -1,0 +1,4802 @@
+diff --git a/src/call/adapters/postgres_sip_effect.rs b/src/call/adapters/postgres_sip_effect.rs
+index 1cf541b..4db8257 100644
+--- a/src/call/adapters/postgres_sip_effect.rs
++++ b/src/call/adapters/postgres_sip_effect.rs
+@@ -1,16 +1,18 @@
+ use crate::call::domain::sip_effect::{
+     PreparedSipEffect, SIP_EFFECT_REPAIR_ATTEMPT_CEILING, SIP_EFFECT_SCHEMA_HASH,
+-    SIP_EFFECT_SCHEMA_ID, SIP_EFFECT_SCHEMA_VERSION, SIP_EFFECT_WRITER_IDENTITY,
+-    SipEffectApplyOutcome, SipEffectError, SipEffectPrepareOutcome, SipEffectReceipt,
+-    SipEffectReceiptLevel, SipEffectReconcileOutcome, SipEffectRecord, SipEffectRepairFence,
+-    SipEffectState, classify_receipt, protocol_effect_identity_hash,
+-    sip_effect_repair_exhaustion_hash, validate_sip_effect_identifier,
++    SIP_EFFECT_SCHEMA_ID, SIP_EFFECT_SCHEMA_V1_HASH, SIP_EFFECT_SCHEMA_V1_VERSION,
++    SIP_EFFECT_SCHEMA_VERSION, SIP_EFFECT_WRITER_IDENTITY, SipEffectApplyOutcome, SipEffectError,
++    SipEffectPrepareOutcome, SipEffectReceipt, SipEffectReceiptLevel, SipEffectReconcileOutcome,
++    SipEffectRecord, SipEffectRepairFence, SipEffectState, classify_receipt,
++    protocol_effect_identity_hash, sip_effect_repair_exhaustion_hash, sip_effect_stage_token,
++    validate_sip_effect_identifier,
+ };
+ use chrono::{DateTime, Utc};
+ use serde_json::Value;
+ use sqlx::postgres::{PgPoolOptions, PgRow};
+ use sqlx::{PgPool, Postgres, Row, Transaction};
+ use std::collections::{HashMap, HashSet};
++use std::future::Future;
+ use std::sync::Arc;
+ use std::sync::atomic::{AtomicUsize, Ordering};
+ use std::time::Duration;
+@@ -22,6 +24,7 @@ const MAX_STORE_WAIT: Duration = Duration::from_millis(250);
+ const MAX_REPAIR_LEASE: Duration = Duration::from_secs(30);
+ const MAX_REPAIR_BATCH_SIZE: usize = 100;
+ const MAX_REPAIR_TOKEN_PREFIX_BYTES: usize = 128;
++const MAX_AUDIT_RETENTION_MS: i64 = 315_576_000_000;
+ 
+ #[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+ pub enum SipEffectStoreError {
+@@ -113,7 +116,9 @@ const PREPARE_INSERT_SQL: &str = concat!(
+            $13, $14::jsonb, $15, $16::jsonb, $17, $18, $19, $20::numeric,
+            $21::numeric, $22, $23, $24, $25, 'prepared', 1, 0, NULL, NULL,
+            NULL, '', NULL, NULL, NULL, 0, NULL, NULL, NULL, 0, NULL, NULL,
+-           FALSE, NULL, 0, 0, $26, TRUE, NULL, NULL, NULL, $27, $27)
++           FALSE, NULL, 0, 0,
++           statement_timestamp() + ($26::bigint * INTERVAL '1 millisecond'),
++           TRUE, NULL, NULL, NULL, statement_timestamp(), statement_timestamp())
+         ON CONFLICT DO NOTHING
+         RETURNING
+         "#,
+@@ -362,6 +367,21 @@ pub struct SipEffectRepairBatch {
+     pub exhausted_count: usize,
+ }
+ 
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub(crate) struct SipEffectPrepareForSendOutcome {
++    pub record: SipEffectRecord,
++    pub send_attempt_replayed: bool,
++}
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub(crate) enum SipEffectDurableObservation {
++    TransportAccepted,
++    TransportUnknown,
++    ProtocolObserved,
++    ProtocolUnknown,
++    TransportCompleted,
++}
++
+ pub struct PostgresSipEffectStore {
+     pool: PgPool,
+     admission: SipEffectAdmission,
+@@ -408,82 +428,130 @@ impl PostgresSipEffectStore {
+     pub async fn prepare(
+         &self,
+         effect: PreparedSipEffect,
++    ) -> Result<SipEffectPrepareOutcome, SipEffectStoreError> {
++        run_with_store_deadline(self.wait_timeout, self.prepare_inner(effect)).await
++    }
++
++    async fn prepare_inner(
++        &self,
++        effect: PreparedSipEffect,
+     ) -> Result<SipEffectPrepareOutcome, SipEffectStoreError> {
+         effect.validate()?;
++        let audit_retention_ms = audit_retention_millis(&effect)?;
+         let effect_identity_hash = protocol_effect_identity_hash(&effect.identity)?;
+         let (_admission, mut transaction) = self
+             .begin_tenant_transaction(&effect.identity.tenant_id)
+             .await?;
+-        let inserted = sqlx::query(PREPARE_INSERT_SQL)
+-            .bind(&effect.identity.protocol_effect_id)
+-            .bind(&effect.identity.tenant_id)
+-            .bind(&effect.identity.protocol_session_id)
+-            .bind(&effect.identity.protocol_session_generation)
+-            .bind(&effect.identity.decision_id)
+-            .bind(&effect.identity.idempotency_key)
+-            .bind(&effect.identity.request_hash)
+-            .bind(&effect.identity.command_id)
+-            .bind(&effect.adapter_identity)
+-            .bind(&effect.identity.adapter_identity_hash)
+-            .bind(&effect.identity.wire_bytes_hash)
+-            .bind(
+-                i32::try_from(effect.identity.wire_length_bytes)
+-                    .map_err(|_| SipEffectStoreError::InvalidConfiguration)?,
+-            )
+-            .bind(&effect.canonical_wire_bytes)
+-            .bind(&effect.route_binding)
+-            .bind(&effect.identity.route_binding_hash)
+-            .bind(&effect.wire_attempt_facts)
+-            .bind(&effect.identity.wire_attempt_facts_hash)
+-            .bind(&effect.identity.wire_freeze_sha256)
+-            .bind(&effect_identity_hash)
+-            .bind(effect.identity.owner_epoch.to_string())
+-            .bind(effect.identity.command_sequence.to_string())
+-            .bind(SIP_EFFECT_SCHEMA_ID)
+-            .bind(i32::from(SIP_EFFECT_SCHEMA_VERSION))
+-            .bind(SIP_EFFECT_SCHEMA_HASH)
+-            .bind(SIP_EFFECT_WRITER_IDENTITY)
+-            .bind(effect.audit_until)
+-            .bind(effect.prepared_at)
+-            .fetch_optional(&mut *transaction)
+-            .await
+-            .map_err(map_sqlx_error)?;
++        let (outcome, _) = prepare_locked(
++            &mut transaction,
++            &effect,
++            &effect_identity_hash,
++            audit_retention_ms,
++        )
++        .await?;
++        transaction.commit().await.map_err(map_sqlx_error)?;
++        Ok(outcome)
++    }
+ 
+-        let outcome = if let Some(row) = inserted {
+-            SipEffectPrepareOutcome {
+-                record: decode_effect(&row)?.record,
+-                replayed: false,
++    pub(crate) async fn prepare_for_send(
++        &self,
++        effect: PreparedSipEffect,
++    ) -> Result<SipEffectPrepareForSendOutcome, SipEffectStoreError> {
++        run_with_store_deadline(self.wait_timeout, self.prepare_for_send_inner(effect)).await
++    }
++
++    async fn prepare_for_send_inner(
++        &self,
++        effect: PreparedSipEffect,
++    ) -> Result<SipEffectPrepareForSendOutcome, SipEffectStoreError> {
++        effect.validate()?;
++        let audit_retention_ms = audit_retention_millis(&effect)?;
++        let effect_identity_hash = protocol_effect_identity_hash(&effect.identity)?;
++        let (_admission, mut transaction) = self
++            .begin_tenant_transaction(&effect.identity.tenant_id)
++            .await?;
++        let (prepared, schema) = prepare_locked(
++            &mut transaction,
++            &effect,
++            &effect_identity_hash,
++            audit_retention_ms,
++        )
++        .await?;
++        let mut record = prepared.record;
++        if record.state == SipEffectState::Prepared {
++            let receipt = prepare_stage_receipt(
++                &record,
++                "durable-decision",
++                SipEffectReceiptLevel::DurableDecision,
++            )?;
++            record = apply_locked(
++                &mut transaction,
++                DecodedEffect {
++                    record,
++                    payload_retained: true,
++                    schema,
++                },
++                receipt,
++                &effect_identity_hash,
++            )
++            .await?
++            .record;
++            flush_receipt_constraint(&mut transaction).await?;
++        }
++        if record.state == SipEffectState::DurableDecision {
++            let receipt = prepare_stage_receipt(
++                &record,
++                "send-attempted",
++                SipEffectReceiptLevel::SendAttempted,
++            )?;
++            let sent = apply_locked(
++                &mut transaction,
++                DecodedEffect {
++                    record,
++                    payload_retained: true,
++                    schema,
++                },
++                receipt,
++                &effect_identity_hash,
++            )
++            .await?;
++            record = sent.record;
++            if sent.replayed {
++                transaction.commit().await.map_err(map_sqlx_error)?;
++                return Ok(SipEffectPrepareForSendOutcome {
++                    record,
++                    send_attempt_replayed: true,
++                });
+             }
++        } else if record.state == SipEffectState::SendAttempted {
++            transaction.commit().await.map_err(map_sqlx_error)?;
++            return Ok(SipEffectPrepareForSendOutcome {
++                record,
++                send_attempt_replayed: true,
++            });
+         } else {
+-            let rows = sqlx::query(PREPARE_CONFLICT_SQL)
+-                .bind(&effect.identity.tenant_id)
+-                .bind(&effect.identity.protocol_effect_id)
+-                .bind(&effect.identity.idempotency_key)
+-                .fetch_all(&mut *transaction)
+-                .await
+-                .map_err(map_sqlx_error)?;
+-            if rows.len() != 1 {
+-                return Err(SipEffectError::IdempotencyConflict.into());
+-            }
+-            let existing = decode_effect(&rows[0])?;
+-            if existing.record.identity != effect.identity
+-                || (existing.payload_retained
+-                    && existing.record.canonical_wire_bytes != effect.canonical_wire_bytes)
+-            {
+-                return Err(SipEffectError::IdempotencyConflict.into());
+-            }
+-            SipEffectPrepareOutcome {
+-                record: existing.record,
+-                replayed: true,
+-            }
+-        };
++            return Err(SipEffectError::TransitionConflict.into());
++        }
++        if record.state != SipEffectState::SendAttempted {
++            return Err(SipEffectStoreError::SchemaIncompatible);
++        }
+         transaction.commit().await.map_err(map_sqlx_error)?;
+-        Ok(outcome)
++        Ok(SipEffectPrepareForSendOutcome {
++            record,
++            send_attempt_replayed: false,
++        })
+     }
+ 
+     pub async fn apply(
+         &self,
+         receipt: SipEffectReceipt,
++    ) -> Result<SipEffectApplyOutcome, SipEffectStoreError> {
++        run_with_store_deadline(self.wait_timeout, self.apply_inner(receipt)).await
++    }
++
++    async fn apply_inner(
++        &self,
++        receipt: SipEffectReceipt,
+     ) -> Result<SipEffectApplyOutcome, SipEffectStoreError> {
+         receipt.validate()?;
+         let identity = &receipt.fence.identity;
+@@ -497,140 +565,100 @@ impl PostgresSipEffectStore {
+             .await
+             .map_err(map_sqlx_error)?
+             .ok_or(SipEffectError::IdentityConflict)?;
+-        let current = decode_effect(&current_row)?.record;
+-        if current.identity != *identity {
+-            return Err(SipEffectError::IdentityConflict.into());
+-        }
++        let decoded_current = decode_effect(&current_row)?;
++        let outcome = apply_locked(
++            &mut transaction,
++            decoded_current,
++            receipt,
++            &effect_identity_hash,
++        )
++        .await?;
++        transaction.commit().await.map_err(map_sqlx_error)?;
++        Ok(outcome)
++    }
+ 
+-        if let Some(row) = sqlx::query(RECEIPT_REPLAY_SQL)
+-            .bind(&identity.tenant_id)
+-            .bind(&receipt.receipt_id)
++    pub(crate) async fn apply_observation(
++        &self,
++        tenant_id: &str,
++        protocol_effect_id: &str,
++        expected_identity_hash: &str,
++        observation: SipEffectDurableObservation,
++        unknown_repair_after_ms: u32,
++    ) -> Result<SipEffectRecord, SipEffectStoreError> {
++        run_with_store_deadline(
++            self.wait_timeout,
++            self.apply_observation_inner(
++                tenant_id,
++                protocol_effect_id,
++                expected_identity_hash,
++                observation,
++                unknown_repair_after_ms,
++            ),
++        )
++        .await
++    }
++
++    async fn apply_observation_inner(
++        &self,
++        tenant_id: &str,
++        protocol_effect_id: &str,
++        expected_identity_hash: &str,
++        observation: SipEffectDurableObservation,
++        unknown_repair_after_ms: u32,
++    ) -> Result<SipEffectRecord, SipEffectStoreError> {
++        validate_sip_effect_identifier(tenant_id)?;
++        validate_sip_effect_identifier(protocol_effect_id)?;
++        if expected_identity_hash.len() != 64
++            || !expected_identity_hash
++                .bytes()
++                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
++        {
++            return Err(SipEffectError::InvalidInput.into());
++        }
++        let (_admission, mut transaction) = self.begin_tenant_transaction(tenant_id).await?;
++        let current_row = sqlx::query(TRANSITION_LOCK_SQL)
++            .bind(tenant_id)
++            .bind(protocol_effect_id)
+             .fetch_optional(&mut *transaction)
+             .await
+             .map_err(map_sqlx_error)?
++            .ok_or(SipEffectError::IdentityConflict)?;
++        let decoded_current = decode_effect(&current_row)?;
++        if decoded_current.record.identity.tenant_id != tenant_id
++            || decoded_current.record.identity.protocol_effect_id != protocol_effect_id
++            || protocol_effect_identity_hash(&decoded_current.record.identity)?
++                != expected_identity_hash
+         {
+-            let semantic = validate_receipt_replay(&row, &receipt, &effect_identity_hash)?;
+-            transaction.commit().await.map_err(map_sqlx_error)?;
+-            return Ok(SipEffectApplyOutcome {
+-                record: current,
+-                semantic,
+-                replayed: true,
+-            });
+-        }
+-        if current.state.is_terminal() {
+-            return Err(SipEffectError::Terminal.into());
+-        }
+-        if current.revision != receipt.fence.expected_revision {
+-            return Err(SipEffectError::FenceLost.into());
+-        }
+-        let semantic = classify_receipt(current.state, receipt.level)?;
+-        let repair_fence = receipt.repair_fence();
+-        let clears_repair_claim = current.state == SipEffectState::Unknown;
+-        if clears_repair_claim {
+-            let repair_fence = repair_fence.ok_or(SipEffectError::RepairFenceRequired)?;
+-            if current.repair_claim.as_ref() != Some(repair_fence)
+-                || repair_fence.repair_claim_revision != current.revision
+-            {
+-                return Err(SipEffectError::FenceLost.into());
+-            }
+-        } else if repair_fence.is_some() {
+-            return Err(SipEffectError::FenceLost.into());
++            return Err(SipEffectError::IdentityConflict.into());
+         }
+-        let repair_delay_ms = receipt
+-            .repair_delay_ms
+-            .map(i32::try_from)
+-            .transpose()
+-            .map_err(|_| SipEffectStoreError::InvalidConfiguration)?;
+-
+-        let inserted_receipt = sqlx::query(RECEIPT_INSERT_SQL)
+-            .bind(&receipt.receipt_id)
+-            .bind(&identity.tenant_id)
+-            .bind(&identity.protocol_effect_id)
+-            .bind(&identity.decision_id)
+-            .bind(&identity.idempotency_key)
+-            .bind(&identity.request_hash)
+-            .bind(&identity.command_id)
+-            .bind(&identity.wire_bytes_hash)
+-            .bind(&effect_identity_hash)
+-            .bind(identity.owner_epoch.to_string())
+-            .bind(identity.command_sequence.to_string())
+-            .bind(&receipt.receipt_hash)
+-            .bind(receipt.level.as_str())
+-            .bind(current.state.as_str())
+-            .bind(&receipt.failure_code)
+-            .bind(repair_delay_ms)
+-            .bind(SIP_EFFECT_SCHEMA_ID)
+-            .bind(i32::from(SIP_EFFECT_SCHEMA_VERSION))
+-            .bind(SIP_EFFECT_SCHEMA_HASH)
+-            .bind(SIP_EFFECT_WRITER_IDENTITY)
+-            .fetch_optional(&mut *transaction)
+-            .await
+-            .map_err(map_sqlx_error)?;
+-        if inserted_receipt.is_none() {
+-            let replay = sqlx::query(RECEIPT_REPLAY_SQL)
+-                .bind(&identity.tenant_id)
+-                .bind(&receipt.receipt_id)
+-                .fetch_optional(&mut *transaction)
+-                .await
+-                .map_err(map_sqlx_error)?
+-                .ok_or(SipEffectError::ReceiptConflict)?;
+-            let semantic = validate_receipt_replay(&replay, &receipt, &effect_identity_hash)?;
++        if durable_observation_is_satisfied(decoded_current.record.state, observation) {
++            let record = decoded_current.record;
+             transaction.commit().await.map_err(map_sqlx_error)?;
+-            return Ok(SipEffectApplyOutcome {
+-                record: current,
+-                semantic,
+-                replayed: true,
+-            });
++            return Ok(record);
+         }
+-
+-        let terminal = receipt.level.state().is_terminal();
+-        let repair_owner_id = repair_fence
+-            .map(|fence| fence.repair_owner_id.as_str())
+-            .unwrap_or("");
+-        let repair_owner_epoch = repair_fence
+-            .map(|fence| fence.repair_owner_epoch.to_string())
+-            .unwrap_or_else(|| "1".to_string());
+-        let repair_claim_token = repair_fence
+-            .map(|fence| fence.repair_claim_token.as_str())
+-            .unwrap_or("");
+-        let repair_claim_revision = repair_fence
+-            .map(|fence| fence.repair_claim_revision.to_string())
+-            .unwrap_or_else(|| "1".to_string());
+-        let updated = sqlx::query(TRANSITION_UPDATE_SQL)
+-            .bind(&identity.tenant_id)
+-            .bind(&identity.protocol_effect_id)
+-            .bind(&identity.decision_id)
+-            .bind(&identity.idempotency_key)
+-            .bind(&identity.request_hash)
+-            .bind(&identity.command_id)
+-            .bind(&identity.wire_bytes_hash)
+-            .bind(identity.owner_epoch.to_string())
+-            .bind(identity.command_sequence.to_string())
+-            .bind(receipt.level.as_str())
+-            .bind(&receipt.receipt_id)
+-            .bind(&receipt.receipt_hash)
+-            .bind(&receipt.failure_code)
+-            .bind(repair_delay_ms)
+-            .bind(clears_repair_claim)
+-            .bind(terminal)
+-            .bind(current.revision.to_string())
+-            .bind(current.state.as_str())
+-            .bind(repair_owner_id)
+-            .bind(repair_owner_epoch)
+-            .bind(repair_claim_token)
+-            .bind(repair_claim_revision)
+-            .bind(&effect_identity_hash)
+-            .fetch_optional(&mut *transaction)
+-            .await
+-            .map_err(map_sqlx_error)?
+-            .ok_or(SipEffectError::FenceLost)?;
+-        let updated = decode_effect(&updated)?.record;
++        let (stage, level, repair_after_ms) =
++            observation_receipt(&decoded_current, observation, unknown_repair_after_ms)?;
++        let receipt_id = sip_effect_stage_token(
++            "receipt",
++            &decoded_current.record.identity.protocol_effect_id,
++            stage,
++        );
++        let receipt = SipEffectReceipt::new(
++            decoded_current.record.fence(),
++            &receipt_id,
++            level,
++            "",
++            repair_after_ms,
++        )?;
++        let outcome = apply_locked(
++            &mut transaction,
++            decoded_current,
++            receipt,
++            expected_identity_hash,
++        )
++        .await?;
+         transaction.commit().await.map_err(map_sqlx_error)?;
+-        Ok(SipEffectApplyOutcome {
+-            record: updated,
+-            semantic,
+-            replayed: false,
+-        })
++        Ok(outcome.record)
+     }
+ 
+     pub async fn claim_unknown(
+@@ -640,6 +668,27 @@ impl PostgresSipEffectStore {
+         repair_owner_epoch: u64,
+         repair_claim_token: &str,
+         lease_duration: Duration,
++    ) -> Result<SipEffectRepairFence, SipEffectStoreError> {
++        run_with_store_deadline(
++            self.wait_timeout,
++            self.claim_unknown_inner(
++                identity,
++                repair_owner_id,
++                repair_owner_epoch,
++                repair_claim_token,
++                lease_duration,
++            ),
++        )
++        .await
++    }
++
++    async fn claim_unknown_inner(
++        &self,
++        identity: &crate::call::domain::sip_effect::SipEffectIdentity,
++        repair_owner_id: &str,
++        repair_owner_epoch: u64,
++        repair_claim_token: &str,
++        lease_duration: Duration,
+     ) -> Result<SipEffectRepairFence, SipEffectStoreError> {
+         identity.validate()?;
+         let lease_ms = bounded_repair_lease_millis(lease_duration)?;
+@@ -699,6 +748,29 @@ impl PostgresSipEffectStore {
+         claim_token_prefix: &str,
+         lease_duration: Duration,
+         limit: usize,
++    ) -> Result<SipEffectRepairBatch, SipEffectStoreError> {
++        run_with_store_deadline(
++            self.wait_timeout,
++            self.claim_unknown_batch_inner(
++                tenant_id,
++                repair_owner_id,
++                repair_owner_epoch,
++                claim_token_prefix,
++                lease_duration,
++                limit,
++            ),
++        )
++        .await
++    }
++
++    async fn claim_unknown_batch_inner(
++        &self,
++        tenant_id: &str,
++        repair_owner_id: &str,
++        repair_owner_epoch: u64,
++        claim_token_prefix: &str,
++        lease_duration: Duration,
++        limit: usize,
+     ) -> Result<SipEffectRepairBatch, SipEffectStoreError> {
+         validate_repair_batch_identity(
+             tenant_id,
+@@ -874,6 +946,20 @@ impl PostgresSipEffectStore {
+         repair_fence: &SipEffectRepairFence,
+         receipt_id: &str,
+         outcome: SipEffectReconcileOutcome,
++    ) -> Result<SipEffectApplyOutcome, SipEffectStoreError> {
++        run_with_store_deadline(
++            self.wait_timeout,
++            self.reconcile_inner(identity, repair_fence, receipt_id, outcome),
++        )
++        .await
++    }
++
++    async fn reconcile_inner(
++        &self,
++        identity: &crate::call::domain::sip_effect::SipEffectIdentity,
++        repair_fence: &SipEffectRepairFence,
++        receipt_id: &str,
++        outcome: SipEffectReconcileOutcome,
+     ) -> Result<SipEffectApplyOutcome, SipEffectStoreError> {
+         repair_fence.validate()?;
+         let record = self
+@@ -911,6 +997,13 @@ impl PostgresSipEffectStore {
+     pub async fn query(
+         &self,
+         identity: &crate::call::domain::sip_effect::SipEffectIdentity,
++    ) -> Result<Option<SipEffectRecord>, SipEffectStoreError> {
++        run_with_store_deadline(self.wait_timeout, self.query_inner(identity)).await
++    }
++
++    async fn query_inner(
++        &self,
++        identity: &crate::call::domain::sip_effect::SipEffectIdentity,
+     ) -> Result<Option<SipEffectRecord>, SipEffectStoreError> {
+         let expected_identity_hash = protocol_effect_identity_hash(identity)?;
+         let (_admission, mut transaction) =
+@@ -988,9 +1081,390 @@ impl PostgresSipEffectStore {
+     }
+ }
+ 
++async fn flush_receipt_constraint(
++    transaction: &mut Transaction<'_, Postgres>,
++) -> Result<(), SipEffectStoreError> {
++    sqlx::query("SET CONSTRAINTS ivekit_sip_effect_receipt_applied IMMEDIATE")
++        .execute(&mut **transaction)
++        .await
++        .map_err(map_sqlx_error)?;
++    sqlx::query("SET CONSTRAINTS ivekit_sip_effect_receipt_applied DEFERRED")
++        .execute(&mut **transaction)
++        .await
++        .map_err(map_sqlx_error)?;
++    Ok(())
++}
++
++fn durable_observation_is_satisfied(
++    state: SipEffectState,
++    observation: SipEffectDurableObservation,
++) -> bool {
++    match observation {
++        SipEffectDurableObservation::TransportAccepted => matches!(
++            state,
++            SipEffectState::TransportAccepted
++                | SipEffectState::TransportCompleted
++                | SipEffectState::ProtocolObserved
++                | SipEffectState::Failed
++                | SipEffectState::Unknown
++        ),
++        SipEffectDurableObservation::TransportUnknown
++        | SipEffectDurableObservation::ProtocolUnknown => {
++            state == SipEffectState::Unknown || state.is_terminal()
++        }
++        SipEffectDurableObservation::ProtocolObserved => state == SipEffectState::ProtocolObserved,
++        SipEffectDurableObservation::TransportCompleted => {
++            state == SipEffectState::TransportCompleted
++        }
++    }
++}
++
++fn observation_receipt(
++    current: &DecodedEffect,
++    observation: SipEffectDurableObservation,
++    unknown_repair_after_ms: u32,
++) -> Result<(&'static str, SipEffectReceiptLevel, Option<u32>), SipEffectStoreError> {
++    let state = current.record.state;
++    let scope = current
++        .record
++        .wire_attempt_facts
++        .get("completion_scope")
++        .and_then(Value::as_str);
++    match observation {
++        SipEffectDurableObservation::TransportAccepted
++            if state == SipEffectState::SendAttempted =>
++        {
++            Ok((
++                "transport-accepted",
++                SipEffectReceiptLevel::TransportAccepted,
++                None,
++            ))
++        }
++        SipEffectDurableObservation::TransportUnknown if state == SipEffectState::SendAttempted => {
++            Ok((
++                "transport-unknown",
++                SipEffectReceiptLevel::Unknown,
++                Some(unknown_repair_after_ms),
++            ))
++        }
++        SipEffectDurableObservation::ProtocolObserved
++            if matches!(
++                state,
++                SipEffectState::SendAttempted | SipEffectState::TransportAccepted
++            ) && (current.schema == SipEffectLedgerSchema::V1
++                || scope == Some("transaction_peer_observation")) =>
++        {
++            Ok((
++                "protocol-observed",
++                SipEffectReceiptLevel::ProtocolObserved,
++                None,
++            ))
++        }
++        SipEffectDurableObservation::ProtocolUnknown
++            if matches!(
++                state,
++                SipEffectState::SendAttempted | SipEffectState::TransportAccepted
++            ) =>
++        {
++            Ok((
++                "protocol-unknown",
++                SipEffectReceiptLevel::Unknown,
++                Some(unknown_repair_after_ms),
++            ))
++        }
++        SipEffectDurableObservation::TransportCompleted
++            if current.schema == SipEffectLedgerSchema::V2
++                && state == SipEffectState::TransportAccepted
++                && scope == Some("transport_accepted_terminal") =>
++        {
++            Ok((
++                "transport-terminal",
++                SipEffectReceiptLevel::TransportCompleted,
++                None,
++            ))
++        }
++        _ if state.is_terminal() => Err(SipEffectError::Terminal.into()),
++        _ => Err(SipEffectError::TransitionConflict.into()),
++    }
++}
++
++async fn prepare_locked(
++    transaction: &mut Transaction<'_, Postgres>,
++    effect: &PreparedSipEffect,
++    effect_identity_hash: &str,
++    audit_retention_ms: i64,
++) -> Result<(SipEffectPrepareOutcome, SipEffectLedgerSchema), SipEffectStoreError> {
++    let inserted = sqlx::query(PREPARE_INSERT_SQL)
++        .bind(&effect.identity.protocol_effect_id)
++        .bind(&effect.identity.tenant_id)
++        .bind(&effect.identity.protocol_session_id)
++        .bind(&effect.identity.protocol_session_generation)
++        .bind(&effect.identity.decision_id)
++        .bind(&effect.identity.idempotency_key)
++        .bind(&effect.identity.request_hash)
++        .bind(&effect.identity.command_id)
++        .bind(&effect.adapter_identity)
++        .bind(&effect.identity.adapter_identity_hash)
++        .bind(&effect.identity.wire_bytes_hash)
++        .bind(
++            i32::try_from(effect.identity.wire_length_bytes)
++                .map_err(|_| SipEffectStoreError::InvalidConfiguration)?,
++        )
++        .bind(&effect.canonical_wire_bytes)
++        .bind(&effect.route_binding)
++        .bind(&effect.identity.route_binding_hash)
++        .bind(&effect.wire_attempt_facts)
++        .bind(&effect.identity.wire_attempt_facts_hash)
++        .bind(&effect.identity.wire_freeze_sha256)
++        .bind(effect_identity_hash)
++        .bind(effect.identity.owner_epoch.to_string())
++        .bind(effect.identity.command_sequence.to_string())
++        .bind(SIP_EFFECT_SCHEMA_ID)
++        .bind(i32::from(SIP_EFFECT_SCHEMA_VERSION))
++        .bind(SIP_EFFECT_SCHEMA_HASH)
++        .bind(SIP_EFFECT_WRITER_IDENTITY)
++        .bind(audit_retention_ms)
++        .fetch_optional(&mut **transaction)
++        .await
++        .map_err(map_sqlx_error)?;
++
++    if let Some(row) = inserted {
++        let decoded = decode_effect(&row)?;
++        return Ok((
++            SipEffectPrepareOutcome {
++                record: decoded.record,
++                replayed: false,
++            },
++            decoded.schema,
++        ));
++    }
++
++    let rows = sqlx::query(PREPARE_CONFLICT_SQL)
++        .bind(&effect.identity.tenant_id)
++        .bind(&effect.identity.protocol_effect_id)
++        .bind(&effect.identity.idempotency_key)
++        .fetch_all(&mut **transaction)
++        .await
++        .map_err(map_sqlx_error)?;
++    if rows.len() != 1 {
++        return Err(SipEffectError::IdempotencyConflict.into());
++    }
++    let existing = decode_effect(&rows[0])?;
++    if existing.record.identity != effect.identity
++        || !existing.payload_retained
++        || existing.record.canonical_wire_bytes != effect.canonical_wire_bytes
++        || existing.record.adapter_identity != effect.adapter_identity
++        || existing.record.route_binding != effect.route_binding
++        || existing.record.wire_attempt_facts != effect.wire_attempt_facts
++    {
++        return Err(SipEffectError::IdempotencyConflict.into());
++    }
++    Ok((
++        SipEffectPrepareOutcome {
++            record: existing.record,
++            replayed: true,
++        },
++        existing.schema,
++    ))
++}
++
++fn prepare_stage_receipt(
++    record: &SipEffectRecord,
++    stage: &str,
++    level: SipEffectReceiptLevel,
++) -> Result<SipEffectReceipt, SipEffectStoreError> {
++    let receipt_id = sip_effect_stage_token("receipt", &record.identity.protocol_effect_id, stage);
++    SipEffectReceipt::new(record.fence(), &receipt_id, level, "", None).map_err(Into::into)
++}
++
++async fn apply_locked(
++    transaction: &mut Transaction<'_, Postgres>,
++    decoded_current: DecodedEffect,
++    receipt: SipEffectReceipt,
++    effect_identity_hash: &str,
++) -> Result<SipEffectApplyOutcome, SipEffectStoreError> {
++    let current_schema = decoded_current.schema;
++    let current = decoded_current.record;
++    let identity = &receipt.fence.identity;
++    if current.identity != *identity {
++        return Err(SipEffectError::IdentityConflict.into());
++    }
++
++    if let Some(row) = sqlx::query(RECEIPT_REPLAY_SQL)
++        .bind(&identity.tenant_id)
++        .bind(&receipt.receipt_id)
++        .fetch_optional(&mut **transaction)
++        .await
++        .map_err(map_sqlx_error)?
++    {
++        let semantic =
++            validate_receipt_replay(&row, &receipt, effect_identity_hash, current_schema)?;
++        return Ok(SipEffectApplyOutcome {
++            record: current,
++            semantic,
++            replayed: true,
++        });
++    }
++    if current.state.is_terminal() {
++        return Err(SipEffectError::Terminal.into());
++    }
++    if current.revision != receipt.fence.expected_revision {
++        return Err(SipEffectError::FenceLost.into());
++    }
++    let semantic = classify_receipt(current.state, receipt.level)?;
++    let repair_fence = receipt.repair_fence();
++    let clears_repair_claim = current.state == SipEffectState::Unknown;
++    if clears_repair_claim {
++        let repair_fence = repair_fence.ok_or(SipEffectError::RepairFenceRequired)?;
++        if current.repair_claim.as_ref() != Some(repair_fence)
++            || repair_fence.repair_claim_revision != current.revision
++        {
++            return Err(SipEffectError::FenceLost.into());
++        }
++    } else if repair_fence.is_some() {
++        return Err(SipEffectError::FenceLost.into());
++    }
++    let repair_delay_ms = receipt
++        .repair_delay_ms
++        .map(i32::try_from)
++        .transpose()
++        .map_err(|_| SipEffectStoreError::InvalidConfiguration)?;
++
++    let inserted_receipt = sqlx::query(RECEIPT_INSERT_SQL)
++        .bind(&receipt.receipt_id)
++        .bind(&identity.tenant_id)
++        .bind(&identity.protocol_effect_id)
++        .bind(&identity.decision_id)
++        .bind(&identity.idempotency_key)
++        .bind(&identity.request_hash)
++        .bind(&identity.command_id)
++        .bind(&identity.wire_bytes_hash)
++        .bind(effect_identity_hash)
++        .bind(identity.owner_epoch.to_string())
++        .bind(identity.command_sequence.to_string())
++        .bind(&receipt.receipt_hash)
++        .bind(receipt.level.as_str())
++        .bind(current.state.as_str())
++        .bind(&receipt.failure_code)
++        .bind(repair_delay_ms)
++        .bind(SIP_EFFECT_SCHEMA_ID)
++        .bind(i32::from(current_schema.version()))
++        .bind(current_schema.hash())
++        .bind(SIP_EFFECT_WRITER_IDENTITY)
++        .fetch_optional(&mut **transaction)
++        .await
++        .map_err(map_sqlx_error)?;
++    if inserted_receipt.is_none() {
++        let replay = sqlx::query(RECEIPT_REPLAY_SQL)
++            .bind(&identity.tenant_id)
++            .bind(&receipt.receipt_id)
++            .fetch_optional(&mut **transaction)
++            .await
++            .map_err(map_sqlx_error)?
++            .ok_or(SipEffectError::ReceiptConflict)?;
++        let semantic =
++            validate_receipt_replay(&replay, &receipt, effect_identity_hash, current_schema)?;
++        return Ok(SipEffectApplyOutcome {
++            record: current,
++            semantic,
++            replayed: true,
++        });
++    }
++
++    let terminal = receipt.level.state().is_terminal();
++    let repair_owner_id = repair_fence
++        .map(|fence| fence.repair_owner_id.as_str())
++        .unwrap_or("");
++    let repair_owner_epoch = repair_fence
++        .map(|fence| fence.repair_owner_epoch.to_string())
++        .unwrap_or_else(|| "1".to_string());
++    let repair_claim_token = repair_fence
++        .map(|fence| fence.repair_claim_token.as_str())
++        .unwrap_or("");
++    let repair_claim_revision = repair_fence
++        .map(|fence| fence.repair_claim_revision.to_string())
++        .unwrap_or_else(|| "1".to_string());
++    let updated = sqlx::query(TRANSITION_UPDATE_SQL)
++        .bind(&identity.tenant_id)
++        .bind(&identity.protocol_effect_id)
++        .bind(&identity.decision_id)
++        .bind(&identity.idempotency_key)
++        .bind(&identity.request_hash)
++        .bind(&identity.command_id)
++        .bind(&identity.wire_bytes_hash)
++        .bind(identity.owner_epoch.to_string())
++        .bind(identity.command_sequence.to_string())
++        .bind(receipt.level.as_str())
++        .bind(&receipt.receipt_id)
++        .bind(&receipt.receipt_hash)
++        .bind(&receipt.failure_code)
++        .bind(repair_delay_ms)
++        .bind(clears_repair_claim)
++        .bind(terminal)
++        .bind(current.revision.to_string())
++        .bind(current.state.as_str())
++        .bind(repair_owner_id)
++        .bind(repair_owner_epoch)
++        .bind(repair_claim_token)
++        .bind(repair_claim_revision)
++        .bind(effect_identity_hash)
++        .fetch_optional(&mut **transaction)
++        .await
++        .map_err(map_sqlx_error)?
++        .ok_or(SipEffectError::FenceLost)?;
++    let decoded_updated = decode_effect(&updated)?;
++    if decoded_updated.schema != current_schema {
++        return Err(SipEffectStoreError::SchemaIncompatible);
++    }
++    Ok(SipEffectApplyOutcome {
++        record: decoded_updated.record,
++        semantic,
++        replayed: false,
++    })
++}
++
+ struct DecodedEffect {
+     record: SipEffectRecord,
+     payload_retained: bool,
++    schema: SipEffectLedgerSchema,
++}
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++enum SipEffectLedgerSchema {
++    V1,
++    V2,
++}
++
++impl SipEffectLedgerSchema {
++    fn from_fields(version: i32, hash: &str) -> Result<Self, SipEffectStoreError> {
++        match (version, hash) {
++            (version, SIP_EFFECT_SCHEMA_V1_HASH)
++                if version == i32::from(SIP_EFFECT_SCHEMA_V1_VERSION) =>
++            {
++                Ok(Self::V1)
++            }
++            (version, SIP_EFFECT_SCHEMA_HASH)
++                if version == i32::from(SIP_EFFECT_SCHEMA_VERSION) =>
++            {
++                Ok(Self::V2)
++            }
++            _ => Err(SipEffectStoreError::SchemaIncompatible),
++        }
++    }
++
++    fn version(self) -> u16 {
++        match self {
++            Self::V1 => SIP_EFFECT_SCHEMA_V1_VERSION,
++            Self::V2 => SIP_EFFECT_SCHEMA_VERSION,
++        }
++    }
++
++    fn hash(self) -> &'static str {
++        match self {
++            Self::V1 => SIP_EFFECT_SCHEMA_V1_HASH,
++            Self::V2 => SIP_EFFECT_SCHEMA_HASH,
++        }
++    }
+ }
+ 
+ fn decode_effect(row: &PgRow) -> Result<DecodedEffect, SipEffectStoreError> {
+@@ -998,13 +1472,10 @@ fn decode_effect(row: &PgRow) -> Result<DecodedEffect, SipEffectStoreError> {
+     let schema_version: i32 = schema_field(row, "schema_version")?;
+     let schema_hash: String = schema_field(row, "schema_hash")?;
+     let writer_identity: String = schema_field(row, "writer_identity")?;
+-    if schema_id != SIP_EFFECT_SCHEMA_ID
+-        || schema_version != i32::from(SIP_EFFECT_SCHEMA_VERSION)
+-        || schema_hash != SIP_EFFECT_SCHEMA_HASH
+-        || writer_identity != SIP_EFFECT_WRITER_IDENTITY
+-    {
++    if schema_id != SIP_EFFECT_SCHEMA_ID || writer_identity != SIP_EFFECT_WRITER_IDENTITY {
+         return Err(SipEffectStoreError::SchemaIncompatible);
+     }
++    let schema = SipEffectLedgerSchema::from_fields(schema_version, &schema_hash)?;
+ 
+     let identity = crate::call::domain::sip_effect::SipEffectIdentity {
+         tenant_id: schema_field(row, "tenant_id")?,
+@@ -1057,6 +1528,9 @@ fn decode_effect(row: &PgRow) -> Result<DecodedEffect, SipEffectStoreError> {
+     let prepared_at: DateTime<Utc> = schema_field(row, "prepared_at")?;
+     let audit_until: DateTime<Utc> = schema_field(row, "audit_until")?;
+     let state = database_state(&schema_field::<String>(row, "state")?)?;
++    if schema == SipEffectLedgerSchema::V1 && state == SipEffectState::TransportCompleted {
++        return Err(SipEffectStoreError::SchemaIncompatible);
++    }
+     let payload_retained: bool = schema_field(row, "payload_retained")?;
+     let repair_delay = schema_field::<Option<i32>>(row, "last_receipt_repair_delay_ms")?
+         .map(positive_or_zero_u32)
+@@ -1123,7 +1597,7 @@ fn decode_effect(row: &PgRow) -> Result<DecodedEffect, SipEffectStoreError> {
+             prepared_at: record.prepared_at,
+             audit_until: record.audit_until,
+         }
+-        .validate()
++        .validate_for_schema(schema.version(), schema.hash())
+         .map_err(|_| SipEffectStoreError::SchemaIncompatible)?;
+     } else if !record.canonical_wire_bytes.is_empty() || !record.state.is_terminal() {
+         return Err(SipEffectStoreError::SchemaIncompatible);
+@@ -1131,6 +1605,7 @@ fn decode_effect(row: &PgRow) -> Result<DecodedEffect, SipEffectStoreError> {
+     Ok(DecodedEffect {
+         record,
+         payload_retained,
++        schema,
+     })
+ }
+ 
+@@ -1138,20 +1613,26 @@ fn validate_receipt_replay(
+     row: &PgRow,
+     receipt: &SipEffectReceipt,
+     effect_identity_hash: &str,
++    expected_schema: SipEffectLedgerSchema,
+ ) -> Result<crate::call::domain::sip_effect::SipEffectReceiptSemantic, SipEffectStoreError> {
+     let schema_id: String = schema_field(row, "schema_id")?;
+     let schema_version: i32 = schema_field(row, "schema_version")?;
+     let schema_hash: String = schema_field(row, "schema_hash")?;
+     let writer_identity: String = schema_field(row, "writer_identity")?;
+     if schema_id != SIP_EFFECT_SCHEMA_ID
+-        || schema_version != i32::from(SIP_EFFECT_SCHEMA_VERSION)
+-        || schema_hash != SIP_EFFECT_SCHEMA_HASH
++        || SipEffectLedgerSchema::from_fields(schema_version, &schema_hash)? != expected_schema
+         || writer_identity != SIP_EFFECT_WRITER_IDENTITY
+     {
+         return Err(SipEffectStoreError::SchemaIncompatible);
+     }
+     let stored_level = database_receipt_level(&schema_field::<String>(row, "level")?)?;
+     let from_state = database_state(&schema_field::<String>(row, "from_state")?)?;
++    if expected_schema == SipEffectLedgerSchema::V1
++        && (stored_level == SipEffectReceiptLevel::TransportCompleted
++            || from_state == SipEffectState::TransportCompleted)
++    {
++        return Err(SipEffectStoreError::SchemaIncompatible);
++    }
+     let stored_delay = schema_field::<Option<i32>>(row, "repair_delay_ms")?
+         .map(positive_or_zero_u32)
+         .transpose()?;
+@@ -1248,6 +1729,7 @@ fn database_state(value: &str) -> Result<SipEffectState, SipEffectStoreError> {
+         "durable_decision" => Ok(SipEffectState::DurableDecision),
+         "send_attempted" => Ok(SipEffectState::SendAttempted),
+         "transport_accepted" => Ok(SipEffectState::TransportAccepted),
++        "transport_completed" => Ok(SipEffectState::TransportCompleted),
+         "protocol_observed" => Ok(SipEffectState::ProtocolObserved),
+         "failed" => Ok(SipEffectState::Failed),
+         "unknown" => Ok(SipEffectState::Unknown),
+@@ -1260,6 +1742,7 @@ fn database_receipt_level(value: &str) -> Result<SipEffectReceiptLevel, SipEffec
+         "durable_decision" => Ok(SipEffectReceiptLevel::DurableDecision),
+         "send_attempted" => Ok(SipEffectReceiptLevel::SendAttempted),
+         "transport_accepted" => Ok(SipEffectReceiptLevel::TransportAccepted),
++        "transport_completed" => Ok(SipEffectReceiptLevel::TransportCompleted),
+         "protocol_observed" => Ok(SipEffectReceiptLevel::ProtocolObserved),
+         "failed" => Ok(SipEffectReceiptLevel::Failed),
+         "unknown" => Ok(SipEffectReceiptLevel::Unknown),
+@@ -1368,6 +1851,27 @@ fn validate_admission_limits(
+         .ok_or(SipEffectStoreError::InvalidConfiguration)
+ }
+ 
++async fn run_with_store_deadline<T>(
++    deadline: Duration,
++    operation: impl Future<Output = Result<T, SipEffectStoreError>>,
++) -> Result<T, SipEffectStoreError> {
++    tokio::time::timeout(deadline, operation)
++        .await
++        .map_err(|_| SipEffectStoreError::PoolTimeout)?
++}
++
++fn audit_retention_millis(effect: &PreparedSipEffect) -> Result<i64, SipEffectStoreError> {
++    let retention = effect.audit_until.signed_duration_since(effect.prepared_at);
++    let milliseconds = retention.num_milliseconds();
++    if milliseconds <= 0
++        || milliseconds > MAX_AUDIT_RETENTION_MS
++        || effect.prepared_at + chrono::Duration::milliseconds(milliseconds) != effect.audit_until
++    {
++        return Err(SipEffectStoreError::InvalidConfiguration);
++    }
++    Ok(milliseconds)
++}
++
+ #[derive(Debug)]
+ struct CounterGuard {
+     counter: Arc<AtomicUsize>,
+@@ -1410,6 +1914,38 @@ mod tests {
+     use std::sync::Arc;
+     use std::time::Duration;
+ 
++    #[test]
++    fn ledger_reader_accepts_exact_v1_and_v2_schema_identities_only() {
++        assert_eq!(
++            SipEffectLedgerSchema::from_fields(
++                i32::from(SIP_EFFECT_SCHEMA_V1_VERSION),
++                SIP_EFFECT_SCHEMA_V1_HASH,
++            )
++            .unwrap(),
++            SipEffectLedgerSchema::V1,
++        );
++        assert_eq!(
++            SipEffectLedgerSchema::from_fields(
++                i32::from(SIP_EFFECT_SCHEMA_VERSION),
++                SIP_EFFECT_SCHEMA_HASH,
++            )
++            .unwrap(),
++            SipEffectLedgerSchema::V2,
++        );
++        assert_eq!(
++            SipEffectLedgerSchema::from_fields(
++                i32::from(SIP_EFFECT_SCHEMA_V1_VERSION),
++                SIP_EFFECT_SCHEMA_HASH,
++            )
++            .unwrap_err(),
++            SipEffectStoreError::SchemaIncompatible,
++        );
++        assert_eq!(
++            SipEffectLedgerSchema::from_fields(3, SIP_EFFECT_SCHEMA_HASH).unwrap_err(),
++            SipEffectStoreError::SchemaIncompatible,
++        );
++    }
++
+     #[test]
+     fn admission_limits_reject_zero_and_unbounded_configuration() {
+         assert_eq!(
+@@ -1426,6 +1962,28 @@ mod tests {
+         );
+     }
+ 
++    #[test]
++    fn database_clock_receives_only_a_bounded_audit_duration() {
++        let effect = postgres_effect_fixture("clock-duration");
++        assert_eq!(audit_retention_millis(&effect).unwrap(), 2_592_000_000);
++
++        let mut zero = effect.clone();
++        zero.audit_until = zero.prepared_at;
++        assert_eq!(
++            audit_retention_millis(&zero).unwrap_err(),
++            SipEffectStoreError::InvalidConfiguration,
++        );
++
++        let mut excessive = effect;
++        excessive.audit_until = excessive.prepared_at + ChronoDuration::days(3_653);
++        assert_eq!(
++            audit_retention_millis(&excessive).unwrap_err(),
++            SipEffectStoreError::InvalidConfiguration,
++        );
++        assert!(PREPARE_INSERT_SQL.contains("statement_timestamp() +"));
++        assert!(!PREPARE_INSERT_SQL.contains("$27"));
++    }
++
+     #[test]
+     fn repair_claim_lease_is_millisecond_exact_and_bounded() {
+         assert_eq!(
+@@ -1545,6 +2103,23 @@ mod tests {
+         drop(active);
+     }
+ 
++    #[tokio::test]
++    async fn store_deadline_cancels_network_or_commit_stalls_end_to_end() {
++        let stalled = std::future::pending::<Result<(), SipEffectStoreError>>();
++        assert_eq!(
++            run_with_store_deadline(Duration::from_millis(1), stalled)
++                .await
++                .unwrap_err(),
++            SipEffectStoreError::PoolTimeout,
++        );
++        assert_eq!(
++            run_with_store_deadline(Duration::from_millis(1), async { Ok(7_u8) })
++                .await
++                .unwrap(),
++            7,
++        );
++    }
++
+     #[tokio::test]
+     #[ignore = "requires an isolated migrated PostgreSQL database"]
+     async fn postgres_prepare_replay_and_query_survive_pool_recreation() {
+@@ -1553,6 +2128,7 @@ mod tests {
+         let run_id = std::env::var("CONVERACT_SIP_EFFECT_TEST_RUN_ID")
+             .expect("CONVERACT_SIP_EFFECT_TEST_RUN_ID must be set");
+         let effect = postgres_effect_fixture(&run_id);
++        prepare_postgres_test_tenant(&effect.identity.tenant_id).await;
+         let options = PostgresSipEffectStoreOptions {
+             max_in_flight: 2,
+             max_queue_depth: 2,
+@@ -1592,6 +2168,7 @@ mod tests {
+         let run_id = std::env::var("CONVERACT_SIP_EFFECT_TEST_RUN_ID")
+             .expect("CONVERACT_SIP_EFFECT_TEST_RUN_ID must be set");
+         let effect = postgres_effect_fixture(&format!("{run_id}-transition"));
++        prepare_postgres_test_tenant(&effect.identity.tenant_id).await;
+         let options = PostgresSipEffectStoreOptions {
+             max_in_flight: 2,
+             max_queue_depth: 2,
+@@ -1680,6 +2257,7 @@ mod tests {
+         let run_id = std::env::var("CONVERACT_SIP_EFFECT_TEST_RUN_ID")
+             .expect("CONVERACT_SIP_EFFECT_TEST_RUN_ID must be set");
+         let effect = postgres_effect_fixture(&format!("{run_id}-repair"));
++        prepare_postgres_test_tenant(&effect.identity.tenant_id).await;
+         let options = PostgresSipEffectStoreOptions {
+             max_in_flight: 2,
+             max_queue_depth: 2,
+@@ -1782,6 +2360,7 @@ mod tests {
+         let run_id = std::env::var("CONVERACT_SIP_EFFECT_TEST_RUN_ID")
+             .expect("CONVERACT_SIP_EFFECT_TEST_RUN_ID must be set");
+         let effect = postgres_effect_fixture(&format!("{run_id}-repair-batch"));
++        prepare_postgres_test_tenant(&effect.identity.tenant_id).await;
+         let options = PostgresSipEffectStoreOptions {
+             max_in_flight: 2,
+             max_queue_depth: 2,
+@@ -1898,7 +2477,181 @@ mod tests {
+         store.pool.close().await;
+     }
+ 
++    #[tokio::test]
++    #[ignore = "requires an isolated migrated PostgreSQL database"]
++    async fn postgres_atomic_prepare_and_transport_completion_survive_replay_and_reconnect() {
++        let database_url = std::env::var("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL")
++            .expect("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL must be set");
++        let run_id = std::env::var("CONVERACT_SIP_EFFECT_TEST_RUN_ID")
++            .expect("CONVERACT_SIP_EFFECT_TEST_RUN_ID must be set");
++        let effect = postgres_effect_fixture_with_scope(
++            &format!("{run_id}-atomic-transport"),
++            "transport_accepted_terminal",
++        );
++        prepare_postgres_test_tenant(&effect.identity.tenant_id).await;
++        let options = PostgresSipEffectStoreOptions {
++            max_in_flight: 2,
++            max_queue_depth: 2,
++            wait_timeout: Duration::from_millis(250),
++        };
++        let store = PostgresSipEffectStore::connect(&database_url, options)
++            .await
++            .unwrap();
++
++        let prepared = store.prepare_for_send(effect.clone()).await.unwrap();
++        assert_eq!(prepared.record.state, SipEffectState::SendAttempted);
++        assert!(!prepared.send_attempt_replayed);
++        let replayed_prepare = store.prepare_for_send(effect.clone()).await.unwrap();
++        assert_eq!(replayed_prepare.record, prepared.record);
++        assert!(replayed_prepare.send_attempt_replayed);
++
++        let identity_hash = protocol_effect_identity_hash(&effect.identity).unwrap();
++        let accepted = store
++            .apply_observation(
++                &effect.identity.tenant_id,
++                &effect.identity.protocol_effect_id,
++                &identity_hash,
++                SipEffectDurableObservation::TransportAccepted,
++                1_000,
++            )
++            .await
++            .unwrap();
++        assert_eq!(accepted.state, SipEffectState::TransportAccepted);
++        let completed = store
++            .apply_observation(
++                &effect.identity.tenant_id,
++                &effect.identity.protocol_effect_id,
++                &identity_hash,
++                SipEffectDurableObservation::TransportCompleted,
++                1_000,
++            )
++            .await
++            .unwrap();
++        assert_eq!(completed.state, SipEffectState::TransportCompleted);
++        assert!(completed.state.is_terminal());
++        let replayed_completion = store
++            .apply_observation(
++                &effect.identity.tenant_id,
++                &effect.identity.protocol_effect_id,
++                &identity_hash,
++                SipEffectDurableObservation::TransportCompleted,
++                1_000,
++            )
++            .await
++            .unwrap();
++        assert_eq!(replayed_completion, completed);
++        store.pool.close().await;
++
++        let recovered_store = PostgresSipEffectStore::connect(&database_url, options)
++            .await
++            .unwrap();
++        let recovered = recovered_store
++            .query(&effect.identity)
++            .await
++            .unwrap()
++            .unwrap();
++        assert_eq!(recovered, completed);
++        recovered_store.pool.close().await;
++    }
++
++    #[tokio::test]
++    #[ignore = "requires an isolated migrated PostgreSQL database"]
++    async fn postgres_prepare_and_terminal_receipts_use_database_clock_under_host_skew() {
++        let database_url = std::env::var("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL")
++            .expect("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL must be set");
++        let run_id = std::env::var("CONVERACT_SIP_EFFECT_TEST_RUN_ID")
++            .expect("CONVERACT_SIP_EFFECT_TEST_RUN_ID must be set");
++        let mut behind = postgres_effect_fixture_with_scope(
++            &format!("{run_id}-clock-behind"),
++            "transport_accepted_terminal",
++        );
++        behind.prepared_at = Utc::now() - ChronoDuration::days(365);
++        behind.audit_until = behind.prepared_at + ChronoDuration::days(30);
++        let mut ahead = postgres_effect_fixture_with_scope(
++            &format!("{run_id}-clock-ahead"),
++            "transport_accepted_terminal",
++        );
++        ahead.prepared_at = Utc::now() + ChronoDuration::days(365);
++        ahead.audit_until = ahead.prepared_at + ChronoDuration::days(30);
++        prepare_postgres_test_tenant(&behind.identity.tenant_id).await;
++        prepare_postgres_test_tenant(&ahead.identity.tenant_id).await;
++
++        let store = PostgresSipEffectStore::connect(
++            &database_url,
++            PostgresSipEffectStoreOptions {
++                max_in_flight: 2,
++                max_queue_depth: 2,
++                wait_timeout: Duration::from_millis(250),
++            },
++        )
++        .await
++        .unwrap();
++        let earliest_database_time = Utc::now() - ChronoDuration::seconds(5);
++
++        for effect in [behind, ahead] {
++            let host_prepared_at = effect.prepared_at;
++            let prepared = store.prepare_for_send(effect.clone()).await.unwrap().record;
++            assert!(prepared.prepared_at >= earliest_database_time);
++            assert!(prepared.prepared_at <= Utc::now() + ChronoDuration::seconds(5));
++            assert_ne!(prepared.prepared_at, host_prepared_at);
++            assert_eq!(
++                prepared
++                    .audit_until
++                    .signed_duration_since(prepared.prepared_at),
++                ChronoDuration::days(30),
++            );
++
++            let identity_hash = protocol_effect_identity_hash(&effect.identity).unwrap();
++            let accepted = store
++                .apply_observation(
++                    &effect.identity.tenant_id,
++                    &effect.identity.protocol_effect_id,
++                    &identity_hash,
++                    SipEffectDurableObservation::TransportAccepted,
++                    1_000,
++                )
++                .await
++                .unwrap();
++            assert_eq!(accepted.state, SipEffectState::TransportAccepted);
++            let completed = store
++                .apply_observation(
++                    &effect.identity.tenant_id,
++                    &effect.identity.protocol_effect_id,
++                    &identity_hash,
++                    SipEffectDurableObservation::TransportCompleted,
++                    1_000,
++                )
++                .await
++                .unwrap();
++            assert_eq!(completed.state, SipEffectState::TransportCompleted);
++        }
++        store.pool.close().await;
++    }
++
++    async fn prepare_postgres_test_tenant(tenant_id: &str) {
++        let admin_database_url = std::env::var("CONVERACT_SIP_EFFECT_TEST_ADMIN_DATABASE_URL")
++            .expect("CONVERACT_SIP_EFFECT_TEST_ADMIN_DATABASE_URL must be set");
++        let pool = PgPoolOptions::new()
++            .max_connections(1)
++            .connect(&admin_database_url)
++            .await
++            .unwrap();
++        sqlx::query("INSERT INTO tenants (id, name) VALUES ($1, $1) ON CONFLICT (id) DO NOTHING")
++            .bind(tenant_id)
++            .execute(&pool)
++            .await
++            .unwrap();
++        pool.close().await;
++    }
++
+     fn postgres_effect_fixture(run_id: &str) -> PreparedSipEffect {
++        postgres_effect_fixture_with_scope(run_id, "transaction_peer_observation")
++    }
++
++    fn postgres_effect_fixture_with_scope(
++        run_id: &str,
++        completion_scope: &str,
++    ) -> PreparedSipEffect {
+         let tenant_id = format!("rust-pg-{run_id}");
+         let effect_id = format!("effect-{run_id}");
+         let prepared_at = Utc.with_ymd_and_hms(2026, 8, 3, 0, 0, 0).unwrap();
+@@ -1909,8 +2662,31 @@ mod tests {
+         let request_hash =
+             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string();
+         let wire_attempt_facts = serde_json::json!({
+-            "attempt": 1,
+-            "semantic_intent_sha256": request_hash,
++            "schema_id": "sip-foundation-effect-wire-attempt-v2",
++            "schema_version": "2.0.0",
++            "lineage": {
++                "schema_id": "sip-foundation-wire-attempt-v1",
++                "schema_version": "1.0.0",
++                "attempt_id": effect_id,
++                "transaction_lineage_id": effect_id,
++                "semantic_intent_sha256": request_hash,
++                "parent_attempt_id": null,
++                "lineage_reason": "transaction_root",
++            },
++            "via_branch": format!("z9hG4bK-{run_id}"),
++            "canonical_destination": {
++                "transport_id": "postgres-test-udp",
++                "protocol": "udp",
++                "address": "192.0.2.10",
++                "port": 5060,
++                "selection_kind": "datagram_destination",
++                "flow_id": null,
++                "flow_generation": null,
++            },
++            "transaction_binding_sha256": sha256_lower_hex(
++                format!("postgres-test-binding:{run_id}").as_bytes(),
++            ),
++            "completion_scope": completion_scope,
+         });
+         let wire_bytes_hash = sha256_lower_hex(&canonical_wire_bytes);
+         let wire_length_bytes = u32::try_from(canonical_wire_bytes.len()).unwrap();
+diff --git a/src/call/adapters/rsipstack_sip_effect_gate.rs b/src/call/adapters/rsipstack_sip_effect_gate.rs
+index 99a20f5..7ae8dcc 100644
+--- a/src/call/adapters/rsipstack_sip_effect_gate.rs
++++ b/src/call/adapters/rsipstack_sip_effect_gate.rs
+@@ -1,31 +1,38 @@
+-use crate::call::adapters::postgres_sip_effect::{PostgresSipEffectStore, SipEffectStoreError};
++use crate::call::adapters::postgres_sip_effect::{
++    PostgresSipEffectStore, SipEffectDurableObservation, SipEffectPrepareForSendOutcome,
++    SipEffectStoreError,
++};
+ use crate::call::domain::sip_effect::{
+-    PreparedSipEffect, SipEffectApplyOutcome, SipEffectIdentity, SipEffectPrepareOutcome,
+-    SipEffectReceipt, SipEffectReceiptLevel, SipEffectRecord, SipEffectState,
+-    canonical_json_sha256, protocol_effect_identity_hash, sha256_lower_hex, sip_wire_freeze_sha256,
+-    validate_sip_effect_identifier,
++    PreparedSipEffect, SipEffectIdentity, SipEffectReceipt, SipEffectReceiptLevel, SipEffectRecord,
++    SipEffectState, canonical_json_sha256, protocol_effect_identity_hash, sha256_lower_hex,
++    sip_effect_stage_token, sip_wire_freeze_sha256, validate_sip_effect_identifier,
++    validate_unbound_sip_wire_attempt_facts,
+ };
+ use async_trait::async_trait;
+ use chrono::{DateTime, Utc};
+ use dashmap::DashMap;
+ use rsipstack::sip::SipMessage;
+-use rsipstack::sip::prelude::HeadersExt;
++use rsipstack::sip::prelude::{HeadersExt, ToTypedHeader};
+ use rsipstack::transaction::{
+-    EgressEffectGate, EgressEffectOutcome, EgressEffectPermit, key::TransactionKey,
++    EgressEffectGate, EgressEffectOutcome, EgressEffectPermit, EgressEffectProtocolObservation,
++    key::TransactionKey,
+ };
+-use rsipstack::transport::SipAddr;
++use rsipstack::transport::connection::{EgressTransportBinding, EgressTransportSelectionKind};
+ use serde_json::Value;
+ use sha2::{Digest, Sha256};
+ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+ use std::sync::{Arc, Weak};
+-use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc};
++use tokio::sync::{Mutex as AsyncMutex, OwnedSemaphorePermit, Semaphore, mpsc};
+ 
+ const INTENT_CAPACITY_HARD_CEILING: usize = 1_000_000;
+ const PENDING_OBSERVATION_HARD_CEILING: usize = 1_000_000;
+-const OBSERVATION_QUEUE_HARD_CEILING: usize = 65_536;
++const OBSERVATION_QUEUE_HARD_CEILING: usize = 2_000_000;
+ const OBSERVATION_SHARDS_HARD_CEILING: usize = 256;
+ const UNKNOWN_REPAIR_AFTER_MS_HARD_CEILING: u32 = 86_400_000;
+-const RESERVED_WIRE_FACT_KEYS: [&str; 2] = ["destination", "transaction_binding_sha256"];
++const OBSERVATION_SHARD_QUARANTINED: u64 = u64::MAX;
++const COMPLETION_SCOPE_TRANSACTION_PEER: &str = "transaction_peer_observation";
++const COMPLETION_SCOPE_TRANSPORT_TERMINAL: &str = "transport_accepted_terminal";
++const COMPLETION_SCOPE_UAS_CORE_DEFERRED: &str = "uas_core_deferred";
+ 
+ #[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+ pub enum SipEffectGateError {
+@@ -45,6 +52,8 @@ pub enum SipEffectGateError {
+     IntentReleased,
+     #[error("durable SIP effect observation capacity is exhausted")]
+     ObservationCapacityExhausted,
++    #[error("durable SIP effect observation shard is quarantined")]
++    ObservationQuarantined,
+     #[error("durable SIP effect state is ambiguous and requires reconciliation")]
+     ReconciliationRequired,
+     #[error("durable SIP effect store is unavailable")]
+@@ -54,6 +63,7 @@ pub enum SipEffectGateError {
+ #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+ pub struct SipEffectGateOptions {
+     pub max_pending_observations: usize,
++    pub max_pending_protocol_observations: usize,
+     pub observation_queue_capacity: usize,
+     pub observation_worker_shards: usize,
+     pub unknown_repair_after_ms: u32,
+@@ -63,7 +73,8 @@ impl Default for SipEffectGateOptions {
+     fn default() -> Self {
+         Self {
+             max_pending_observations: 1_024,
+-            observation_queue_capacity: 1_024,
++            max_pending_protocol_observations: 262_144,
++            observation_queue_capacity: 263_168,
+             observation_worker_shards: 16,
+             unknown_repair_after_ms: 1_000,
+         }
+@@ -72,13 +83,23 @@ impl Default for SipEffectGateOptions {
+ 
+ impl SipEffectGateOptions {
+     fn validate(self) -> Result<Self, SipEffectGateError> {
++        let Some(required_queue_capacity) = self
++            .max_pending_observations
++            .checked_add(self.max_pending_protocol_observations)
++        else {
++            return Err(SipEffectGateError::InvalidConfiguration);
++        };
+         if self.max_pending_observations == 0
+             || self.max_pending_observations > PENDING_OBSERVATION_HARD_CEILING
++            || self.max_pending_protocol_observations == 0
++            || self.max_pending_protocol_observations > PENDING_OBSERVATION_HARD_CEILING
+             || self.observation_queue_capacity == 0
+             || self.observation_queue_capacity > OBSERVATION_QUEUE_HARD_CEILING
++            || self.observation_queue_capacity < required_queue_capacity
+             || self.observation_worker_shards == 0
+             || self.observation_worker_shards > OBSERVATION_SHARDS_HARD_CEILING
+-            || self.observation_worker_shards > self.observation_queue_capacity
++            || self.observation_worker_shards > self.max_pending_observations
++            || self.observation_worker_shards > self.max_pending_protocol_observations
+             || self.unknown_repair_after_ms == 0
+             || self.unknown_repair_after_ms > UNKNOWN_REPAIR_AFTER_MS_HARD_CEILING
+         {
+@@ -143,48 +164,53 @@ impl SipEffectIntent {
+             .map_err(|_| SipEffectGateError::InvalidIntent)?;
+         canonical_json_sha256(&self.wire_attempt_facts)
+             .map_err(|_| SipEffectGateError::InvalidIntent)?;
+-        let facts = self
+-            .wire_attempt_facts
+-            .as_object()
+-            .ok_or(SipEffectGateError::InvalidIntent)?;
+-        if facts.get("semantic_intent_sha256").and_then(Value::as_str)
+-            != Some(self.semantic_intent_sha256.as_str())
+-            || RESERVED_WIRE_FACT_KEYS
+-                .iter()
+-                .any(|key| facts.contains_key(*key))
+-        {
+-            return Err(SipEffectGateError::InvalidIntent);
+-        }
++        validate_unbound_sip_wire_attempt_facts(
++            &self.wire_attempt_facts,
++            &self.protocol_effect_id,
++            &self.semantic_intent_sha256,
++        )
++        .map_err(|_| SipEffectGateError::InvalidIntent)?;
++        validate_route_binding(&self.route_binding)?;
+         Ok(())
+     }
+ 
+     fn prepare(
+         &self,
+-        transaction_binding_sha256: &str,
+-        destination: Option<&SipAddr>,
++        message: &SipMessage,
++        transport_binding: &EgressTransportBinding,
+         canonical_wire_bytes: &[u8],
++        completion_scope: &str,
+     ) -> Result<PreparedSipEffect, SipEffectGateError> {
+         self.validate()?;
+-        if !is_sha256(transaction_binding_sha256) {
++        if !matches!(
++            completion_scope,
++            COMPLETION_SCOPE_TRANSACTION_PEER
++                | COMPLETION_SCOPE_TRANSPORT_TERMINAL
++                | COMPLETION_SCOPE_UAS_CORE_DEFERRED
++        ) {
+             return Err(SipEffectGateError::InvalidIntent);
+         }
+         let wire_length_bytes = u32::try_from(canonical_wire_bytes.len())
+             .map_err(|_| SipEffectGateError::InvalidIntent)?;
+-        let mut wire_attempt_facts = self.wire_attempt_facts.clone();
+-        let facts = wire_attempt_facts
+-            .as_object_mut()
+-            .ok_or(SipEffectGateError::InvalidIntent)?;
+-        facts.insert(
+-            "destination".to_string(),
+-            destination
+-                .map(ToString::to_string)
+-                .map(Value::String)
+-                .unwrap_or(Value::Null),
+-        );
+-        facts.insert(
+-            "transaction_binding_sha256".to_string(),
+-            Value::String(transaction_binding_sha256.to_string()),
+-        );
++        let via_branch = message_via_branch(message)?;
++        let canonical_destination = canonical_destination(&self.route_binding, transport_binding)?;
++        let transaction_binding_sha256 = transaction_binding_sha256(
++            self,
++            message,
++            canonical_wire_bytes,
++            &via_branch,
++            &canonical_destination,
++            completion_scope,
++        )?;
++        let wire_attempt_facts = serde_json::json!({
++            "schema_id": "sip-foundation-effect-wire-attempt-v2",
++            "schema_version": "2.0.0",
++            "lineage": self.wire_attempt_facts,
++            "via_branch": via_branch,
++            "canonical_destination": canonical_destination,
++            "transaction_binding_sha256": transaction_binding_sha256,
++            "completion_scope": completion_scope,
++        });
+ 
+         let wire_bytes_hash = sha256_lower_hex(canonical_wire_bytes);
+         let adapter_identity_hash = canonical_json_sha256(&self.adapter_identity)
+@@ -451,70 +477,141 @@ fn remove_registered_intent(
+ 
+ #[async_trait]
+ pub(crate) trait SipEffectStorePort: Send + Sync {
+-    async fn prepare(
++    async fn prepare_for_send(
+         &self,
+         effect: PreparedSipEffect,
+-    ) -> Result<SipEffectPrepareOutcome, SipEffectStoreError>;
++    ) -> Result<SipEffectPrepareForSendOutcome, SipEffectStoreError>;
+ 
+-    async fn apply(
++    async fn persist_observation(
+         &self,
+-        receipt: SipEffectReceipt,
+-    ) -> Result<SipEffectApplyOutcome, SipEffectStoreError>;
++        tenant_id: &str,
++        protocol_effect_id: &str,
++        expected_identity_hash: &str,
++        observation: SipEffectDurableObservation,
++        unknown_repair_after_ms: u32,
++    ) -> Result<(), SipEffectStoreError>;
+ }
+ 
+ #[async_trait]
+ impl SipEffectStorePort for PostgresSipEffectStore {
+-    async fn prepare(
++    async fn prepare_for_send(
+         &self,
+         effect: PreparedSipEffect,
+-    ) -> Result<SipEffectPrepareOutcome, SipEffectStoreError> {
+-        PostgresSipEffectStore::prepare(self, effect).await
++    ) -> Result<SipEffectPrepareForSendOutcome, SipEffectStoreError> {
++        PostgresSipEffectStore::prepare_for_send(self, effect).await
+     }
+ 
+-    async fn apply(
++    async fn persist_observation(
+         &self,
+-        receipt: SipEffectReceipt,
+-    ) -> Result<SipEffectApplyOutcome, SipEffectStoreError> {
+-        PostgresSipEffectStore::apply(self, receipt).await
++        tenant_id: &str,
++        protocol_effect_id: &str,
++        expected_identity_hash: &str,
++        observation: SipEffectDurableObservation,
++        unknown_repair_after_ms: u32,
++    ) -> Result<(), SipEffectStoreError> {
++        self.apply_observation(
++            tenant_id,
++            protocol_effect_id,
++            expected_identity_hash,
++            observation,
++            unknown_repair_after_ms,
++        )
++        .await
++        .map(|_| ())
+     }
+ }
+ 
+ #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+ pub struct SipEffectGateSnapshot {
+     pub pending_observations: usize,
++    pub pending_transport_observations: usize,
++    pub pending_protocol_observations: usize,
++    pub observation_work_outstanding: usize,
+     pub observation_overflow: usize,
+     pub observation_closed: usize,
++    pub observation_quarantined: usize,
+     pub orphan_observations: usize,
+     pub observations_persisted: usize,
+     pub observation_persist_failures: usize,
+ }
+ 
+ struct SipEffectGateMetrics {
+-    pending_observations: AtomicUsize,
++    pending_transport_observations: AtomicUsize,
++    pending_protocol_observations: AtomicUsize,
++    observation_work_outstanding: AtomicUsize,
+     observation_overflow: AtomicUsize,
+     observation_closed: AtomicUsize,
++    observation_quarantined: AtomicUsize,
+     orphan_observations: AtomicUsize,
+     observations_persisted: AtomicUsize,
+     observation_persist_failures: AtomicUsize,
+ }
+ 
++#[derive(Clone)]
++struct SipEffectObservationLocator {
++    tenant_id: Box<str>,
++    protocol_effect_id: Box<str>,
++    effect_identity_hash: Box<str>,
++}
++
++impl SipEffectObservationLocator {
++    fn from_record(record: &SipEffectRecord, effect_identity_hash: String) -> Self {
++        Self {
++            tenant_id: record.identity.tenant_id.clone().into_boxed_str(),
++            protocol_effect_id: record.identity.protocol_effect_id.clone().into_boxed_str(),
++            effect_identity_hash: effect_identity_hash.into_boxed_str(),
++        }
++    }
++}
++
+ struct PendingTransportObservation {
+-    record: SipEffectRecord,
+-    observation_shard: usize,
++    protocol_locator: SipEffectObservationLocator,
++    transport_work_permit: mpsc::OwnedPermit<EffectObservationWork>,
++    protocol_work_permit: mpsc::OwnedPermit<EffectObservationWork>,
++    _transport_capacity: OwnedSemaphorePermit,
++    protocol_capacity: OwnedSemaphorePermit,
++}
++
++struct PendingProtocolObservation {
++    locator: SipEffectObservationLocator,
++    protocol_work_permit: mpsc::OwnedPermit<EffectObservationWork>,
+     _capacity: OwnedSemaphorePermit,
+ }
+ 
+-struct TransportObservationWork {
+-    pending: PendingTransportObservation,
+-    outcome: EgressEffectOutcome,
++enum EffectObservationWork {
++    Transport {
++        locator: SipEffectObservationLocator,
++        outcome: EgressEffectOutcome,
++        _capacity: OwnedSemaphorePermit,
++    },
++    Protocol {
++        locator: SipEffectObservationLocator,
++        observation: EgressEffectProtocolObservation,
++        _capacity: OwnedSemaphorePermit,
++    },
++}
++
++struct SipEffectObservationShardState {
++    observation_rx: mpsc::Receiver<EffectObservationWork>,
++    retry_work: Option<EffectObservationWork>,
++}
++
++struct SipEffectObservationShard {
++    state: AsyncMutex<SipEffectObservationShardState>,
++    lifecycle: AtomicU64,
++    next_lease: AtomicU64,
+ }
+ 
+ pub struct DurableRsipstackEgressGate {
+     intents: Arc<SipEffectIntentRegistry>,
+     store: Arc<dyn SipEffectStorePort>,
+-    pending: DashMap<String, PendingTransportObservation>,
+-    pending_capacity: Arc<Semaphore>,
+-    observation_txs: Vec<mpsc::Sender<TransportObservationWork>>,
++    pending_transport: DashMap<String, PendingTransportObservation>,
++    pending_protocol: DashMap<String, PendingProtocolObservation>,
++    pending_transport_capacity: Vec<Arc<Semaphore>>,
++    pending_protocol_capacity: Vec<Arc<Semaphore>>,
++    observation_txs: Vec<mpsc::Sender<EffectObservationWork>>,
++    observation_shards: Vec<Arc<SipEffectObservationShard>>,
++    unknown_repair_after_ms: u32,
+     metrics: Arc<SipEffectGateMetrics>,
+ }
+ 
+@@ -538,25 +635,59 @@ impl DurableRsipstackEgressGate {
+         let options = options.validate()?;
+         let store: Arc<dyn SipEffectStorePort> = store;
+         let metrics = Arc::new(SipEffectGateMetrics {
+-            pending_observations: AtomicUsize::new(0),
++            pending_transport_observations: AtomicUsize::new(0),
++            pending_protocol_observations: AtomicUsize::new(0),
++            observation_work_outstanding: AtomicUsize::new(0),
+             observation_overflow: AtomicUsize::new(0),
+             observation_closed: AtomicUsize::new(0),
++            observation_quarantined: AtomicUsize::new(0),
+             orphan_observations: AtomicUsize::new(0),
+             observations_persisted: AtomicUsize::new(0),
+             observation_persist_failures: AtomicUsize::new(0),
+         });
+         let mut observation_txs = Vec::with_capacity(options.observation_worker_shards);
++        let mut observation_shards = Vec::with_capacity(options.observation_worker_shards);
+         let mut observers = Vec::with_capacity(options.observation_worker_shards);
+-        let base_capacity = options.observation_queue_capacity / options.observation_worker_shards;
+-        let capacity_remainder =
+-            options.observation_queue_capacity % options.observation_worker_shards;
++        let mut pending_transport_capacity = Vec::with_capacity(options.observation_worker_shards);
++        let mut pending_protocol_capacity = Vec::with_capacity(options.observation_worker_shards);
++        let queue_capacity_extra = options.observation_queue_capacity
++            - options.max_pending_observations
++            - options.max_pending_protocol_observations;
+         for shard in 0..options.observation_worker_shards {
+-            let shard_capacity = base_capacity + usize::from(shard < capacity_remainder);
++            let transport_capacity = partitioned_capacity(
++                options.max_pending_observations,
++                options.observation_worker_shards,
++                shard,
++            );
++            let protocol_capacity = partitioned_capacity(
++                options.max_pending_protocol_observations,
++                options.observation_worker_shards,
++                shard,
++            );
++            let shard_capacity = transport_capacity
++                + protocol_capacity
++                + partitioned_capacity(
++                    queue_capacity_extra,
++                    options.observation_worker_shards,
++                    shard,
++                );
+             let (observation_tx, observation_rx) = mpsc::channel(shard_capacity);
++            let observation_shard = Arc::new(SipEffectObservationShard {
++                state: AsyncMutex::new(SipEffectObservationShardState {
++                    observation_rx,
++                    retry_work: None,
++                }),
++                lifecycle: AtomicU64::new(1),
++                next_lease: AtomicU64::new(2),
++            });
+             observation_txs.push(observation_tx);
++            observation_shards.push(observation_shard.clone());
++            pending_transport_capacity.push(Arc::new(Semaphore::new(transport_capacity)));
++            pending_protocol_capacity.push(Arc::new(Semaphore::new(protocol_capacity)));
+             observers.push(SipEffectTransportObserver {
+                 store: store.clone(),
+-                observation_rx,
++                shard: observation_shard,
++                lease: 1,
+                 unknown_repair_after_ms: options.unknown_repair_after_ms,
+                 metrics: metrics.clone(),
+             });
+@@ -564,19 +695,41 @@ impl DurableRsipstackEgressGate {
+         let gate = Arc::new(Self {
+             intents,
+             store,
+-            pending: DashMap::new(),
+-            pending_capacity: Arc::new(Semaphore::new(options.max_pending_observations)),
++            pending_transport: DashMap::new(),
++            pending_protocol: DashMap::new(),
++            pending_transport_capacity,
++            pending_protocol_capacity,
+             observation_txs,
++            observation_shards,
++            unknown_repair_after_ms: options.unknown_repair_after_ms,
+             metrics: metrics.clone(),
+         });
+         Ok((gate, observers))
+     }
+ 
+     pub fn snapshot(&self) -> SipEffectGateSnapshot {
++        let pending_transport_observations = self
++            .metrics
++            .pending_transport_observations
++            .load(Ordering::Acquire);
++        let pending_protocol_observations = self
++            .metrics
++            .pending_protocol_observations
++            .load(Ordering::Acquire);
++        let observation_work_outstanding = self
++            .metrics
++            .observation_work_outstanding
++            .load(Ordering::Acquire);
+         SipEffectGateSnapshot {
+-            pending_observations: self.metrics.pending_observations.load(Ordering::Acquire),
++            pending_observations: pending_transport_observations
++                .saturating_add(pending_protocol_observations)
++                .saturating_add(observation_work_outstanding),
++            pending_transport_observations,
++            pending_protocol_observations,
++            observation_work_outstanding,
+             observation_overflow: self.metrics.observation_overflow.load(Ordering::Acquire),
+             observation_closed: self.metrics.observation_closed.load(Ordering::Acquire),
++            observation_quarantined: self.metrics.observation_quarantined.load(Ordering::Acquire),
+             orphan_observations: self.metrics.orphan_observations.load(Ordering::Acquire),
+             observations_persisted: self.metrics.observations_persisted.load(Ordering::Acquire),
+             observation_persist_failures: self
+@@ -586,71 +739,96 @@ impl DurableRsipstackEgressGate {
+         }
+     }
+ 
++    pub fn restart_observer(
++        &self,
++        shard_index: usize,
++    ) -> Result<SipEffectTransportObserver, SipEffectGateError> {
++        let shard = self
++            .observation_shards
++            .get(shard_index)
++            .ok_or(SipEffectGateError::InvalidConfiguration)?;
++        if shard.lifecycle.load(Ordering::Acquire) == OBSERVATION_SHARD_QUARANTINED {
++            return Err(SipEffectGateError::ObservationQuarantined);
++        }
++        self.claim_observer(shard)
++    }
++
++    fn claim_observer(
++        &self,
++        shard: &Arc<SipEffectObservationShard>,
++    ) -> Result<SipEffectTransportObserver, SipEffectGateError> {
++        let lease = shard
++            .next_lease
++            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
++                current
++                    .checked_add(1)
++                    .filter(|next| *next != OBSERVATION_SHARD_QUARANTINED)
++            })
++            .map_err(|_| SipEffectGateError::InvalidConfiguration)?;
++        shard
++            .lifecycle
++            .compare_exchange(0, lease, Ordering::AcqRel, Ordering::Acquire)
++            .map_err(|current| {
++                if current == OBSERVATION_SHARD_QUARANTINED {
++                    SipEffectGateError::ObservationQuarantined
++                } else {
++                    SipEffectGateError::ReconciliationRequired
++                }
++            })?;
++        Ok(SipEffectTransportObserver {
++            store: self.store.clone(),
++            shard: shard.clone(),
++            lease,
++            unknown_repair_after_ms: self.unknown_repair_after_ms,
++            metrics: self.metrics.clone(),
++        })
++    }
++
+     async fn prepare_inner(
+         &self,
+         transaction_key: &TransactionKey,
+         message: &SipMessage,
+-        destination: Option<&SipAddr>,
++        transport_binding: &EgressTransportBinding,
+         canonical_wire_bytes: &[u8],
+     ) -> Result<EgressEffectPermit, SipEffectGateError> {
+         let binding_key = effect_binding_key(transaction_key, message)?;
+-        let mut intent = self.intents.claim(&binding_key)?;
+-        let pending_capacity = self
+-            .pending_capacity
++        let observation_shard = observation_shard(&binding_key, self.observation_txs.len());
++        if self.observation_txs[observation_shard].is_closed()
++            || matches!(
++                self.observation_shards[observation_shard]
++                    .lifecycle
++                    .load(Ordering::Acquire),
++                0 | OBSERVATION_SHARD_QUARANTINED
++            )
++        {
++            return Err(SipEffectGateError::StoreUnavailable);
++        }
++        let pending_transport_capacity = self.pending_transport_capacity[observation_shard]
+             .clone()
+             .try_acquire_owned()
+             .map_err(|_| SipEffectGateError::ObservationCapacityExhausted)?;
+-        let effect = intent
+-            .intent
+-            .prepare(&binding_key, destination, canonical_wire_bytes)?;
+-        let prepared = self
+-            .store
+-            .prepare(effect)
+-            .await
+-            .map_err(|_| SipEffectGateError::StoreUnavailable)?;
+-        let mut record = prepared.record;
+-
+-        match record.state {
+-            SipEffectState::Prepared => {
+-                if intent.released() {
+-                    return Err(SipEffectGateError::IntentReleased);
+-                }
+-                record = self
+-                    .store
+-                    .apply(stage_receipt(
+-                        &record,
+-                        "durable-decision",
+-                        SipEffectReceiptLevel::DurableDecision,
+-                        None,
+-                    )?)
+-                    .await
+-                    .map_err(|_| SipEffectGateError::StoreUnavailable)?
+-                    .record;
+-            }
+-            SipEffectState::DurableDecision => {}
+-            _ => {
+-                intent.consume();
+-                return Err(SipEffectGateError::ReconciliationRequired);
+-            }
+-        }
+-        if record.state != SipEffectState::DurableDecision {
+-            intent.consume();
+-            return Err(SipEffectGateError::ReconciliationRequired);
+-        }
+-        if intent.released() {
+-            return Err(SipEffectGateError::IntentReleased);
++        let pending_protocol_capacity = self.pending_protocol_capacity[observation_shard]
++            .clone()
++            .try_acquire_owned()
++            .map_err(|_| SipEffectGateError::ObservationCapacityExhausted)?;
++        let transport_work_permit = self.reserve_observation_slot(observation_shard)?;
++        let protocol_work_permit = self.reserve_observation_slot(observation_shard)?;
++        if matches!(
++            self.observation_shards[observation_shard]
++                .lifecycle
++                .load(Ordering::Acquire),
++            0 | OBSERVATION_SHARD_QUARANTINED
++        ) {
++            return Err(SipEffectGateError::StoreUnavailable);
+         }
+-
+-        let send_attempt = match self
+-            .store
+-            .apply(stage_receipt(
+-                &record,
+-                "send-attempted",
+-                SipEffectReceiptLevel::SendAttempted,
+-                None,
+-            )?)
+-            .await
+-        {
++        let mut intent = self.intents.claim(&binding_key)?;
++        let effect = intent.intent.prepare(
++            message,
++            transport_binding,
++            canonical_wire_bytes,
++            effect_completion_scope(message)?,
++        )?;
++        let send_attempt = match self.store.prepare_for_send(effect).await {
+             Ok(outcome) => outcome,
+             Err(_) => {
+                 // The transaction commit may have succeeded even when its
+@@ -660,7 +838,9 @@ impl DurableRsipstackEgressGate {
+                 return Err(SipEffectGateError::ReconciliationRequired);
+             }
+         };
+-        if send_attempt.replayed || send_attempt.record.state != SipEffectState::SendAttempted {
++        if send_attempt.send_attempt_replayed
++            || send_attempt.record.state != SipEffectState::SendAttempted
++        {
+             intent.consume();
+             return Err(SipEffectGateError::ReconciliationRequired);
+         }
+@@ -668,32 +848,58 @@ impl DurableRsipstackEgressGate {
+             intent.consume();
+             return Err(SipEffectGateError::ReconciliationRequired);
+         }
+-        record = send_attempt.record;
+-        let permit_token = permit_token(&record)?;
++        let record = send_attempt.record;
++        let effect_identity_hash = protocol_effect_identity_hash(&record.identity)
++            .map_err(|_| SipEffectGateError::InvalidIntent)?;
++        let protocol_locator =
++            SipEffectObservationLocator::from_record(&record, effect_identity_hash.clone());
++        let permit_token = permit_token(&effect_identity_hash, record.revision);
+         let permit = EgressEffectPermit::try_new(&permit_token)
+             .map_err(|_| SipEffectGateError::InvalidConfiguration)?;
+-        let observation_shard = observation_shard(&permit_token, self.observation_txs.len());
+ 
+         use dashmap::mapref::entry::Entry;
+-        match self.pending.entry(permit_token) {
++        match self.pending_transport.entry(permit_token) {
+             Entry::Occupied(_) => {
+                 intent.consume();
+                 return Err(SipEffectGateError::ReconciliationRequired);
+             }
+             Entry::Vacant(entry) => {
+                 entry.insert(PendingTransportObservation {
+-                    record,
+-                    observation_shard,
+-                    _capacity: pending_capacity,
++                    protocol_locator,
++                    transport_work_permit,
++                    protocol_work_permit,
++                    _transport_capacity: pending_transport_capacity,
++                    protocol_capacity: pending_protocol_capacity,
+                 });
+                 self.metrics
+-                    .pending_observations
++                    .pending_transport_observations
+                     .fetch_add(1, Ordering::AcqRel);
+             }
+         }
+         intent.consume();
+         Ok(permit)
+     }
++
++    fn reserve_observation_slot(
++        &self,
++        shard: usize,
++    ) -> Result<mpsc::OwnedPermit<EffectObservationWork>, SipEffectGateError> {
++        match self.observation_txs[shard].clone().try_reserve_owned() {
++            Ok(permit) => Ok(permit),
++            Err(mpsc::error::TrySendError::Full(_)) => {
++                self.metrics
++                    .observation_overflow
++                    .fetch_add(1, Ordering::Relaxed);
++                Err(SipEffectGateError::ObservationCapacityExhausted)
++            }
++            Err(mpsc::error::TrySendError::Closed(_)) => {
++                self.metrics
++                    .observation_closed
++                    .fetch_add(1, Ordering::Relaxed);
++                Err(SipEffectGateError::StoreUnavailable)
++            }
++        }
++    }
+ }
+ 
+ #[async_trait]
+@@ -702,83 +908,267 @@ impl EgressEffectGate for DurableRsipstackEgressGate {
+         &self,
+         transaction_key: &TransactionKey,
+         message: &SipMessage,
+-        destination: Option<&SipAddr>,
++        transport_binding: &EgressTransportBinding,
+         canonical_wire_bytes: &[u8],
+     ) -> rsipstack::Result<EgressEffectPermit> {
+-        self.prepare_inner(transaction_key, message, destination, canonical_wire_bytes)
+-            .await
+-            .map_err(|error| rsipstack::Error::EndpointError(error.to_string()))
++        self.prepare_inner(
++            transaction_key,
++            message,
++            transport_binding,
++            canonical_wire_bytes,
++        )
++        .await
++        .map_err(|error| rsipstack::Error::EndpointError(error.to_string()))
+     }
+ 
+     fn observe_transport(&self, permit: EgressEffectPermit, outcome: EgressEffectOutcome) {
+-        let Some((_, pending)) = self.pending.remove(permit.token()) else {
++        let Some((permit_token, pending)) = self.pending_transport.remove(permit.token()) else {
+             self.metrics
+                 .orphan_observations
+                 .fetch_add(1, Ordering::Relaxed);
+             return;
+         };
++        let PendingTransportObservation {
++            protocol_locator,
++            transport_work_permit,
++            protocol_work_permit,
++            _transport_capacity: transport_capacity,
++            protocol_capacity,
++        } = pending;
++
++        self.metrics
++            .observation_work_outstanding
++            .fetch_add(1, Ordering::AcqRel);
++        transport_work_permit.send(EffectObservationWork::Transport {
++            locator: protocol_locator.clone(),
++            outcome,
++            _capacity: transport_capacity,
++        });
++
++        if outcome == EgressEffectOutcome::TransportAccepted {
++            use dashmap::mapref::entry::Entry;
++            match self.pending_protocol.entry(permit_token) {
++                Entry::Occupied(_) => {
++                    self.metrics
++                        .orphan_observations
++                        .fetch_add(1, Ordering::Relaxed);
++                }
++                Entry::Vacant(entry) => {
++                    entry.insert(PendingProtocolObservation {
++                        locator: protocol_locator,
++                        protocol_work_permit,
++                        _capacity: protocol_capacity,
++                    });
++                    self.metrics
++                        .pending_protocol_observations
++                        .fetch_add(1, Ordering::AcqRel);
++                }
++            }
++        }
+         let previous = self
+             .metrics
+-            .pending_observations
++            .pending_transport_observations
+             .fetch_sub(1, Ordering::AcqRel);
+         debug_assert!(previous > 0);
+-        let observation_shard = pending.observation_shard;
+-        match self.observation_txs[observation_shard]
+-            .try_send(TransportObservationWork { pending, outcome })
+-        {
+-            Ok(()) => {}
+-            Err(mpsc::error::TrySendError::Full(_)) => {
+-                self.metrics
+-                    .observation_overflow
+-                    .fetch_add(1, Ordering::Relaxed);
+-            }
+-            Err(mpsc::error::TrySendError::Closed(_)) => {
+-                self.metrics
+-                    .observation_closed
+-                    .fetch_add(1, Ordering::Relaxed);
+-            }
+-        }
++    }
++
++    fn observe_protocol(
++        &self,
++        permit: EgressEffectPermit,
++        observation: EgressEffectProtocolObservation,
++    ) {
++        let Some((_, pending)) = self.pending_protocol.remove(permit.token()) else {
++            self.metrics
++                .orphan_observations
++                .fetch_add(1, Ordering::Relaxed);
++            return;
++        };
++        self.metrics
++            .observation_work_outstanding
++            .fetch_add(1, Ordering::AcqRel);
++        let previous = self
++            .metrics
++            .pending_protocol_observations
++            .fetch_sub(1, Ordering::AcqRel);
++        debug_assert!(previous > 0);
++        pending
++            .protocol_work_permit
++            .send(EffectObservationWork::Protocol {
++                locator: pending.locator,
++                observation,
++                _capacity: pending._capacity,
++            });
+     }
+ }
+ 
+ pub struct SipEffectTransportObserver {
+     store: Arc<dyn SipEffectStorePort>,
+-    observation_rx: mpsc::Receiver<TransportObservationWork>,
++    shard: Arc<SipEffectObservationShard>,
++    lease: u64,
+     unknown_repair_after_ms: u32,
+     metrics: Arc<SipEffectGateMetrics>,
+ }
+ 
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++enum ObservationPersistFailure {
++    Retryable,
++    Permanent,
++}
++
+ impl SipEffectTransportObserver {
+     pub async fn persist_next(&mut self) -> Result<bool, SipEffectGateError> {
+-        let Some(work) = self.observation_rx.recv().await else {
+-            return Ok(false);
+-        };
+-        let (suffix, level, repair_after_ms) = match work.outcome {
+-            EgressEffectOutcome::TransportAccepted => (
+-                "transport-accepted",
+-                SipEffectReceiptLevel::TransportAccepted,
+-                None,
+-            ),
+-            EgressEffectOutcome::TransportUnknown => (
+-                "transport-unknown",
+-                SipEffectReceiptLevel::Unknown,
+-                Some(self.unknown_repair_after_ms),
+-            ),
+-        };
+-        let receipt = stage_receipt(&work.pending.record, suffix, level, repair_after_ms)?;
+-        if self.store.apply(receipt).await.is_err() {
++        if self.shard.lifecycle.load(Ordering::Acquire) == OBSERVATION_SHARD_QUARANTINED {
++            return Err(SipEffectGateError::ObservationQuarantined);
++        }
++        if self.shard.lifecycle.load(Ordering::Acquire) != self.lease {
++            return Err(SipEffectGateError::StoreUnavailable);
++        }
++        let mut shard_state = self.shard.state.lock().await;
++        if shard_state.retry_work.is_none() {
++            let Some(work) = shard_state.observation_rx.recv().await else {
++                return Ok(false);
++            };
++            shard_state.retry_work = Some(work);
++        }
++        let result = self
++            .persist_work(
++                shard_state
++                    .retry_work
++                    .as_ref()
++                    .expect("observation work is armed before durable I/O"),
++            )
++            .await;
++        match result {
++            Ok(()) => {
++                shard_state.retry_work.take();
++                let previous = self
++                    .metrics
++                    .observation_work_outstanding
++                    .fetch_sub(1, Ordering::AcqRel);
++                debug_assert!(previous > 0);
++                self.metrics
++                    .observations_persisted
++                    .fetch_add(1, Ordering::Relaxed);
++                Ok(true)
++            }
++            Err(ObservationPersistFailure::Retryable) => {
++                self.metrics
++                    .observation_persist_failures
++                    .fetch_add(1, Ordering::Relaxed);
++                Err(SipEffectGateError::StoreUnavailable)
++            }
++            Err(ObservationPersistFailure::Permanent) => {
++                self.metrics
++                    .observation_persist_failures
++                    .fetch_add(1, Ordering::Relaxed);
++                self.quarantine();
++                Err(SipEffectGateError::ObservationQuarantined)
++            }
++        }
++    }
++
++    fn quarantine(&self) {
++        if self
++            .shard
++            .lifecycle
++            .compare_exchange(
++                self.lease,
++                OBSERVATION_SHARD_QUARANTINED,
++                Ordering::AcqRel,
++                Ordering::Acquire,
++            )
++            .is_ok()
++        {
+             self.metrics
+-                .observation_persist_failures
++                .observation_quarantined
+                 .fetch_add(1, Ordering::Relaxed);
+-            return Err(SipEffectGateError::StoreUnavailable);
+         }
+-        self.metrics
+-            .observations_persisted
+-            .fetch_add(1, Ordering::Relaxed);
+-        Ok(true)
++    }
++
++    async fn persist_work(
++        &self,
++        work: &EffectObservationWork,
++    ) -> Result<(), ObservationPersistFailure> {
++        match work {
++            EffectObservationWork::Transport {
++                locator, outcome, ..
++            } => {
++                let observation = match outcome {
++                    EgressEffectOutcome::TransportAccepted => {
++                        SipEffectDurableObservation::TransportAccepted
++                    }
++                    EgressEffectOutcome::TransportUnknown => {
++                        SipEffectDurableObservation::TransportUnknown
++                    }
++                };
++                self.persist_observation(locator, observation).await
++            }
++            EffectObservationWork::Protocol {
++                locator,
++                observation,
++                ..
++            } => {
++                let observation = match observation {
++                    EgressEffectProtocolObservation::Completed => {
++                        SipEffectDurableObservation::ProtocolObserved
++                    }
++                    EgressEffectProtocolObservation::Unknown => {
++                        SipEffectDurableObservation::ProtocolUnknown
++                    }
++                    EgressEffectProtocolObservation::TransportTerminal => {
++                        SipEffectDurableObservation::TransportCompleted
++                    }
++                };
++                self.persist_observation(locator, observation).await
++            }
++        }
++    }
++
++    async fn persist_observation(
++        &self,
++        locator: &SipEffectObservationLocator,
++        observation: SipEffectDurableObservation,
++    ) -> Result<(), ObservationPersistFailure> {
++        self.store
++            .persist_observation(
++                locator.tenant_id.as_ref(),
++                locator.protocol_effect_id.as_ref(),
++                locator.effect_identity_hash.as_ref(),
++                observation,
++                self.unknown_repair_after_ms,
++            )
++            .await
++            .map_err(classify_observation_store_error)
++    }
++}
++
++impl Drop for SipEffectTransportObserver {
++    fn drop(&mut self) {
++        if self
++            .shard
++            .lifecycle
++            .compare_exchange(self.lease, 0, Ordering::AcqRel, Ordering::Acquire)
++            .is_ok()
++        {
++            self.metrics
++                .observation_closed
++                .fetch_add(1, Ordering::Relaxed);
++        }
++    }
++}
++
++fn classify_observation_store_error(error: SipEffectStoreError) -> ObservationPersistFailure {
++    match error {
++        SipEffectStoreError::PoolExhausted
++        | SipEffectStoreError::PoolTimeout
++        | SipEffectStoreError::StoreUnavailable => ObservationPersistFailure::Retryable,
++        SipEffectStoreError::InvalidConfiguration
++        | SipEffectStoreError::SchemaIncompatible
++        | SipEffectStoreError::Domain(_) => ObservationPersistFailure::Permanent,
+     }
+ }
+ 
++#[cfg(test)]
+ fn stage_receipt(
+     record: &SipEffectRecord,
+     stage: &str,
+@@ -790,80 +1180,455 @@ fn stage_receipt(
+         .map_err(|_| SipEffectGateError::InvalidIntent)
+ }
+ 
+-fn permit_token(record: &SipEffectRecord) -> Result<String, SipEffectGateError> {
+-    let identity_hash = protocol_effect_identity_hash(&record.identity)
+-        .map_err(|_| SipEffectGateError::InvalidIntent)?;
+-    Ok(deterministic_token(
+-        "permit",
+-        &identity_hash,
+-        &record.revision.to_string(),
+-    ))
++fn permit_token(effect_identity_hash: &str, revision: u64) -> String {
++    sip_effect_stage_token("permit", effect_identity_hash, &revision.to_string())
+ }
+ 
++#[cfg(test)]
+ fn deterministic_token(prefix: &str, identity: &str, stage: &str) -> String {
+-    let mut hasher = Sha256::new();
+-    update_length_prefixed(&mut hasher, identity.as_bytes());
+-    update_length_prefixed(&mut hasher, stage.as_bytes());
+-    format!("{prefix}-{}", lower_hex(&hasher.finalize()))
++    sip_effect_stage_token(prefix, identity, stage)
++}
++
++fn partitioned_capacity(total: usize, shard_count: usize, shard: usize) -> usize {
++    let base = total / shard_count;
++    base + usize::from(shard < total % shard_count)
+ }
+ 
+-fn observation_shard(permit_token: &str, shard_count: usize) -> usize {
+-    let hash_prefix = permit_token
++fn observation_shard(binding_hash: &str, shard_count: usize) -> usize {
++    let hash_prefix = binding_hash
+         .strip_prefix("permit-")
+-        .and_then(|hash| hash.get(..16))
++        .unwrap_or(binding_hash)
++        .get(..16)
+         .and_then(|prefix| u64::from_str_radix(prefix, 16).ok())
+         .unwrap_or(0);
+     (hash_prefix as usize) % shard_count
+ }
+ 
+-fn effect_binding_key(
+-    transaction_key: &TransactionKey,
++fn effect_completion_scope(message: &SipMessage) -> Result<&'static str, SipEffectGateError> {
++    match message {
++        SipMessage::Request(request) if request.method == rsipstack::sip::Method::Ack => {
++            Ok(COMPLETION_SCOPE_TRANSPORT_TERMINAL)
++        }
++        SipMessage::Request(_) => Ok(COMPLETION_SCOPE_TRANSACTION_PEER),
++        SipMessage::Response(response) => {
++            let method = response
++                .cseq_header()
++                .map_err(|_| SipEffectGateError::InvalidIntent)?
++                .method()
++                .map_err(|_| SipEffectGateError::InvalidIntent)?;
++            let status = response.status_code.code();
++            if method == rsipstack::sip::Method::Invite && (200..=299).contains(&status) {
++                Ok(COMPLETION_SCOPE_UAS_CORE_DEFERRED)
++            } else if method == rsipstack::sip::Method::Invite && (300..=699).contains(&status) {
++                Ok(COMPLETION_SCOPE_TRANSACTION_PEER)
++            } else {
++                Ok(COMPLETION_SCOPE_TRANSPORT_TERMINAL)
++            }
++        }
++    }
++}
++
++fn message_via_branch(message: &SipMessage) -> Result<String, SipEffectGateError> {
++    message
++        .via_header()
++        .map_err(|_| SipEffectGateError::InvalidIntent)?
++        .typed()
++        .map_err(|_| SipEffectGateError::InvalidIntent)?
++        .branch()
++        .map(|branch| branch.value().to_string())
++        .ok_or(SipEffectGateError::InvalidIntent)
++}
++
++fn canonical_destination(
++    route_binding: &Value,
++    transport_binding: &EgressTransportBinding,
++) -> Result<Value, SipEffectGateError> {
++    let route = validate_route_binding(route_binding)?;
++    let transport = exact_object(
++        route
++            .get("transport")
++            .ok_or(SipEffectGateError::InvalidIntent)?,
++        &["id", "protocol", "next_hop"],
++    )?;
++    let protocol = transport_protocol(transport_binding.protocol())?;
++    if string_field(transport, "protocol")? != protocol {
++        return Err(SipEffectGateError::InvalidIntent);
++    }
++    let next_hop = exact_object(
++        transport
++            .get("next_hop")
++            .ok_or(SipEffectGateError::InvalidIntent)?,
++        &["address", "port"],
++    )?;
++    let remote = transport_binding.remote_addr();
++    if string_field(next_hop, "address")?
++        .parse::<std::net::IpAddr>()
++        .ok()
++        != Some(remote.ip())
++        || next_hop.get("port").and_then(Value::as_u64) != Some(u64::from(remote.port()))
++    {
++        return Err(SipEffectGateError::InvalidIntent);
++    }
++    let (selection_kind, flow_id, flow_generation) = match transport_binding.selection_kind() {
++        EgressTransportSelectionKind::DatagramDestination => {
++            if transport_binding.flow_id().is_some()
++                || transport_binding.flow_generation().is_some()
++            {
++                return Err(SipEffectGateError::InvalidIntent);
++            }
++            ("datagram_destination", Value::Null, Value::Null)
++        }
++        EgressTransportSelectionKind::ConnectedFlow => {
++            let flow_id = transport_binding
++                .flow_id()
++                .ok_or(SipEffectGateError::InvalidIntent)?;
++            validate_sip_effect_identifier(flow_id)
++                .map_err(|_| SipEffectGateError::InvalidIntent)?;
++            let flow_generation = transport_binding
++                .flow_generation()
++                .filter(|generation| *generation > 0)
++                .ok_or(SipEffectGateError::InvalidIntent)?;
++            (
++                "connected_flow",
++                Value::String(flow_id.to_string()),
++                Value::String(flow_generation.to_string()),
++            )
++        }
++    };
++    Ok(serde_json::json!({
++        "transport_id": string_field(transport, "id")?,
++        "protocol": protocol,
++        "address": remote.ip().to_string(),
++        "port": remote.port(),
++        "selection_kind": selection_kind,
++        "flow_id": flow_id,
++        "flow_generation": flow_generation,
++    }))
++}
++
++fn transaction_binding_sha256(
++    intent: &SipEffectIntent,
+     message: &SipMessage,
++    canonical_wire_bytes: &[u8],
++    via_branch: &str,
++    canonical_destination: &Value,
++    completion_scope: &str,
+ ) -> Result<String, SipEffectGateError> {
+-    let transaction_key = transaction_key.to_string();
+-    let (kind, code, target, call_id, cseq, from, to, body) = match message {
++    if effect_completion_scope(message)? != completion_scope {
++        return Err(SipEffectGateError::InvalidIntent);
++    }
++    let message_line_end = canonical_wire_bytes
++        .windows(2)
++        .position(|window| window == b"\r\n")
++        .ok_or(SipEffectGateError::InvalidIntent)?;
++    let message_line = std::str::from_utf8(&canonical_wire_bytes[..message_line_end])
++        .map_err(|_| SipEffectGateError::InvalidIntent)?;
++    if message_line.is_empty() || message_line.len() > 4_096 {
++        return Err(SipEffectGateError::InvalidIntent);
++    }
++    let cseq = message
++        .cseq_header()
++        .map_err(|_| SipEffectGateError::InvalidIntent)?;
++    let cseq_method = cseq
++        .method()
++        .map_err(|_| SipEffectGateError::InvalidIntent)?
++        .to_string();
++    let cseq = cseq.value();
++    let (message_kind, request_method, response_status) = match message {
+         SipMessage::Request(request) => (
+             "request",
+-            request.method.to_string(),
+-            request.uri.to_string(),
+-            request
+-                .call_id_header()
+-                .map_err(|_| SipEffectGateError::InvalidIntent)?
+-                .value(),
+-            request
+-                .cseq_header()
+-                .map_err(|_| SipEffectGateError::InvalidIntent)?
+-                .value(),
+-            request
+-                .from_header()
+-                .map_err(|_| SipEffectGateError::InvalidIntent)?
+-                .value(),
+-            request
+-                .to_header()
+-                .map_err(|_| SipEffectGateError::InvalidIntent)?
+-                .value(),
+-            request.body.as_slice(),
++            Value::String(request.method.to_string()),
++            Value::Null,
+         ),
+         SipMessage::Response(response) => (
+             "response",
+-            response.status_code.code().to_string(),
+-            String::new(),
+-            response
+-                .call_id_header()
+-                .map_err(|_| SipEffectGateError::InvalidIntent)?
+-                .value(),
+-            response
+-                .cseq_header()
+-                .map_err(|_| SipEffectGateError::InvalidIntent)?
+-                .value(),
+-            response
+-                .from_header()
+-                .map_err(|_| SipEffectGateError::InvalidIntent)?
+-                .value(),
+-            response
+-                .to_header()
+-                .map_err(|_| SipEffectGateError::InvalidIntent)?
+-                .value(),
++            Value::Null,
++            Value::Number(response.status_code.code().into()),
++        ),
++    };
++    canonical_json_sha256(&serde_json::json!({
++        "schema_id": "sip-foundation-transaction-binding-v1",
++        "schema_version": "1.0.0",
++        "protocol_session_id": intent.protocol_session_id,
++        "protocol_session_generation": intent.protocol_session_generation,
++        "effect_id": intent.protocol_effect_id,
++        "via_branch": via_branch,
++        "canonical_destination": canonical_destination,
++        "message_line": message_line,
++        "message_kind": message_kind,
++        "request_method": request_method,
++        "response_status": response_status,
++        "cseq": cseq,
++        "cseq_method": cseq_method,
++    }))
++    .map_err(|_| SipEffectGateError::InvalidIntent)
++}
++
++fn validate_route_binding(
++    value: &Value,
++) -> Result<&serde_json::Map<String, Value>, SipEffectGateError> {
++    let route_binding = exact_object(
++        value,
++        &[
++            "schema_id",
++            "schema_version",
++            "route",
++            "rfc3263_candidate",
++            "route_set",
++            "transport",
++            "local_endpoint",
++            "advertised_via_sent_by",
++            "tls_sni",
++            "authorization_identity",
++            "authorization_headers_sha256",
++        ],
++    )?;
++    if string_field(route_binding, "schema_id")? != "sip-foundation-route-binding-v1"
++        || string_field(route_binding, "schema_version")? != "1.0.0"
++    {
++        return Err(SipEffectGateError::InvalidIntent);
++    }
++    let route = exact_object(
++        route_binding
++            .get("route")
++            .ok_or(SipEffectGateError::InvalidIntent)?,
++        &["id", "revision"],
++    )?;
++    validate_identifier_field(route, "id")?;
++    if !matches!(route.get("revision").and_then(Value::as_u64), Some(1..)) {
++        return Err(SipEffectGateError::InvalidIntent);
++    }
++    validate_bounded_text(route_binding, "rfc3263_candidate", 1_024)?;
++    let route_set = route_binding
++        .get("route_set")
++        .and_then(Value::as_array)
++        .filter(|entries| entries.len() <= 32)
++        .ok_or(SipEffectGateError::InvalidIntent)?;
++    for route in route_set {
++        validate_bounded_wire_value(route, 4_096)?;
++    }
++    let transport = exact_object(
++        route_binding
++            .get("transport")
++            .ok_or(SipEffectGateError::InvalidIntent)?,
++        &["id", "protocol", "next_hop"],
++    )?;
++    validate_identifier_field(transport, "id")?;
++    let protocol = string_field(transport, "protocol")?;
++    if !matches!(protocol, "udp" | "tcp" | "tls" | "ws" | "wss") {
++        return Err(SipEffectGateError::InvalidIntent);
++    }
++    validate_ip_endpoint(
++        transport
++            .get("next_hop")
++            .ok_or(SipEffectGateError::InvalidIntent)?,
++    )?;
++    validate_ip_endpoint(
++        route_binding
++            .get("local_endpoint")
++            .ok_or(SipEffectGateError::InvalidIntent)?,
++    )?;
++    let advertised = exact_object(
++        route_binding
++            .get("advertised_via_sent_by")
++            .ok_or(SipEffectGateError::InvalidIntent)?,
++        &["host", "port"],
++    )?;
++    let host = string_field(advertised, "host")?;
++    if !valid_host(host)
++        || !matches!(
++            advertised.get("port").and_then(Value::as_u64),
++            Some(1..=65_535)
++        )
++    {
++        return Err(SipEffectGateError::InvalidIntent);
++    }
++    let tls_sni = nullable_string(route_binding, "tls_sni")?;
++    if matches!(protocol, "tls" | "wss") != tls_sni.is_some()
++        || tls_sni.is_some_and(|value| !valid_hostname(value))
++    {
++        return Err(SipEffectGateError::InvalidIntent);
++    }
++    if let Some(identity) = nullable_string(route_binding, "authorization_identity")? {
++        validate_sip_effect_identifier(identity).map_err(|_| SipEffectGateError::InvalidIntent)?;
++    }
++    let authorization_hashes = route_binding
++        .get("authorization_headers_sha256")
++        .and_then(Value::as_array)
++        .filter(|entries| entries.len() <= 16)
++        .ok_or(SipEffectGateError::InvalidIntent)?;
++    for hash in authorization_hashes {
++        if !hash.as_str().is_some_and(is_sha256) {
++            return Err(SipEffectGateError::InvalidIntent);
++        }
++    }
++    Ok(route_binding)
++}
++
++fn validate_ip_endpoint(value: &Value) -> Result<(), SipEffectGateError> {
++    let endpoint = exact_object(value, &["address", "port"])?;
++    if string_field(endpoint, "address")?
++        .parse::<std::net::IpAddr>()
++        .is_err()
++        || !matches!(
++            endpoint.get("port").and_then(Value::as_u64),
++            Some(1..=65_535)
++        )
++    {
++        return Err(SipEffectGateError::InvalidIntent);
++    }
++    Ok(())
++}
++
++fn exact_object<'a>(
++    value: &'a Value,
++    keys: &[&str],
++) -> Result<&'a serde_json::Map<String, Value>, SipEffectGateError> {
++    let object = value.as_object().ok_or(SipEffectGateError::InvalidIntent)?;
++    if object.len() != keys.len() || keys.iter().any(|key| !object.contains_key(*key)) {
++        return Err(SipEffectGateError::InvalidIntent);
++    }
++    Ok(object)
++}
++
++fn string_field<'a>(
++    object: &'a serde_json::Map<String, Value>,
++    key: &str,
++) -> Result<&'a str, SipEffectGateError> {
++    object
++        .get(key)
++        .and_then(Value::as_str)
++        .ok_or(SipEffectGateError::InvalidIntent)
++}
++
++fn nullable_string<'a>(
++    object: &'a serde_json::Map<String, Value>,
++    key: &str,
++) -> Result<Option<&'a str>, SipEffectGateError> {
++    match object.get(key) {
++        Some(Value::Null) => Ok(None),
++        Some(Value::String(value)) => Ok(Some(value)),
++        _ => Err(SipEffectGateError::InvalidIntent),
++    }
++}
++
++fn validate_identifier_field(
++    object: &serde_json::Map<String, Value>,
++    key: &str,
++) -> Result<(), SipEffectGateError> {
++    validate_sip_effect_identifier(string_field(object, key)?)
++        .map_err(|_| SipEffectGateError::InvalidIntent)
++}
++
++fn validate_bounded_text(
++    object: &serde_json::Map<String, Value>,
++    key: &str,
++    maximum: usize,
++) -> Result<(), SipEffectGateError> {
++    validate_bounded_wire_value(
++        object.get(key).ok_or(SipEffectGateError::InvalidIntent)?,
++        maximum,
++    )
++}
++
++fn validate_bounded_wire_value(value: &Value, maximum: usize) -> Result<(), SipEffectGateError> {
++    if !value.as_str().is_some_and(|text| {
++        !text.is_empty()
++            && text.len() <= maximum
++            && !text
++                .bytes()
++                .any(|byte| matches!(byte, b'\0' | b'\r' | b'\n'))
++    }) {
++        return Err(SipEffectGateError::InvalidIntent);
++    }
++    Ok(())
++}
++
++fn valid_host(value: &str) -> bool {
++    value.parse::<std::net::IpAddr>().is_ok() || valid_hostname(value)
++}
++
++fn valid_hostname(value: &str) -> bool {
++    !value.is_empty()
++        && value.len() <= 253
++        && value.split('.').all(|label| {
++            !label.is_empty()
++                && label.len() <= 63
++                && label
++                    .bytes()
++                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
++                && label
++                    .as_bytes()
++                    .first()
++                    .is_some_and(u8::is_ascii_alphanumeric)
++                && label
++                    .as_bytes()
++                    .last()
++                    .is_some_and(u8::is_ascii_alphanumeric)
++        })
++}
++
++fn transport_protocol(
++    transport: rsipstack::sip::Transport,
++) -> Result<&'static str, SipEffectGateError> {
++    match transport {
++        rsipstack::sip::Transport::Udp => Ok("udp"),
++        rsipstack::sip::Transport::Tcp => Ok("tcp"),
++        rsipstack::sip::Transport::Tls => Ok("tls"),
++        rsipstack::sip::Transport::Ws => Ok("ws"),
++        rsipstack::sip::Transport::Wss => Ok("wss"),
++        _ => Err(SipEffectGateError::InvalidIntent),
++    }
++}
++
++fn effect_binding_key(
++    transaction_key: &TransactionKey,
++    message: &SipMessage,
++) -> Result<String, SipEffectGateError> {
++    let transaction_key = transaction_key.to_string();
++    let (kind, code, target, call_id, cseq, from, to, body) = match message {
++        SipMessage::Request(request) => (
++            "request",
++            request.method.to_string(),
++            request.uri.to_string(),
++            request
++                .call_id_header()
++                .map_err(|_| SipEffectGateError::InvalidIntent)?
++                .value(),
++            request
++                .cseq_header()
++                .map_err(|_| SipEffectGateError::InvalidIntent)?
++                .value(),
++            request
++                .from_header()
++                .map_err(|_| SipEffectGateError::InvalidIntent)?
++                .value(),
++            request
++                .to_header()
++                .map_err(|_| SipEffectGateError::InvalidIntent)?
++                .value(),
++            request.body.as_slice(),
++        ),
++        SipMessage::Response(response) => (
++            "response",
++            response.status_code.code().to_string(),
++            String::new(),
++            response
++                .call_id_header()
++                .map_err(|_| SipEffectGateError::InvalidIntent)?
++                .value(),
++            response
++                .cseq_header()
++                .map_err(|_| SipEffectGateError::InvalidIntent)?
++                .value(),
++            response
++                .from_header()
++                .map_err(|_| SipEffectGateError::InvalidIntent)?
++                .value(),
++            response
++                .to_header()
++                .map_err(|_| SipEffectGateError::InvalidIntent)?
++                .value(),
+             response.body.as_slice(),
+         ),
+     };
+@@ -905,29 +1670,45 @@ fn is_sha256(value: &str) -> bool {
+ #[cfg(test)]
+ mod tests {
+     use super::{
+-        DurableRsipstackEgressGate, SipEffectGateError, SipEffectGateOptions, SipEffectIntent,
+-        SipEffectIntentRegistry, SipEffectStorePort,
++        COMPLETION_SCOPE_TRANSACTION_PEER, COMPLETION_SCOPE_TRANSPORT_TERMINAL,
++        DurableRsipstackEgressGate, SipEffectDurableObservation, SipEffectGateError,
++        SipEffectGateOptions, SipEffectIntent, SipEffectIntentRegistry,
++        SipEffectPrepareForSendOutcome, SipEffectStorePort,
+     };
+     use crate::call::adapters::postgres_sip_effect::SipEffectStoreError;
+     use crate::call::domain::sip_effect::{
+-        InMemorySipEffectLedger, PreparedSipEffect, SipEffectApplyOutcome, SipEffectPrepareOutcome,
+-        SipEffectReceipt, SipEffectReceiptLevel, SipEffectState, sha256_lower_hex,
++        InMemorySipEffectLedger, PreparedSipEffect, SipEffectError, SipEffectReceiptLevel,
++        SipEffectState, protocol_effect_identity_hash, sha256_lower_hex,
+     };
+     use async_trait::async_trait;
+     use chrono::{Duration as ChronoDuration, TimeZone, Utc};
+-    use rsipstack::sip::{Request, SipMessage};
++    use rsipstack::sip::{Request, SipMessage, Transport};
+     use rsipstack::transaction::{
+-        EgressEffectGate, EgressEffectOutcome,
++        EgressEffectGate, EgressEffectOutcome, EgressEffectPermit, EgressEffectProtocolObservation,
+         key::{TransactionKey, TransactionRole},
+     };
++    use rsipstack::transport::{
++        SipAddr, SipConnection, connection::EgressTransportBinding, udp::UdpConnection,
++    };
++    use serde_json::Value;
++    use std::future::pending;
+     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+-    use std::sync::{Arc, Mutex};
++    use std::sync::{Arc, Barrier, Mutex};
++    use std::time::Duration;
++    use tokio::sync::Notify;
++    use tokio::time::timeout;
+ 
+     struct InMemoryWriter {
+         ledger: tokio::sync::Mutex<InMemorySipEffectLedger>,
+         prepared: Mutex<Vec<PreparedSipEffect>>,
+         apply_calls: AtomicUsize,
+         fail_send_attempt_after_commit: AtomicBool,
++        fail_transport_observation_after_commit: AtomicBool,
++        fail_transport_completion_after_commit: AtomicBool,
++        cancel_transport_observation_once: AtomicBool,
++        transport_observation_started: Notify,
++        fail_protocol_query_permanently: AtomicBool,
++        protocol_query_calls: AtomicUsize,
+     }
+ 
+     impl InMemoryWriter {
+@@ -937,6 +1718,12 @@ mod tests {
+                 prepared: Mutex::new(Vec::new()),
+                 apply_calls: AtomicUsize::new(0),
+                 fail_send_attempt_after_commit: AtomicBool::new(false),
++                fail_transport_observation_after_commit: AtomicBool::new(false),
++                fail_transport_completion_after_commit: AtomicBool::new(false),
++                cancel_transport_observation_once: AtomicBool::new(false),
++                transport_observation_started: Notify::new(),
++                fail_protocol_query_permanently: AtomicBool::new(false),
++                protocol_query_calls: AtomicUsize::new(0),
+             }
+         }
+ 
+@@ -965,37 +1752,208 @@ mod tests {
+ 
+     #[async_trait]
+     impl SipEffectStorePort for InMemoryWriter {
+-        async fn prepare(
++        async fn prepare_for_send(
+             &self,
+             effect: PreparedSipEffect,
+-        ) -> Result<SipEffectPrepareOutcome, SipEffectStoreError> {
++        ) -> Result<SipEffectPrepareForSendOutcome, SipEffectStoreError> {
+             self.prepared.lock().unwrap().push(effect.clone());
+-            self.ledger
+-                .lock()
+-                .await
+-                .prepare(effect)
+-                .map_err(SipEffectStoreError::from)
++            let mut ledger = self.ledger.lock().await;
++            let prepared = ledger.prepare(effect).map_err(SipEffectStoreError::from)?;
++            let mut record = prepared.record;
++            if record.state == SipEffectState::Prepared {
++                record = ledger
++                    .apply(
++                        super::stage_receipt(
++                            &record,
++                            "durable-decision",
++                            SipEffectReceiptLevel::DurableDecision,
++                            None,
++                        )
++                        .map_err(|_| SipEffectStoreError::InvalidConfiguration)?,
++                    )
++                    .map_err(SipEffectStoreError::from)?
++                    .record;
++            }
++            let send_attempt_replayed = if record.state == SipEffectState::DurableDecision {
++                let sent = ledger
++                    .apply(
++                        super::stage_receipt(
++                            &record,
++                            "send-attempted",
++                            SipEffectReceiptLevel::SendAttempted,
++                            None,
++                        )
++                        .map_err(|_| SipEffectStoreError::InvalidConfiguration)?,
++                    )
++                    .map_err(SipEffectStoreError::from)?;
++                record = sent.record;
++                sent.replayed
++            } else if record.state == SipEffectState::SendAttempted {
++                true
++            } else {
++                return Err(SipEffectError::TransitionConflict.into());
++            };
++            drop(ledger);
++            if self
++                .fail_send_attempt_after_commit
++                .swap(false, Ordering::SeqCst)
++            {
++                return Err(SipEffectStoreError::StoreUnavailable);
++            }
++            Ok(SipEffectPrepareForSendOutcome {
++                record,
++                send_attempt_replayed,
++            })
+         }
+ 
+-        async fn apply(
++        async fn persist_observation(
+             &self,
+-            receipt: SipEffectReceipt,
+-        ) -> Result<SipEffectApplyOutcome, SipEffectStoreError> {
++            tenant_id: &str,
++            protocol_effect_id: &str,
++            expected_identity_hash: &str,
++            observation: SipEffectDurableObservation,
++            unknown_repair_after_ms: u32,
++        ) -> Result<(), SipEffectStoreError> {
+             self.apply_calls.fetch_add(1, Ordering::SeqCst);
+-            let fail_after_commit = receipt.level == SipEffectReceiptLevel::SendAttempted
++            let protocol_observation = matches!(
++                observation,
++                SipEffectDurableObservation::ProtocolObserved
++                    | SipEffectDurableObservation::ProtocolUnknown
++                    | SipEffectDurableObservation::TransportCompleted
++            );
++            if protocol_observation {
++                self.protocol_query_calls.fetch_add(1, Ordering::SeqCst);
++                if self.fail_protocol_query_permanently.load(Ordering::SeqCst) {
++                    return Err(SipEffectStoreError::SchemaIncompatible);
++                }
++            }
++            if observation == SipEffectDurableObservation::TransportAccepted
+                 && self
+-                    .fail_send_attempt_after_commit
+-                    .swap(false, Ordering::SeqCst);
+-            let outcome = self
+-                .ledger
++                    .cancel_transport_observation_once
++                    .swap(false, Ordering::SeqCst)
++            {
++                self.transport_observation_started.notify_waiters();
++                pending::<()>().await;
++            }
++            let identity = self
++                .prepared
+                 .lock()
+-                .await
+-                .apply(receipt)
+-                .map_err(SipEffectStoreError::from)?;
+-            if fail_after_commit {
++                .unwrap()
++                .iter()
++                .find(|effect| {
++                    effect.identity.tenant_id == tenant_id
++                        && effect.identity.protocol_effect_id == protocol_effect_id
++                })
++                .map(|effect| effect.identity.clone())
++                .ok_or(SipEffectError::IdentityConflict)?;
++            if protocol_effect_identity_hash(&identity)? != expected_identity_hash {
++                return Err(SipEffectError::IdentityConflict.into());
++            }
++            let mut ledger = self.ledger.lock().await;
++            let record = ledger
++                .query(&identity)
++                .map_err(SipEffectStoreError::from)?
++                .ok_or(SipEffectError::IdentityConflict)?;
++            let satisfied = match observation {
++                SipEffectDurableObservation::TransportAccepted => matches!(
++                    record.state,
++                    SipEffectState::TransportAccepted
++                        | SipEffectState::TransportCompleted
++                        | SipEffectState::ProtocolObserved
++                        | SipEffectState::Failed
++                        | SipEffectState::Unknown
++                ),
++                SipEffectDurableObservation::TransportUnknown
++                | SipEffectDurableObservation::ProtocolUnknown => {
++                    record.state == SipEffectState::Unknown || record.state.is_terminal()
++                }
++                SipEffectDurableObservation::ProtocolObserved => {
++                    record.state == SipEffectState::ProtocolObserved
++                }
++                SipEffectDurableObservation::TransportCompleted => {
++                    record.state == SipEffectState::TransportCompleted
++                }
++            };
++            if satisfied {
++                return Ok(());
++            }
++            let completion_scope = record
++                .wire_attempt_facts
++                .get("completion_scope")
++                .and_then(Value::as_str);
++            let (stage, level, repair_after_ms) = match observation {
++                SipEffectDurableObservation::TransportAccepted
++                    if record.state == SipEffectState::SendAttempted =>
++                {
++                    (
++                        "transport-accepted",
++                        SipEffectReceiptLevel::TransportAccepted,
++                        None,
++                    )
++                }
++                SipEffectDurableObservation::TransportUnknown
++                    if record.state == SipEffectState::SendAttempted =>
++                {
++                    (
++                        "transport-unknown",
++                        SipEffectReceiptLevel::Unknown,
++                        Some(unknown_repair_after_ms),
++                    )
++                }
++                SipEffectDurableObservation::ProtocolObserved
++                    if matches!(
++                        record.state,
++                        SipEffectState::SendAttempted | SipEffectState::TransportAccepted
++                    ) && completion_scope == Some(COMPLETION_SCOPE_TRANSACTION_PEER) =>
++                {
++                    (
++                        "protocol-observed",
++                        SipEffectReceiptLevel::ProtocolObserved,
++                        None,
++                    )
++                }
++                SipEffectDurableObservation::ProtocolUnknown
++                    if matches!(
++                        record.state,
++                        SipEffectState::SendAttempted | SipEffectState::TransportAccepted
++                    ) =>
++                {
++                    (
++                        "protocol-unknown",
++                        SipEffectReceiptLevel::Unknown,
++                        Some(unknown_repair_after_ms),
++                    )
++                }
++                SipEffectDurableObservation::TransportCompleted
++                    if record.state == SipEffectState::TransportAccepted
++                        && completion_scope == Some(COMPLETION_SCOPE_TRANSPORT_TERMINAL) =>
++                {
++                    (
++                        "transport-terminal",
++                        SipEffectReceiptLevel::TransportCompleted,
++                        None,
++                    )
++                }
++                _ if record.state.is_terminal() => return Err(SipEffectError::Terminal.into()),
++                _ => return Err(SipEffectError::TransitionConflict.into()),
++            };
++            let receipt = super::stage_receipt(&record, stage, level, repair_after_ms)
++                .map_err(|_| SipEffectStoreError::InvalidConfiguration)?;
++            let fail_transport_observation_after_commit = observation
++                == SipEffectDurableObservation::TransportAccepted
++                && self
++                    .fail_transport_observation_after_commit
++                    .swap(false, Ordering::SeqCst);
++            let fail_transport_completion_after_commit = observation
++                == SipEffectDurableObservation::TransportCompleted
++                && self
++                    .fail_transport_completion_after_commit
++                    .swap(false, Ordering::SeqCst);
++            ledger.apply(receipt).map_err(SipEffectStoreError::from)?;
++            if fail_transport_observation_after_commit || fail_transport_completion_after_commit {
+                 return Err(SipEffectStoreError::StoreUnavailable);
+             }
+-            Ok(outcome)
++            Ok(())
+         }
+     }
+ 
+@@ -1017,6 +1975,24 @@ Content-Length: 0\r\n\r\n"
+         (key, request.into())
+     }
+ 
++    fn ack(call: &str, branch: &str) -> (TransactionKey, SipMessage) {
++        let request = Request::try_from(
++            format!(
++                "ACK sip:bob@example.test SIP/2.0\r\n\
++Via: SIP/2.0/UDP 127.0.0.1:5060;branch={branch}\r\n\
++From: <sip:alice@example.test>;tag=from-tag\r\n\
++To: <sip:bob@example.test>;tag=to-tag\r\n\
++Call-ID: {call}\r\n\
++CSeq: 1 ACK\r\n\
++Content-Length: 0\r\n\r\n"
++            )
++            .as_str(),
++        )
++        .unwrap();
++        let key = TransactionKey::from_request(&request, TransactionRole::Client).unwrap();
++        (key, request.into())
++    }
++
+     fn intent(effect: &str, session: &str) -> SipEffectIntent {
+         let semantic_intent_sha256 = sha256_lower_hex(effect.as_bytes());
+         let prepared_at = Utc.with_ymd_and_hms(2026, 8, 9, 0, 0, 0).unwrap();
+@@ -1033,10 +2009,31 @@ Content-Length: 0\r\n\r\n"
+                 "adapter_id": "rsipstack",
+                 "source_commit": "8318e97b1170de4e5245b120afec1cdf53e3d716"
+             }),
+-            route_binding: serde_json::json!({"route_revision": "route-1"}),
++            route_binding: serde_json::json!({
++                "schema_id": "sip-foundation-route-binding-v1",
++                "schema_version": "1.0.0",
++                "route": {"id": "route-1", "revision": 1},
++                "rfc3263_candidate": "127.0.0.1:5099/udp",
++                "route_set": [],
++                "transport": {
++                    "id": "transport-udp-1",
++                    "protocol": "udp",
++                    "next_hop": {"address": "127.0.0.1", "port": 5099}
++                },
++                "local_endpoint": {"address": "127.0.0.1", "port": 5060},
++                "advertised_via_sent_by": {"host": "127.0.0.1", "port": 5060},
++                "tls_sni": null,
++                "authorization_identity": null,
++                "authorization_headers_sha256": []
++            }),
+             wire_attempt_facts: serde_json::json!({
+-                "attempt": 1,
++                "schema_id": "sip-foundation-wire-attempt-v1",
++                "schema_version": "1.0.0",
++                "attempt_id": effect,
++                "transaction_lineage_id": effect,
+                 "semantic_intent_sha256": semantic_intent_sha256,
++                "parent_attempt_id": null,
++                "lineage_reason": "transaction_root",
+             }),
+             owner_epoch: 7,
+             command_sequence: 1,
+@@ -1045,6 +2042,47 @@ Content-Length: 0\r\n\r\n"
+         }
+     }
+ 
++    async fn test_transport_binding(message: &SipMessage) -> EgressTransportBinding {
++        let connection = SipConnection::Udp(
++            UdpConnection::create_connection("127.0.0.1:0".parse().unwrap(), None, None)
++                .await
++                .unwrap(),
++        );
++        let destination = SipAddr::new(
++            Transport::Udp,
++            "127.0.0.1:5099"
++                .parse::<std::net::SocketAddr>()
++                .unwrap()
++                .into(),
++        );
++        connection
++            .egress_transport_binding(message, Some(&destination))
++            .unwrap()
++    }
++
++    impl DurableRsipstackEgressGate {
++        async fn prepare(
++            &self,
++            key: &TransactionKey,
++            message: &SipMessage,
++            _legacy_destination: Option<&SipAddr>,
++            wire: &[u8],
++        ) -> rsipstack::Result<EgressEffectPermit> {
++            let transport_binding = test_transport_binding(message).await;
++            EgressEffectGate::prepare(self, key, message, &transport_binding, wire).await
++        }
++    }
++
++    async fn prepare_with_transport_binding(
++        gate: &DurableRsipstackEgressGate,
++        key: &TransactionKey,
++        message: &SipMessage,
++        wire: &[u8],
++    ) -> rsipstack::Result<EgressEffectPermit> {
++        let transport_binding = test_transport_binding(message).await;
++        EgressEffectGate::prepare(gate, key, message, &transport_binding, wire).await
++    }
++
+     fn runtime(
+         registry: Arc<SipEffectIntentRegistry>,
+         writer: Arc<InMemoryWriter>,
+@@ -1075,96 +2113,273 @@ Content-Length: 0\r\n\r\n"
+             .unwrap();
+         let wire = message.to_bytes();
+ 
+-        let permit = gate
+-            .prepare(&key, &message, None, &wire)
++        let permit = prepare_with_transport_binding(&gate, &key, &message, &wire)
+             .await
+             .expect("durable permit");
+         let prepared = writer.prepared.lock().unwrap()[0].clone();
+         assert_eq!(prepared.canonical_wire_bytes, wire);
++        assert_eq!(
++            prepared.wire_attempt_facts["schema_id"],
++            "sip-foundation-effect-wire-attempt-v2"
++        );
++        assert_eq!(
++            prepared.wire_attempt_facts["canonical_destination"],
++            serde_json::json!({
++                "transport_id": "transport-udp-1",
++                "protocol": "udp",
++                "address": "127.0.0.1",
++                "port": 5099,
++                "selection_kind": "datagram_destination",
++                "flow_id": null,
++                "flow_generation": null
++            })
++        );
+         assert_eq!(writer.state(&prepared).await, SipEffectState::SendAttempted);
+         assert_eq!(gate.snapshot().pending_observations, 1);
+ 
+-        gate.observe_transport(permit, EgressEffectOutcome::TransportAccepted);
++        gate.observe_transport(permit.clone(), EgressEffectOutcome::TransportAccepted);
+         assert!(observer.persist_next().await.unwrap());
+         assert_eq!(
+             writer.state(&prepared).await,
+             SipEffectState::TransportAccepted
+         );
++        assert_eq!(gate.snapshot().pending_observations, 1);
++
++        gate.observe_protocol(permit, EgressEffectProtocolObservation::Completed);
++        assert!(observer.persist_next().await.unwrap());
++        assert_eq!(
++            writer.state(&prepared).await,
++            SipEffectState::ProtocolObserved
++        );
+         assert_eq!(gate.snapshot().pending_observations, 0);
+-        assert_eq!(gate.snapshot().observations_persisted, 1);
++        assert_eq!(gate.snapshot().observations_persisted, 2);
+         assert_eq!(gate.snapshot().observation_persist_failures, 0);
+     }
+ 
+     #[tokio::test]
+-    async fn missing_or_wrong_semantic_intent_fails_before_store_work() {
++    async fn protocol_unknown_is_persisted_after_transport_acceptance() {
+         let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
+         let writer = Arc::new(InMemoryWriter::new());
+-        let (gate, _observer) = runtime(
++        let (gate, mut observer) = runtime(
+             registry.clone(),
+             writer.clone(),
+-            SipEffectGateOptions::default(),
+-        );
+-        let (key, message) = invite("call-a@example.test", "z9hG4bK-a");
+-        assert!(
+-            gate.prepare(&key, &message, None, &message.to_bytes())
+-                .await
+-                .is_err()
++            SipEffectGateOptions {
++                unknown_repair_after_ms: 2_357,
++                ..SipEffectGateOptions::default()
++            },
+         );
+-
+-        let (_other_key, other_message) = invite("call-b@example.test", "z9hG4bK-b");
++        let (key, message) = invite("call-protocol-unknown@example.test", "z9hG4bK-protocol");
+         let _lease = registry
+-            .register(&key, &message, intent("effect-a", "session-a"))
+-            .unwrap();
+-        assert!(
+-            gate.prepare(&key, &other_message, None, &other_message.to_bytes())
+-                .await
+-                .is_err()
+-        );
+-        assert!(writer.prepared.lock().unwrap().is_empty());
+-    }
+-
+-    #[test]
+-    fn intent_capacity_and_lease_cleanup_are_bounded() {
+-        let registry = Arc::new(SipEffectIntentRegistry::try_new(1).unwrap());
+-        let (key_a, message_a) = invite("call-a@example.test", "z9hG4bK-a");
+-        let (key_b, message_b) = invite("call-b@example.test", "z9hG4bK-b");
+-        let lease = registry
+-            .register(&key_a, &message_a, intent("effect-a", "session-a"))
++            .register(
++                &key,
++                &message,
++                intent("effect-protocol-unknown", "session-protocol"),
++            )
+             .unwrap();
+-        assert!(
+-            registry
+-                .register(&key_b, &message_b, intent("effect-b", "session-b"))
+-                .is_err()
+-        );
+-        assert_eq!(registry.snapshot().registered, 1);
+-        drop(lease);
+-        let _replacement = registry
+-            .register(&key_b, &message_b, intent("effect-b", "session-b"))
++        let permit = gate
++            .prepare(&key, &message, None, &message.to_bytes())
++            .await
+             .unwrap();
+-        assert_eq!(registry.snapshot().registered, 1);
++        let prepared = writer.prepared.lock().unwrap()[0].clone();
++
++        gate.observe_transport(permit.clone(), EgressEffectOutcome::TransportAccepted);
++        gate.observe_protocol(permit, EgressEffectProtocolObservation::Unknown);
++        assert!(observer.persist_next().await.unwrap());
++        assert!(observer.persist_next().await.unwrap());
++
++        let record = writer.record(&prepared).await;
++        assert_eq!(record.state, SipEffectState::Unknown);
++        assert_eq!(record.repair_delay_ms, Some(2_357));
++        assert_eq!(record.unknown_count, 1);
++        assert_eq!(gate.snapshot().pending_observations, 0);
+     }
+ 
+-    #[test]
+-    fn invalid_runtime_bounds_and_reserved_wire_facts_fail_closed() {
+-        let registry = Arc::new(SipEffectIntentRegistry::try_new(1).unwrap());
++    #[tokio::test]
++    async fn transport_terminal_scope_reaches_durable_terminal_without_peer_claim() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
+         let writer = Arc::new(InMemoryWriter::new());
+-        let result = DurableRsipstackEgressGate::new_with_store(
++        let (gate, mut observer) = runtime(
+             registry.clone(),
+-            writer,
+-            SipEffectGateOptions {
+-                max_pending_observations: 1,
+-                observation_queue_capacity: 1,
+-                observation_worker_shards: 2,
+-                unknown_repair_after_ms: 1,
+-            },
++            writer.clone(),
++            SipEffectGateOptions::default(),
+         );
+-        assert!(matches!(
+-            result,
+-            Err(SipEffectGateError::InvalidConfiguration)
+-        ));
+-
+-        let (key, message) = invite("call-a@example.test", "z9hG4bK-a");
+-        let mut reserved = intent("effect-a", "session-a");
++        let (key, message) = ack("call-transport-terminal@example.test", "z9hG4bK-terminal");
++        let _lease = registry
++            .register(
++                &key,
++                &message,
++                intent("effect-transport-terminal", "session-transport-terminal"),
++            )
++            .unwrap();
++        let permit = gate
++            .prepare(&key, &message, None, &message.to_bytes())
++            .await
++            .unwrap();
++        let prepared = writer.prepared.lock().unwrap()[0].clone();
++
++        gate.observe_transport(permit.clone(), EgressEffectOutcome::TransportAccepted);
++        gate.observe_protocol(permit, EgressEffectProtocolObservation::TransportTerminal);
++        assert!(observer.persist_next().await.unwrap());
++        assert!(observer.persist_next().await.unwrap());
++
++        assert_eq!(
++            writer.state(&prepared).await,
++            SipEffectState::TransportCompleted
++        );
++        assert_eq!(gate.snapshot().pending_observations, 0);
++        assert_eq!(gate.snapshot().observations_persisted, 2);
++    }
++
++    #[tokio::test]
++    async fn completion_scope_mismatch_quarantines_without_fabricating_a_terminal_receipt() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, mut observer) = runtime(
++            registry.clone(),
++            writer.clone(),
++            SipEffectGateOptions::default(),
++        );
++        let (key, message) = invite("call-scope-mismatch@example.test", "z9hG4bK-scope");
++        let _lease = registry
++            .register(
++                &key,
++                &message,
++                intent("effect-scope-mismatch", "session-scope-mismatch"),
++            )
++            .unwrap();
++        let permit = gate
++            .prepare(&key, &message, None, &message.to_bytes())
++            .await
++            .unwrap();
++        let prepared = writer.prepared.lock().unwrap()[0].clone();
++
++        gate.observe_transport(permit.clone(), EgressEffectOutcome::TransportAccepted);
++        assert!(observer.persist_next().await.unwrap());
++        gate.observe_protocol(permit, EgressEffectProtocolObservation::TransportTerminal);
++        assert!(matches!(
++            observer.persist_next().await,
++            Err(SipEffectGateError::ObservationQuarantined)
++        ));
++        assert_eq!(
++            writer.state(&prepared).await,
++            SipEffectState::TransportAccepted
++        );
++        assert_eq!(gate.snapshot().observation_work_outstanding, 1);
++    }
++
++    #[tokio::test]
++    async fn committed_transport_completion_replays_after_acknowledgement_loss() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, mut observer) = runtime(
++            registry.clone(),
++            writer.clone(),
++            SipEffectGateOptions::default(),
++        );
++        let (key, message) = ack(
++            "call-terminal-replay@example.test",
++            "z9hG4bK-terminal-replay",
++        );
++        let _lease = registry
++            .register(
++                &key,
++                &message,
++                intent("effect-terminal-replay", "session-terminal-replay"),
++            )
++            .unwrap();
++        let permit = gate
++            .prepare(&key, &message, None, &message.to_bytes())
++            .await
++            .unwrap();
++        let prepared = writer.prepared.lock().unwrap()[0].clone();
++        gate.observe_transport(permit.clone(), EgressEffectOutcome::TransportAccepted);
++        assert!(observer.persist_next().await.unwrap());
++        writer
++            .fail_transport_completion_after_commit
++            .store(true, Ordering::SeqCst);
++        gate.observe_protocol(permit, EgressEffectProtocolObservation::TransportTerminal);
++
++        assert!(observer.persist_next().await.is_err());
++        assert_eq!(
++            writer.state(&prepared).await,
++            SipEffectState::TransportCompleted
++        );
++        assert!(observer.persist_next().await.unwrap());
++        assert_eq!(gate.snapshot().observation_work_outstanding, 0);
++        assert_eq!(gate.snapshot().observation_quarantined, 0);
++    }
++
++    #[tokio::test]
++    async fn missing_or_wrong_semantic_intent_fails_before_store_work() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, _observer) = runtime(
++            registry.clone(),
++            writer.clone(),
++            SipEffectGateOptions::default(),
++        );
++        let (key, message) = invite("call-a@example.test", "z9hG4bK-a");
++        assert!(
++            gate.prepare(&key, &message, None, &message.to_bytes())
++                .await
++                .is_err()
++        );
++
++        let (_other_key, other_message) = invite("call-b@example.test", "z9hG4bK-b");
++        let _lease = registry
++            .register(&key, &message, intent("effect-a", "session-a"))
++            .unwrap();
++        assert!(
++            gate.prepare(&key, &other_message, None, &other_message.to_bytes())
++                .await
++                .is_err()
++        );
++        assert!(writer.prepared.lock().unwrap().is_empty());
++    }
++
++    #[test]
++    fn intent_capacity_and_lease_cleanup_are_bounded() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(1).unwrap());
++        let (key_a, message_a) = invite("call-a@example.test", "z9hG4bK-a");
++        let (key_b, message_b) = invite("call-b@example.test", "z9hG4bK-b");
++        let lease = registry
++            .register(&key_a, &message_a, intent("effect-a", "session-a"))
++            .unwrap();
++        assert!(
++            registry
++                .register(&key_b, &message_b, intent("effect-b", "session-b"))
++                .is_err()
++        );
++        assert_eq!(registry.snapshot().registered, 1);
++        drop(lease);
++        let _replacement = registry
++            .register(&key_b, &message_b, intent("effect-b", "session-b"))
++            .unwrap();
++        assert_eq!(registry.snapshot().registered, 1);
++    }
++
++    #[test]
++    fn invalid_runtime_bounds_and_reserved_wire_facts_fail_closed() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(1).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let result = DurableRsipstackEgressGate::new_with_store(
++            registry.clone(),
++            writer,
++            SipEffectGateOptions {
++                max_pending_observations: 1,
++                max_pending_protocol_observations: 1,
++                observation_queue_capacity: 1,
++                observation_worker_shards: 2,
++                unknown_repair_after_ms: 1,
++            },
++        );
++        assert!(matches!(
++            result,
++            Err(SipEffectGateError::InvalidConfiguration)
++        ));
++
++        let (key, message) = invite("call-a@example.test", "z9hG4bK-a");
++        let mut reserved = intent("effect-a", "session-a");
+         reserved.wire_attempt_facts["destination"] = serde_json::json!("sip:wrong.test");
+         assert!(matches!(
+             registry.register(&key, &message, reserved),
+@@ -1173,8 +2388,8 @@ Content-Length: 0\r\n\r\n"
+         assert_eq!(registry.snapshot().registered, 0);
+     }
+ 
+-    #[test]
+-    fn observation_capacity_is_exactly_partitioned_across_fixed_workers() {
++    #[tokio::test]
++    async fn observation_capacity_is_exactly_partitioned_across_fixed_workers() {
+         let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
+         let writer = Arc::new(InMemoryWriter::new());
+         let (_gate, observers) = DurableRsipstackEgressGate::new_with_store(
+@@ -1182,20 +2397,19 @@ Content-Length: 0\r\n\r\n"
+             writer,
+             SipEffectGateOptions {
+                 max_pending_observations: 8,
+-                observation_queue_capacity: 10,
++                max_pending_protocol_observations: 8,
++                observation_queue_capacity: 16,
+                 observation_worker_shards: 4,
+                 unknown_repair_after_ms: 1_000,
+             },
+         )
+         .unwrap();
+         assert_eq!(observers.len(), 4);
+-        assert_eq!(
+-            observers
+-                .iter()
+-                .map(|observer| observer.observation_rx.capacity())
+-                .collect::<Vec<_>>(),
+-            vec![3, 3, 2, 2]
+-        );
++        let mut capacities = Vec::with_capacity(observers.len());
++        for observer in &observers {
++            capacities.push(observer.shard.state.lock().await.observation_rx.capacity());
++        }
++        assert_eq!(capacities, vec![4, 4, 4, 4]);
+     }
+ 
+     #[tokio::test]
+@@ -1223,7 +2437,7 @@ Content-Length: 0\r\n\r\n"
+     }
+ 
+     #[tokio::test]
+-    async fn observation_overflow_leaves_a_reconcilable_send_attempt() {
++    async fn reserved_queue_never_drops_transport_observations() {
+         let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
+         let writer = Arc::new(InMemoryWriter::new());
+         let (gate, mut observer) = runtime(
+@@ -1231,7 +2445,8 @@ Content-Length: 0\r\n\r\n"
+             writer.clone(),
+             SipEffectGateOptions {
+                 max_pending_observations: 2,
+-                observation_queue_capacity: 1,
++                max_pending_protocol_observations: 2,
++                observation_queue_capacity: 4,
+                 ..SipEffectGateOptions::default()
+             },
+         );
+@@ -1253,23 +2468,30 @@ Content-Length: 0\r\n\r\n"
+             .unwrap();
+         let prepared = writer.prepared.lock().unwrap().clone();
+ 
+-        gate.observe_transport(permit_a, EgressEffectOutcome::TransportAccepted);
+-        gate.observe_transport(permit_b, EgressEffectOutcome::TransportAccepted);
+-        assert_eq!(gate.snapshot().observation_overflow, 1);
+-        assert_eq!(gate.snapshot().pending_observations, 0);
++        gate.observe_transport(permit_a.clone(), EgressEffectOutcome::TransportAccepted);
++        gate.observe_transport(permit_b.clone(), EgressEffectOutcome::TransportAccepted);
++        assert_eq!(gate.snapshot().observation_overflow, 0);
++        assert_eq!(gate.snapshot().pending_transport_observations, 0);
++        assert_eq!(gate.snapshot().pending_protocol_observations, 2);
++        gate.observe_protocol(permit_a, EgressEffectProtocolObservation::Completed);
++        gate.observe_protocol(permit_b, EgressEffectProtocolObservation::Completed);
++        assert!(observer.persist_next().await.unwrap());
++        assert!(observer.persist_next().await.unwrap());
++        assert!(observer.persist_next().await.unwrap());
+         assert!(observer.persist_next().await.unwrap());
+         assert_eq!(
+             writer.state(&prepared[0]).await,
+-            SipEffectState::TransportAccepted
++            SipEffectState::ProtocolObserved
+         );
+         assert_eq!(
+             writer.state(&prepared[1]).await,
+-            SipEffectState::SendAttempted
++            SipEffectState::ProtocolObserved
+         );
++        assert_eq!(gate.snapshot().pending_observations, 0);
+     }
+ 
+     #[tokio::test]
+-    async fn closed_observer_leaves_a_reconcilable_send_attempt() {
++    async fn closed_observer_fails_new_prepare_before_store_work() {
+         let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
+         let writer = Arc::new(InMemoryWriter::new());
+         let (gate, observer) = runtime(
+@@ -1282,16 +2504,14 @@ Content-Length: 0\r\n\r\n"
+         let _lease = registry
+             .register(&key, &message, intent("effect-closed", "session-closed"))
+             .unwrap();
+-        let permit = gate
+-            .prepare(&key, &message, None, &message.to_bytes())
+-            .await
+-            .unwrap();
+-        let prepared = writer.prepared.lock().unwrap()[0].clone();
+-
+-        gate.observe_transport(permit, EgressEffectOutcome::TransportAccepted);
++        assert!(
++            gate.prepare(&key, &message, None, &message.to_bytes())
++                .await
++                .is_err()
++        );
++        assert!(writer.prepared.lock().unwrap().is_empty());
+         assert_eq!(gate.snapshot().pending_observations, 0);
+         assert_eq!(gate.snapshot().observation_closed, 1);
+-        assert_eq!(writer.state(&prepared).await, SipEffectState::SendAttempted);
+     }
+ 
+     #[tokio::test]
+@@ -1316,12 +2536,454 @@ Content-Length: 0\r\n\r\n"
+             .unwrap();
+         let prepared = writer.prepared.lock().unwrap()[0].clone();
+ 
+-        gate.observe_transport(permit, EgressEffectOutcome::TransportUnknown);
++        gate.observe_transport(permit.clone(), EgressEffectOutcome::TransportUnknown);
++        gate.observe_protocol(permit, EgressEffectProtocolObservation::Unknown);
+         assert!(observer.persist_next().await.unwrap());
+         let record = writer.record(&prepared).await;
+         assert_eq!(record.state, SipEffectState::Unknown);
+         assert_eq!(record.repair_delay_ms, Some(1_379));
+         assert_eq!(record.unknown_count, 1);
++        assert_eq!(gate.snapshot().pending_observations, 0);
++        assert_eq!(gate.snapshot().orphan_observations, 1);
++    }
++
++    #[tokio::test]
++    async fn failed_observation_ack_retries_the_same_work_without_reordering() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        writer
++            .fail_transport_observation_after_commit
++            .store(true, Ordering::SeqCst);
++        let (gate, mut observer) = runtime(
++            registry.clone(),
++            writer.clone(),
++            SipEffectGateOptions::default(),
++        );
++        let (key, message) = invite("call-observer-retry@example.test", "z9hG4bK-retry");
++        let _lease = registry
++            .register(
++                &key,
++                &message,
++                intent("effect-observer-retry", "session-observer-retry"),
++            )
++            .unwrap();
++        let permit = gate
++            .prepare(&key, &message, None, &message.to_bytes())
++            .await
++            .unwrap();
++        let prepared = writer.prepared.lock().unwrap()[0].clone();
++
++        gate.observe_transport(permit, EgressEffectOutcome::TransportAccepted);
++        assert!(observer.persist_next().await.is_err());
++        assert_eq!(
++            writer.state(&prepared).await,
++            SipEffectState::TransportAccepted
++        );
++        assert_eq!(gate.snapshot().pending_transport_observations, 0);
++        assert!(
++            timeout(Duration::from_millis(20), observer.persist_next())
++                .await
++                .expect("failed work must be retained for immediate retry")
++                .unwrap()
++        );
++        assert_eq!(gate.snapshot().pending_transport_observations, 0);
++        assert_eq!(gate.snapshot().observation_persist_failures, 1);
++        assert_eq!(gate.snapshot().observations_persisted, 1);
++    }
++
++    #[tokio::test]
++    async fn cancelled_observation_persist_retains_the_armed_work_for_retry() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        writer
++            .cancel_transport_observation_once
++            .store(true, Ordering::SeqCst);
++        let (gate, mut observer) = runtime(
++            registry.clone(),
++            writer.clone(),
++            SipEffectGateOptions::default(),
++        );
++        let (key, message) = invite("call-cancel-persist@example.test", "z9hG4bK-cancel-persist");
++        let _lease = registry
++            .register(
++                &key,
++                &message,
++                intent("effect-cancel-persist", "session-cancel-persist"),
++            )
++            .unwrap();
++        let permit = gate
++            .prepare(&key, &message, None, &message.to_bytes())
++            .await
++            .unwrap();
++        let prepared = writer.prepared.lock().unwrap()[0].clone();
++        gate.observe_transport(permit, EgressEffectOutcome::TransportAccepted);
++
++        let started = writer.transport_observation_started.notified();
++        {
++            let persist = observer.persist_next();
++            tokio::pin!(persist);
++            tokio::select! {
++                () = started => {}
++                result = &mut persist => panic!("persist unexpectedly finished: {result:?}"),
++            }
++        }
++
++        assert_eq!(writer.state(&prepared).await, SipEffectState::SendAttempted);
++        assert!(
++            timeout(Duration::from_millis(20), observer.persist_next())
++                .await
++                .expect("cancelled work must remain armed")
++                .unwrap()
++        );
++        assert_eq!(
++            writer.state(&prepared).await,
++            SipEffectState::TransportAccepted
++        );
++    }
++
++    #[tokio::test]
++    async fn dropped_observer_retains_in_flight_work_for_an_explicit_restart() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, observer) = runtime(
++            registry.clone(),
++            writer.clone(),
++            SipEffectGateOptions::default(),
++        );
++        let (key, message) = invite("call-restart@example.test", "z9hG4bK-restart");
++        let _lease = registry
++            .register(&key, &message, intent("effect-restart", "session-restart"))
++            .unwrap();
++        let permit = gate
++            .prepare(&key, &message, None, &message.to_bytes())
++            .await
++            .unwrap();
++        let prepared = writer.prepared.lock().unwrap()[0].clone();
++
++        drop(observer);
++        gate.observe_transport(permit.clone(), EgressEffectOutcome::TransportAccepted);
++        gate.observe_protocol(permit, EgressEffectProtocolObservation::Completed);
++        assert_eq!(writer.state(&prepared).await, SipEffectState::SendAttempted);
++
++        let mut restarted = gate.restart_observer(0).unwrap();
++        assert!(restarted.persist_next().await.unwrap());
++        assert!(restarted.persist_next().await.unwrap());
++        assert_eq!(
++            writer.state(&prepared).await,
++            SipEffectState::ProtocolObserved
++        );
++    }
++
++    #[test]
++    fn observer_restart_uses_one_atomic_lifecycle_claim() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, observers) = DurableRsipstackEgressGate::new_with_store(
++            registry,
++            writer,
++            SipEffectGateOptions {
++                observation_worker_shards: 1,
++                ..SipEffectGateOptions::default()
++            },
++        )
++        .unwrap();
++        drop(observers);
++
++        let contenders = 8;
++        let barrier = Arc::new(Barrier::new(contenders));
++        let mut threads = Vec::with_capacity(contenders);
++        for _ in 0..contenders {
++            let gate = gate.clone();
++            let barrier = barrier.clone();
++            threads.push(std::thread::spawn(move || {
++                barrier.wait();
++                gate.restart_observer(0)
++            }));
++        }
++        let results = threads
++            .into_iter()
++            .map(|thread| thread.join().expect("restart contender"))
++            .collect::<Vec<_>>();
++        assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 1);
++        assert_eq!(
++            results
++                .iter()
++                .filter(|result| {
++                    matches!(result, Err(SipEffectGateError::ReconciliationRequired))
++                })
++                .count(),
++            contenders - 1
++        );
++    }
++
++    #[tokio::test]
++    async fn queued_full_record_keeps_transport_capacity_until_durable_persist() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, mut observer) = runtime(
++            registry.clone(),
++            writer.clone(),
++            SipEffectGateOptions {
++                max_pending_observations: 1,
++                max_pending_protocol_observations: 2,
++                observation_queue_capacity: 3,
++                ..SipEffectGateOptions::default()
++            },
++        );
++        let (key_a, message_a) = invite("call-memory-a@example.test", "z9hG4bK-memory-a");
++        let (key_b, message_b) = invite("call-memory-b@example.test", "z9hG4bK-memory-b");
++        let _lease_a = registry
++            .register(
++                &key_a,
++                &message_a,
++                intent("effect-memory-a", "session-memory-a"),
++            )
++            .unwrap();
++        let _lease_b = registry
++            .register(
++                &key_b,
++                &message_b,
++                intent("effect-memory-b", "session-memory-b"),
++            )
++            .unwrap();
++        let permit_a = gate
++            .prepare(&key_a, &message_a, None, &message_a.to_bytes())
++            .await
++            .unwrap();
++        gate.observe_transport(permit_a.clone(), EgressEffectOutcome::TransportAccepted);
++
++        assert!(matches!(
++            gate.prepare(&key_b, &message_b, None, &message_b.to_bytes())
++                .await,
++            Err(_)
++        ));
++        assert_eq!(writer.prepared.lock().unwrap().len(), 1);
++
++        assert!(observer.persist_next().await.unwrap());
++        let permit_b = gate
++            .prepare(&key_b, &message_b, None, &message_b.to_bytes())
++            .await
++            .unwrap();
++        gate.observe_protocol(permit_a, EgressEffectProtocolObservation::Completed);
++        gate.observe_transport(permit_b.clone(), EgressEffectOutcome::TransportAccepted);
++        gate.observe_protocol(permit_b, EgressEffectProtocolObservation::Completed);
++        assert!(observer.persist_next().await.unwrap());
++        assert!(observer.persist_next().await.unwrap());
++        assert!(observer.persist_next().await.unwrap());
++    }
++
++    #[tokio::test]
++    async fn permanent_observation_error_quarantines_without_hot_loop_and_preserves_fifo() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, mut observer) = runtime(
++            registry.clone(),
++            writer.clone(),
++            SipEffectGateOptions {
++                max_pending_observations: 2,
++                max_pending_protocol_observations: 2,
++                observation_queue_capacity: 4,
++                ..SipEffectGateOptions::default()
++            },
++        );
++        let (key_a, message_a) = invite("call-quarantine-a@example.test", "z9hG4bK-quarantine-a");
++        let (key_b, message_b) = invite("call-quarantine-b@example.test", "z9hG4bK-quarantine-b");
++        let _lease_a = registry
++            .register(
++                &key_a,
++                &message_a,
++                intent("effect-quarantine-a", "session-quarantine-a"),
++            )
++            .unwrap();
++        let _lease_b = registry
++            .register(
++                &key_b,
++                &message_b,
++                intent("effect-quarantine-b", "session-quarantine-b"),
++            )
++            .unwrap();
++        let permit_a = gate
++            .prepare(&key_a, &message_a, None, &message_a.to_bytes())
++            .await
++            .unwrap();
++        let permit_b = gate
++            .prepare(&key_b, &message_b, None, &message_b.to_bytes())
++            .await
++            .unwrap();
++        let prepared = writer.prepared.lock().unwrap().clone();
++        gate.observe_transport(permit_a.clone(), EgressEffectOutcome::TransportAccepted);
++        gate.observe_protocol(permit_a, EgressEffectProtocolObservation::Completed);
++        gate.observe_transport(permit_b.clone(), EgressEffectOutcome::TransportAccepted);
++        gate.observe_protocol(permit_b, EgressEffectProtocolObservation::Completed);
++
++        assert!(observer.persist_next().await.unwrap());
++        writer
++            .fail_protocol_query_permanently
++            .store(true, Ordering::SeqCst);
++        assert!(matches!(
++            observer.persist_next().await,
++            Err(SipEffectGateError::ObservationQuarantined)
++        ));
++        let query_calls = writer.protocol_query_calls.load(Ordering::SeqCst);
++        assert!(matches!(
++            observer.persist_next().await,
++            Err(SipEffectGateError::ObservationQuarantined)
++        ));
++        assert_eq!(
++            writer.protocol_query_calls.load(Ordering::SeqCst),
++            query_calls
++        );
++
++        assert!(matches!(
++            gate.restart_observer(0),
++            Err(SipEffectGateError::ObservationQuarantined)
++        ));
++        assert_eq!(
++            writer.state(&prepared[0]).await,
++            SipEffectState::TransportAccepted
++        );
++        assert_eq!(
++            writer.state(&prepared[1]).await,
++            SipEffectState::SendAttempted
++        );
++        assert_eq!(gate.snapshot().observation_work_outstanding, 3);
++    }
++
++    #[tokio::test]
++    async fn protocol_capacity_is_independent_from_the_transport_callback_window() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, mut observer) = runtime(
++            registry.clone(),
++            writer,
++            SipEffectGateOptions {
++                max_pending_observations: 1,
++                max_pending_protocol_observations: 2,
++                observation_queue_capacity: 4,
++                ..SipEffectGateOptions::default()
++            },
++        );
++        let (key_a, message_a) = invite("call-cap-a@example.test", "z9hG4bK-cap-a");
++        let (key_b, message_b) = invite("call-cap-b@example.test", "z9hG4bK-cap-b");
++        let (key_c, message_c) = invite("call-cap-c@example.test", "z9hG4bK-cap-c");
++        let _lease_a = registry
++            .register(&key_a, &message_a, intent("effect-cap-a", "session-cap-a"))
++            .unwrap();
++        let _lease_b = registry
++            .register(&key_b, &message_b, intent("effect-cap-b", "session-cap-b"))
++            .unwrap();
++        let _lease_c = registry
++            .register(&key_c, &message_c, intent("effect-cap-c", "session-cap-c"))
++            .unwrap();
++
++        let permit_a = gate
++            .prepare(&key_a, &message_a, None, &message_a.to_bytes())
++            .await
++            .unwrap();
++        gate.observe_transport(permit_a.clone(), EgressEffectOutcome::TransportAccepted);
++        assert!(observer.persist_next().await.unwrap());
++        let permit_b = gate
++            .prepare(&key_b, &message_b, None, &message_b.to_bytes())
++            .await
++            .unwrap();
++        gate.observe_transport(permit_b.clone(), EgressEffectOutcome::TransportAccepted);
++        assert!(observer.persist_next().await.unwrap());
++        assert_eq!(gate.snapshot().pending_transport_observations, 0);
++        assert_eq!(gate.snapshot().pending_protocol_observations, 2);
++        assert!(
++            gate.prepare(&key_c, &message_c, None, &message_c.to_bytes())
++                .await
++                .is_err()
++        );
++
++        gate.observe_protocol(permit_a, EgressEffectProtocolObservation::Completed);
++        assert!(observer.persist_next().await.unwrap());
++        let permit_c = gate
++            .prepare(&key_c, &message_c, None, &message_c.to_bytes())
++            .await
++            .unwrap();
++        assert_eq!(gate.snapshot().pending_transport_observations, 1);
++        assert_eq!(gate.snapshot().pending_protocol_observations, 1);
++        gate.observe_transport(permit_c, EgressEffectOutcome::TransportUnknown);
++        gate.observe_protocol(permit_b, EgressEffectProtocolObservation::Completed);
++        assert!(observer.persist_next().await.unwrap());
++        assert!(observer.persist_next().await.unwrap());
++        assert_eq!(gate.snapshot().pending_observations, 0);
++    }
++
++    #[tokio::test]
++    async fn duplicate_protocol_callback_cannot_create_a_second_receipt() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, mut observer) = runtime(
++            registry.clone(),
++            writer.clone(),
++            SipEffectGateOptions::default(),
++        );
++        let (key, message) = invite("call-duplicate@example.test", "z9hG4bK-duplicate");
++        let _lease = registry
++            .register(
++                &key,
++                &message,
++                intent("effect-duplicate", "session-duplicate"),
++            )
++            .unwrap();
++        let permit = gate
++            .prepare(&key, &message, None, &message.to_bytes())
++            .await
++            .unwrap();
++        let prepared = writer.prepared.lock().unwrap()[0].clone();
++
++        gate.observe_transport(permit.clone(), EgressEffectOutcome::TransportAccepted);
++        gate.observe_protocol(permit.clone(), EgressEffectProtocolObservation::Completed);
++        gate.observe_protocol(permit, EgressEffectProtocolObservation::Unknown);
++        assert!(observer.persist_next().await.unwrap());
++        assert!(observer.persist_next().await.unwrap());
++
++        let record = writer.record(&prepared).await;
++        assert_eq!(record.state, SipEffectState::ProtocolObserved);
++        assert_eq!(record.unknown_count, 0);
++        assert_eq!(gate.snapshot().orphan_observations, 1);
++        assert_eq!(gate.snapshot().observations_persisted, 2);
++    }
++
++    #[tokio::test]
++    async fn reserved_queue_preserves_transport_before_protocol_observation() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, mut observer) = runtime(
++            registry.clone(),
++            writer.clone(),
++            SipEffectGateOptions {
++                max_pending_observations: 1,
++                max_pending_protocol_observations: 1,
++                observation_queue_capacity: 2,
++                ..SipEffectGateOptions::default()
++            },
++        );
++        let (key, message) = invite("call-full@example.test", "z9hG4bK-full");
++        let _lease = registry
++            .register(&key, &message, intent("effect-full", "session-full"))
++            .unwrap();
++        let permit = gate
++            .prepare(&key, &message, None, &message.to_bytes())
++            .await
++            .unwrap();
++        let prepared = writer.prepared.lock().unwrap()[0].clone();
++
++        gate.observe_transport(permit.clone(), EgressEffectOutcome::TransportAccepted);
++        gate.observe_protocol(permit, EgressEffectProtocolObservation::Completed);
++        assert_eq!(gate.snapshot().observation_overflow, 0);
++        assert_eq!(gate.snapshot().pending_observations, 2);
++        assert_eq!(gate.snapshot().observation_work_outstanding, 2);
++        assert!(observer.persist_next().await.unwrap());
++        assert_eq!(gate.snapshot().pending_observations, 1);
++        assert!(observer.persist_next().await.unwrap());
++        assert_eq!(
++            writer.state(&prepared).await,
++            SipEffectState::ProtocolObserved
++        );
++        assert_eq!(gate.snapshot().pending_observations, 0);
+     }
+ 
+     #[tokio::test]
+diff --git a/src/call/domain/sip_effect.rs b/src/call/domain/sip_effect.rs
+index 174711e..39cbbed 100644
+--- a/src/call/domain/sip_effect.rs
++++ b/src/call/domain/sip_effect.rs
+@@ -6,9 +6,12 @@ use sha2::{Digest, Sha256};
+ use std::collections::HashMap;
+ 
+ pub const SIP_EFFECT_SCHEMA_ID: &str = "ivekit.sip-effect-oracle";
+-pub const SIP_EFFECT_SCHEMA_VERSION: u16 = 1;
+-pub const SIP_EFFECT_SCHEMA_HASH: &str =
++pub const SIP_EFFECT_SCHEMA_V1_VERSION: u16 = 1;
++pub const SIP_EFFECT_SCHEMA_V1_HASH: &str =
+     "ae27a73dac95c90686f8020c2fb5e92dd016cc1712216d03b227ec3a6d6ca5ba";
++pub const SIP_EFFECT_SCHEMA_VERSION: u16 = 2;
++pub const SIP_EFFECT_SCHEMA_HASH: &str =
++    "7f4cd00c42bb4607c6b443261a06b06bd42117718c1f858293f1471e3ccb153b";
+ pub const SIP_EFFECT_WRITER_IDENTITY: &str = "unified-rustpbx.sip-foundation";
+ pub const SIP_EFFECT_REPAIR_ATTEMPT_CEILING: u8 = 8;
+ 
+@@ -58,6 +61,7 @@ pub enum SipEffectState {
+     DurableDecision,
+     SendAttempted,
+     TransportAccepted,
++    TransportCompleted,
+     ProtocolObserved,
+     Failed,
+     Unknown,
+@@ -65,7 +69,10 @@ pub enum SipEffectState {
+ 
+ impl SipEffectState {
+     pub fn is_terminal(self) -> bool {
+-        matches!(self, Self::ProtocolObserved | Self::Failed)
++        matches!(
++            self,
++            Self::TransportCompleted | Self::ProtocolObserved | Self::Failed
++        )
+     }
+ 
+     pub(crate) fn as_str(self) -> &'static str {
+@@ -74,6 +81,7 @@ impl SipEffectState {
+             Self::DurableDecision => "durable_decision",
+             Self::SendAttempted => "send_attempted",
+             Self::TransportAccepted => "transport_accepted",
++            Self::TransportCompleted => "transport_completed",
+             Self::ProtocolObserved => "protocol_observed",
+             Self::Failed => "failed",
+             Self::Unknown => "unknown",
+@@ -87,6 +95,7 @@ pub enum SipEffectReceiptLevel {
+     DurableDecision,
+     SendAttempted,
+     TransportAccepted,
++    TransportCompleted,
+     ProtocolObserved,
+     Failed,
+     Unknown,
+@@ -98,6 +107,7 @@ impl SipEffectReceiptLevel {
+             Self::DurableDecision => SipEffectState::DurableDecision,
+             Self::SendAttempted => SipEffectState::SendAttempted,
+             Self::TransportAccepted => SipEffectState::TransportAccepted,
++            Self::TransportCompleted => SipEffectState::TransportCompleted,
+             Self::ProtocolObserved => SipEffectState::ProtocolObserved,
+             Self::Failed => SipEffectState::Failed,
+             Self::Unknown => SipEffectState::Unknown,
+@@ -109,6 +119,7 @@ impl SipEffectReceiptLevel {
+             Self::DurableDecision => "durable_decision",
+             Self::SendAttempted => "send_attempted",
+             Self::TransportAccepted => "transport_accepted",
++            Self::TransportCompleted => "transport_completed",
+             Self::ProtocolObserved => "protocol_observed",
+             Self::Failed => "failed",
+             Self::Unknown => "unknown",
+@@ -121,6 +132,7 @@ pub enum SipEffectReceiptSemantic {
+     DurableDecision,
+     SendAttempted,
+     Accepted,
++    TransportCompleted,
+     Completed,
+     StateObserved,
+     Unknown,
+@@ -138,6 +150,7 @@ pub fn classify_receipt(
+         (State::Prepared, Level::DurableDecision) => Ok(Semantic::DurableDecision),
+         (State::DurableDecision, Level::SendAttempted) => Ok(Semantic::SendAttempted),
+         (State::SendAttempted, Level::TransportAccepted) => Ok(Semantic::Accepted),
++        (State::TransportAccepted, Level::TransportCompleted) => Ok(Semantic::TransportCompleted),
+         (State::SendAttempted | State::TransportAccepted, Level::ProtocolObserved) => {
+             Ok(Semantic::Completed)
+         }
+@@ -225,6 +238,17 @@ pub struct PreparedSipEffect {
+ 
+ impl PreparedSipEffect {
+     pub fn validate(&self) -> Result<(), SipEffectError> {
++        self.validate_for_schema(SIP_EFFECT_SCHEMA_VERSION, SIP_EFFECT_SCHEMA_HASH)
++    }
++
++    pub(crate) fn validate_for_schema(
++        &self,
++        schema_version: u16,
++        schema_hash: &str,
++    ) -> Result<(), SipEffectError> {
++        if !is_supported_sip_effect_schema(schema_version, schema_hash) {
++            return Err(SipEffectError::InvalidInput);
++        }
+         self.identity.validate()?;
+         if self.canonical_wire_bytes.is_empty()
+             || self.canonical_wire_bytes.len() > WIRE_BYTES_HARD_CEILING
+@@ -246,12 +270,11 @@ impl PreparedSipEffect {
+                 return Err(SipEffectError::InvalidInput);
+             }
+         }
+-        let semantic_intent = self
+-            .wire_attempt_facts
+-            .get("semantic_intent_sha256")
+-            .and_then(Value::as_str)
+-            .ok_or(SipEffectError::InvalidInput)?;
+-        checked_hash(semantic_intent)?;
++        let semantic_intent = validate_wire_attempt_facts(
++            &self.wire_attempt_facts,
++            schema_version,
++            &self.identity.protocol_effect_id,
++        )?;
+         if semantic_intent != self.identity.request_hash
+             || sip_wire_freeze_sha256(
+                 &self.identity.route_binding_hash,
+@@ -266,6 +289,11 @@ impl PreparedSipEffect {
+     }
+ }
+ 
++pub(crate) fn is_supported_sip_effect_schema(schema_version: u16, schema_hash: &str) -> bool {
++    (schema_version == SIP_EFFECT_SCHEMA_V1_VERSION && schema_hash == SIP_EFFECT_SCHEMA_V1_HASH)
++        || (schema_version == SIP_EFFECT_SCHEMA_VERSION && schema_hash == SIP_EFFECT_SCHEMA_HASH)
++}
++
+ #[derive(Clone, Debug, Eq, PartialEq)]
+ pub struct SipEffectFence {
+     pub identity: SipEffectIdentity,
+@@ -857,6 +885,22 @@ pub fn protocol_effect_identity_hash(
+     canonical_json_sha256(&protocol_effect_identity_json(identity))
+ }
+ 
++pub(crate) fn sip_effect_stage_token(prefix: &str, identity: &str, stage: &str) -> String {
++    let mut hasher = Sha256::new();
++    hasher.update((identity.len() as u64).to_be_bytes());
++    hasher.update(identity.as_bytes());
++    hasher.update((stage.len() as u64).to_be_bytes());
++    hasher.update(stage.as_bytes());
++    let digest = hasher.finalize();
++    let mut encoded = String::with_capacity(64);
++    const HEX: &[u8; 16] = b"0123456789abcdef";
++    for byte in digest {
++        encoded.push(HEX[(byte >> 4) as usize] as char);
++        encoded.push(HEX[(byte & 0x0f) as usize] as char);
++    }
++    format!("{prefix}-{encoded}")
++}
++
+ pub fn sip_effect_repair_exhaustion_hash(
+     tenant_id: &str,
+     protocol_effect_id: &str,
+@@ -925,6 +969,30 @@ pub(crate) fn validate_sip_effect_identifier(value: &str) -> Result<(), SipEffec
+     checked_identifier(value)
+ }
+ 
++pub(crate) fn validate_unbound_sip_wire_attempt_facts(
++    value: &Value,
++    expected_attempt_id: &str,
++    expected_semantic_intent_sha256: &str,
++) -> Result<(), SipEffectError> {
++    let facts = exact_json_object(
++        value,
++        &[
++            "schema_id",
++            "schema_version",
++            "attempt_id",
++            "transaction_lineage_id",
++            "semantic_intent_sha256",
++            "parent_attempt_id",
++            "lineage_reason",
++        ],
++    )?;
++    let semantic_intent = validate_wire_attempt_lineage(facts, expected_attempt_id, false)?;
++    if semantic_intent != expected_semantic_intent_sha256 {
++        return Err(SipEffectError::InvalidInput);
++    }
++    Ok(())
++}
++
+ fn checked_ascii_token(value: &str, hard_ceiling: usize) -> Result<(), SipEffectError> {
+     if value.is_empty()
+         || value.len() > hard_ceiling
+@@ -946,6 +1014,205 @@ fn checked_hash(value: &str) -> Result<(), SipEffectError> {
+     Ok(())
+ }
+ 
++fn validate_wire_attempt_facts<'a>(
++    value: &'a Value,
++    schema_version: u16,
++    expected_attempt_id: &str,
++) -> Result<&'a str, SipEffectError> {
++    if schema_version == SIP_EFFECT_SCHEMA_V1_VERSION {
++        let facts = exact_json_object(
++            value,
++            &[
++                "schema_id",
++                "schema_version",
++                "attempt_id",
++                "transaction_lineage_id",
++                "semantic_intent_sha256",
++                "parent_attempt_id",
++                "lineage_reason",
++                "via_branch",
++            ],
++        )?;
++        let semantic_intent = validate_wire_attempt_lineage(facts, expected_attempt_id, true)?;
++        validate_via_branch(json_string(facts, "via_branch")?)?;
++        return Ok(semantic_intent);
++    }
++
++    let facts = exact_json_object(
++        value,
++        &[
++            "schema_id",
++            "schema_version",
++            "lineage",
++            "via_branch",
++            "canonical_destination",
++            "transaction_binding_sha256",
++            "completion_scope",
++        ],
++    )?;
++    if json_string(facts, "schema_id")? != "sip-foundation-effect-wire-attempt-v2"
++        || json_string(facts, "schema_version")? != "2.0.0"
++    {
++        return Err(SipEffectError::InvalidInput);
++    }
++    let lineage = exact_json_object(
++        facts.get("lineage").ok_or(SipEffectError::InvalidInput)?,
++        &[
++            "schema_id",
++            "schema_version",
++            "attempt_id",
++            "transaction_lineage_id",
++            "semantic_intent_sha256",
++            "parent_attempt_id",
++            "lineage_reason",
++        ],
++    )?;
++    let semantic_intent = validate_wire_attempt_lineage(lineage, expected_attempt_id, false)?;
++    validate_via_branch(json_string(facts, "via_branch")?)?;
++    validate_canonical_destination(
++        facts
++            .get("canonical_destination")
++            .ok_or(SipEffectError::InvalidInput)?,
++    )?;
++    checked_hash(json_string(facts, "transaction_binding_sha256")?)?;
++    if !matches!(
++        json_string(facts, "completion_scope")?,
++        "transaction_peer_observation" | "transport_accepted_terminal" | "uas_core_deferred"
++    ) {
++        return Err(SipEffectError::InvalidInput);
++    }
++    Ok(semantic_intent)
++}
++
++fn validate_wire_attempt_lineage<'a>(
++    facts: &'a serde_json::Map<String, Value>,
++    expected_attempt_id: &str,
++    bound_v1: bool,
++) -> Result<&'a str, SipEffectError> {
++    if json_string(facts, "schema_id")? != "sip-foundation-wire-attempt-v1"
++        || json_string(facts, "schema_version")? != "1.0.0"
++        || json_string(facts, "attempt_id")? != expected_attempt_id
++    {
++        return Err(SipEffectError::InvalidInput);
++    }
++    checked_identifier(json_string(facts, "attempt_id")?)?;
++    checked_identifier(json_string(facts, "transaction_lineage_id")?)?;
++    let semantic_intent = json_string(facts, "semantic_intent_sha256")?;
++    checked_hash(semantic_intent)?;
++    let parent = match facts.get("parent_attempt_id") {
++        Some(Value::Null) => None,
++        Some(Value::String(value)) => {
++            checked_identifier(value)?;
++            Some(value.as_str())
++        }
++        _ => return Err(SipEffectError::InvalidInput),
++    };
++    match (json_string(facts, "lineage_reason")?, parent) {
++        ("transaction_root", None)
++            if json_string(facts, "transaction_lineage_id")? == expected_attempt_id => {}
++        ("derived_attempt", Some(parent)) if parent != expected_attempt_id => {}
++        _ => return Err(SipEffectError::InvalidInput),
++    }
++    if bound_v1 != facts.contains_key("via_branch") {
++        return Err(SipEffectError::InvalidInput);
++    }
++    Ok(semantic_intent)
++}
++
++fn validate_canonical_destination(value: &Value) -> Result<(), SipEffectError> {
++    let destination = exact_json_object(
++        value,
++        &[
++            "transport_id",
++            "protocol",
++            "address",
++            "port",
++            "selection_kind",
++            "flow_id",
++            "flow_generation",
++        ],
++    )?;
++    checked_identifier(json_string(destination, "transport_id")?)?;
++    if !matches!(
++        json_string(destination, "protocol")?,
++        "udp" | "tcp" | "tls" | "ws" | "wss"
++    ) || json_string(destination, "address")?
++        .parse::<std::net::IpAddr>()
++        .is_err()
++        || !matches!(
++            destination.get("port").and_then(Value::as_u64),
++            Some(1..=65_535)
++        )
++    {
++        return Err(SipEffectError::InvalidInput);
++    }
++    let flow_id = match destination.get("flow_id") {
++        Some(Value::Null) => None,
++        Some(Value::String(value)) => {
++            checked_identifier(value)?;
++            Some(value.as_str())
++        }
++        _ => return Err(SipEffectError::InvalidInput),
++    };
++    let flow_generation = match destination.get("flow_generation") {
++        Some(Value::Null) => None,
++        Some(Value::String(value)) => {
++            if value
++                .parse::<u64>()
++                .ok()
++                .filter(|generation| *generation > 0)
++                .map(|generation| generation.to_string())
++                != Some(value.clone())
++            {
++                return Err(SipEffectError::InvalidInput);
++            }
++            Some(value.as_str())
++        }
++        _ => return Err(SipEffectError::InvalidInput),
++    };
++    match (
++        json_string(destination, "selection_kind")?,
++        flow_id,
++        flow_generation,
++    ) {
++        ("route_candidate" | "datagram_destination", None, None)
++        | ("connected_flow", Some(_), Some(_)) => Ok(()),
++        _ => Err(SipEffectError::InvalidInput),
++    }
++}
++
++fn exact_json_object<'a>(
++    value: &'a Value,
++    keys: &[&str],
++) -> Result<&'a serde_json::Map<String, Value>, SipEffectError> {
++    let object = value.as_object().ok_or(SipEffectError::InvalidInput)?;
++    if object.len() != keys.len() || keys.iter().any(|key| !object.contains_key(*key)) {
++        return Err(SipEffectError::InvalidInput);
++    }
++    Ok(object)
++}
++
++fn json_string<'a>(
++    object: &'a serde_json::Map<String, Value>,
++    key: &str,
++) -> Result<&'a str, SipEffectError> {
++    object
++        .get(key)
++        .and_then(Value::as_str)
++        .ok_or(SipEffectError::InvalidInput)
++}
++
++fn validate_via_branch(value: &str) -> Result<(), SipEffectError> {
++    if !value.starts_with("z9hG4bK")
++        || value.len() > 255
++        || value.len() <= "z9hG4bK".len()
++        || !value.bytes().all(|byte| (b'!'..=b'~').contains(&byte))
++    {
++        return Err(SipEffectError::InvalidInput);
++    }
++    Ok(())
++}
++
+ fn validate_receipt_details(
+     level: SipEffectReceiptLevel,
+     failure_code: &str,
+@@ -1007,8 +1274,29 @@ mod tests {
+         let adapter_identity = serde_json::json!({"adapter_id": "rsipstack"});
+         let route_binding = serde_json::json!({"transport": "udp"});
+         let wire_attempt_facts = serde_json::json!({
+-            "attempt": 1,
+-            "semantic_intent_sha256": HASH_A,
++            "schema_id": "sip-foundation-effect-wire-attempt-v2",
++            "schema_version": "2.0.0",
++            "lineage": {
++                "schema_id": "sip-foundation-wire-attempt-v1",
++                "schema_version": "1.0.0",
++                "attempt_id": "effect-a",
++                "transaction_lineage_id": "effect-a",
++                "semantic_intent_sha256": HASH_A,
++                "parent_attempt_id": null,
++                "lineage_reason": "transaction_root"
++            },
++            "via_branch": "z9hG4bK-effect-a",
++            "canonical_destination": {
++                "transport_id": "transport-udp-a",
++                "protocol": "udp",
++                "address": "192.0.2.10",
++                "port": 5060,
++                "selection_kind": "datagram_destination",
++                "flow_id": null,
++                "flow_generation": null
++            },
++            "transaction_binding_sha256": HASH_B,
++            "completion_scope": "transaction_peer_observation"
+         });
+         let wire_bytes_hash = sha256_lower_hex(&wire);
+         let route_binding_hash = canonical_json_sha256(&route_binding).unwrap();
+@@ -1048,6 +1336,64 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn current_writer_is_v2_while_v1_remains_an_exact_drain_only_reader() {
++        assert_eq!(SIP_EFFECT_SCHEMA_VERSION, 2);
++        assert_eq!(
++            SIP_EFFECT_SCHEMA_HASH,
++            "7f4cd00c42bb4607c6b443261a06b06bd42117718c1f858293f1471e3ccb153b"
++        );
++        assert_eq!(prepared().validate(), Ok(()));
++    }
++
++    #[test]
++    fn legacy_v1_wire_facts_are_read_exactly_but_never_written_as_v2() {
++        let mut legacy = prepared();
++        legacy.wire_attempt_facts = serde_json::json!({
++            "schema_id": "sip-foundation-wire-attempt-v1",
++            "schema_version": "1.0.0",
++            "attempt_id": "effect-a",
++            "transaction_lineage_id": "effect-a",
++            "semantic_intent_sha256": HASH_A,
++            "parent_attempt_id": null,
++            "lineage_reason": "transaction_root",
++            "via_branch": "z9hG4bK-effect-a"
++        });
++        legacy.identity.wire_attempt_facts_hash =
++            canonical_json_sha256(&legacy.wire_attempt_facts).unwrap();
++        legacy.identity.wire_freeze_sha256 = sip_wire_freeze_sha256(
++            &legacy.identity.route_binding_hash,
++            &legacy.identity.wire_attempt_facts_hash,
++            &legacy.identity.wire_bytes_hash,
++            legacy.identity.wire_length_bytes,
++        )
++        .unwrap();
++
++        assert_eq!(
++            legacy.validate_for_schema(SIP_EFFECT_SCHEMA_V1_VERSION, SIP_EFFECT_SCHEMA_V1_HASH),
++            Ok(())
++        );
++        assert_eq!(legacy.validate().unwrap_err(), SipEffectError::InvalidInput);
++
++        legacy.wire_attempt_facts["completion_scope"] =
++            Value::String("transport_accepted_terminal".to_string());
++        legacy.identity.wire_attempt_facts_hash =
++            canonical_json_sha256(&legacy.wire_attempt_facts).unwrap();
++        legacy.identity.wire_freeze_sha256 = sip_wire_freeze_sha256(
++            &legacy.identity.route_binding_hash,
++            &legacy.identity.wire_attempt_facts_hash,
++            &legacy.identity.wire_bytes_hash,
++            legacy.identity.wire_length_bytes,
++        )
++        .unwrap();
++        assert_eq!(
++            legacy
++                .validate_for_schema(SIP_EFFECT_SCHEMA_V1_VERSION, SIP_EFFECT_SCHEMA_V1_HASH)
++                .unwrap_err(),
++            SipEffectError::InvalidInput
++        );
++    }
++
+     fn receipt(
+         record: &SipEffectRecord,
+         receipt_id: &str,
+@@ -1104,7 +1450,7 @@ mod tests {
+         let effect = prepared();
+         assert_eq!(
+             protocol_effect_identity_hash(&effect.identity).unwrap(),
+-            "b8f4c4aca40b76a37cf01f930801f5bd8589e34acb775a4313f2d2bb0067b508",
++            "43373f9a1269502dfd616a2bf2f039a73d587b71f788032ef5f524123316bff4",
+         );
+         assert_eq!(
+             SipEffectReceipt::new(
+@@ -1119,7 +1465,7 @@ mod tests {
+             )
+             .unwrap()
+             .receipt_hash,
+-            "23249993c72f0fdc45974516d66fea82ec64cd1a66ce9d7afe43b451311e7ff6",
++            "71eea08cdc0aad6a9e3f88975a9ca07934d1a99b40cbcd059a8c340a27e9ab62",
+         );
+         assert_eq!(
+             classify_receipt(
+@@ -1137,6 +1483,15 @@ mod tests {
+             .unwrap(),
+             SipEffectReceiptSemantic::Completed,
+         );
++        assert_eq!(
++            classify_receipt(
++                SipEffectState::TransportAccepted,
++                SipEffectReceiptLevel::TransportCompleted,
++            )
++            .unwrap(),
++            SipEffectReceiptSemantic::TransportCompleted,
++        );
++        assert!(SipEffectState::TransportCompleted.is_terminal());
+         assert_eq!(
+             classify_receipt(
+                 SipEffectState::Unknown,
+@@ -1361,6 +1716,18 @@ mod tests {
+         second.identity.idempotency_key = "tenant-a/session-a/1/bye/2".to_string();
+         second.identity.command_id = "command-b".to_string();
+         second.identity.command_sequence = 2;
++        second.wire_attempt_facts["lineage"]["attempt_id"] = Value::String("effect-b".to_string());
++        second.wire_attempt_facts["lineage"]["transaction_lineage_id"] =
++            Value::String("effect-b".to_string());
++        second.identity.wire_attempt_facts_hash =
++            canonical_json_sha256(&second.wire_attempt_facts).unwrap();
++        second.identity.wire_freeze_sha256 = sip_wire_freeze_sha256(
++            &second.identity.route_binding_hash,
++            &second.identity.wire_attempt_facts_hash,
++            &second.identity.wire_bytes_hash,
++            second.identity.wire_length_bytes,
++        )
++        .unwrap();
+         assert_eq!(
+             ledger.prepare(second).unwrap_err(),
+             SipEffectError::CapacityExhausted,

@@ -310,6 +310,7 @@ test("Revision 4 freezes honest receipts and wire construction order", () => {
     "durable_decision",
     "send_attempted",
     "transport_accepted",
+    "transport_completed",
     "protocol_observed",
     "failed",
     "unknown",
@@ -318,6 +319,10 @@ test("Revision 4 freezes honest receipts and wire construction order", () => {
   assert.equal(value.receipt_facts.query_scope, "local_durable_facts");
   assert.equal(
     value.receipt_facts.transport_acceptance_proves_peer_receipt,
+    false,
+  );
+  assert.equal(
+    value.receipt_facts.transport_completion_proves_peer_receipt,
     false,
   );
   assert.equal(

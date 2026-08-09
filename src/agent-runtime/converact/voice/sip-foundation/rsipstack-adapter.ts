@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 
+import { canonicalVoicePayloadHash } from '../canonical.js';
+
 import {
   assertBackendCapabilities,
   backendRuntimeIdentityFromCapabilitySet,
@@ -13,6 +15,7 @@ import {
   type BackendRuntimeIdentity,
   type BoundSipProtocolSessionBinding,
   type BoundSipWireAttemptFacts,
+  type BoundSipWireAttemptFactsV2,
   type OpenProtocolSessionInput,
   type PreparedProtocolEffect,
   type PrepareProtocolEffectInput,
@@ -22,7 +25,8 @@ import {
   type SipProtocolSessionLease,
   type SipProtocolSession,
   type SipProtocolSessionBinding,
-  type SipRouteBinding
+  type SipRouteBinding,
+  type SipWireAttemptCompletionScope
 } from './types.js';
 import {
   snapshotClosedBytes,
@@ -33,9 +37,11 @@ import {
   bindSipProtocolSession,
   bindSipRoute,
   bindSipWireAttemptFacts,
+  finalizeSipWireAttemptFacts,
   SIP_WIRE_BRANCH_PLACEHOLDER,
   sipRouteBindingSha256,
   sipWireAttemptFactsSha256,
+  sipWireAttemptLineage,
   sipWireFreezeSha256,
   validateBoundSipWireAttemptFacts
 } from './route-binding.js';
@@ -201,19 +207,23 @@ class RsipstackProtocolSession implements SipFoundationBackendSession {
       value.route_binding as SipRouteBinding
     );
     assertSipRouteMatchesSession(routeBinding, this.session_binding);
-    const wireAttemptFacts = bindSipWireAttemptFacts(
+    const v1WireAttemptFacts = bindSipWireAttemptFacts(
       value.wire_attempt_facts as PrepareProtocolEffectInput['wire_attempt_facts'],
       effectId,
-      generatedViaBranch(this.protocol_session_generation, effectId)
+      generatedViaBranch(
+        this.protocol_session_id,
+        this.protocol_session_generation,
+        effectId
+      )
     );
-    const parentAttemptId = wireAttemptFacts.parent_attempt_id;
+    const parentAttemptId = v1WireAttemptFacts.parent_attempt_id;
     if (parentAttemptId !== null) {
       const parent = this.#attempts.by_id.get(parentAttemptId);
       if (!parent ||
           parent.transaction_lineage_id !==
-            wireAttemptFacts.transaction_lineage_id ||
+            v1WireAttemptFacts.transaction_lineage_id ||
           parent.semantic_intent_sha256 !==
-            wireAttemptFacts.semantic_intent_sha256) {
+            v1WireAttemptFacts.semantic_intent_sha256) {
         throw new SipFoundationError('sip_foundation_wire_attempt_invalid');
       }
     }
@@ -223,10 +233,27 @@ class RsipstackProtocolSession implements SipFoundationBackendSession {
       MAX_WIRE_BYTES,
       () => new SipFoundationError('sip_foundation_wire_invalid')
     );
-    const wireBytes = materializeBoundWire(
+    const materialized = materializeBoundWire(
       wireTemplate,
       routeBinding,
-      wireAttemptFacts
+      v1WireAttemptFacts
+    );
+    const wireBytes = materialized.bytes;
+    const canonicalDestination = boundCanonicalDestination(routeBinding);
+    const wireAttemptFacts = finalizeSipWireAttemptFacts(
+      v1WireAttemptFacts,
+      {
+        canonical_destination: canonicalDestination,
+        transaction_binding_sha256: transactionBindingSha256({
+          protocol_session_id: this.protocol_session_id,
+          protocol_session_generation: this.protocol_session_generation,
+          effect_id: effectId,
+          via_branch: v1WireAttemptFacts.via_branch,
+          canonical_destination: canonicalDestination,
+          message: materialized.message
+        }),
+        completion_scope: materialized.message.completion_scope
+      }
     );
     const wireSha256 = createHash('sha256').update(wireBytes).digest('hex');
     const routeBindingSha256 = sipRouteBindingSha256(routeBinding);
@@ -296,6 +323,7 @@ Object.freeze(RsipstackProtocolSession.prototype);
 function attemptAuthorityRecord(
   prepared: PreparedProtocolEffect
 ): AttemptAuthorityRecord {
+  const lineage = sipWireAttemptLineage(prepared.wire_attempt_facts);
   return Object.freeze({
     wire_freeze_sha256: prepared.wire_identity.wire_freeze_sha256,
     route_binding_sha256: prepared.wire_identity.route_binding_sha256,
@@ -307,10 +335,8 @@ function attemptAuthorityRecord(
     owner_epoch: prepared.wire_identity.owner_epoch,
     command_sequence: prepared.wire_identity.command_sequence,
     via_branch: prepared.wire_attempt_facts.via_branch,
-    transaction_lineage_id:
-      prepared.wire_attempt_facts.transaction_lineage_id,
-    semantic_intent_sha256:
-      prepared.wire_attempt_facts.semantic_intent_sha256
+    transaction_lineage_id: lineage.transaction_lineage_id,
+    semantic_intent_sha256: lineage.semantic_intent_sha256
   });
 }
 
@@ -327,13 +353,10 @@ function sameAttemptAuthority(
       owner_epoch: string;
       command_sequence: string;
     };
-    wire_attempt_facts: {
-      via_branch: string;
-      transaction_lineage_id: string;
-      semantic_intent_sha256: string;
-    };
+    wire_attempt_facts: BoundSipWireAttemptFacts;
   }
 ): boolean {
+  const lineage = sipWireAttemptLineage(prepared.wire_attempt_facts);
   return authoritative.wire_freeze_sha256 ===
       prepared.wire_identity.wire_freeze_sha256 &&
     authoritative.route_binding_sha256 ===
@@ -349,9 +372,9 @@ function sameAttemptAuthority(
       prepared.wire_identity.command_sequence &&
     authoritative.via_branch === prepared.wire_attempt_facts.via_branch &&
     authoritative.transaction_lineage_id ===
-      prepared.wire_attempt_facts.transaction_lineage_id &&
+      lineage.transaction_lineage_id &&
     authoritative.semantic_intent_sha256 ===
-      prepared.wire_attempt_facts.semantic_intent_sha256;
+      lineage.semantic_intent_sha256;
 }
 
 export function decodePreparedWireBytes(
@@ -402,13 +425,18 @@ function decodeRsipstackPreparedWireBytes(
         expectedProtocolSessionId) {
       throw new SipFoundationError('sip_foundation_wire_invalid');
     }
-    if (identifier(
+    const protocolSessionGeneration = identifier(
       identity.protocol_session_generation,
       'sip_foundation_input_invalid'
-    ) !== expectedSession.protocol_session_generation) {
+    );
+    if (protocolSessionGeneration !==
+        expectedSession.protocol_session_generation) {
       throw new SipFoundationError('sip_foundation_wire_invalid');
     }
-    identifier(identity.effect_id, 'sip_foundation_input_invalid');
+    const effectId = identifier(
+      identity.effect_id,
+      'sip_foundation_input_invalid'
+    );
     identifier(identity.command_id, 'sip_foundation_input_invalid');
     u64(identity.owner_epoch);
     u64(identity.command_sequence);
@@ -454,6 +482,17 @@ function decodeRsipstackPreparedWireBytes(
         createHash('sha256').update(bytes).digest('hex') !== wireSha256) {
       throw new SipFoundationError('sip_foundation_wire_invalid');
     }
+    if (wireAttemptFacts.schema_id ===
+        'sip-foundation-effect-wire-attempt-v2') {
+      assertV2WireAttemptMatchesFinalSend({
+        facts: wireAttemptFacts,
+        protocol_session_id: expectedProtocolSessionId,
+        protocol_session_generation: protocolSessionGeneration,
+        effect_id: effectId,
+        route_binding: routeBinding,
+        wire_bytes: bytes
+      });
+    }
     if (sipWireFreezeSha256({
       route_binding_sha256: routeBindingSha,
       wire_attempt_facts_sha256: attemptFactsSha,
@@ -463,7 +502,7 @@ function decodeRsipstackPreparedWireBytes(
       throw new SipFoundationError('sip_foundation_wire_invalid');
     }
     const authoritativeAttempt = attemptAuthority.by_id.get(
-      String(identity.effect_id)
+      effectId
     );
     if (!authoritativeAttempt ||
         !sameAttemptAuthority(authoritativeAttempt, {
@@ -492,10 +531,13 @@ function decodeRsipstackPreparedWireBytes(
 }
 
 function generatedViaBranch(
+  protocolSessionId: string,
   protocolSessionGeneration: string,
   effectId: string
 ): string {
   const digest = createHash('sha256')
+    .update(protocolSessionId)
+    .update('\0')
     .update(protocolSessionGeneration)
     .update('\0')
     .update(effectId)
@@ -503,13 +545,28 @@ function generatedViaBranch(
   return `z9hG4bK-opc-${digest.slice(0, 40)}`;
 }
 
+interface FinalWireMessage {
+  readonly message_line: string;
+  readonly message_kind: 'request' | 'response';
+  readonly request_method: string | null;
+  readonly response_status: number | null;
+  readonly cseq: string;
+  readonly cseq_method: string;
+  readonly completion_scope: SipWireAttemptCompletionScope;
+}
+
+interface MaterializedBoundWire {
+  readonly bytes: Buffer;
+  readonly message: FinalWireMessage;
+}
+
 function materializeBoundWire(
   template: Uint8Array,
   routeBinding: SipRouteBinding,
-  attemptFacts: BoundSipWireAttemptFacts
-): Buffer {
+  attemptFacts: { readonly via_branch: string }
+): MaterializedBoundWire {
   const bytes = Buffer.from(template);
-  const branchOffset = assertWireMatchesBinding(
+  const unbound = assertWireMatchesBinding(
     bytes,
     routeBinding,
     SIP_WIRE_BRANCH_PLACEHOLDER
@@ -518,16 +575,28 @@ function materializeBoundWire(
       SIP_WIRE_BRANCH_PLACEHOLDER.length) {
     throw new SipFoundationError('sip_foundation_wire_invalid');
   }
-  bytes.write(attemptFacts.via_branch, branchOffset, 'ascii');
-  assertWireMatchesBinding(bytes, routeBinding, attemptFacts.via_branch);
-  return bytes;
+  bytes.write(attemptFacts.via_branch, unbound.branch_offset, 'ascii');
+  const bound = assertWireMatchesBinding(
+    bytes,
+    routeBinding,
+    attemptFacts.via_branch
+  );
+  return Object.freeze({
+    bytes,
+    message: bound.message
+  });
+}
+
+interface WireBindingObservation {
+  readonly branch_offset: number;
+  readonly message: FinalWireMessage;
 }
 
 function assertWireMatchesBinding(
   bytes: Uint8Array,
   routeBinding: SipRouteBinding,
   expectedBranch: string
-): number {
+): WireBindingObservation {
   const buffer = Buffer.from(
     bytes.buffer,
     bytes.byteOffset,
@@ -567,6 +636,7 @@ function assertWireMatchesBinding(
     name: 'authorization' | 'proxy-authorization';
     value: string;
   }> = [];
+  const cseqs: string[] = [];
   let offset = Buffer.byteLength(lines[0]!, 'utf8') + 2;
   let branchOffset = -1;
   for (let index = 1; index < lines.length; index += 1) {
@@ -610,6 +680,8 @@ function assertWireMatchesBinding(
       });
     } else if (name === 'content-length') {
       contentLengths.push(value);
+    } else if (name === 'cseq') {
+      cseqs.push(value);
     }
     offset += Buffer.byteLength(line, 'utf8') + 2;
   }
@@ -653,7 +725,136 @@ function assertWireMatchesBinding(
       branchOffset < 0) {
     throw new SipFoundationError('sip_foundation_wire_invalid');
   }
-  return branchOffset;
+  return Object.freeze({
+    branch_offset: branchOffset,
+    message: finalWireMessage(lines[0]!, cseqs)
+  });
+}
+
+function finalWireMessage(
+  messageLine: string,
+  cseqs: readonly string[]
+): FinalWireMessage {
+  if (cseqs.length !== 1) {
+    throw new SipFoundationError('sip_foundation_wire_attempt_invalid');
+  }
+  const cseq = /^(?:0|[1-9][0-9]{0,9}) ([A-Z][A-Z0-9!#$%&'*+.^_`|~-]*)$/.exec(
+    cseqs[0]!
+  );
+  if (!cseq || Number(cseqs[0]!.split(' ', 1)[0]) > 4_294_967_295) {
+    throw new SipFoundationError('sip_foundation_wire_attempt_invalid');
+  }
+  const cseqMethod = cseq[1]!;
+  const request = /^([A-Z][A-Z0-9!#$%&'*+.^_`|~-]*) ([^ ]+) SIP\/2\.0$/.exec(
+    messageLine
+  );
+  if (request) {
+    const method = request[1]!;
+    if (cseqMethod !== method) {
+      throw new SipFoundationError('sip_foundation_wire_attempt_invalid');
+    }
+    return Object.freeze({
+      message_line: messageLine,
+      message_kind: 'request',
+      request_method: method,
+      response_status: null,
+      cseq: cseqs[0]!,
+      cseq_method: cseqMethod,
+      completion_scope: method === 'ACK'
+        ? 'transport_accepted_terminal'
+        : 'transaction_peer_observation'
+    });
+  }
+  const response = /^SIP\/2\.0 ([1-6][0-9]{2})(?: .*)?$/.exec(
+    messageLine
+  );
+  if (!response) {
+    throw new SipFoundationError('sip_foundation_wire_attempt_invalid');
+  }
+  const status = Number(response[1]);
+  const completionScope = cseqMethod === 'INVITE' &&
+      status >= 200 && status <= 299
+    ? 'uas_core_deferred'
+    : cseqMethod === 'INVITE' && status >= 300 && status <= 699
+      ? 'transaction_peer_observation'
+      : 'transport_accepted_terminal';
+  return Object.freeze({
+    message_line: messageLine,
+    message_kind: 'response',
+    request_method: null,
+    response_status: status,
+    cseq: cseqs[0]!,
+    cseq_method: cseqMethod,
+    completion_scope: completionScope
+  });
+}
+
+function boundCanonicalDestination(routeBinding: SipRouteBinding) {
+  return Object.freeze({
+    transport_id: routeBinding.transport.id,
+    protocol: routeBinding.transport.protocol,
+    address: routeBinding.transport.next_hop.address,
+    port: routeBinding.transport.next_hop.port,
+    selection_kind: 'route_candidate' as const,
+    flow_id: null,
+    flow_generation: null
+  });
+}
+
+function transactionBindingSha256(input: {
+  protocol_session_id: string;
+  protocol_session_generation: string;
+  effect_id: string;
+  via_branch: string;
+  canonical_destination: ReturnType<typeof boundCanonicalDestination>;
+  message: FinalWireMessage;
+}): string {
+  return canonicalVoicePayloadHash({
+    schema_id: 'sip-foundation-transaction-binding-v1',
+    schema_version: '1.0.0',
+    protocol_session_id: input.protocol_session_id,
+    protocol_session_generation: input.protocol_session_generation,
+    effect_id: input.effect_id,
+    via_branch: input.via_branch,
+    canonical_destination: input.canonical_destination,
+    message_line: input.message.message_line,
+    message_kind: input.message.message_kind,
+    request_method: input.message.request_method,
+    response_status: input.message.response_status,
+    cseq: input.message.cseq,
+    cseq_method: input.message.cseq_method
+  });
+}
+
+function assertV2WireAttemptMatchesFinalSend(input: {
+  facts: BoundSipWireAttemptFactsV2;
+  protocol_session_id: string;
+  protocol_session_generation: string;
+  effect_id: string;
+  route_binding: SipRouteBinding;
+  wire_bytes: Uint8Array;
+}): void {
+  const destination = boundCanonicalDestination(input.route_binding);
+  const message = assertWireMatchesBinding(
+    input.wire_bytes,
+    input.route_binding,
+    input.facts.via_branch
+  ).message;
+  const expectedTransactionBinding = transactionBindingSha256({
+    protocol_session_id: input.protocol_session_id,
+    protocol_session_generation: input.protocol_session_generation,
+    effect_id: input.effect_id,
+    via_branch: input.facts.via_branch,
+    canonical_destination: destination,
+    message
+  });
+  if (canonicalVoicePayloadHash(input.facts.canonical_destination) !==
+        canonicalVoicePayloadHash(destination) ||
+      input.facts.transaction_binding_sha256 !==
+        expectedTransactionBinding ||
+      input.facts.completion_scope !== message.completion_scope) {
+    throw new SipFoundationError('sip_foundation_wire_invalid');
+  }
 }
 
 function sameSentBy(

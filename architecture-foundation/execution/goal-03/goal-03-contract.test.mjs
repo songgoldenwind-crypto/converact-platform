@@ -127,7 +127,7 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
     rustpbx_commit: '6c49ee76baa54fdbf8f98020cc9bee158c7c15de',
     rsipstack_commit: '8318e97b1170de4e5245b120afec1cdf53e3d716',
     rustrtc_commit: '166c6d22984429eb6b509920c14fcd69f974f0b3',
-    patchset: 'ivekit.58',
+    patchset: 'ivekit.59',
     current_adapter: 'rsipstack',
     target_adapter: 'rvoip_low_level_slices_after_separate_gates',
     native_runtime_authority: 'Unified RustPBX process',
@@ -175,7 +175,7 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
   assert.match(build, /RUSTPBX_COMMIT="6c49ee76baa54fdbf8f98020cc9bee158c7c15de"/u);
   assert.match(build, /RSIPSTACK_COMMIT="8318e97b1170de4e5245b120afec1cdf53e3d716"/u);
   assert.match(build, /RUSTRTC_COMMIT="166c6d22984429eb6b509920c14fcd69f974f0b3"/u);
-  assert.match(build, /PATCHSET="ivekit\.58"/u);
+  assert.match(build, /PATCHSET="ivekit\.59"/u);
   assert.match(
     build,
     /rustpbx-converact-postgres-sip-effect-repair-batch\.patch/u,
@@ -195,6 +195,14 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
   assert.match(
     build,
     /rsipstack-converact-durable-egress-effect-gate\.patch[\s\S]*rsipstack-converact-canonical-wire-freeze\.patch/u,
+  );
+  assert.match(
+    build,
+    /rsipstack-converact-canonical-wire-freeze\.patch[\s\S]*rsipstack-converact-protocol-observation\.patch/u,
+  );
+  assert.match(
+    build,
+    /rustpbx-converact-rsipstack-sip-effect-gate\.patch[\s\S]*rustpbx-converact-protocol-observation\.patch/u,
   );
 });
 
@@ -376,11 +384,38 @@ test('Call/Leg and effect contracts distinguish identities, races and receipt me
 
   const effect = readJson(join(goalDirectory, documents.effect[1]));
   assert.equal(effect.semantic_receipt_classes.accepted.level, 'transport_accepted');
+  assert.equal(
+    effect.semantic_receipt_classes.transport_completed.level,
+    'transport_completed',
+  );
+  assert.equal(
+    effect.semantic_receipt_classes.transport_completed.does_not_prove,
+    'peer_received_or_protocol_completed',
+  );
   assert.deepEqual(
     effect.semantic_receipt_classes.completed.from_states,
     ['send_attempted', 'transport_accepted'],
   );
   assert.equal(effect.semantic_receipt_classes.state_observed.from_state, 'unknown');
+  assert.equal(effect.completion_scopes.wire_fact, 'completion_scope');
+  assert.equal(
+    effect.completion_scopes.transport_accepted_terminal.receipt_level,
+    'transport_completed',
+  );
+  assert.equal(
+    effect.completion_scopes.transport_accepted_terminal.does_not_prove,
+    'peer_received_message',
+  );
+  assert.equal(
+    effect.completion_scopes.uas_core_deferred.current_owner_wiring,
+    'not_run',
+  );
+  assert.ok(effect.completion_scope_invariants.includes(
+    'completion_scope_mismatch_never_fabricates_protocol_observed',
+  ));
+  assert.ok(effect.completion_scope_invariants.includes(
+    'transport_completed_never_aliases_protocol_observed',
+  ));
   assert.equal(
     effect.network_claim,
     'idempotent_effect_plus_observation_not_exactly_once',

@@ -8,10 +8,12 @@ import {
   SIP_EFFECT_SCHEMA_HASH,
   SIP_EFFECT_SCHEMA_ID,
   SIP_EFFECT_SCHEMA_VERSION,
+  SIP_EFFECT_SCHEMA_V1_VERSION,
   SipEffectError,
   assertSameProtocolEffectIdentity,
   canonicalSipEffectHash,
   cloneProtocolEffect,
+  isSupportedSipEffectSchema,
   protocolEffectIdentityHash,
   uint64Decimal,
   validateAtomicBoundaryMetadata,
@@ -333,7 +335,7 @@ export class PostgresEffectStore implements ProtocolEffectStore {
           RECEIPT_REPLAY_ROW_KEYS,
           'invalid_receipt_row'
         );
-        assertReplaySchema(row, this.#writerIdentity);
+        assertReplaySchema(row, this.#writerIdentity, current);
         if (row.protocol_effect_id !== checked.identity.protocol_effect_id ||
             row.effect_identity_hash !==
               protocolEffectIdentityHash(checked.identity) ||
@@ -355,7 +357,9 @@ export class PostgresEffectStore implements ProtocolEffectStore {
         assertLiveRepairFence(current, checked);
       }
       const terminal =
-        checked.level === 'protocol_observed' || checked.level === 'failed';
+        checked.level === 'transport_completed' ||
+        checked.level === 'protocol_observed' ||
+        checked.level === 'failed';
       if (terminal !== checked.terminal) transitionConflict();
 
       const insertedReceipt = await pg.query<EffectRow>(
@@ -389,9 +393,9 @@ export class PostgresEffectStore implements ProtocolEffectStore {
           current.state,
           checked.failure_code,
           checked.repair_delay_ms,
-          SIP_EFFECT_SCHEMA_ID,
-          SIP_EFFECT_SCHEMA_VERSION,
-          SIP_EFFECT_SCHEMA_HASH,
+          current.schema_id,
+          current.schema_version,
+          current.schema_hash,
           this.#writerIdentity
         ]
       );
@@ -422,7 +426,7 @@ export class PostgresEffectStore implements ProtocolEffectStore {
               'invalid_receipt_row'
             )
           : undefined;
-        if (row) assertReplaySchema(row, this.#writerIdentity);
+        if (row) assertReplaySchema(row, this.#writerIdentity, current);
         if (!row ||
             row.protocol_effect_id !==
               checked.identity.protocol_effect_id ||
@@ -1071,6 +1075,9 @@ function assertClosedTransitionPolicy(
     case 'transport_accepted':
       expectedFrom = ['send_attempted'];
       break;
+    case 'transport_completed':
+      expectedFrom = ['transport_accepted'];
+      break;
     case 'protocol_observed':
       expectedFrom = repaired
         ? ['unknown']
@@ -1089,7 +1096,9 @@ function assertClosedTransitionPolicy(
   }
   if (!sameStateSet(input.allowed_from, expectedFrom) ||
       input.terminal !==
-        (input.level === 'protocol_observed' || input.level === 'failed') ||
+        (input.level === 'transport_completed' ||
+         input.level === 'protocol_observed' ||
+         input.level === 'failed') ||
       (input.level === 'failed'
         ? input.failure_code.length === 0
         : input.failure_code.length !== 0) ||
@@ -1184,9 +1193,15 @@ function decodeEffect(
   }
   const state = row.state as ProtocolEffectState;
   if (!EFFECT_STATES.has(state)) schemaIncompatible('invalid_effect_state');
-  if (row.schema_id !== SIP_EFFECT_SCHEMA_ID ||
-      integer(row.schema_version) !== SIP_EFFECT_SCHEMA_VERSION ||
-      row.schema_hash !== SIP_EFFECT_SCHEMA_HASH ||
+  const schemaVersion = integer(row.schema_version);
+  const schemaHash = row.schema_hash;
+  if (!isSupportedSipEffectSchema({
+        schema_id: row.schema_id,
+        schema_version: schemaVersion,
+        schema_hash: schemaHash
+      }) ||
+      (schemaVersion === SIP_EFFECT_SCHEMA_V1_VERSION &&
+       state === 'transport_completed') ||
       row.writer_identity !== expectedWriterIdentity) {
     schemaIncompatible('invalid_schema_identity');
   }
@@ -1196,6 +1211,7 @@ function decodeEffect(
   if ((terminalId === null) !== (terminalHash === null) ||
       (terminalId === null) !== (terminalAt === null) ||
       (terminalId !== null &&
+       state !== 'transport_completed' &&
        state !== 'protocol_observed' && state !== 'failed')) {
     schemaIncompatible('invalid_terminal_tombstone');
   }
@@ -1324,8 +1340,8 @@ function decodeEffect(
       true
     ),
     schema_id: SIP_EFFECT_SCHEMA_ID,
-    schema_version: SIP_EFFECT_SCHEMA_VERSION,
-    schema_hash: SIP_EFFECT_SCHEMA_HASH,
+    schema_version: schemaVersion as ProtocolEffectRecord['schema_version'],
+    schema_hash: schemaHash as string,
     adapter_identity: adapter,
     canonical_wire_bytes: wireBytes,
     route_binding: route,
@@ -1364,7 +1380,7 @@ function decodeEffect(
       ? {
           receipt_id: terminalId,
           receipt_hash: databaseHash(terminalHash, 'terminal_tombstone_hash'),
-          state: state as 'protocol_observed' | 'failed',
+          state: state as 'transport_completed' | 'protocol_observed' | 'failed',
           terminal_at: terminalAt
         }
       : null,
@@ -1408,11 +1424,18 @@ function samePreparedEffect(
 
 function assertReplaySchema(
   row: Readonly<Record<string, unknown>>,
-  expectedWriterIdentity: string
+  expectedWriterIdentity: string,
+  effect: Pick<ProtocolEffectRecord, 'schema_id' | 'schema_version' | 'schema_hash'>
 ): void {
-  if (row.schema_id !== SIP_EFFECT_SCHEMA_ID ||
-      integer(row.schema_version) !== SIP_EFFECT_SCHEMA_VERSION ||
-      row.schema_hash !== SIP_EFFECT_SCHEMA_HASH ||
+  const schemaVersion = integer(row.schema_version);
+  if (!isSupportedSipEffectSchema({
+        schema_id: row.schema_id,
+        schema_version: schemaVersion,
+        schema_hash: row.schema_hash
+      }) ||
+      row.schema_id !== effect.schema_id ||
+      schemaVersion !== effect.schema_version ||
+      row.schema_hash !== effect.schema_hash ||
       row.writer_identity !== expectedWriterIdentity) {
     schemaIncompatible('invalid_schema_identity');
   }
@@ -2245,6 +2268,7 @@ const EFFECT_STATES = new Set<ProtocolEffectState>([
   'durable_decision',
   'send_attempted',
   'transport_accepted',
+  'transport_completed',
   'protocol_observed',
   'failed',
   'unknown'
@@ -2253,6 +2277,7 @@ const EFFECT_RECEIPT_LEVELS = new Set([
   'durable_decision',
   'send_attempted',
   'transport_accepted',
+  'transport_completed',
   'protocol_observed',
   'failed',
   'unknown'

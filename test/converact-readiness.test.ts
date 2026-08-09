@@ -42,7 +42,7 @@ test('readiness requires the latest communication correctness migrations', () =>
   assert.equal(REQUIRED_MIGRATIONS.includes('108_converact_platform_identity_consent'), true);
   assert.equal(REQUIRED_MIGRATIONS.includes('109_converact_platform_event_receipts'), true);
   assert.equal(REQUIRED_MIGRATIONS.includes('110_converact_platform_usage_ledger'), true);
-  assert.equal(REQUIRED_MIGRATIONS.at(-1), '112_converact_platform_history_receipt_integrity');
+  assert.equal(REQUIRED_MIGRATIONS.at(-1), '114_converact_sip_effect_transport_completed_validate');
 });
 
 test('readiness executes SQL, verifies migrations, and reports nonblocking provider degradation', async () => {
@@ -59,7 +59,7 @@ test('readiness executes SQL, verifies migrations, and reports nonblocking provi
 });
 
 test('readiness migration exposes only a bounded migration-version probe to the runtime role', () => {
-  assert.equal(REQUIRED_MIGRATIONS.at(-1), '112_converact_platform_history_receipt_integrity');
+  assert.equal(REQUIRED_MIGRATIONS.at(-1), '114_converact_sip_effect_transport_completed_validate');
   const sql = readFileSync(
     new URL('../src/migrations/101_ivekit_migration_readiness.sql', import.meta.url),
     'utf8'
