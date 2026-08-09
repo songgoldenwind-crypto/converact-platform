@@ -1,0 +1,1 @@
+No such command 'pjsip show endpoints' (type 'core show help pjsip' for other possible commands)

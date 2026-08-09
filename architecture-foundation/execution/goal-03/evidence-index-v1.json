@@ -2,7 +2,7 @@
   "$schema": "./evidence-index-v1.schema.json",
   "evidence_index_id": "converact-goal-03-evidence-index-v1",
   "version": "1.0.0",
-  "generated_at": "2026-08-02T00:00:00.000Z",
+  "generated_at": "2026-08-09T00:00:00.000Z",
   "binding": {
     "goal_path": "goals/goal-03-sip-call-durable-foundation.md",
     "goal_sha256": "05ce7f940782ab0efcd013d413220d068a7d3be1bab981f2c2c4f6a6f2a217af",
@@ -79,19 +79,25 @@
     {
       "evidence_id": "G03-E06-TRYING",
       "claim": "100 Trying and final/overload raw latency distribution",
-      "status": "not_run",
-      "evidence_uris": [],
-      "source_commit": null,
-      "raw_output_sha256": null,
+      "status": "verified_controlled",
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-03/evidence/raw/host-campaign-b63383b-ivekit53-01/sip-latency-b63383b-v1/report.json",
+        "architecture-foundation/execution/goal-03/evidence/raw/host-campaign-b63383b-ivekit53-01/sip-latency-b63383b-v1/SHA256SUMS"
+      ],
+      "source_commit": "b63383bda16bcd9d311c9ce5e0761877d474797b",
+      "raw_output_sha256": "3a08cc4e8b029011e4da9c1563def535c815b2fc7643bdebe875ef5280e853c6",
       "production_eligible": false
     },
     {
       "evidence_id": "G03-E07-WIRE",
       "claim": "Wire corpus rsipstack baseline and differential replay",
-      "status": "not_run",
-      "evidence_uris": [],
-      "source_commit": null,
-      "raw_output_sha256": null,
+      "status": "verified_controlled",
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-03/evidence/raw/host-campaign-b63383b-ivekit53-01/wire-differential-b63383b-v1/report.json",
+        "architecture-foundation/execution/goal-03/evidence/raw/host-campaign-b63383b-ivekit53-01/wire-differential-b63383b-v1/REMOTE-SHA256SUMS"
+      ],
+      "source_commit": "b63383bda16bcd9d311c9ce5e0761877d474797b",
+      "raw_output_sha256": "2ea3716a40fe497bb32771481b50475634e5bb92ef78d83156f11469f31201aa",
       "production_eligible": false
     },
     {
@@ -128,19 +134,27 @@
     {
       "evidence_id": "G03-E11-INTEROP",
       "claim": "SIPp and real peer interoperability",
-      "status": "not_run",
-      "evidence_uris": [],
-      "source_commit": null,
-      "raw_output_sha256": null,
+      "status": "verified_controlled",
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-03/evidence/raw/host-campaign-b63383b-ivekit53-01/interoperability-summary.json",
+        "architecture-foundation/execution/goal-03/evidence/raw/host-campaign-b63383b-ivekit53-01/sipp-short-b63383b-v1/report.json",
+        "architecture-foundation/execution/goal-03/evidence/raw/host-campaign-b63383b-ivekit53-01/real-asterisk-peer-b63383b-v1/SHA256SUMS"
+      ],
+      "source_commit": "b63383bda16bcd9d311c9ce5e0761877d474797b",
+      "raw_output_sha256": "ec49df9a5a707bbd099dc88e28590c18f4604feaf6bccce76e3c5da3c914130a",
       "production_eligible": false
     },
     {
       "evidence_id": "G03-E12-LONG-CALL",
       "claim": "Long call control and restart stability",
-      "status": "not_run",
-      "evidence_uris": [],
-      "source_commit": null,
-      "raw_output_sha256": null,
+      "status": "verified_controlled",
+      "evidence_uris": [
+        "architecture-foundation/execution/goal-03/evidence/raw/host-campaign-b63383b-ivekit53-01/long-call-2h-b63383b-v1/summary.json",
+        "architecture-foundation/execution/goal-03/evidence/raw/host-campaign-b63383b-ivekit53-01/long-call-2h-b63383b-v1/SHA256SUMS",
+        "architecture-foundation/execution/goal-03/evidence/raw/host-campaign-b63383b-ivekit53-01/harness/long-call.sh"
+      ],
+      "source_commit": "b63383bda16bcd9d311c9ce5e0761877d474797b",
+      "raw_output_sha256": "34b0095202f2cff3b7d2ea65e5241a492eefba6a06a6c4a8563b950f60925a90",
       "production_eligible": false
     },
     {
@@ -184,10 +198,9 @@
   ],
   "inherited_claims": [],
   "external_or_environment_blockers": [
-    "100_trying_and_wire_differential_campaign_not_run",
-    "real_sip_peer_campaign_not_run",
     "host_fault_and_oom_campaign_not_run",
-    "long_call_and_capacity_campaign_not_run",
-    "native_call_leg_and_effect_authority_activation_not_run"
+    "allocation_and_2_4_8_core_scaling_not_run",
+    "native_call_leg_and_effect_authority_activation_not_run",
+    "final_independent_review_not_run"
   ]
 }

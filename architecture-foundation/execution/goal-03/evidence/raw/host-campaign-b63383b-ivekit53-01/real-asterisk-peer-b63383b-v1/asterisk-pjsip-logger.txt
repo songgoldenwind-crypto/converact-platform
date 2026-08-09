@@ -1,0 +1,1 @@
+No such command 'pjsip set logger on' (type 'core show help pjsip' for other possible commands)

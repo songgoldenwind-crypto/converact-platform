@@ -38,7 +38,7 @@ unchanged container IDs are retained instead.
 Neither accepted review proves that the TypeScript `VoiceCall`, Call/Leg model,
 `RsipstackFoundationAdapter` or PostgreSQL reference ledger is a live native
 authority. Unified RustPBX remains the sole active Call/Leg authority;
-`G03-E16-NATIVE-AUTHORITY` and the `.43` mailbox patchset are outside those old
+`G03-E16-NATIVE-AUTHORITY` and the `.53` current patchset are outside those old
 reviewed diffs and remain pending exact-source review.
 
 ## Rejection history and remaining gate
@@ -49,10 +49,9 @@ closed and independently accepted at `a18229c`. Earlier implementation review
 rejections at `3559afc` and `32a2128` also remain in history; their findings
 were closed before the accepted implementation baseline.
 
-This is not the final G03 review. `G03-E15-REVIEW` remains `not_run` until the
-100 Trying, wire differential, fault isolation, peer interoperability,
-long-call, native authority activation and performance campaigns are either
-proved or honestly retained as open external gates, and a reviewer examines
-the final exact commit/diff.
-Those remaining campaign entries are currently `not_run`; production
-eligibility remains false.
+This is not the final G03 review. Exact `.53` 100 Trying, wire differential,
+SIPp/Asterisk interoperability, one 7,201,279-ms SIP-control call and a 2-vCPU
+capacity regression now have raw controlled evidence. `G03-E15-REVIEW` remains `not_run`
+until fault/OOM, Native Authority, allocation and multi-core
+gaps are honestly retained, and a reviewer examines the final exact
+commit/diff. Production eligibility remains false.

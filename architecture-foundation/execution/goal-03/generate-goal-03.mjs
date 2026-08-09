@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 const goalDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = realpathSync(resolve(goalDirectory, '../../..'));
 const generatedAt = '2026-08-02T00:00:00.000Z';
+const evidenceGeneratedAt = '2026-08-09T00:00:00.000Z';
 const sipFoundationControlSchemaId =
   'https://converact.invalid/schemas/sip-foundation-control-message-v1.schema.json';
 
@@ -1463,6 +1464,8 @@ function writeWireCorpus() {
 function evidenceIndex() {
   const evidenceSourceCommit =
     'a18229cde752e2fbd4a3ffa3b8d8a8cc7cef7beb';
+  const controlledHostSourceCommit =
+    'b63383bda16bcd9d311c9ce5e0761877d474797b';
   const localEvidenceRoot =
     'architecture-foundation/execution/goal-03/evidence/raw/local-verification-a18229c';
   const postgresEvidenceRoot =
@@ -1473,12 +1476,13 @@ function evidenceIndex() {
     status,
     evidence_uris = [],
     raw_output_sha256 = null,
+    source_commit = status === 'not_run' ? null : evidenceSourceCommit,
   ) => ({
     evidence_id,
     claim,
     status,
     evidence_uris,
-    source_commit: status === 'not_run' ? null : evidenceSourceCommit,
+    source_commit,
     raw_output_sha256,
     production_eligible: false,
   });
@@ -1486,7 +1490,7 @@ function evidenceIndex() {
     $schema: './evidence-index-v1.schema.json',
     evidence_index_id: 'converact-goal-03-evidence-index-v1',
     version: '1.0.0',
-    generated_at: generatedAt,
+    generated_at: evidenceGeneratedAt,
     binding,
     current_state: 'implementation_in_progress',
     production_eligible: false,
@@ -1535,8 +1539,28 @@ function evidenceIndex() {
         ],
         'a4aa58ab2c1006830cfffe400be87741775becbaa8a85a02b1edaf02e393d8aa',
       ),
-      entry('G03-E06-TRYING', '100 Trying and final/overload raw latency distribution', 'not_run'),
-      entry('G03-E07-WIRE', 'Wire corpus rsipstack baseline and differential replay', 'not_run'),
+      entry(
+        'G03-E06-TRYING',
+        '100 Trying and final/overload raw latency distribution',
+        'verified_controlled',
+        [
+          'architecture-foundation/execution/goal-03/evidence/raw/host-campaign-b63383b-ivekit53-01/sip-latency-b63383b-v1/report.json',
+          'architecture-foundation/execution/goal-03/evidence/raw/host-campaign-b63383b-ivekit53-01/sip-latency-b63383b-v1/SHA256SUMS',
+        ],
+        '3a08cc4e8b029011e4da9c1563def535c815b2fc7643bdebe875ef5280e853c6',
+        controlledHostSourceCommit,
+      ),
+      entry(
+        'G03-E07-WIRE',
+        'Wire corpus rsipstack baseline and differential replay',
+        'verified_controlled',
+        [
+          'architecture-foundation/execution/goal-03/evidence/raw/host-campaign-b63383b-ivekit53-01/wire-differential-b63383b-v1/report.json',
+          'architecture-foundation/execution/goal-03/evidence/raw/host-campaign-b63383b-ivekit53-01/wire-differential-b63383b-v1/REMOTE-SHA256SUMS',
+        ],
+        '2ea3716a40fe497bb32771481b50475634e5bb92ef78d83156f11469f31201aa',
+        controlledHostSourceCommit,
+      ),
       entry(
         'G03-E08-RECOVERY',
         'Confirmed-quiescent recovery, clock and fencing',
@@ -1552,8 +1576,30 @@ function evidenceIndex() {
         '9d212173335acf075dd07ab0ef198b8e76b1fd97dacc820f8b5c6f5c071025b9',
       ),
       entry('G03-E10-FAULT', 'Protocol/worker crash, panic, OOM and blocking isolation', 'not_run'),
-      entry('G03-E11-INTEROP', 'SIPp and real peer interoperability', 'not_run'),
-      entry('G03-E12-LONG-CALL', 'Long call control and restart stability', 'not_run'),
+      entry(
+        'G03-E11-INTEROP',
+        'SIPp and real peer interoperability',
+        'verified_controlled',
+        [
+          'architecture-foundation/execution/goal-03/evidence/raw/host-campaign-b63383b-ivekit53-01/interoperability-summary.json',
+          'architecture-foundation/execution/goal-03/evidence/raw/host-campaign-b63383b-ivekit53-01/sipp-short-b63383b-v1/report.json',
+          'architecture-foundation/execution/goal-03/evidence/raw/host-campaign-b63383b-ivekit53-01/real-asterisk-peer-b63383b-v1/SHA256SUMS',
+        ],
+        'ec49df9a5a707bbd099dc88e28590c18f4604feaf6bccce76e3c5da3c914130a',
+        controlledHostSourceCommit,
+      ),
+      entry(
+        'G03-E12-LONG-CALL',
+        'Long call control and restart stability',
+        'verified_controlled',
+        [
+          'architecture-foundation/execution/goal-03/evidence/raw/host-campaign-b63383b-ivekit53-01/long-call-2h-b63383b-v1/summary.json',
+          'architecture-foundation/execution/goal-03/evidence/raw/host-campaign-b63383b-ivekit53-01/long-call-2h-b63383b-v1/SHA256SUMS',
+          'architecture-foundation/execution/goal-03/evidence/raw/host-campaign-b63383b-ivekit53-01/harness/long-call.sh',
+        ],
+        '34b0095202f2cff3b7d2ea65e5241a492eefba6a06a6c4a8563b950f60925a90',
+        controlledHostSourceCommit,
+      ),
       entry('G03-E13-PERFORMANCE', 'Same-source hot-path latency, allocation and capacity baseline', 'not_run'),
       entry(
         'G03-E14-TYPECHECK',
@@ -1571,11 +1617,10 @@ function evidenceIndex() {
     ],
     inherited_claims: [],
     external_or_environment_blockers: [
-      '100_trying_and_wire_differential_campaign_not_run',
-      'real_sip_peer_campaign_not_run',
       'host_fault_and_oom_campaign_not_run',
-      'long_call_and_capacity_campaign_not_run',
+      'allocation_and_2_4_8_core_scaling_not_run',
       'native_call_leg_and_effect_authority_activation_not_run',
+      'final_independent_review_not_run',
     ],
   };
 }

@@ -1,0 +1,78 @@
+[
+    {
+        "Id": "sha256:14e51e4f51388c8811e1472426a01840e061ad2ddf639caebe6b0eca4a206eaf",
+        "RepoTags": [
+            "converact/rustpbx:0.4.11-ivekit.53-6c49ee76-g03-b63383b"
+        ],
+        "RepoDigests": [],
+        "Parent": "",
+        "Comment": "buildkit.dockerfile.v0",
+        "Created": "2026-08-09T14:35:13.321887112+08:00",
+        "DockerVersion": "",
+        "Author": "",
+        "Config": {
+            "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "LANG=C.UTF-8",
+                "TZ=UTC"
+            ],
+            "Entrypoint": [
+                "/app/entrypoint.sh"
+            ],
+            "WorkingDir": "/app",
+            "Labels": {
+                "io.ivekit.rsipstack.commit": "8318e97b1170de4e5245b120afec1cdf53e3d716",
+                "io.ivekit.rustpbx.commit": "6c49ee76baa54fdbf8f98020cc9bee158c7c15de",
+                "io.ivekit.rustpbx.patch-set-sha256": "6e2a5181e788f824002b9a2e2d90fb6c851891275b07c67570b47f427b94b1e6",
+                "io.ivekit.rustpbx.patchset": "ivekit.53",
+                "io.ivekit.rustrtc.commit": "166c6d22984429eb6b509920c14fcd69f974f0b3",
+                "org.opencontainers.image.description": "Converact Fabric RustPBX with reliable TCP reconnect",
+                "org.opencontainers.image.revision": "b63383bda16bcd9d311c9ce5e0761877d474797b",
+                "org.opencontainers.image.source": "https://github.com/songgoldenwind-crypto/converact-platform"
+            }
+        },
+        "Architecture": "amd64",
+        "Os": "linux",
+        "Size": 275985209,
+        "GraphDriver": {
+            "Data": {
+                "LowerDir": "/var/lib/docker/overlay2/voefz8qx7ruse6mmsed8y1jts/diff:/var/lib/docker/overlay2/oql1uo4ix6uws8bbip7tldmqm/diff:/var/lib/docker/overlay2/gw9t2nh202klgqkcd1o35lujj/diff:/var/lib/docker/overlay2/wg1hq01kgywrmn1c9sri7pp4v/diff:/var/lib/docker/overlay2/vq2w5bsa4ak0e54kufkngv4ro/diff:/var/lib/docker/overlay2/kz23ndai9xyalwpie083b8iyb/diff:/var/lib/docker/overlay2/rfl7ttf4mux2q9vkcoh984v2g/diff:/var/lib/docker/overlay2/ut7q880gv2j8chm1z7iyo9uyj/diff:/var/lib/docker/overlay2/x8h0q60pk5p0com88svkh4kfu/diff:/var/lib/docker/overlay2/flhmp8sffrt19jkvycorrahau/diff:/var/lib/docker/overlay2/ja4dj70v6ceygu791d1boa0ag/diff:/var/lib/docker/overlay2/zf0mju71de7ymk9posliebhpf/diff:/var/lib/docker/overlay2/a2xcprxf2aw7zxzgujbxyy6n2/diff:/var/lib/docker/overlay2/uuawb0a1a91vuzj9t6xtn3scp/diff:/var/lib/docker/overlay2/iunwrkzvoqvsf31tgh0l3h9eu/diff:/var/lib/docker/overlay2/teipdzvj2nwyhstzmpu89lseb/diff:/var/lib/docker/overlay2/pqge3j4rfgtf64i2nb7ppx02c/diff:/var/lib/docker/overlay2/tcqztnzsj9b2uhtsbx5hl4n5d/diff:/var/lib/docker/overlay2/8qmrd081ouwf19708f2iv6zsa/diff:/var/lib/docker/overlay2/2w1yxb9byjeo7y5oacs713dqg/diff:/var/lib/docker/overlay2/sh35bnrbuepilmz8kmbuvs30m/diff:/var/lib/docker/overlay2/03f02ef6c47b34fba2456a06a03c5edf76e7581ea5b3355d93e728c66cbeae2f/diff",
+                "MergedDir": "/var/lib/docker/overlay2/8y1j588zudw22jg1jhwwimm6i/merged",
+                "UpperDir": "/var/lib/docker/overlay2/8y1j588zudw22jg1jhwwimm6i/diff",
+                "WorkDir": "/var/lib/docker/overlay2/8y1j588zudw22jg1jhwwimm6i/work"
+            },
+            "Name": "overlay2"
+        },
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:81f823b9617547261c907396f63f770deaa554748ff739bedfa650e3bb74595a",
+                "sha256:cee393cd855044b42e69436bde06706227798d33b14cc0bc8e2d7d5eca50b551",
+                "sha256:68c48743373b47e7c2e34460c02d169f1be24fbad56dec61a108d521f732a6b5",
+                "sha256:9c2422e01dda8e080cbe3187a5d5bfde320ec8038cbab642d63377f7ea4cd814",
+                "sha256:481661a6b293e9d7abd6afc52e1da7650ee5b23da592c39f915d0cd7c925b6f0",
+                "sha256:a9cf4252132ccf695257a3f982e400c2b7dd58452a1f9e437dc4ca70ee4d9f1f",
+                "sha256:49cc24439354bf14ea6850a191899c08dc866858e5fbfef0d825c2c70aa44eee",
+                "sha256:58dc8fa58bf6b42ecb9a4dee621ea4c75ab27b60619ea24fdb23ed521264ec89",
+                "sha256:ffcf1b59c44fbf51a003b75cac40385b7c93c722716ef94e206ec1a6dee87290",
+                "sha256:91758a30d05bc4fbe823efdc82cf36f5482ac607c9bc1cb6de07e7d331145608",
+                "sha256:676ce9394f0a9958110db54639830d4b677fd7bd6d931370988f39efa61c04f9",
+                "sha256:2b396e2bc9d7c87c58cf4f7a812a73f25cdbfef53d5968c4252755443e14d67f",
+                "sha256:7155467c6ae6e49d0cad08cd21eb94ebbfde91d99461294d3c70683bfbcaffcb",
+                "sha256:ae4ce63b5267e37ca7cb5c071b33e38a697fca3124da24c8a68653f13c3ab135",
+                "sha256:c75826759d1b4c344b5da6fbe376c489bc41bd4cc10dc906f15a1e6a726aef66",
+                "sha256:870ac27339abf7d4a33d1703da87d3c41887f8aeae0369e4a8cb88c73f52a6af",
+                "sha256:fb7dd0b1b6deb6031469b38da64838899772a3f7af770929d4dc68cdbfa2dffd",
+                "sha256:ef1fda0864e2f25d7f2c5357ec987286d8444eaeee0247cd0e0c9524e3f7912f",
+                "sha256:50ff13ef51e4e3958fe56247dbd6e3ffaa9af847db25f376fa86add93ef2604f",
+                "sha256:be53b9eb2abc314252dbaec49aca11cad87a0826d51b6657754391e06d103b1d",
+                "sha256:d6fe56b4e6c2e2fb4eece929437e0344e2f2592e499bce46cab44971d12483ce",
+                "sha256:cfb9d3ac8521df88158f2fdd5d76190ab1d58b9df6cfd20ef89169c96f7f41d7",
+                "sha256:ff6fc36e7064b00e13845f89e5a66a935913b36cdde3bf6d7fb662c45e2d0f03"
+            ]
+        },
+        "Metadata": {
+            "LastTagTime": "2026-08-09T14:35:14.186860666+08:00"
+        }
+    }
+]

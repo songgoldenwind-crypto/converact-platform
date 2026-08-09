@@ -1,0 +1,1 @@
+/home/ubuntu/converact-validation/g03-ivekit53-campaign-b63383b/wire.sh: line 104: rustc: command not found

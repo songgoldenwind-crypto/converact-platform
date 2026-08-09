@@ -1,0 +1,35 @@
+{
+  "schema_id": "converact-g03-long-call-evidence-v1",
+  "schema_version": "1.0.0",
+  "source_commit": "b63383bda16bcd9d311c9ce5e0761877d474797b",
+  "patchset": "ivekit.53",
+  "runner_exit_code": 0,
+  "suite_status": "passed",
+  "duration_ms": 7201279,
+  "uac": {
+    "successful_calls": 1,
+    "failed_calls": 0,
+    "retransmissions": 0
+  },
+  "uas": {
+    "successful_calls": 1,
+    "failed_calls": 0,
+    "retransmissions": 0
+  },
+  "router_request_delta": 1,
+  "cdr_request_delta": 1,
+  "rustpbx_restart_delta": 0,
+  "router_restart_delta": 0,
+  "residual_long_call_containers": [],
+  "checks": {
+    "runner_exit_code": 0,
+    "suite_status": "passed",
+    "router_request_delta": 1,
+    "cdr_request_delta": 1,
+    "rustpbx_restart_delta": 0,
+    "router_restart_delta": 0,
+    "residual_long_call_containers": []
+  },
+  "failed_checks": [],
+  "status": "passed"
+}

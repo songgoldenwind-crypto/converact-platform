@@ -18,7 +18,7 @@ evidence is not promoted.
 | originate/answer/terminate control port | closed `sip-foundation-control-message-v1` schema embedded in the target machine contract; current RustPBX binding remains outside the target port | compiled closed-schema contract test; future Adapter activation tests | `not_run` |
 | Protocol Session, pre-callback reservation and drain | `sip-foundation/session-registry.ts` | foundation + G03 reentrancy tests | `G03-E09-DRAIN` |
 | TypeScript rsipstack conformance Adapter | `sip-foundation/rsipstack-adapter.ts`; `route-binding.ts` | foundation tests and explicit non-authority role test | `G03-E02-BASELINE`; live native binding is `G03-E16/not_run` |
-| native rsipstack runtime and bounded mailboxes | `.43` build plus `rsipstack-ivekit-bounded-protocol-mailboxes.patch` and `rustpbx-ivekit-bounded-call-mailboxes.patch` | exact patch gate; native suites 272/272 and 1919 passed + 1 ignored | local source proof; host evidence remains `not_run` |
+| native rsipstack runtime and bounded mailboxes | `.53` build plus `rsipstack-ivekit-bounded-protocol-mailboxes.patch` and `rustpbx-ivekit-bounded-call-mailboxes.patch` | exact patch gate; locked Rust library suite 1964 passed + 5 ignored; exact image/wire/latency/interop/capacity campaigns | controlled host evidence at source `b63383b`; live Native Authority remains `G03-E16/not_run` |
 | durable effects/receipts reference | `effect-oracle.ts`; `postgres-effect-store.ts`; migration 107 | effect oracle and physical PostgreSQL tests; `test/converact-g03-postgres-restart-acceptance.test.ts` | `G03-E04-EFFECT`, `G03-E05-POSTGRES`; native writer is `G03-E16/not_run` |
 | physical restart/replay probe | `services/converact-service/acceptance/g03-sip-foundation/postgres-effect-restart-probe.ts` | `test/converact-g03-postgres-restart-acceptance.test.ts`; controlled host campaign | `G03-E05-POSTGRES` |
 | recovery/clock | `sip-foundation/recovery.ts`; dialog takeover/shadow sources | recovery and takeover tests | `G03-E08-RECOVERY` |
@@ -27,7 +27,7 @@ evidence is not promoted.
 | raw wire corpus | `architecture-foundation/execution/goal-03/wire-corpus/*`; `rsipstack-ivekit-wire-guard.patch`; `scripts/g03/rsipstack-wire-replay.rs`; `scripts/converact-g03-wire-differential.ts` | G03 contract/corpus test; exact queue parser tests; dual-binary sanitized differential tests | `G03-E07-WIRE` |
 | exact source build | `infra/converact/rustpbx/build.sh`; `Cargo.lock`; patch queue | RustPBX build/patch contract tests | `G03-E02-BASELINE` |
 | controlled PostgreSQL evidence | `architecture-foundation/execution/goal-03/controlled-postgres-restart-report.md`; retained raw evidence manifest | exact-source physical PostgreSQL campaign and independent evidence review | `G03-E05-POSTGRES` |
-| interop/long/performance | SIPp acceptance scripts and future controlled campaign | real external dependency | `G03-E11/E12/E13` |
+| interop/long/performance | SIPp acceptance scripts and controlled `.53` campaign | SIPp plus Asterisk interop, one 7,201,279-ms SIP-control call and 50/100/200/1000-CPS 2-vCPU steps passed; allocation and 2/4/8-core scaling remain unproved | `G03-E11/E12` controlled; `G03-E13` remains evidence-gated |
 
 ## 3. Existing Source Disposition
 
@@ -45,7 +45,9 @@ evidence is not promoted.
 
 The local source/unit suite and the controlled physical PostgreSQL restart are
 separate evidence classes. The latter qualifies only `G03-E05-POSTGRES` and is
-not production evidence. SIP peer, long-call, fault/OOM and host-capacity
-results still require new raw outputs bound to their exact source commit.
+not production evidence. Exact `.53` SIPp/Asterisk, two-hour SIP-control and
+2-vCPU capacity outputs are retained separately. Fault/OOM, allocation,
+multi-core scaling and carrier-specific results still require their own raw
+outputs bound to the exact source commit.
 Frozen production remains untouched and no historical production evidence is
 borrowed.

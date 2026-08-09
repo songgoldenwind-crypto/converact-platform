@@ -1,0 +1,56 @@
+[
+    {
+        "Name": "converact-rustpbx-baseline",
+        "Id": "ab84eafc3d444ab0e3c1a58abc812e4d01642da49666722459e8aa92c459bc5c",
+        "Created": "2026-08-03T02:37:00.906486038+08:00",
+        "Scope": "local",
+        "Driver": "bridge",
+        "EnableIPv4": true,
+        "EnableIPv6": false,
+        "IPAM": {
+            "Driver": "default",
+            "Options": null,
+            "Config": [
+                {
+                    "Subnet": "172.30.44.0/24"
+                }
+            ]
+        },
+        "Internal": false,
+        "Attachable": false,
+        "Ingress": false,
+        "ConfigFrom": {
+            "Network": ""
+        },
+        "ConfigOnly": false,
+        "Containers": {
+            "583b6ef937a077b216ff30d166010eda59db027ed93a5dc1f705a7f9cb4b4a39": {
+                "Name": "converact-g03-53-pg-b63383b",
+                "EndpointID": "d027fb18c894373e06a94050dc6dfcdbbddda62b7e15f5ae21f8f8e74f4d0483",
+                "MacAddress": "8e:52:84:c9:1a:94",
+                "IPv4Address": "172.30.44.11/24",
+                "IPv6Address": ""
+            },
+            "fc49ff9afe1c214aae7a341c3a879a846fcab9b37fa60a259404f6ad83df756b": {
+                "Name": "converact-g03-53-router-b63383b",
+                "EndpointID": "04c99dac6ed4e5d7100823330ad96b4799dfa7942e0b21ec3382db9da3d700e8",
+                "MacAddress": "82:1c:fe:47:12:85",
+                "IPv4Address": "172.30.44.12/24",
+                "IPv6Address": ""
+            },
+            "fcef115c957e67bbe6eb81889a1b24711505362b3f61cb216ff880115c73d1eb": {
+                "Name": "converact-g03-53-rustpbx-b63383b",
+                "EndpointID": "63ea20770f484a01f75e7b537c653c7fb7a631cb0b0d8043b6ce8297b2e51c9e",
+                "MacAddress": "e2:75:f5:4e:cb:70",
+                "IPv4Address": "172.30.44.10/24",
+                "IPv6Address": ""
+            }
+        },
+        "Options": {},
+        "Labels": {
+            "com.docker.compose.network": "baseline",
+            "com.docker.compose.project": "converact-rustpbx-baseline",
+            "com.docker.compose.version": "2.29.7"
+        }
+    }
+]

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Converact Fabric RustPBX SIPp acceptance" tests="10" failures="0" time="49.245" timestamp="2026-08-09T06:36:46.489Z">
+  <testcase classname="converact.rustpbx.sipp" name="route-reject" time="0.735">
+  </testcase>
+  <testcase classname="converact.rustpbx.sipp" name="answer-udp" time="1.790">
+  </testcase>
+  <testcase classname="converact.rustpbx.sipp" name="early-cancel" time="1.591">
+  </testcase>
+  <testcase classname="converact.rustpbx.sipp" name="downstream-busy" time="1.352">
+  </testcase>
+  <testcase classname="converact.rustpbx.sipp" name="downstream-unavailable" time="1.381">
+  </testcase>
+  <testcase classname="converact.rustpbx.sipp" name="no-answer-timeout" time="31.366">
+  </testcase>
+  <testcase classname="converact.rustpbx.sipp" name="answer-tcp" time="2.412">
+  </testcase>
+  <testcase classname="converact.rustpbx.sipp" name="answer-tcp-reconnect" time="2.397">
+  </testcase>
+  <testcase classname="converact.rustpbx.sipp" name="udp-retransmission" time="2.577">
+  </testcase>
+  <testcase classname="converact.rustpbx.sipp" name="concurrent-udp-10" time="2.603">
+  </testcase>
+</testsuite>

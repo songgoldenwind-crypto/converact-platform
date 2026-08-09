@@ -1,0 +1,64 @@
+----------------------------------------------- 2026-08-09T06:35:57.821475
+UDP message sent [654] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-1-0
+From: Converact Fabric SIPp <sip:sipp@172.30.44.20:5060>;tag=1
+To: Converact Fabric Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: route-reject-1786257357466-3307327-1@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact Fabric RustPBX acceptance
+Content-Type: application/sdp
+Content-Length:   168
+
+v=0
+o=sipp 53655765 2353687637 IN IP4 172.30.44.20
+s=Converact Fabric RustPBX acceptance
+c=IN IP4 172.30.44.20
+t=0 0
+m=audio 6000 RTP/AVP 0
+a=rtpmap:0 PCMU/8000
+
+----------------------------------------------- 2026-08-09T06:35:57.821888
+UDP message received [350] bytes:
+
+SIP/2.0 100 Trying
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-1-0
+From: Converact Fabric SIPp <sip:sipp@172.30.44.20:5060>;tag=1
+To: Converact Fabric Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: route-reject-1786257357466-3307327-1@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+
+
+----------------------------------------------- 2026-08-09T06:35:57.825051
+UDP message received [416] bytes:
+
+SIP/2.0 486 Busy Here
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-1-0
+From: Converact Fabric SIPp <sip:sipp@172.30.44.20:5060>;tag=1
+Call-ID: route-reject-1786257357466-3307327-1@172.30.44.20
+CSeq: 1 INVITE
+To: "Converact Fabric Route" <sip:+18005550999@172.30.44.10:5060>;tag=JYvMhNVk
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Reason: Q.850;cause=17;text="acceptance-route"
+
+
+----------------------------------------------- 2026-08-09T06:35:57.825267
+UDP message sent [414] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-1-0
+From: Converact Fabric SIPp <sip:sipp@172.30.44.20:5060>;tag=1
+To: "Converact Fabric Route" <sip:+18005550999@172.30.44.10:5060>;tag=JYvMhNVk
+Call-ID: route-reject-1786257357466-3307327-1@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+

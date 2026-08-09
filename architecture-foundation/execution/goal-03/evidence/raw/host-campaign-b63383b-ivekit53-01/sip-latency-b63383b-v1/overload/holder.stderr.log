@@ -1,0 +1,12 @@
+Resolving remote host '172.30.44.10'... Done.
+2026-08-09	06:38:36.213557	1786257516.213557: Aborting call on unexpected message for Call-Id 'g03-holder-b63383b-1@172.30.44.20': while pausing (index 2), received 'SIP/2.0 486 Busy Here
+Via: SIP/2.0/UDP 172.30.44.20:5062;branch=z9hG4bK-1-1-0
+From: Converact G03 holder <sip:holder@172.30.44.20:5062>;tag=1
+Call-ID: g03-holder-b63383b-1@172.30.44.20
+CSeq: 1 INVITE
+To: "Converact G03 Route" <sip:+18005550999@172.30.44.10:5060>;tag=y2BntsKF
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Reason: Q.850;cause=17;text="acceptance-route"
+
+'

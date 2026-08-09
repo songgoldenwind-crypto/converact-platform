@@ -1,0 +1,85 @@
+{
+  "schema_id": "converact-g03-capacity-summary-v1",
+  "schema_version": "1.0.0",
+  "campaign_status": "passed_controlled_baseline",
+  "evidence_gate_status": "partial_not_promoted",
+  "source_commit": "b63383bda16bcd9d311c9ce5e0761877d474797b",
+  "patchset": "ivekit.53",
+  "rustpbx_image_id": "sha256:14e51e4f51388c8811e1472426a01840e061ad2ddf639caebe6b0eca4a206eaf",
+  "host_logical_cpu_count": 2,
+  "steps": [
+    {
+      "target_cps": 50,
+      "duration_seconds": 15,
+      "successful_calls": 750,
+      "failed_calls": 0,
+      "actual_cumulative_cps": 49.155,
+      "retransmissions": 0,
+      "sip_route_p95_ms": 2.0,
+      "sip_route_p99_ms": 3.0,
+      "rustpbx_cpu_percent_max": 5.92,
+      "rustpbx_memory_percent_max": 0.28,
+      "summary_sha256": "ae4bad4c6521189d94a22cfbc3589ff504d129db7c129ae925f40fccf9fff534"
+    },
+    {
+      "target_cps": 100,
+      "duration_seconds": 15,
+      "successful_calls": 1500,
+      "failed_calls": 0,
+      "actual_cumulative_cps": 98.296,
+      "retransmissions": 0,
+      "sip_route_p95_ms": 1.0,
+      "sip_route_p99_ms": 2.0,
+      "rustpbx_cpu_percent_max": 9.2,
+      "rustpbx_memory_percent_max": 0.42,
+      "summary_sha256": "d6bf8b326a45b8233ed839bec3e729cfd0451fcdefe4051a6e56d424fa1a816c"
+    },
+    {
+      "target_cps": 200,
+      "duration_seconds": 15,
+      "successful_calls": 3000,
+      "failed_calls": 0,
+      "actual_cumulative_cps": 196.592,
+      "retransmissions": 0,
+      "sip_route_p95_ms": 1.0,
+      "sip_route_p99_ms": 2.0,
+      "rustpbx_cpu_percent_max": 16.43,
+      "rustpbx_memory_percent_max": 0.73,
+      "summary_sha256": "50bfb64a8ac4c09c39ed72925ac39ddbe38d0dabbfa151fbe9e19dd6007e9815"
+    },
+    {
+      "target_cps": 1000,
+      "duration_seconds": 60,
+      "successful_calls": 60000,
+      "failed_calls": 0,
+      "actual_cumulative_cps": 993.542,
+      "retransmissions": 0,
+      "sip_route_p95_ms": 10.0,
+      "sip_route_p99_ms": 23.0,
+      "rustpbx_cpu_percent_max": 66.71,
+      "rustpbx_memory_percent_max": 3.25,
+      "summary_sha256": "43bdad42da7cb925d325bc68e216d814078b76bdd4bdc95f1370ca0a2481a6eb"
+    }
+  ],
+  "common_checks": {
+    "router_and_cdr_delta_equal_successful_calls": true,
+    "zero_queue_drop_log_lines": true,
+    "zero_rustpbx_restarts": true,
+    "zero_router_restarts": true,
+    "generated_secret_scan": "passed"
+  },
+  "scope": {
+    "workload": "direct UDP SIP INVITE routed to deterministic 486; no RTP media",
+    "not_included": [
+      "Kamailio",
+      "RTP or codec load",
+      "allocator instrumentation",
+      "2/4/8-core scaling",
+      "saturation frontier",
+      "VOS-equivalence",
+      "100K acceptance",
+      "production eligibility"
+    ]
+  },
+  "promotion_decision": "G03-E13 remains not_run because allocation and multi-core scaling were not measured"
+}

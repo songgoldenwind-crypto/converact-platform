@@ -1,6 +1,6 @@
 # G03 Current-state Audit
 
-Date: 2026-08-02
+Date: 2026-08-02; exact-candidate update: 2026-08-09
 Binding Goal: `G03` / `05ce7f940782ab0efcd013d413220d068a7d3be1bab981f2c2c4f6a6f2a217af`
 Production eligibility: `false`
 
@@ -20,9 +20,9 @@ claims and this audit does not mark G02 complete or production eligible.
 | SipFoundation seam | `src/agent-runtime/converact/voice/sip-foundation/*` | Exported Converact-owned types, bounded Protocol Session model, capability selection, route/wire binding and rsipstack-named conformance Adapter exist | retain as conformance/migration harness; native SIP authority stays inside RustPBX |
 | Durable effect ledger | `effect-oracle.ts`; `postgres-effect-store.ts`; migration `107_ivekit_sip_effect_oracle.sql` | Reference implementation proves prepared/durable/send/accepted/observed/unknown semantics, exact wire identity, repair fence, bounded queue and deterministic 503 mapping | retain as contract/reference evidence; native RustPBX writer activation remains `not_run` |
 | Recovery | `sip-foundation/recovery.ts`; reciprocal dialog shadow/takeover sources | Confirmed, transaction-quiescent, same-runtime eligibility exists; actual takeover remains a separate RustPBX flow | freeze exact recovery boundary; do not claim cross-Adapter or early-dialog recovery |
-| RustPBX/rsipstack runtime | `infra/converact/rustpbx/build.sh` and patch queue | RustPBX `6c49ee76…`, rsipstack `8318e97b…`, rustrtc `166c6d22…`, patchset `.43` are pinned; local exact-source tests pass rsipstack 272/272 and RustPBX 1919 passed + 1 ignored | native Call/SIP runtime candidate; `.43` host requalification and production eligibility remain `not_run` |
-| Initial 100 Trying | `rsipstack-ivekit-single-trying.patch`; SIPp campaign sources and retained `.42` raw evidence | One application-level transaction owner is source-tested and the exact `.42` candidate has controlled latency output | preserve as historical candidate evidence; `.43` latency/capacity requalification remains `not_run` |
-| SIP wire tests | frozen 22-case corpus, SIPp XML and retained `.42` differential report | rsipstack `.42` baseline matches frozen semantics under the controlled campaign | `.43` baseline replay and future rvoip differential remain `not_run` |
+| RustPBX/rsipstack runtime | `infra/converact/rustpbx/build.sh` and patch queue | RustPBX `6c49ee76…`, rsipstack `8318e97b…`, rustrtc `166c6d22…`, patchset `.53` are pinned; exact locked Rust library evidence is 1964 passed + 5 ignored | exact image/wire/latency/peer/2-vCPU capacity requalified at source `b63383b`; production eligibility remains false |
+| Initial 100 Trying | `rsipstack-ivekit-single-trying.patch`; SIPp campaign sources | Exact `.53` image emitted exactly 100 Trying responses for 100 INVITEs; p99/max were 1/1 ms, with zero response retransmissions | `G03-E06` controlled evidence; no inherited `.42` promotion |
+| SIP wire tests | frozen 22-case corpus and exact dual-binary replay | `.53` matches all 18 accepted semantics and applies four versioned malformed-input tightenings with zero unexplained differences | `G03-E07` controlled evidence; future rvoip differential remains `not_run` |
 | rvoip runtime | no G03 runtime source dependency found | Not a parser, transaction, Dialog or transport production path | `not_run`; reserved for G06 layer-by-layer gates |
 
 The TypeScript SipFoundation code arrived through commit `385521c` and its
@@ -40,15 +40,16 @@ Before G03 implementation, the focused source and unit suite ran 103 tests with
 ledger, recovery eligibility, exact-source RustPBX/rsipstack patch contracts,
 dual-leg CDR and dialog recovery. This is a local source/unit baseline only.
 
-The controlled PostgreSQL reference role/RLS/restart replay has run, but it
-does not prove native RustPBX effect-writer activation. The following remain
-`not_run` for the `.43` candidate at audit time:
+The controlled PostgreSQL role/RLS/restart replay and exact `.53`
+wire/latency/interop/two-hour-control-call/2-vCPU capacity campaigns have run,
+but they do not prove native RustPBX effect-writer activation. The following
+remain `not_run` for the `.53` candidate at this update:
 
 - native Call/Leg and effect-writer activation;
-- raw `100 Trying`/final/503 latency distribution;
-- complete real SIP peer and carrier interoperability;
-- long call, node loss, blocking syscall, native panic, OOM and process-abort campaigns;
-- same-host allocation/CPU/capacity baseline;
+- node loss, blocking syscall, native panic, OOM and process-abort campaigns;
+- allocation and 2/4/8-core scaling (the retained 2-vCPU capacity result is a
+  controlled regression baseline, not the complete performance Gate);
+- carrier-specific interoperability beyond the retained SIPp and Asterisk peer;
 - production eligibility.
 
 ## 4. Gaps to Close in G03

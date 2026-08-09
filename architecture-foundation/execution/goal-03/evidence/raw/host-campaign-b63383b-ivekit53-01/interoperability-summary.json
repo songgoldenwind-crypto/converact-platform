@@ -1,0 +1,49 @@
+{
+  "schema_id": "converact-g03-interoperability-summary-v1",
+  "schema_version": "1.0.0",
+  "status": "passed",
+  "source_commit": "b63383bda16bcd9d311c9ce5e0761877d474797b",
+  "patchset": "ivekit.53",
+  "rustpbx_image_id": "sha256:14e51e4f51388c8811e1472426a01840e061ad2ddf639caebe6b0eca4a206eaf",
+  "sipp": {
+    "version": "3.7.7",
+    "binary_sha256": "8e8ecdbe923bf608c844038adfa35c8595400c4629d629f00d51539ac24cdfef",
+    "scenario_count": 10,
+    "call_count": 19,
+    "router_request_delta": 19,
+    "cdr_request_delta": 19,
+    "failed_scenarios": 0,
+    "report_sha256": "fcc70b97b76eaff7731ba7267729e37523d520f3db4d51ff8a5522b40c13154a"
+  },
+  "asterisk": {
+    "version": "20.6.0",
+    "image_id": "sha256:616fbc3560570564affb31d1332130725baafedb8a63a42131cff536bc920f2d",
+    "sipp_exit_code": 0,
+    "successful_calls": 1,
+    "failed_calls": 0,
+    "router_request_delta": 1,
+    "cdr_request_delta": 1,
+    "active_channels_after": 0,
+    "rustpbx_restart_delta": 0,
+    "router_restart_delta": 0,
+    "raw_statistics_sha256": "2dfda094d182c206c2672428459f966db63c1a9cc7f98e4f70aad56e8cf6c337",
+    "router_delta_sha256": "1ee9e57372de35234fdb8739ffcd30d734557c264c7f1e9df3225ee9ed0072bf"
+  },
+  "scope": {
+    "covered": [
+      "UDP INVITE/ACK/BYE",
+      "early CANCEL",
+      "486 and 503 downstream outcomes",
+      "no-answer timeout",
+      "TCP and TCP reconnect",
+      "UDP retransmission",
+      "10-call concurrent UDP",
+      "Asterisk 20 real peer"
+    ],
+    "not_proved": [
+      "carrier-specific interoperability",
+      "TLS/WSS interoperability",
+      "production eligibility"
+    ]
+  }
+}

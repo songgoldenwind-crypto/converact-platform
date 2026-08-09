@@ -1,0 +1,39 @@
+------------------------------ Scenario Screen -------- [1-9]: Change Screen --
+  Call rate (length)   Port   Total-time  Total-calls  Remote-host
+  1000.0(0 ms)/1.000s   5060      60.35 s        60000  172.30.44.10:5060(UDP)
+
+  Call limit 60000 hit, 1844674407370955  18446744073709551586 ms scheduler res
+  0 calls (limit 10000)                   Peak was 308 calls, after 58 s
+  0 Running, 32946 Paused, 114833 Woken up
+  0 dead call msg (discarded)             0 out-of-call msg (discarded)
+  0 open sockets                          0/0/0 UDP errors (send/recv/cong)
+  0 Total RTP pckts sent                  0.000 last period RTP rate (kB/s)
+
+                                 Messages  Retrans   Timeout   Unexpected-Msg
+0 :      INVITE ---------->  B-RTD1 60000     0         0                            
+1 :         100 <----------         60000     0         0         0                  
+2 :         486 <----------  E-RTD1 60000     0         0         0                  
+3 :         ACK ---------->         60000     0         0                            
+4 :       Pause [    250ms]         60000                         0        
+------------------------------ Test Terminated --------------------------------
+----------------------------- Statistics Screen ------- [1-9]: Change Screen --
+  Start Time             | 2026-08-09	06:57:46.588152	1786258666.588152         
+  Last Reset Time        | 2026-08-09	06:58:46.978562	1786258726.978562         
+  Current Time           | 2026-08-09	06:58:46.978750	1786258726.978750         
+-------------------------+---------------------------+--------------------------
+  Counter Name           | Periodic value            | Cumulative value
+-------------------------+---------------------------+--------------------------
+  Elapsed Time           | 00:00:00:000000           | 00:00:00:000000          
+  Call Rate              |    0.000 cps              |  993.542 cps             
+-------------------------+---------------------------+--------------------------
+  Incoming calls created |        0                  |        0                 
+  Outgoing calls created |        0                  |    60000                 
+  Total Calls created    |                           |    60000                 
+  Current Calls          |        0                  |                          
+-------------------------+---------------------------+--------------------------
+  Successful call        |        0                  |    60000                 
+  Failed call            |        0                  |        0                 
+-------------------------+---------------------------+--------------------------
+  Response Time sip_rout | 00:00:00:000000           | 00:00:00:000000          
+  Call Length            | 00:00:00:000000           | 00:00:00:000000          
+------------------------------ Test Terminated --------------------------------

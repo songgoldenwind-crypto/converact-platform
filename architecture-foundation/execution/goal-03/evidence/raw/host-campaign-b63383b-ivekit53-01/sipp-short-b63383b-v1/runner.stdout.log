@@ -1,0 +1,187 @@
+{
+  "schema_version": 1,
+  "suite": "Converact Fabric RustPBX SIPp acceptance",
+  "status": "passed",
+  "generated_at": "2026-08-09T06:36:46.489Z",
+  "duration_ms": 49245,
+  "tools": {
+    "sipp_version": "3.7.7",
+    "sipp_sha256": "8e8ecdbe923bf608c844038adfa35c8595400c4629d629f00d51539ac24cdfef",
+    "container_image": "alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc"
+  },
+  "target": {
+    "docker_network": "converact-rustpbx-baseline",
+    "rustpbx_ip": "172.30.44.10"
+  },
+  "evidence": {
+    "router_request_delta": 19,
+    "cdr_request_delta": 19
+  },
+  "scenarios": [
+    {
+      "id": "route-reject",
+      "status": "passed",
+      "duration_ms": 735,
+      "calls": 1,
+      "transport": "udp",
+      "uac": {
+        "successful_calls": 1,
+        "failed_calls": 0,
+        "retransmissions": 0
+      }
+    },
+    {
+      "id": "answer-udp",
+      "status": "passed",
+      "duration_ms": 1790,
+      "calls": 1,
+      "transport": "udp",
+      "uac": {
+        "successful_calls": 1,
+        "failed_calls": 0,
+        "retransmissions": 0
+      },
+      "uas": {
+        "successful_calls": 1,
+        "failed_calls": 0,
+        "retransmissions": 0
+      }
+    },
+    {
+      "id": "early-cancel",
+      "status": "passed",
+      "duration_ms": 1591,
+      "calls": 1,
+      "transport": "udp",
+      "uac": {
+        "successful_calls": 1,
+        "failed_calls": 0,
+        "retransmissions": 0
+      },
+      "uas": {
+        "successful_calls": 1,
+        "failed_calls": 0,
+        "retransmissions": 0
+      }
+    },
+    {
+      "id": "downstream-busy",
+      "status": "passed",
+      "duration_ms": 1352,
+      "calls": 1,
+      "transport": "udp",
+      "uac": {
+        "successful_calls": 1,
+        "failed_calls": 0,
+        "retransmissions": 0
+      },
+      "uas": {
+        "successful_calls": 1,
+        "failed_calls": 0,
+        "retransmissions": 0
+      }
+    },
+    {
+      "id": "downstream-unavailable",
+      "status": "passed",
+      "duration_ms": 1381,
+      "calls": 1,
+      "transport": "udp",
+      "uac": {
+        "successful_calls": 1,
+        "failed_calls": 0,
+        "retransmissions": 0
+      },
+      "uas": {
+        "successful_calls": 1,
+        "failed_calls": 0,
+        "retransmissions": 0
+      }
+    },
+    {
+      "id": "no-answer-timeout",
+      "status": "passed",
+      "duration_ms": 31366,
+      "calls": 1,
+      "transport": "udp",
+      "uac": {
+        "successful_calls": 1,
+        "failed_calls": 0,
+        "retransmissions": 0
+      },
+      "uas": {
+        "successful_calls": 1,
+        "failed_calls": 0,
+        "retransmissions": 0
+      }
+    },
+    {
+      "id": "answer-tcp",
+      "status": "passed",
+      "duration_ms": 2412,
+      "calls": 1,
+      "transport": "tcp",
+      "uac": {
+        "successful_calls": 1,
+        "failed_calls": 0,
+        "retransmissions": 0
+      },
+      "uas": {
+        "successful_calls": 1,
+        "failed_calls": 0,
+        "retransmissions": 0
+      }
+    },
+    {
+      "id": "answer-tcp-reconnect",
+      "status": "passed",
+      "duration_ms": 2397,
+      "calls": 1,
+      "transport": "tcp",
+      "uac": {
+        "successful_calls": 1,
+        "failed_calls": 0,
+        "retransmissions": 0
+      },
+      "uas": {
+        "successful_calls": 1,
+        "failed_calls": 0,
+        "retransmissions": 0
+      }
+    },
+    {
+      "id": "udp-retransmission",
+      "status": "passed",
+      "duration_ms": 2577,
+      "calls": 1,
+      "transport": "udp",
+      "uac": {
+        "successful_calls": 1,
+        "failed_calls": 0,
+        "retransmissions": 0
+      },
+      "uas": {
+        "successful_calls": 1,
+        "failed_calls": 0,
+        "retransmissions": 1
+      }
+    },
+    {
+      "id": "concurrent-udp-10",
+      "status": "passed",
+      "duration_ms": 2603,
+      "calls": 10,
+      "transport": "udp",
+      "uac": {
+        "successful_calls": 10,
+        "failed_calls": 0,
+        "retransmissions": 0
+      },
+      "uas": {
+        "successful_calls": 10,
+        "failed_calls": 0,
+        "retransmissions": 0
+      }
+    }
+  ]
+}

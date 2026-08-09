@@ -1,0 +1,4300 @@
+----------------------------------------------- 2026-08-09T06:38:34.124485
+UDP message sent [423] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-1-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=1
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-1@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.124793
+UDP message received [355] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-1-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=1
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-1@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.125013
+UDP message sent [376] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-1--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=1
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-1@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.144252
+UDP message sent [423] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-2-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=2
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-2@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.144508
+UDP message received [355] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-2-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=2
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-2@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.144629
+UDP message sent [376] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-2--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=2
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-2@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.163824
+UDP message sent [423] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-3-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=3
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-3@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.164050
+UDP message received [355] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-3-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=3
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-3@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.164169
+UDP message sent [376] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-3--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=3
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-3@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.184443
+UDP message sent [423] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-4-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=4
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-4@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.184649
+UDP message received [355] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-4-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=4
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-4@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.184790
+UDP message sent [376] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-4--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=4
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-4@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.204076
+UDP message sent [423] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-5-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=5
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-5@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.204289
+UDP message received [355] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-5-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=5
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-5@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.204440
+UDP message sent [376] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-5--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=5
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-5@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.222636
+UDP message sent [423] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-6-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=6
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-6@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.222824
+UDP message received [355] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-6-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=6
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-6@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.222949
+UDP message sent [376] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-6--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=6
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-6@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.244322
+UDP message sent [423] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-7-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=7
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-7@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.244505
+UDP message received [355] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-7-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=7
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-7@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.244631
+UDP message sent [376] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-7--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=7
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-7@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.262734
+UDP message sent [423] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-8-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=8
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-8@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.262955
+UDP message received [355] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-8-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=8
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-8@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.263111
+UDP message sent [376] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-8--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=8
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-8@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.283865
+UDP message sent [423] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-9-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=9
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-9@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.284092
+UDP message received [355] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-9-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=9
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-9@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.284263
+UDP message sent [376] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-9--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=9
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-9@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.304062
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-10-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=10
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-10@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.306098
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-10-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=10
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-10@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.306280
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-10--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=10
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-10@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.324566
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-11-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=11
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-11@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.324777
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-11-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=11
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-11@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.324901
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-11--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=11
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-11@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.344189
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-12-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=12
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-12@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.344420
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-12-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=12
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-12@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.344553
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-12--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=12
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-12@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.363827
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-13-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=13
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-13@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.364104
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-13-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=13
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-13@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.364281
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-13--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=13
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-13@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.384489
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-14-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=14
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-14@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.384799
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-14-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=14
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-14@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.384991
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-14--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=14
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-14@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.404246
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-15-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=15
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-15@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.404504
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-15-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=15
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-15@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.404643
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-15--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=15
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-15@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.423889
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-16-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=16
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-16@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.424120
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-16-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=16
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-16@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.424258
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-16--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=16
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-16@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.443543
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-17-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=17
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-17@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.443784
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-17-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=17
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-17@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.443919
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-17--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=17
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-17@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.463200
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-18-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=18
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-18@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.463440
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-18-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=18
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-18@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.463562
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-18--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=18
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-18@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.485080
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-19-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=19
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-19@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.485316
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-19-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=19
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-19@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.485456
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-19--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=19
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-19@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.502588
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-20-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=20
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-20@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.502798
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-20-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=20
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-20@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.502920
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-20--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=20
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-20@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.524282
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-21-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=21
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-21@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.524515
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-21-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=21
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-21@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.524640
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-21--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=21
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-21@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.543867
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-22-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=22
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-22@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.544065
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-22-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=22
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-22@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.544199
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-22--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=22
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-22@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.563427
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-23-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=23
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-23@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.563638
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-23-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=23
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-23@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.563757
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-23--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=23
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-23@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.584028
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-24-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=24
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-24@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.584253
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-24-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=24
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-24@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.584395
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-24--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=24
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-24@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.603595
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-25-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=25
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-25@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.603780
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-25-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=25
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-25@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.603897
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-25--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=25
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-25@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.623157
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-26-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=26
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-26@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.623368
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-26-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=26
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-26@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.623483
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-26--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=26
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-26@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.644962
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-27-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=27
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-27@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.645193
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-27-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=27
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-27@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.645341
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-27--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=27
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-27@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.664587
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-28-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=28
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-28@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.664800
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-28-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=28
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-28@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.664925
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-28--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=28
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-28@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.683066
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-29-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=29
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-29@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.683286
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-29-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=29
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-29@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.683439
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-29--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=29
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-29@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.704791
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-30-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=30
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-30@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.704986
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-30-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=30
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-30@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.705110
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-30--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=30
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-30@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.724343
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-31-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=31
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-31@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.724527
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-31-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=31
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-31@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.724643
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-31--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=31
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-31@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.742818
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-32-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=32
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-32@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.742997
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-32-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=32
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-32@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.743113
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-32--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=32
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-32@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.764488
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-33-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=33
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-33@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.764673
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-33-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=33
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-33@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.764789
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-33--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=33
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-33@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.784049
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-34-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=34
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-34@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.784252
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-34-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=34
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-34@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.784389
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-34--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=34
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-34@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.803659
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-35-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=35
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-35@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.803849
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-35-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=35
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-35@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.803967
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-35--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=35
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-35@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.824272
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-36-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=36
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-36@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.824481
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-36-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=36
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-36@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.824598
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-36--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=36
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-36@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.842747
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-37-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=37
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-37@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.842931
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-37-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=37
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-37@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.843044
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-37--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=37
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-37@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.863352
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-38-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=38
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-38@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.863550
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-38-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=38
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-38@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.863664
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-38--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=38
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-38@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.884982
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-39-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=39
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-39@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.885202
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-39-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=39
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-39@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.885354
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-39--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=39
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-39@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.904552
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-40-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=40
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-40@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.904735
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-40-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=40
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-40@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.904872
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-40--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=40
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-40@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.923066
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-41-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=41
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-41@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.923276
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-41-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=41
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-41@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.923422
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-41--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=41
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-41@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.942656
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-42-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=42
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-42@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.942842
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-42-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=42
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-42@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.942957
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-42--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=42
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-42@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.965417
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-43-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=43
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-43@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.965622
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-43-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=43
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-43@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.965738
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-43--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=43
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-43@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.983918
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-44-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=44
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-44@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:34.984103
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-44-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=44
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-44@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:34.984229
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-44--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=44
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-44@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.004559
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-45-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=45
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-45@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.004755
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-45-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=45
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-45@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.004873
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-45--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=45
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-45@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.025377
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-46-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=46
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-46@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.025610
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-46-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=46
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-46@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.025734
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-46--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=46
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-46@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.045003
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-47-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=47
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-47@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.045243
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-47-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=47
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-47@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.045397
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-47--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=47
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-47@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.063583
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-48-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=48
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-48@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.063807
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-48-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=48
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-48@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.063931
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-48--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=48
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-48@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.084186
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-49-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=49
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-49@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.084408
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-49-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=49
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-49@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.084527
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-49--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=49
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-49@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.103790
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-50-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=50
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-50@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.103989
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-50-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=50
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-50@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.104128
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-50--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=50
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-50@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.124473
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-51-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=51
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-51@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.124679
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-51-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=51
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-51@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.124798
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-51--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=51
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-51@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.145126
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-52-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=52
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-52@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.145379
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-52-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=52
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-52@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.145499
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-52--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=52
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-52@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.163649
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-53-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=53
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-53@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.163889
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-53-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=53
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-53@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.164010
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-53--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=53
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-53@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.184348
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-54-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=54
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-54@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.184585
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-54-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=54
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-54@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.184706
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-54--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=54
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-54@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.202886
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-55-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=55
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-55@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.203091
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-55-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=55
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-55@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.203224
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-55--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=55
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-55@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.224601
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-56-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=56
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-56@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.224801
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-56-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=56
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-56@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.224921
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-56--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=56
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-56@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.243144
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-57-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=57
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-57@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.243372
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-57-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=57
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-57@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.243494
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-57--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=57
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-57@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.263758
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-58-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=58
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-58@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.263964
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-58-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=58
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-58@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.264081
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-58--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=58
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-58@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.284424
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-59-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=59
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-59@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.284622
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-59-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=59
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-59@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.284740
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-59--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=59
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-59@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.303933
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-60-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=60
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-60@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.304142
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-60-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=60
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-60@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.304272
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-60--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=60
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-60@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.323478
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-61-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=61
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-61@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.323681
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-61-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=61
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-61@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.323809
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-61--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=61
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-61@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.344156
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-62-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=62
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-62@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.344367
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-62-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=62
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-62@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.344505
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-62--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=62
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-62@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.363736
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-63-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=63
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-63@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.363922
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-63-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=63
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-63@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.364050
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-63--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=63
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-63@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.383777
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-64-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=64
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-64@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.383993
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-64-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=64
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-64@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.384121
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-64--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=64
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-64@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.403361
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-65-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=65
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-65@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.403565
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-65-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=65
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-65@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.403684
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-65--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=65
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-65@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.422901
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-66-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=66
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-66@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.423103
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-66-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=66
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-66@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.423231
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-66--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=66
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-66@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.444610
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-67-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=67
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-67@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.444805
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-67-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=67
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-67@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.444924
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-67--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=67
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-67@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.465238
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-68-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=68
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-68@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.465451
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-68-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=68
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-68@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.465567
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-68--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=68
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-68@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.483772
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-69-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=69
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-69@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.483950
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-69-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=69
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-69@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.484069
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-69--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=69
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-69@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.504430
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-70-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=70
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-70@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.504625
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-70-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=70
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-70@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.504742
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-70--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=70
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-70@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.523999
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-71-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=71
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-71@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.524230
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-71-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=71
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-71@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.524392
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-71--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=71
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-71@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.544717
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-72-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=72
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-72@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.544920
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-72-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=72
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-72@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.545046
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-72--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=72
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-72@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.564253
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-73-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=73
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-73@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.564456
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-73-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=73
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-73@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.564585
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-73--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=73
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-73@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.582746
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-74-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=74
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-74@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.582942
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-74-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=74
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-74@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.583061
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-74--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=74
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-74@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.604385
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-75-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=75
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-75@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.604584
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-75-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=75
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-75@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.604710
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-75--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=75
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-75@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.623988
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-76-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=76
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-76@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.624198
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-76-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=76
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-76@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.624343
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-76--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=76
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-76@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.643658
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-77-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=77
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-77@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.643855
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-77-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=77
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-77@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.643999
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-77--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=77
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-77@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.664290
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-78-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=78
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-78@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.664498
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-78-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=78
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-78@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.664618
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-78--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=78
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-78@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.682763
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-79-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=79
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-79@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.682947
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-79-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=79
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-79@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.683077
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-79--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=79
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-79@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.704419
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-80-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=80
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-80@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.704616
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-80-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=80
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-80@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.704736
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-80--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=80
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-80@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.725087
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-81-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=81
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-81@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.725277
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-81-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=81
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-81@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.725432
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-81--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=81
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-81@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.744645
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-82-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=82
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-82@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.744847
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-82-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=82
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-82@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.744981
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-82--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=82
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-82@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.764236
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-83-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=83
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-83@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.764421
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-83-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=83
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-83@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.764545
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-83--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=83
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-83@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.783789
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-84-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=84
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-84@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.784007
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-84-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=84
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-84@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.784125
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-84--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=84
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-84@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.804422
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-85-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=85
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-85@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.804609
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-85-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=85
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-85@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.804749
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-85--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=85
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-85@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.825091
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-86-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=86
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-86@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.825281
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-86-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=86
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-86@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.825449
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-86--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=86
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-86@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.844715
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-87-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=87
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-87@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.844915
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-87-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=87
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-87@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.845034
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-87--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=87
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-87@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.865348
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-88-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=88
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-88@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.865539
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-88-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=88
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-88@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.865658
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-88--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=88
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-88@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.882770
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-89-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=89
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-89@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.882945
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-89-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=89
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-89@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.883062
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-89--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=89
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-89@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.904518
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-90-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=90
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-90@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.904725
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-90-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=90
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-90@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.904846
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-90--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=90
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-90@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.924091
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-91-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=91
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-91@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.924353
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-91-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=91
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-91@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.924475
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-91--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=91
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-91@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.942634
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-92-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=92
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-92@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.942825
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-92-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=92
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-92@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.942945
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-92--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=92
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-92@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.964361
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-93-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=93
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-93@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.964553
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-93-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=93
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-93@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.964684
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-93--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=93
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-93@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.982907
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-94-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=94
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-94@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:35.983095
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-94-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=94
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-94@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:35.983235
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-94--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=94
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-94@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:36.004585
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-95-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=95
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-95@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:36.004793
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-95-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=95
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-95@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:36.004916
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-95--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=95
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-95@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:36.025256
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-96-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=96
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-96@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:36.025479
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-96-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=96
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-96@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:36.025624
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-96--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=96
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-96@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:36.042776
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-97-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=97
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-97@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:36.042973
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-97-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=97
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-97@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:36.043104
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-97--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=97
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-97@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:36.063459
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-98-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=98
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-98@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:36.063685
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-98-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=98
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-98@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:36.063809
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-98--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=98
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-98@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:36.084195
+UDP message sent [426] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-99-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=99
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-99@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:36.084437
+UDP message received [358] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-99-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=99
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-99@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:36.084582
+UDP message sent [379] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-99--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=99
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-99@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:36.103804
+UDP message sent [429] bytes:
+
+INVITE sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-100-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=100
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-100@172.30.44.20
+CSeq: 1 INVITE
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Subject: Converact G03 overload evidence
+Content-Length: 0
+
+
+----------------------------------------------- 2026-08-09T06:38:36.104007
+UDP message received [361] bytes:
+
+SIP/2.0 503 Service Unavailable
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-100-0
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=100
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-100@172.30.44.20
+CSeq: 1 INVITE
+Content-Length: 0
+User-Agent: rustpbx/0.4.11 (built 2026-08-09)
+Retry-After: 1
+
+
+----------------------------------------------- 2026-08-09T06:38:36.104128
+UDP message sent [382] bytes:
+
+ACK sip:+18005550999@172.30.44.10:5060 SIP/2.0
+Via: SIP/2.0/UDP 172.30.44.20:5060;branch=z9hG4bK-1-100--1
+From: Converact G03 SIPp <sip:sipp@172.30.44.20:5060>;tag=100
+To: Converact G03 Route <sip:+18005550999@172.30.44.10:5060>
+Call-ID: overload-b63383b-100@172.30.44.20
+CSeq: 1 ACK
+Contact: <sip:sipp@172.30.44.20:5060;transport=UDP>
+Max-Forwards: 70
+Content-Length: 0
+
+

@@ -1,0 +1,98 @@
+{
+  "schema_id": "converact-g03-sip-latency-v1",
+  "schema_version": "1.0.0",
+  "status": "passed",
+  "identity": {
+    "generated_at": "2026-08-09T06:38:43.587869211Z",
+    "source_commit": "b63383bda16bcd9d311c9ce5e0761877d474797b",
+    "rustpbx_commit": "6c49ee76baa54fdbf8f98020cc9bee158c7c15de",
+    "rsipstack_commit": "8318e97b1170de4e5245b120afec1cdf53e3d716",
+    "patchset": "ivekit.53",
+    "sipp_version": "3.7.7",
+    "sipp_binary_sha256": "8e8ecdbe923bf608c844038adfa35c8595400c4629d629f00d51539ac24cdfef",
+    "host_fingerprint_sha256": "c736ec67ddf6f29ed755bb0e2fa6a3244018f71d8e894dec6b5cd3bcf7b8c4b8"
+  },
+  "thresholds": {
+    "trying_p99_budget_ms": 100,
+    "trying_hard_deadline_ms": 200,
+    "final_and_overload": "distribution_only_no_invented_budget"
+  },
+  "ownership": {
+    "trying_invites": 100,
+    "trying_responses": 100,
+    "trying_response_retransmissions": 0,
+    "one_trying_per_invite": true,
+    "overload_retry_after_verified": true
+  },
+  "scenario_statistics": {
+    "trying": {
+      "total_calls_created": 100,
+      "successful_calls": 100,
+      "failed_calls": 0,
+      "invite_sent": 100,
+      "invite_retransmissions": 0,
+      "response_received": 100,
+      "response_retransmissions": 0,
+      "response_timeouts": 0,
+      "unexpected_responses": 0,
+      "aggregate_csv_sha256": "26dc5d77e4d69c2082608b28a7ce48f0192e7ce07af47d4bd22ab6857a9bae4d",
+      "message_counts_csv_sha256": "6fe1e315ef32ba106f530130b1fe8e615fb4206204b3e60f959c3a142d23d83e"
+    },
+    "final": {
+      "total_calls_created": 100,
+      "successful_calls": 100,
+      "failed_calls": 0,
+      "invite_sent": 100,
+      "invite_retransmissions": 0,
+      "response_received": 100,
+      "response_retransmissions": 0,
+      "response_timeouts": 0,
+      "unexpected_responses": 0,
+      "aggregate_csv_sha256": "72bc150fbf3e6c84219a688fea7346121d8212f5313c592960c7a763a6085b2a",
+      "message_counts_csv_sha256": "b758e1c743f08c3ac46008ef791cc4414d4be39775371a1c0c3375c0a9979fda"
+    },
+    "overload": {
+      "total_calls_created": 100,
+      "successful_calls": 100,
+      "failed_calls": 0,
+      "invite_sent": 100,
+      "invite_retransmissions": 0,
+      "response_received": 100,
+      "response_retransmissions": 0,
+      "response_timeouts": 0,
+      "unexpected_responses": 0,
+      "aggregate_csv_sha256": "1bcb8ca629ec01a5c6c6b015c8ced81bf52f22f185369e11bd574551707bac49",
+      "message_counts_csv_sha256": "8826973a6c7ae0d8b25ab50516863c16d32028b195f56f8c71856c565bcfe2d0"
+    }
+  },
+  "measurements": {
+    "trying": {
+      "rtd_no": "g03_trying",
+      "sample_count": 100,
+      "p50_ms": 0,
+      "p95_ms": 1,
+      "p99_ms": 1,
+      "max_ms": 1,
+      "raw_csv_sha256": "e06fa6a5f7edac5db9fe5e4857733a38f7d62ba0f3dce0fafb3e60d4063926d9"
+    },
+    "final": {
+      "rtd_no": "g03_final",
+      "sample_count": 100,
+      "p50_ms": 1,
+      "p95_ms": 2,
+      "p99_ms": 3,
+      "max_ms": 3,
+      "raw_csv_sha256": "918b4b07155bcd70737b65cc921f000e84205c6d9b92c552d02d0f05cbb850a0"
+    },
+    "overload": {
+      "rtd_no": "g03_overload",
+      "sample_count": 100,
+      "p50_ms": 0,
+      "p95_ms": 1,
+      "p99_ms": 1,
+      "max_ms": 2,
+      "raw_csv_sha256": "9cd6b97ddc2674061f64336bcce2d1fa5ff27a1c360906f47f9f0e232bc223b0"
+    }
+  },
+  "failed_checks": []
+}

@@ -1,0 +1,34 @@
+[
+    {
+        "Name": "converact-rustpbx-baseline",
+        "Id": "ab84eafc3d444ab0e3c1a58abc812e4d01642da49666722459e8aa92c459bc5c",
+        "Created": "2026-08-03T02:37:00.906486038+08:00",
+        "Scope": "local",
+        "Driver": "bridge",
+        "EnableIPv4": true,
+        "EnableIPv6": false,
+        "IPAM": {
+            "Driver": "default",
+            "Options": null,
+            "Config": [
+                {
+                    "Subnet": "172.30.44.0/24"
+                }
+            ]
+        },
+        "Internal": false,
+        "Attachable": false,
+        "Ingress": false,
+        "ConfigFrom": {
+            "Network": ""
+        },
+        "ConfigOnly": false,
+        "Containers": {},
+        "Options": {},
+        "Labels": {
+            "com.docker.compose.network": "baseline",
+            "com.docker.compose.project": "converact-rustpbx-baseline",
+            "com.docker.compose.version": "2.29.7"
+        }
+    }
+]

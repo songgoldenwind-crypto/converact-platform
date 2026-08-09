@@ -442,13 +442,13 @@ test('evidence promotes only exact proved slices and retains every open gate', (
     'G03-E03-ID-STATE': 'verified_local',
     'G03-E04-EFFECT': 'verified_local',
     'G03-E05-POSTGRES': 'verified_controlled',
-    'G03-E06-TRYING': 'not_run',
-    'G03-E07-WIRE': 'not_run',
+    'G03-E06-TRYING': 'verified_controlled',
+    'G03-E07-WIRE': 'verified_controlled',
     'G03-E08-RECOVERY': 'verified_local',
     'G03-E09-DRAIN': 'verified_local',
     'G03-E10-FAULT': 'not_run',
-    'G03-E11-INTEROP': 'not_run',
-    'G03-E12-LONG-CALL': 'not_run',
+    'G03-E11-INTEROP': 'verified_controlled',
+    'G03-E12-LONG-CALL': 'verified_controlled',
     'G03-E13-PERFORMANCE': 'not_run',
     'G03-E14-TYPECHECK': 'verified_local',
     'G03-E15-REVIEW': 'not_run',
@@ -462,9 +462,17 @@ test('evidence promotes only exact proved slices and retains every open gate', (
       assert.equal(entry.raw_output_sha256, null);
     } else {
       assert.ok(entry.evidence_uris.length > 0, entry.evidence_id);
+      const controlledHostEvidence = new Set([
+        'G03-E06-TRYING',
+        'G03-E07-WIRE',
+        'G03-E11-INTEROP',
+        'G03-E12-LONG-CALL',
+      ]);
       assert.equal(
         entry.source_commit,
-        'a18229cde752e2fbd4a3ffa3b8d8a8cc7cef7beb',
+        controlledHostEvidence.has(entry.evidence_id)
+          ? 'b63383bda16bcd9d311c9ce5e0761877d474797b'
+          : 'a18229cde752e2fbd4a3ffa3b8d8a8cc7cef7beb',
         entry.evidence_id,
       );
       assert.match(entry.raw_output_sha256, /^[a-f0-9]{64}$/u);
