@@ -111,12 +111,13 @@ Run serially:
 2. New Call/Leg tests.
 3. SipFoundation, effect and recovery tests.
 4. Exact rsipstack/RustPBX patch contract tests.
-5. Native Call/Leg/effect binding tests; the `.59` RustPBX port includes a
+5. Native Call/Leg/effect binding tests; the `.60` RustPBX port includes a
    direction-keyed UAS/UAC state model, closed v2 wire-attempt facts and
-   separate transport/protocol receipts. The gate remains default-disabled;
-   retain activation `not_run` until derived ACK/CANCEL/UAS-2xx effects,
-   stale-nonterminal crash recovery and fixed observer/reconciler supervision
-   are wired through the live endpoint.
+   separate transport/protocol receipts plus one parent-bound non-2xx ACK
+   derivation. The gate remains default-disabled; retain activation `not_run`
+   until automatic 200-to-CANCEL, UAS-2xx ownership, parent-Unknown and stale-
+   nonterminal crash recovery, and fixed observer/reconciler supervision are
+   wired through the live endpoint.
 6. repository typecheck.
 7. Generate raw output, command/source manifest and SHA-256 evidence with no
    secrets.
@@ -129,8 +130,8 @@ or performance evidence.
 
 These run only when their prerequisites are deliberately provided; absence
 does not stop independent offline work. The physical PostgreSQL restart/replay
-campaign and the `.59` six-case native PostgreSQL component campaign completed
-on the authorized validation host. They remain within
+campaign, the `.59` six-case native PostgreSQL component campaign and the `.60`
+atomic-derived-ACK case completed on the authorized validation host. They remain within
 `G03-E05-POSTGRES = verified_controlled` and do not qualify the remaining
 campaigns:
 

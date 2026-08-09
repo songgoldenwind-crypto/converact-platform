@@ -18,9 +18,9 @@ claims and this audit does not mark G02 complete or production eligible.
 | --- | --- | --- | --- |
 | Product Call model | `src/agent-runtime/converact/voice/types.ts`; `state-machine.ts`; `call-service.ts` | `VoiceCall` is a durable Call intent/rebuildable control-plane projection with legacy string IDs | preserve product behavior, but never treat it or `provider_call_id` as native Call/Leg authority |
 | SipFoundation seam | `src/agent-runtime/converact/voice/sip-foundation/*` | Exported Converact-owned types, bounded Protocol Session model, capability selection, route/wire binding and rsipstack-named conformance Adapter exist | retain as conformance/migration harness; native SIP authority stays inside RustPBX |
-| Durable effect ledger | `effect-oracle.ts`; `postgres-effect-store.ts`; migrations `107`, `113` and `114`; native `.59` protocol-observation patches | Reference and native implementations use closed v1/v2 wire-attempt facts, keep `transport_completed` distinct from peer `protocol_observed`, and use atomic prepare/observation transactions, repair fences and resource-bounded fixed shards; the native adapter is compiled but default-disabled | retain TypeScript as contract/reference evidence; controlled component and PostgreSQL tests pass, while live native RustPBX endpoint activation remains `not_run` |
+| Durable effect ledger | `effect-oracle.ts`; `postgres-effect-store.ts`; migrations `107`, `113` and `114`; native `.59` protocol-observation and `.60` derived-ACK patches | Reference and native implementations use closed v1/v2 wire-attempt facts, keep `transport_completed` distinct from peer `protocol_observed`, and use atomic prepare/observation transactions, repair fences and resource-bounded fixed shards; `.60` derives one parent-bound non-2xx ACK and rejects an Unknown parent; the native adapter is compiled but default-disabled | retain TypeScript as contract/reference evidence; controlled component and PostgreSQL tests pass, while live native RustPBX endpoint activation remains `not_run` |
 | Recovery | `sip-foundation/recovery.ts`; reciprocal dialog shadow/takeover sources | Confirmed, transaction-quiescent, same-runtime eligibility exists; actual takeover remains a separate RustPBX flow | freeze exact recovery boundary; do not claim cross-Adapter or early-dialog recovery |
-| RustPBX/rsipstack runtime | `infra/converact/rustpbx/build.sh` and patch queue | RustPBX `6c49ee76…`, rsipstack `8318e97b…`, rustrtc `166c6d22…`, patchset `.59` is pinned; `.59` adds exact-source protocol-observation and durable PostgreSQL behavior to the directional UAS/UAC model | fresh patch-chain replay, full Linux RustPBX library tests and six physical PostgreSQL cases are controlled component evidence; exact `.59` image/wire/latency/peer/long-call/capacity evidence and production activation remain `not_run` |
+| RustPBX/rsipstack runtime | `infra/converact/rustpbx/build.sh` and patch queue | RustPBX `6c49ee76…`, rsipstack `8318e97b…`, rustrtc `166c6d22…`, patchset `.60` is pinned; `.60` layers parent-bound non-2xx ACK derivation over `.59` protocol observation without adding a second intent authority | fresh patch-chain replay, rsipstack `302/302`, full Linux RustPBX `2,002/0/8` and one physical PostgreSQL derived-ACK case are controlled component evidence; exact `.60` image/wire/latency/peer/long-call/capacity evidence and production activation remain `not_run` |
 | Initial 100 Trying | `rsipstack-ivekit-single-trying.patch`; SIPp campaign sources | Exact `.53` image emitted exactly 100 Trying responses for 100 INVITEs; p99/max were 1/1 ms, with zero response retransmissions | `G03-E06` controlled evidence; no inherited `.42` promotion |
 | SIP wire tests | frozen 22-case corpus and exact dual-binary replay | `.53` matches all 18 accepted semantics and applies four versioned malformed-input tightenings with zero unexplained differences | `G03-E07` controlled evidence; future rvoip differential remains `not_run` |
 | rvoip runtime | no G03 runtime source dependency found | Not a parser, transaction, Dialog or transport production path | `not_run`; reserved for G06 layer-by-layer gates |
@@ -42,16 +42,19 @@ dual-leg CDR and dialog recovery. This is a local source/unit baseline only.
 
 The controlled PostgreSQL role/RLS/restart replay and exact `.53`
 wire/latency/interop/two-hour-control-call/2-vCPU capacity campaigns have run.
-For `.59`, the fresh patch chain applies, the exact RustPBX library suite passes
-locally and on the validation server (`1,998` passed, `7` ignored), and six
-physical PostgreSQL cases pass. The raw `.59` component bundle is
-`evidence/raw/native-protocol-observation-fe4c38b-05/`. It does not prove live
-endpoint composition and cannot inherit `.53` image or traffic results. The
-following remain `not_run` for the current `.59` candidate at this update:
+For `.59`, the fresh patch chain, exact RustPBX suite and six physical
+PostgreSQL cases remain retained under
+`evidence/raw/native-protocol-observation-fe4c38b-05/`. The `.60` exact sources
+pass rsipstack `302/302`, RustPBX `2,002` passed with `0` failed and `8` ignored,
+and the physical PostgreSQL atomic-derived-ACK case `1/1` on the authorized
+isolated validation host. Its raw bundle is
+`evidence/raw/derived-non-2xx-ack-9fc99ee-06/`. Neither bundle proves live
+endpoint composition or inherits `.53` image and traffic results. The
+following remain `not_run` for the current `.60` candidate at this update:
 
 - native Call/Leg and effect-writer activation;
-- automatic derived ACK intent, automatic 200-to-CANCEL and UAS-Core 2xx ACK
-  ownership;
+- automatic 200-to-CANCEL and UAS-Core 2xx ACK ownership;
+- parent-Unknown reconciliation and derived-ACK live endpoint composition;
 - indexed stale `send_attempted`/`transport_accepted` recovery after an
   observer-process crash and mixed-binary v1/v2 activation;
 - node loss, blocking syscall, native panic, OOM and process-abort campaigns;
@@ -81,8 +84,9 @@ following remain `not_run` for the current `.59` candidate at this update:
 8. Wire only direction-specific protocol observations: inbound 2xx waits for a
    remote ACK, outbound 2xx creates a local ACK effect, and inbound Legs can
    never enter outbound fork selection.
-9. Close the remaining derived-effect and crash-recovery wiring before the
-   default-disabled `.59` gate can enter live endpoint composition.
+9. Close automatic CANCEL/UAS-2xx ownership, parent-Unknown reconciliation and
+   crash recovery before the default-disabled `.60` gate can enter live
+   endpoint composition.
 
 ## 5. Deletion and Migration Boundary
 

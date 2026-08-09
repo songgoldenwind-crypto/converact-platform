@@ -510,6 +510,40 @@ real-peer, long-call, fault/OOM and capacity campaigns remain `not_run`.
 `G03-E16-NATIVE-AUTHORITY` is not promoted, and production eligibility remains
 false.
 
+ivekit.60 adds the first protocol-derived egress path without giving the
+transaction layer a second business-intent authority. After an exact peer
+300--699 final response completes a permitted client INVITE, rsipstack asks the
+durable gate to derive the mandatory non-2xx ACK from the parent permit. The
+default trait implementation rejects derivation. RustPBX verifies the parent
+tenant and identity hash, INVITE method, transaction key, Via branch, CSeq,
+Call-ID, From/To values, exact trigger and ACK bytes, transport binding and
+closed v2 completion scope before preparing the child.
+
+The parent INVITE owns one stable derived-child Effect identity. Retransmission
+variants bind different trigger/child hashes to that same identity and therefore
+conflict rather than create another wire permit. The PostgreSQL adapter locks
+the parent and prepares the child decision/send attempt in one tenant-scoped
+transaction. Cancellation arms a reconciliation latch before the first await;
+preparation or transport ambiguity cannot fall back to ordinary `prepare` or
+blindly send another ACK. A parent in `unknown` is rejected until the existing
+repair/reconciliation path has established a stronger state.
+
+On the final exact Rust 1.94.1 sources, local component suites pass rsipstack
+`302/302` and RustPBX `2,002` passed, `0` failed, `8` ignored. The authorized
+validation server reproduced those results in isolated current-code containers,
+and the explicit physical PostgreSQL atomic-derived-ACK case passed `1/1`.
+These are exact-source component results; they do not prove live SIP endpoint
+composition, a release image, peer traffic, long-call stability, fault/OOM or
+capacity. The retained raw bundle is
+`architecture-foundation/execution/goal-03/evidence/raw/derived-non-2xx-ack-9fc99ee-06/`.
+
+Automatic 200-to-CANCEL, UAS-Core 2xx ACK ownership, stale nonterminal recovery
+after an observer-process crash, parent-Unknown reconciliation wiring, rolling
+mixed-binary activation, exact `.60` image, real-peer, long-call, fault/OOM and
+capacity campaigns remain `not_run`. Live endpoint activation remains
+`not_run`; `G03-E15-REVIEW` and `G03-E16-NATIVE-AUTHORITY` are not promoted, and
+production eligibility remains false.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the
