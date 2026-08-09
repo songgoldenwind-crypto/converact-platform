@@ -111,11 +111,12 @@ Run serially:
 2. New Call/Leg tests.
 3. SipFoundation, effect and recovery tests.
 4. Exact rsipstack/RustPBX patch contract tests.
-5. Native Call/Leg/effect binding tests; the `.58` RustPBX port includes a
-   direction-keyed UAS/UAC state model and the `.57` durable gate remains a
-   default-disabled adapter, but retain activation `not_run` until every SIP
-   direction registers intent and the fixed observer/reconciler workers are
-   supervised in the live endpoint.
+5. Native Call/Leg/effect binding tests; the `.59` RustPBX port includes a
+   direction-keyed UAS/UAC state model, closed v2 wire-attempt facts and
+   separate transport/protocol receipts. The gate remains default-disabled;
+   retain activation `not_run` until derived ACK/CANCEL/UAS-2xx effects,
+   stale-nonterminal crash recovery and fixed observer/reconciler supervision
+   are wired through the live endpoint.
 6. repository typecheck.
 7. Generate raw output, command/source manifest and SHA-256 evidence with no
    secrets.
@@ -128,12 +129,14 @@ or performance evidence.
 
 These run only when their prerequisites are deliberately provided; absence
 does not stop independent offline work. The physical PostgreSQL restart/replay
-campaign completed on the authorized validation host and is recorded as
-`G03-E05-POSTGRES = verified_controlled`; it does not qualify the remaining
+campaign and the `.59` six-case native PostgreSQL component campaign completed
+on the authorized validation host. They remain within
+`G03-E05-POSTGRES = verified_controlled` and do not qualify the remaining
 campaigns:
 
-- PostgreSQL role/RLS, physical restart and receipt replay (completed
-  controlled slice; rolling N/N+1 remains outside this evidence);
+- PostgreSQL role/RLS, physical restart, receipt replay, atomic v2 transition,
+  repair exhaustion and database-clock skew (completed controlled slices;
+  mixed-binary rolling N/N+1 remains outside this evidence);
 - SIPp + Asterisk/FreeSWITCH/baresip interoperability;
 - `100 Trying`, final and 503 raw latency distribution;
 - 2h control soak and long-call restart/drain;
