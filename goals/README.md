@@ -14,11 +14,22 @@
 1. 读取 [PROGRAM-RULES.md](./PROGRAM-RULES.md)；
 2. 读取目标 Markdown 全文；
 3. 在 [manifest.json](./manifest.json) 中核对文件 SHA-256、依赖和状态；
-4. 调用 `create_goal`，objective 使用目标文件末尾的 `create_goal summary`；
-5. 持续执行到全部 Gate 通过，或在完成所有离线工作后记录不可避免的外部阻塞；
-6. 只有前置 Goal 达到文件规定的完成状态，才能启动下一 Goal。
+4. 检查 [amendments/](./amendments/) 是否有明确绑定该 Goal 的 additive amendment；如有，
+   校验其 frozen inputs、运行 resolver/test，并把实际读取的 Goal bytes 交给该 amendment 的
+   objective builder；builder 必须同时输出 base Goal 与 amendment 的 path/SHA-256；
+5. 调用 `create_goal`，objective 使用 builder 完整输出；没有 amendment 时使用目标文件末尾的
+   `create_goal summary`，不得手工遗漏适用条款或 binding identity；
+6. 持续执行到全部 Gate 通过，或在完成所有离线工作后记录不可避免的外部阻塞；
+7. 只有前置 Goal 达到文件规定的完成状态，才能启动下一 Goal。
 
 创建这些文件不自动启动开发，也不改变服务器、容器或 Feature Flag。
+
+当前 G10、G12、G13、G14、G15、G16 另受
+[2026-08-09 AI Interaction/Speech/Action program amendment](./amendments/2026-08-09-ai-speech-action-program-amendment-v1.md)
+约束。它保持 base Goal 和已冻结 manifest 不变，仅在未来启动对应 Goal 时追加
+InteractionExecutionPolicy、SpeechModePolicy、ConversationPerception、HF overlap-only、
+Disclosure/Consent、主动 Handoff、Human collaboration、MCP Tool Adapter、可信 Context、
+跨层 Eval、商业 Outcome KPI 和 provider-exit/全成本条款。
 
 ## 2. 执行顺序
 

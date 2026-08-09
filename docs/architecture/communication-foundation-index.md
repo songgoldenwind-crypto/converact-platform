@@ -21,6 +21,21 @@
 R5 delta 共 66 条，完整继承 R4 的 362 条 requirement/status。R5 当前是
 `accepted architecture / target`，不是 production eligibility 声明。
 
+## 2026-08-09 Interaction/Speech/Tool 向前增补
+
+[ADR-CCAAS-12](../adr/ccaas-12-policy-driven-speech-and-tool-adapter-boundaries.md)
+对未来 G10–G16 增加带 fence 的 InteractionExecutionPolicy、Policy-driven multi-path Speech、
+ConversationPerception observation、HF overlap-only、Disclosure/Consent 分离、Human
+collaboration、可信 Context、跨层 Evaluation 和 MCP Tool Adapter 条款。它同时纠正历史文本中
+可能把 ActionIntent 或 Action Ledger 归给 Agent Runtime 的歧义：Agent Runtime 只产生
+ActionProposal，Converact Engage Action Authority 单写 Intent、Authorization、Attempt、Receipt
+与 reconcile。
+
+该 ADR 不改 R5 的 SIP/Call/媒体 Authority，不扩大 G03–G08 范围，也不改变 R5/R4 的既有
+hash 或 Evidence。Speech、MCP、方言、成本和行业数字在对应 Goal 实测前保持 `not_run`；
+机器约束见
+[future-goal amendment](../../goals/amendments/2026-08-09-ai-speech-action-program-amendment-v1.md)。
+
 ## Revision 4 继续绑定的文件
 
 ### 目标、合同和追踪

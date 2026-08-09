@@ -1,0 +1,428 @@
+{
+  "$schema": "./future-goal-amendment-v1.schema.json",
+  "amendment_id": "PROGRAM-AMENDMENT-AI-SPEECH-ACTION-2026-08-09-V1",
+  "version": 1,
+  "authorized_at": "2026-08-09",
+  "authorization_basis": "user_requested_complete_docs_and_goals_before_resuming_G03",
+  "status": "binding_for_future_goal_execution",
+  "scope": {
+    "adds": [
+      "policy_driven_multi_path_speech",
+      "policy_driven_interaction_execution",
+      "hf_overlap_only_qualification",
+      "conversation_perception_observations",
+      "disclosure_consent_separation",
+      "proactive_handoff_policy",
+      "human_collaboration_roles",
+      "mcp_tool_adapter_governance",
+      "advanced_eval_security",
+      "verified_context_and_cross_layer_evaluation",
+      "business_outcome_kpis",
+      "provider_exit_and_full_unit_economics"
+    ],
+    "does_not_change": [
+      "frozen_manifest_bytes",
+      "G03_binding_objective_or_hash",
+      "G03_through_G08_scope_or_order",
+      "domain_authorities",
+      "base_goal_dependencies_status_or_hash",
+      "evidence_statuses",
+      "production_eligibility"
+    ]
+  },
+  "frozen_inputs": {
+    "manifest_path": "goals/manifest.json",
+    "manifest_sha256": "11b026b5014dc344d4e5b2459aafc0b251190075a212fc68f40dce62fbbda912",
+    "targets": [
+      {
+        "goal_id": "G10",
+        "path": "goals/goal-10-human-ai-collaboration-overlay.md",
+        "sha256": "e7ca4d7e5cd48ae9bef8bfe2824cc5c185b8c2107e94942b5913992d77959dde"
+      },
+      {
+        "goal_id": "G12",
+        "path": "goals/goal-12-speech-runtime-hf-translation.md",
+        "sha256": "b813b031b36a452ace4e054e5fa1cc3c224250a56172e312846b4bce5a66bbf9"
+      },
+      {
+        "goal_id": "G13",
+        "path": "goals/goal-13-agent-orchestrator-cross-channel-handoff.md",
+        "sha256": "54e194f092ff7c17e1995280e9742264162e789fe2ded39749aa0d37c749bb40"
+      },
+      {
+        "goal_id": "G14",
+        "path": "goals/goal-14-action-durable-workflow.md",
+        "sha256": "b5020125b6eb1ef646a2f6f5f03196a336aeb0cfe2935d40b4573c8787261926"
+      },
+      {
+        "goal_id": "G15",
+        "path": "goals/goal-15-context-knowledge-studio-governance.md",
+        "sha256": "560810993a5363ba8e9d3fb5d61f73313ca788bf3357e2366e289ccfd3aa4cc8"
+      },
+      {
+        "goal_id": "G16",
+        "path": "goals/goal-16-v1-pilot-commercial-production.md",
+        "sha256": "c20f8b775f90009f767761077f6f278ea489eaadd7dfda621a41e57ad601a6c7"
+      }
+    ]
+  },
+  "source_review": {
+    "source_file_name": "IPPBX呼叫中心AI机器人部署技术研究（2026）-SIP实验室发布.pdf",
+    "source_sha256": "d45ffbeaa945ec87a7046d420977489c2173c12b86d131cf22af7f31f11ec026",
+    "supplemental_source_file_name": "pasted-text.txt",
+    "supplemental_source_sha256": "fc1c98fb7936ff40bfc6957006a73dd435939e4a31ab64fbcdefaabbe8a7094a",
+    "review_path": "docs/architecture/2026-08-09-ippbx-contact-center-ai-industry-analysis-adoption-review.md",
+    "review_disposition": "accepted_as_research_input_with_binding_forward_amendment",
+    "upstream_claim_status": "not_run"
+  },
+  "decision_artifacts": [
+    {
+      "kind": "research_review",
+      "path": "docs/architecture/2026-08-09-ippbx-contact-center-ai-industry-analysis-adoption-review.md",
+      "sha256": "ff37c097e0d599a282b1ea916a86f9b451400c30bef24e657b345a993066f132"
+    },
+    {
+      "kind": "adr",
+      "path": "docs/adr/ccaas-12-policy-driven-speech-and-tool-adapter-boundaries.md",
+      "sha256": "d13c3248b1a77f7a48540f66359bffa7c15b16b4405b6124becbdf7b51da2b3d"
+    }
+  ],
+  "target_goal_clauses": [
+    {
+      "goal_id": "G10",
+      "clauses": [
+        {
+          "id": "G10-A01",
+          "category": "required_outcome",
+          "text": "Define AI identity, recording and handoff DisclosureReceipts independently from purpose-scoped ConsentLeases; disclosure never authorizes recording, transcription, translation, AI processing, training or cross-region transfer, and consent never proves disclosure delivery.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G10-A02",
+          "category": "required_outcome",
+          "text": "Define HandoffTriggerPolicy and AgentHandoffDecision for user request, calibrated confidence, policy or safety, action risk, repeated tool unknown or failure, latency or queue budget, unsupported language and degraded channel quality; a decision may prepare but cannot directly change owner, output or action truth.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G10-A03",
+          "category": "required_artifact",
+          "text": "Add versioned disclosure-receipt, consent-lease and proactive-handoff contracts with schemas, traceability and a human-only failure matrix; preserve existing Interaction, CommunicationSession, OutputLease and HandoffArtifact authorities.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G10-A04",
+          "category": "tdd",
+          "text": "Test disclosure without consent, consent without disclosure, stale policy revisions, withdrawal, region mismatch, every proactive trigger, prepare failure, late old output and human-only continuity before implementation.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G10-A05",
+          "category": "acceptance_gate",
+          "text": "Human communication remains usable when policy, disclosure, Speech, Agent or tool services fail; no active owner or output changes until durable handoff commit, and disclosure or consent ambiguity fails closed only for the affected AI or processing capability.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G10-A06",
+          "category": "non_goal",
+          "text": "Do not hard-code one global disclosure phrase, infer consent from participation, or let emotion and sentiment alone authorize takeover, denial of service or an external action.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G10-A07",
+          "category": "required_outcome",
+          "text": "Define Human Owner, Supervisor, Approver, Expert and Observer plus AI Primary, Copilot, Specialist, QA, Translator and FraudDetector as versioned participant roles and capabilities, not Authorities; approval, advice, silent supervision, temporary voice takeover, bounded AI tool continuation and AI resume each require explicit scope, lease, generation, output or action permission and receipt.",
+          "evidence_status": "not_run"
+        }
+      ],
+      "create_goal_addendum": "Also execute PROGRAM-AMENDMENT-AI-SPEECH-ACTION-2026-08-09-V1 for G10. Add separate DisclosureReceipt and ConsentLease contracts, policy-driven proactive handoff and versioned Human/AI collaboration roles. Roles are capabilities, not Authorities. Every approval, supervision, temporary voice takeover, bounded AI tool continuation and resume requires explicit scope, lease, generation, permission and receipt. Preserve Human-only continuity, OutputLease fencing and all original G10 authorities. Every new item starts not_run."
+    },
+    {
+      "goal_id": "G12",
+      "clauses": [
+        {
+          "id": "G12-A01",
+          "category": "required_outcome",
+          "text": "Implement a versioned SpeechModePolicy selecting human_only_bypass, controlled_cascade, half_cascade, native_realtime or fused_asr_cascade for each Speech generation using tenant, Profile, channel, language, codec, risk, disclosure, consent, region, exact-script, quality, latency, cost, capacity and qualification inputs.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G12-A02",
+          "category": "required_outcome",
+          "text": "Integrate exact-source Hugging Face speech-to-speech as the first mandatory self-hosted controlled-cascade candidate only for overlapping VAD, STT, LLM, TTS and streaming-loop functions; preserve every non-overlapping Active, LiveKit Agents, channel, orchestration, action, recording, billing and consent capability.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G12-A03",
+          "category": "required_outcome",
+          "text": "Persist an immutable SpeechModeSelectionReceipt containing policy and input digests, reason codes, selected mode, runtime, model and source revisions, fallback chain, qualification profile, budgets, disclosure and consent references and Speech generation; any mode or runtime change creates a new generation and fence.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G12-A04",
+          "category": "required_artifact",
+          "text": "Add SpeechModePolicy and SelectionReceipt schemas, a mode capability matrix, exact-source inventory, provider-exit runbook and a latency-quality-cost evidence protocol that separates network, endpoint, STT, LLM, TTS, first-audible, turn-gap and interruption clocks.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G12-A05",
+          "category": "tdd",
+          "text": "Run same-input adapter-overhead and mode-frontier A/B tests across PCMU, PCMA, G.729, G.722 and Opus plus future-profile AMR-WB or EVS seams, language and dialect cohorts, noise, double-talk, loss, jitter, numeric sequences, VAD candidates, provider exit, crash, overload and long sessions; no result may inherit across profiles.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G12-A06",
+          "category": "acceptance_gate",
+          "text": "No mode becomes production eligible without exact-source functional parity, end-to-end latency distributions, quality, exact-script and action correctness, resource and safe-capacity evidence, failure isolation, rollback and provider-exit proof; all upstream or vendor claims remain not_run.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G12-A07",
+          "category": "acceptance_gate",
+          "text": "Fallback selects only prequalified paths allowed by the frozen policy and cannot cross tenant, region, consent, data-residency, exact-script or action-risk boundaries; exhaustion degrades to human_only_bypass without stopping the Call or Room.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G12-A08",
+          "category": "non_goal",
+          "text": "Do not claim HF is native S2S, globally fastest, best VAD or unconditional production default; do not treat component TTFS, an 8 kHz PCMU result or any vendor benchmark as complete SpeechRuntime evidence.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G12-A09",
+          "category": "required_outcome",
+          "text": "Implement ConversationPerception as a bounded SpeechRuntime submodule producing provenance-bound PerceptionObservations for audio conditioning, speech, language or dialect, speaker, calibrated confidence, turn, EOT, interruption, hesitation, barge-in and quality; transcript, summary, emotion, prosody and fraud signals never become business facts or sole Action and Handoff authority, and high-risk signals require independent rights, bias, false-positive, regional and cohort qualification.",
+          "evidence_status": "not_run"
+        }
+      ],
+      "create_goal_addendum": "Also execute PROGRAM-AMENDMENT-AI-SPEECH-ACTION-2026-08-09-V1 for G12. Build five-mode SpeechModePolicy, immutable SelectionReceipt and bounded ConversationPerception observations with source, calibration, stream generation, clocks, privacy class and provenance. HF exact-source engineering is mandatory only for overlapping controlled-cascade functions; production selection stays evidence-driven. Qualify same-input E2E latency, quality, exact-script, action correctness, VAD, codec/language/dialect/noise, cost, capacity, faults, long sessions and provider exit. Perception is not fact or Authority; never inherit upstream claims or cross-profile evidence. All additions begin not_run."
+    },
+    {
+      "goal_id": "G13",
+      "clauses": [
+        {
+          "id": "G13-A01",
+          "category": "required_outcome",
+          "text": "Consume the G10 HandoffTriggerPolicy and produce durable AgentHandoffDecision, prepare, commit, abort, query and reconcile transitions for user request, calibrated confidence, policy or safety, action risk, repeated tool unknown or failure, budget exhaustion, unsupported language and channel degradation.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G13-A02",
+          "category": "required_outcome",
+          "text": "Preserve stable Engagement, Task and Interaction plus versioned ContextRevision, disclosure references, consent references, action attempts and Unknown state across human-to-AI, AI-to-human and cross-channel handoff; old generations cannot output or replay actions.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G13-A03",
+          "category": "required_artifact",
+          "text": "Extend the cross-channel handoff contract and evidence protocol with trigger reason, offer, accept, commit, human-ready, first-human-response, context completeness, customer re-ask, media gap, stale output, duplicate or unknown action, abandonment and reconcile-time fields.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G13-A04",
+          "category": "tdd",
+          "text": "Inject every trigger, concurrent manual takeover, new-owner prepare failure, late response, Speech mode fallback, framework rotation, tool Unknown, partition and crash before implementing the minimum fenced handoff behavior.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G13-A05",
+          "category": "acceptance_gate",
+          "text": "Handoff meets preregistered success, recovery-time, context-loss, media-continuity, stale-output and duplicate-action thresholds while Human Communication and Action truth remain available through Agent, Speech and tool failures.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G13-A06",
+          "category": "non_goal",
+          "text": "Do not give a framework, model, confidence score or sentiment detector authority to revoke ownership, execute an action, synthesize a missing context fact or mark an Unknown effect successful.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G13-A07",
+          "category": "required_outcome",
+          "text": "Implement versioned InteractionExecutionPolicy inside the existing Agent Runtime Policy Authority to choose Speech mode, reasoning path, deterministic workflow, Human collaboration mode and delivery channel using task stage, turn boundary, jurisdiction, residency, PII and risk, modality, tool requirements, channel quality, budgets and qualification; change paths only at explicit fenced boundaries with a new selection receipt, generation and lease, preserve stable Attempt and Unknown reconcile handles across Human handoff, and prohibit only retry, replacement, reuse or success claims for that effect until query and reconcile converge.",
+          "evidence_status": "not_run"
+        }
+      ],
+      "create_goal_addendum": "Also execute PROGRAM-AMENDMENT-AI-SPEECH-ACTION-2026-08-09-V1 for G13. Add InteractionExecutionPolicy and policy-driven proactive handoff while keeping durable Engagement, Task, Interaction, ContextRevision, ResponseLease and Action truth. Select Speech, reasoning, deterministic workflow, Human collaboration and delivery paths only at explicit task-stage or committed-turn boundaries; every change needs a new receipt, generation, lease and fence. Measure human-ready, first response, context completeness, re-ask, media gap, stale output, duplicate or unknown action, abandonment and reconcile time. Framework and Speech failures must preserve Human Communication; all additions begin not_run."
+    },
+    {
+      "goal_id": "G14",
+      "clauses": [
+        {
+          "id": "G14-A01",
+          "category": "required_outcome",
+          "text": "Treat MCP, REST and SDK integrations only as versioned Tool Broker protocol adapters; they cannot own Task, Workflow, ActionIntent, Authorization, Ledger, Effect truth or external business state and cannot bypass Proposal, Policy, Authorization, Attempt, Receipt or reconcile.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G14-A02",
+          "category": "required_outcome",
+          "text": "For MCP explicitly negotiate protocol version and capabilities, use only preregistered bounded compatibility windows, pin server identity and catalog, tool metadata and schema digests, use explicit external state handles and fail closed on silent downgrade or drift.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G14-A03",
+          "category": "required_outcome",
+          "text": "Validate credential and token issuer, audience, tenant, target, scope, expiry and region; prohibit ambient authority, unauthorized token passthrough and confused-deputy delegation, and constrain URL, redirect and resource fetch behavior against SSRF.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G14-A04",
+          "category": "required_outcome",
+          "text": "Detect catalog, metadata, tool-description and schema poisoning; timeout, disconnect or missing valid receipt produces Unknown followed by the frozen query and reconcile strategy, never success, cancellation or blind retry.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G14-A05",
+          "category": "required_artifact",
+          "text": "Add an MCP adapter version, capability and security contract with schemas, compatibility-window registry, catalog-digest receipt, threat matrix and source-test-path mapping without changing the Action Authority contract.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G14-A06",
+          "category": "tdd",
+          "text": "Test unsupported versions, capability downgrade, expired compatibility windows, server identity and digest drift, metadata or tool poisoning, issuer or audience mismatch, confused deputy, token passthrough, SSRF, timeout, disconnect, duplicate and query or reconcile failure before adapter implementation.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G14-A07",
+          "category": "acceptance_gate",
+          "text": "Every MCP side effect has a current ActionIntent, Authorization, Attempt, idempotency and fence identity and converges through Receipt or Unknown query and reconcile; protocol statelessness never removes durable Task, Workflow, Action or Receipt state.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G14-A08",
+          "category": "non_goal",
+          "text": "Do not call MCP a production fact standard, promise N-plus-M delivery complexity, make one protocol version a permanent global default or let an MCP server, session or tool list become business Authority.",
+          "evidence_status": "not_run"
+        }
+      ],
+      "create_goal_addendum": "Also execute PROGRAM-AMENDMENT-AI-SPEECH-ACTION-2026-08-09-V1 for G14. MCP is only a versioned Tool Broker adapter. Add explicit version and capability negotiation, bounded compatibility, server and catalog digest pinning, issuer/audience/scope checks, confused-deputy/token-passthrough/SSRF and poisoning defenses. Timeout or disconnect remains Unknown until query/reconcile. Never bypass Action Authority; all additions begin not_run."
+    },
+    {
+      "goal_id": "G15",
+      "clauses": [
+        {
+          "id": "G15-A01",
+          "category": "required_outcome",
+          "text": "Extend offline, online, shadow, canary and red-team evaluation to RAG source, chunk and index poisoning, fabricated, nonexistent or unsupported citations, tool-description and metadata injection and complex multi-step instruction retention, recovery and policy adherence.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G15-A02",
+          "category": "required_outcome",
+          "text": "Create provenance-bound language and dialect cohorts segmented by codec, sample rate, noise, loss, region, Speech mode and runtime; report confidence and failure distributions independently and never generalize model support into production qualification.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G15-A03",
+          "category": "required_artifact",
+          "text": "Add a versioned speech-action eval threat corpus and schema covering poisoned retrieval, unsupported citations, tool metadata, multi-step instructions and dialect cohorts, with immutable source, license, consent, partition and release digests.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G15-A04",
+          "category": "tdd",
+          "text": "Write failure tests for source, chunk and index substitution, unsupported citation generation, tool-description drift, cross-tenant retrieval, multi-step instruction hijack, stale release output and dialect cohort leakage before governance implementation.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G15-A05",
+          "category": "acceptance_gate",
+          "text": "Evaluation detects the injected failures at preregistered thresholds, preserves citation provenance and tenant boundaries, reports each cohort independently and proves rollback without stale output or replayed Action.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G15-A06",
+          "category": "non_goal",
+          "text": "Do not use vendor model cards, claimed language counts, synthetic evaluator scores or one dialect aggregate as customer Outcome proof, production eligibility or permission to weaken human verification.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G15-A07",
+          "category": "required_outcome",
+          "text": "Version Context candidate facts as observed, inferred, user_confirmed, system_confirmed or action_confirmed with immutable source, subject, time, revision and confirmation or Action receipt; transcript and model summary remain projections, cannot silently overwrite confirmed facts, and conflicts remain explicit for Policy or Human resolution.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G15-A08",
+          "category": "required_outcome",
+          "text": "Build cross-layer Evaluation and Governance for Perception, Agent, Action and Outcome using replay, simulation, regression, shadow, canary, A/B, rollback, policy and safety checks, cohort drift, cost and verified resolution; evaluation produces assessment and Evidence only and never writes business facts, external effects or production eligibility.",
+          "evidence_status": "not_run"
+        }
+      ],
+      "create_goal_addendum": "Also execute PROGRAM-AMENDMENT-AI-SPEECH-ACTION-2026-08-09-V1 for G15. Add provenance-bound epistemic Context states and cross-layer Perception/Agent/Action/Outcome evaluation with replay, simulation, regression, shadow, canary, A/B and rollback. Add red-team coverage for RAG source/chunk/index poisoning, unsupported citations, tool-description injection, complex multi-step instructions and language/dialect cohorts split by codec, noise, region, Speech mode and runtime. Transcript, summary and evaluator output are not confirmed facts or production eligibility. All additions begin not_run."
+    },
+    {
+      "goal_id": "G16",
+      "clauses": [
+        {
+          "id": "G16-A01",
+          "category": "required_outcome",
+          "text": "Calculate all-in cost per connected minute and per successfully resolved task including carrier, SFU, GPU, models, storage, retries, failures, human handoff, support, credits, reversals and shared infrastructure; token or list price alone is not unit economics.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G16-A02",
+          "category": "required_outcome",
+          "text": "For every selected model, Speech, carrier, SFU, connector and storage provider, prove provider exit, replacement, portable verified export of customer data, configuration and Evidence, rollback and deletion confirmation without transferring Authority or stopping the proven human path.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G16-A03",
+          "category": "required_outcome",
+          "text": "Version AI identity, capability, recording, transcription and processing disclosure and consent policy by tenant, region, channel and use case; retain delivery and acknowledgement receipts separately from purpose-scoped ConsentLeases instead of one global phrase or flag.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G16-A04",
+          "category": "required_outcome",
+          "text": "Measure AI-to-human, human-to-AI and cross-media handoff offer, accept and commit success, recovery time, media gap, stable Interaction and Call continuity, context loss and customer re-ask; failure returns to an available human path without losing Action truth.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G16-A05",
+          "category": "required_artifact",
+          "text": "Add a provider-exit and data-portability runbook, full-unit-economics report fields, regional disclosure and consent matrix and handoff-commercial-evidence register with frozen definitions, thresholds and raw evidence references.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G16-A06",
+          "category": "tdd",
+          "text": "Before rollout test provider removal, export verification, deletion proof, price revision, failed and retried turns, disclosure and consent revision, every handoff direction, context loss, optional AI outage and rollback in an independently authorized environment.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G16-A07",
+          "category": "acceptance_gate",
+          "text": "Production and commercial claims require real Pilot evidence for all-in unit economics, provider exit, applicable disclosure and consent, handoff continuity and frozen resolution definitions; vendor containment, latency or cost claims cannot substitute.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G16-A08",
+          "category": "non_goal",
+          "text": "Do not create provider lock-in through proprietary export, advertise one region policy globally, count automatic routing as successful resolution without the frozen definition or present Resolve V1 evidence as proof of the whole platform.",
+          "evidence_status": "not_run"
+        },
+        {
+          "id": "G16-A09",
+          "category": "acceptance_gate",
+          "text": "Freeze and report task completion, verified resolution, action success and correctness, policy violation, escalation precision, Human rework, repeat contact and cost per verified resolution alongside latency and quality; no containment, routing or low per-minute price counts as customer Outcome without the frozen verification definition and real Pilot evidence.",
+          "evidence_status": "not_run"
+        }
+      ],
+      "create_goal_addendum": "Also execute PROGRAM-AMENDMENT-AI-SPEECH-ACTION-2026-08-09-V1 for G16. Prove all-in cost per connected minute and verified resolution, provider exit and verified portable exports/deletion, versioned regional disclosure and separate consent receipts, plus bidirectional AI-human and cross-media collaboration success, recovery, continuity and context-loss metrics. Freeze task completion, verified resolution, action correctness, policy violation, escalation precision, Human rework and repeat-contact definitions. Vendor claims never substitute for Pilot evidence; all additions begin not_run."
+    }
+  ],
+  "global_invariants": [
+    "anything_unproved_remains_not_run",
+    "upstream_claims_never_become_converact_evidence",
+    "G03_through_G08_scope_and_execution_unchanged",
+    "HF_engineering_is_mandatory_but_production_selection_is_evidence_driven",
+    "MCP_is_a_tool_adapter_not_an_action_authority",
+    "agent_runtime_emits_action_proposals_only",
+    "disclosure_never_substitutes_for_consent",
+    "ordinary_media_never_depends_on_AI_or_tool_execution",
+    "interaction_path_changes_require_a_new_fenced_generation",
+    "perception_observations_never_become_business_facts_without_confirmation"
+  ]
+}

@@ -40,6 +40,25 @@ R5 继续决定通信实现边界，R2 决定平台/领域上位边界，R1 决�
 G00/G01 必须建立新的 machine contract、traceability 和迁移计划，不能靠自然语言假定
 三者已经完成代码映射。
 
+## 2026-08-09 向前兼容增补
+
+- [ADR-CCAAS-12：Policy-driven Interaction、Speech、Tool Adapter 与 Action Authority](../adr/ccaas-12-policy-driven-speech-and-tool-adapter-boundaries.md)
+- [IPPBX 呼叫中心 AI 行业分析事实审查](./2026-08-09-ippbx-contact-center-ai-industry-analysis-adoption-review.md)
+- [G10–G16 binding future-goal amendment](../../goals/amendments/2026-08-09-ai-speech-action-program-amendment-v1.md)
+
+ADR-CCAAS-12 是 additive forward amendment：Agent Runtime 内的
+`InteractionExecutionPolicy` 在有 fence 的阶段/turn 边界选择 Speech、reasoning、deterministic
+workflow、Human collaboration 和 delivery path；Speech 采用 policy-driven multi-path Runtime，
+HF 是必须工程集成和资格化的自托管 Controlled Cascade 候选而非全局生产默认。
+ConversationPerception 只产生带 provenance 的 observation，Context fact 需要显式确认；MCP、
+REST、SDK 均为 Tool Broker Adapter，所有副作用仍由 Converact Engage Action Authority 唯一
+授权和对账。它还裁决 Disclosure/Consent 分离、主动 Handoff、协作角色和跨层 Evaluation。
+
+行业分析文档是 `research_input_reviewed_non_authoritative`，其中任何厂商延迟、准确率、成本、
+转码 CPU、并发或 containment 数字都不能成为 Converact Evidence。由于当前 G03 的 manifest
+快照已经被冻结，增补通过独立机器可读 overlay 绑定未来 G10–G16，不改写历史 Goal 或 G03
+授权链。
+
 ## 旧文档边界
 
 旧 `ainative.md`、超级联络中心愿景、`architecture-v3.md`、旧 Master Plan 和
