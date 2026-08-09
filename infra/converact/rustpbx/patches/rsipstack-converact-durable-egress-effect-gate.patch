@@ -1,0 +1,1182 @@
+diff --git a/src/lib.rs b/src/lib.rs
+index 9ce1d65..56dfed9 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -245,7 +245,7 @@ pub mod error;
+ pub mod resolver;
+ pub mod transaction;
+ pub mod transport;
+-pub use transaction::EndpointBuilder;
++pub use transaction::{EgressEffectGate, EgressEffectOutcome, EgressEffectPermit, EndpointBuilder};
+ pub mod sip;
+ pub use sip as rsip;
+ 
+diff --git a/src/transaction/mod.rs b/src/transaction/mod.rs
+index 44affed..19f4b30 100644
+--- a/src/transaction/mod.rs
++++ b/src/transaction/mod.rs
+@@ -13,6 +13,7 @@ pub use endpoint::Endpoint;
+ pub use endpoint::EndpointBuilder;
+ pub use endpoint::EndpointCapacityLimits;
+ pub use endpoint::EndpointStats;
++pub use endpoint::{EgressEffectGate, EgressEffectOutcome, EgressEffectPermit};
+ #[cfg(test)]
+ mod tests;
+ 
+diff --git a/src/transaction/endpoint.rs b/src/transaction/endpoint.rs
+index c881702..453ec39 100644
+--- a/src/transaction/endpoint.rs
++++ b/src/transaction/endpoint.rs
+@@ -30,6 +30,60 @@ pub trait MessageInspector: Send + Sync {
+     fn after_received(&self, msg: SipMessage, from: Option<&SipAddr>) -> SipMessage;
+ }
+ 
++const EGRESS_EFFECT_TOKEN_HARD_CEILING: usize = 256;
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct EgressEffectPermit {
++    token: String,
++}
++
++impl EgressEffectPermit {
++    pub fn try_new(token: &str) -> Result<Self> {
++        if token.is_empty()
++            || token.len() > EGRESS_EFFECT_TOKEN_HARD_CEILING
++            || !token.is_ascii()
++            || token
++                .bytes()
++                .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace())
++        {
++            return Err(Error::EndpointError(
++                "SIP egress effect permit is invalid".to_string(),
++            ));
++        }
++        Ok(Self {
++            token: token.to_string(),
++        })
++    }
++
++    pub fn token(&self) -> &str {
++        &self.token
++    }
++}
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub enum EgressEffectOutcome {
++    TransportAccepted,
++    TransportUnknown,
++}
++
++/// Optional application-owned durable gate for the first externally visible
++/// transmission of a SIP effect. Implementations must durably record the
++/// send-attempt decision before returning a permit. The post-send observation
++/// is deliberately synchronous and must perform only bounded, non-blocking
++/// enqueue work; protocol retransmissions reuse the frozen message and never call
++/// `prepare` again.
++#[async_trait]
++pub trait EgressEffectGate: Send + Sync {
++    async fn prepare(
++        &self,
++        transaction_key: &TransactionKey,
++        message: &SipMessage,
++        destination: Option<&SipAddr>,
++    ) -> Result<EgressEffectPermit>;
++
++    fn observe_transport(&self, permit: EgressEffectPermit, outcome: EgressEffectOutcome);
++}
++
+ #[async_trait]
+ pub trait TargetLocator: Send + Sync {
+     async fn locate(&self, uri: &crate::sip::Uri) -> Result<SipAddr>;
+@@ -293,6 +347,7 @@ pub struct EndpointInner {
+     #[allow(dead_code)]
+     timer_interval: Duration,
+     pub(super) message_inspector: Option<Box<dyn MessageInspector>>,
++    pub(super) egress_effect_gate: Option<Arc<dyn EgressEffectGate>>,
+     pub(super) locator: Option<Box<dyn TargetLocator>>,
+     pub(super) transport_inspector: Option<Box<dyn TransportEventInspector>>,
+     pub option: EndpointOption,
+@@ -325,6 +380,7 @@ pub struct EndpointBuilder {
+     timer_interval: Option<Duration>,
+     option: Option<EndpointOption>,
+     message_inspector: Option<Box<dyn MessageInspector>>,
++    egress_effect_gate: Option<Arc<dyn EgressEffectGate>>,
+     target_locator: Option<Box<dyn TargetLocator>>,
+     transport_inspector: Option<Box<dyn TransportEventInspector>>,
+     domain_resolver: Option<Box<dyn DomainResolver>>,
+@@ -398,6 +454,34 @@ impl EndpointInner {
+         locator: Option<Box<dyn TargetLocator>>,
+         transport_inspector: Option<Box<dyn TransportEventInspector>>,
+         capacity_limits: EndpointCapacityLimits,
++    ) -> Arc<Self> {
++        Self::new_with_egress_effect_gate(
++            user_agent,
++            transport_layer,
++            cancel_token,
++            timer_interval,
++            allows,
++            option,
++            message_inspector,
++            None,
++            locator,
++            transport_inspector,
++            capacity_limits,
++        )
++    }
++
++    fn new_with_egress_effect_gate(
++        user_agent: String,
++        transport_layer: TransportLayer,
++        cancel_token: CancellationToken,
++        timer_interval: Option<Duration>,
++        allows: Vec<crate::sip::Method>,
++        option: Option<EndpointOption>,
++        message_inspector: Option<Box<dyn MessageInspector>>,
++        egress_effect_gate: Option<Arc<dyn EgressEffectGate>>,
++        locator: Option<Box<dyn TargetLocator>>,
++        transport_inspector: Option<Box<dyn TransportEventInspector>>,
++        capacity_limits: EndpointCapacityLimits,
+     ) -> Arc<Self> {
+         let (incoming_sender, incoming_receiver) =
+             channel(capacity_limits.incoming_transaction_queue_capacity);
+@@ -416,6 +500,7 @@ impl EndpointInner {
+             capacity: EndpointCapacityState::new(capacity_limits),
+             option: option.unwrap_or_default(),
+             message_inspector,
++            egress_effect_gate,
+             locator,
+             transport_inspector,
+         })
+@@ -646,6 +731,9 @@ impl EndpointInner {
+ 
+         match request.method {
+             crate::sip::Method::Cancel => {
++                // Protocol-emergency responses have no admitted transaction or
++                // application effect identity, so they deliberately bypass the
++                // durable egress gate and remain available during store outage.
+                 let resp = self.make_response(
+                     &request,
+                     crate::sip::StatusCode::CallTransactionDoesNotExist,
+@@ -656,6 +744,7 @@ impl EndpointInner {
+                 } else {
+                     resp.into()
+                 };
++                let resp = super::transaction::finalize_outbound_message(resp);
+ 
+                 let dest = if !connection.is_reliable() {
+                     self.get_destination_from_request(&request).await
+@@ -694,6 +783,9 @@ impl EndpointInner {
+         request: &crate::sip::Request,
+         connection: &SipConnection,
+     ) -> Result<()> {
++        // This stateless overload response must remain available when neither
++        // transaction admission nor the application-owned durable store is
++        // available. It therefore bypasses the durable egress gate by design.
+         let mut response =
+             self.make_response(request, crate::sip::StatusCode::ServiceUnavailable, None);
+         response
+@@ -704,6 +796,7 @@ impl EndpointInner {
+         } else {
+             response.into()
+         };
++        let response = super::transaction::finalize_outbound_message(response);
+         let destination = if !connection.is_reliable() {
+             self.get_destination_from_request(request).await
+         } else {
+@@ -847,6 +940,7 @@ impl EndpointBuilder {
+             timer_interval: None,
+             option: None,
+             message_inspector: None,
++            egress_effect_gate: None,
+             target_locator: None,
+             transport_inspector: None,
+             domain_resolver: None,
+@@ -886,6 +980,10 @@ impl EndpointBuilder {
+         self.message_inspector = Some(inspector);
+         self
+     }
++    pub fn with_egress_effect_gate(&mut self, gate: Arc<dyn EgressEffectGate>) -> &mut Self {
++        self.egress_effect_gate = Some(gate);
++        self
++    }
+     pub fn with_target_locator(&mut self, locator: Box<dyn TargetLocator>) -> &mut Self {
+         self.target_locator = Some(locator);
+         self
+@@ -928,10 +1026,11 @@ impl EndpointBuilder {
+         let timer_interval = self.timer_interval.to_owned();
+         let option = self.option.take();
+         let message_inspector = self.message_inspector.take();
++        let egress_effect_gate = self.egress_effect_gate.take();
+         let locator = self.target_locator.take();
+         let transport_inspector = self.transport_inspector.take();
+ 
+-        let core = EndpointInner::new(
++        let core = EndpointInner::new_with_egress_effect_gate(
+             user_agent,
+             transport_layer,
+             cancel_token,
+@@ -939,6 +1038,7 @@ impl EndpointBuilder {
+             allows,
+             option,
+             message_inspector,
++            egress_effect_gate,
+             locator,
+             transport_inspector,
+             capacity_limits,
+@@ -986,6 +1086,18 @@ impl Endpoint {
+ mod capacity_tests {
+     use super::*;
+ 
++    #[test]
++    fn egress_effect_permit_rejects_unbounded_or_ambiguous_tokens() {
++        assert!(EgressEffectPermit::try_new("").is_err());
++        assert!(EgressEffectPermit::try_new("contains whitespace").is_err());
++        assert!(EgressEffectPermit::try_new("contains\ncontrol").is_err());
++        assert!(EgressEffectPermit::try_new("é").is_err());
++        assert!(EgressEffectPermit::try_new(&"x".repeat(257)).is_err());
++
++        let permit = EgressEffectPermit::try_new(&"x".repeat(256)).expect("bounded token");
++        assert_eq!(permit.token().len(), 256);
++    }
++
+     #[test]
+     fn endpoint_capacity_limits_reject_zero_values() {
+         assert!(EndpointCapacityLimits::try_new(0, 1, 1, 1).is_err());
+diff --git a/src/transaction/transaction.rs b/src/transaction/transaction.rs
+index 92ab3bd..176f391 100644
+--- a/src/transaction/transaction.rs
++++ b/src/transaction/transaction.rs
+@@ -1,4 +1,4 @@
+-use super::endpoint::EndpointInnerRef;
++use super::endpoint::{EgressEffectOutcome, EgressEffectPermit, EndpointInnerRef};
+ use super::key::TransactionKey;
+ use super::{SipConnection, TransactionState, TransactionTimer, TransactionType};
+ use crate::bounded::{self, BoundedReceiver, BoundedSender};
+@@ -23,6 +23,17 @@ pub enum ServerInviteTermination {
+     TransportError,
+ }
+ 
++pub(super) fn finalize_outbound_message(mut message: SipMessage) -> SipMessage {
++    let body_len = match &message {
++        SipMessage::Request(request) => request.body.len(),
++        SipMessage::Response(response) => response.body.len(),
++    };
++    message
++        .headers_mut()
++        .unique_push(Header::ContentLength(ContentLength::from(body_len as u32)));
++    message
++}
++
+ /// SIP Transaction Events
+ ///
+ /// `TransactionEvent` represents the various events that can occur during
+@@ -182,6 +193,7 @@ pub struct Transaction {
+     pub connection: Option<SipConnection>,
+     pub last_response: Option<Response>,
+     pub last_ack: Option<Request>,
++    frozen_initial_request: Option<SipMessage>,
+     pub tu_receiver: TransactionEventReceiver,
+     pub tu_sender: TransactionEventSender,
+     pub timer_a: Option<u64>,
+@@ -199,6 +211,37 @@ pub struct Transaction {
+ }
+ 
+ impl Transaction {
++    async fn prepare_egress_effect(
++        &self,
++        message: &SipMessage,
++    ) -> Result<Option<EgressEffectPermit>> {
++        if matches!(
++            message,
++            SipMessage::Response(response) if response.status_code == StatusCode::Trying
++        ) {
++            return Ok(None);
++        }
++        match self.endpoint_inner.egress_effect_gate.as_ref() {
++            Some(gate) => Ok(Some(
++                gate.prepare(&self.key, message, self.destination.as_ref())
++                    .await?,
++            )),
++            None => Ok(None),
++        }
++    }
++
++    fn observe_egress_transport(
++        &self,
++        permit: Option<EgressEffectPermit>,
++        outcome: EgressEffectOutcome,
++    ) {
++        if let (Some(gate), Some(permit)) =
++            (self.endpoint_inner.egress_effect_gate.as_ref(), permit)
++        {
++            gate.observe_transport(permit, outcome);
++        }
++    }
++
+     fn new(
+         transaction_type: TransactionType,
+         key: TransactionKey,
+@@ -226,6 +269,7 @@ impl Transaction {
+             state,
+             last_response: None,
+             last_ack: None,
++            frozen_initial_request: None,
+             timer_a: None,
+             timer_b: None,
+             timer_c: None,
+@@ -330,43 +374,68 @@ impl Transaction {
+             .headers_mut()
+             .unique_push(content_length_header);
+ 
+-        let message = if let Some(ref inspector) = self.endpoint_inner.message_inspector {
+-            inspector.before_send(self.original.to_owned().into(), self.destination.as_ref())
+-        } else {
+-            self.original.to_owned().into()
+-        };
++        let message = finalize_outbound_message(match self.frozen_initial_request.as_ref() {
++            Some(message) => message.clone(),
++            None => {
++                if let Some(ref inspector) = self.endpoint_inner.message_inspector {
++                    inspector
++                        .before_send(self.original.to_owned().into(), self.destination.as_ref())
++                } else {
++                    self.original.to_owned().into()
++                }
++            }
++        });
++        let effect_permit = self.prepare_egress_effect(&message).await?;
++        if self.frozen_initial_request.is_none() {
++            self.frozen_initial_request = Some(message.clone());
++        }
+ 
+-        if let Err(error) = connection
++        let send_result = match connection
+             .send(message.clone(), self.destination.as_ref())
+             .await
+         {
+-            if !is_retryable_tcp_send_error(&connection, &error) {
++            Ok(()) => Ok(None),
++            Err(error) if is_retryable_tcp_send_error(connection, &error) => {
++                debug!(
++                    key = %self.key,
++                    error = %error,
++                    "TCP send failed; reconnecting once"
++                );
++                self.endpoint_inner
++                    .transport_layer
++                    .del_connection_if_same(connection);
++                let retry_result: Result<SipConnection> = async {
++                    let destination = self.destination.clone().ok_or(Error::TransactionError(
++                        "no destination found for TCP reconnect".to_string(),
++                        self.key.clone(),
++                    ))?;
++                    let (retry_connection, resolved_addr) = self
++                        .endpoint_inner
++                        .transport_layer
++                        .lookup(&destination, Some(&self.key))
++                        .await?;
++                    self.destination.replace(resolved_addr);
++                    retry_connection
++                        .send(message, self.destination.as_ref())
++                        .await?;
++                    Ok(retry_connection)
++                }
++                .await;
++                retry_result.map(Some)
++            }
++            Err(error) => Err(error),
++        };
++        match send_result {
++            Ok(Some(retry_connection)) => {
++                self.connection.replace(retry_connection);
++            }
++            Ok(None) => {}
++            Err(error) => {
++                self.observe_egress_transport(effect_permit, EgressEffectOutcome::TransportUnknown);
+                 return Err(error);
+             }
+-
+-            debug!(
+-                key = %self.key,
+-                error = %error,
+-                "TCP send failed; reconnecting once"
+-            );
+-            self.endpoint_inner
+-                .transport_layer
+-                .del_connection_if_same(&connection);
+-            let destination = self.destination.clone().ok_or(Error::TransactionError(
+-                "no destination found for TCP reconnect".to_string(),
+-                self.key.clone(),
+-            ))?;
+-            let (retry_connection, resolved_addr) = self
+-                .endpoint_inner
+-                .transport_layer
+-                .lookup(&destination, Some(&self.key))
+-                .await?;
+-            self.destination.replace(resolved_addr);
+-            retry_connection
+-                .send(message, self.destination.as_ref())
+-                .await?;
+-            self.connection.replace(retry_connection);
+         }
++        self.observe_egress_transport(effect_permit, EgressEffectOutcome::TransportAccepted);
+         self.transition(TransactionState::Calling).map(|_| ())
+     }
+ 
+@@ -427,14 +496,17 @@ impl Transaction {
+             self.key.clone(),
+         ))?;
+ 
+-        let response = if let Some(ref inspector) = self.endpoint_inner.message_inspector {
+-            inspector.before_send(
+-                response.clone().to_owned().into(),
+-                self.destination.as_ref(),
+-            )
+-        } else {
+-            response.to_owned().into()
+-        };
++        let response = finalize_outbound_message(
++            if let Some(ref inspector) = self.endpoint_inner.message_inspector {
++                inspector.before_send(
++                    response.clone().to_owned().into(),
++                    self.destination.as_ref(),
++                )
++            } else {
++                response.to_owned().into()
++            },
++        );
++        let effect_permit = self.prepare_egress_effect(&response).await?;
+         trace!(key = %self.key, response = %response, "responding");
+ 
+         let is_non_2xx_server_invite = self.transaction_type == TransactionType::ServerInvite
+@@ -444,11 +516,13 @@ impl Transaction {
+             .send(response.clone(), self.destination.as_ref())
+             .await
+         {
++            self.observe_egress_transport(effect_permit, EgressEffectOutcome::TransportUnknown);
+             if is_non_2xx_server_invite {
+                 self.terminate_server_invite_transport_error(&error);
+             }
+             return Err(error);
+         }
++        self.observe_egress_transport(effect_permit, EgressEffectOutcome::TransportAccepted);
+         if let SipMessage::Response(response) = response {
+             self.last_response.replace(response);
+         }
+@@ -500,14 +574,27 @@ impl Transaction {
+         match self.state {
+             TransactionState::Calling | TransactionState::Trying | TransactionState::Proceeding => {
+                 if let Some(connection) = &self.connection {
+-                    let cancel = if let Some(ref inspector) = self.endpoint_inner.message_inspector
+-                    {
+-                        inspector.before_send(cancel.to_owned().into(), self.destination.as_ref())
+-                    } else {
+-                        cancel.to_owned().into()
+-                    };
++                    let cancel = finalize_outbound_message(
++                        if let Some(ref inspector) = self.endpoint_inner.message_inspector {
++                            inspector
++                                .before_send(cancel.to_owned().into(), self.destination.as_ref())
++                        } else {
++                            cancel.to_owned().into()
++                        },
++                    );
+ 
+-                    connection.send(cancel, self.destination.as_ref()).await?;
++                    let effect_permit = self.prepare_egress_effect(&cancel).await?;
++                    if let Err(error) = connection.send(cancel, self.destination.as_ref()).await {
++                        self.observe_egress_transport(
++                            effect_permit,
++                            EgressEffectOutcome::TransportUnknown,
++                        );
++                        return Err(error);
++                    }
++                    self.observe_egress_transport(
++                        effect_permit,
++                        EgressEffectOutcome::TransportAccepted,
++                    );
+                 }
+                 Ok(())
+             }
+@@ -575,18 +662,25 @@ impl Transaction {
+             }
+         }
+ 
+-        let ack = if let Some(ref inspector) = self.endpoint_inner.message_inspector {
+-            inspector.before_send(ack.to_owned().into(), self.destination.as_ref())
+-        } else {
+-            ack.to_owned().into()
+-        };
++        let ack = finalize_outbound_message(
++            if let Some(ref inspector) = self.endpoint_inner.message_inspector {
++                inspector.before_send(ack.to_owned().into(), self.destination.as_ref())
++            } else {
++                ack.to_owned().into()
++            },
++        );
+ 
+         match ack.clone() {
+             SipMessage::Request(ack) => self.last_ack.replace(ack),
+             _ => None,
+         };
+         if let Some(conn) = connection {
+-            conn.send(ack, self.destination.as_ref()).await?;
++            let effect_permit = self.prepare_egress_effect(&ack).await?;
++            if let Err(error) = conn.send(ack, self.destination.as_ref()).await {
++                self.observe_egress_transport(effect_permit, EgressEffectOutcome::TransportUnknown);
++                return Err(error);
++            }
++            self.observe_egress_transport(effect_permit, EgressEffectOutcome::TransportAccepted);
+         }
+         // client send ack and transition to Terminated
+         self.transition(TransactionState::Terminated).map(|_| ())
+@@ -731,12 +825,13 @@ impl Transaction {
+                             .endpoint_inner
+                             .make_response(&req, StatusCode::OK, None);
+ 
+-                        let resp =
++                        let resp = finalize_outbound_message(
+                             if let Some(ref inspector) = self.endpoint_inner.message_inspector {
+                                 inspector.before_send(resp.into(), self.destination.as_ref())
+                             } else {
+                                 resp.into()
+-                            };
++                            },
++                        );
+ 
+                         connection.send(resp, self.destination.as_ref()).await.ok();
+                     }
+@@ -749,12 +844,13 @@ impl Transaction {
+                             StatusCode::CallTransactionDoesNotExist,
+                             None,
+                         );
+-                        let resp =
++                        let resp = finalize_outbound_message(
+                             if let Some(ref inspector) = self.endpoint_inner.message_inspector {
+                                 inspector.before_send(resp.into(), self.destination.as_ref())
+                             } else {
+                                 resp.into()
+-                            };
++                            },
++                        );
+                         connection.send(resp, self.destination.as_ref()).await.ok();
+                     }
+                 }
+@@ -825,15 +921,23 @@ impl Transaction {
+             }
+         };
+ 
+-        self.can_transition(&new_state).ok()?;
+         if self.state == new_state {
+             if let Some(last) = self.last_response.as_ref() {
+                 if last.status_code == resp.status_code && last.body == resp.body {
+-                    // ignore duplicate response
++                    // A failed ACK prepare/send leaves an INVITE transaction in
++                    // Completed. A retransmitted final response is the protocol
++                    // retry signal, so retry the same frozen ACK effect instead
++                    // of silently discarding the response forever.
++                    if self.transaction_type == TransactionType::ClientInvite
++                        && new_state == TransactionState::Completed
++                    {
++                        self.send_ack(connection.clone()).await.ok();
++                    }
+                     return None;
+                 }
+             }
+         }
++        self.can_transition(&new_state).ok()?;
+ 
+         self.last_response.replace(resp.clone());
+         let is_completed_client_invite = self.transaction_type == TransactionType::ClientInvite
+@@ -858,16 +962,10 @@ impl Transaction {
+                     if let TransactionTimer::TimerA(key, duration) = timer {
+                         // Resend the INVITE request
+                         if let Some(connection) = &self.connection {
+-                            let retry_message = if let Some(ref inspector) =
+-                                self.endpoint_inner.message_inspector
+-                            {
+-                                inspector.before_send(
+-                                    self.original.to_owned().into(),
+-                                    self.destination.as_ref(),
+-                                )
+-                            } else {
+-                                self.original.to_owned().into()
+-                            };
++                            let retry_message = self
++                                .frozen_initial_request
++                                .clone()
++                                .unwrap_or_else(|| self.original.to_owned().into());
+                             connection
+                                 .send(retry_message, self.destination.as_ref())
+                                 .await?;
+diff --git a/src/transaction/tests/test_client.rs b/src/transaction/tests/test_client.rs
+index a3bda4e..26e4cf6 100644
+--- a/src/transaction/tests/test_client.rs
++++ b/src/transaction/tests/test_client.rs
+@@ -1,14 +1,344 @@
+ use crate::bounded::test_channel;
+ use crate::sip::{headers::*, prelude::HeadersExt, Header, Response, SipMessage, Uri};
++use crate::transaction::endpoint::{
++    EgressEffectGate, EgressEffectOutcome, EgressEffectPermit, MessageInspector,
++};
+ use crate::transaction::key::{TransactionKey, TransactionRole};
+-use crate::transaction::transaction::Transaction;
++use crate::transaction::transaction::{Transaction, TransactionEvent};
++use crate::transaction::{TransactionState, TransactionTimer};
+ use crate::transport::udp::UdpConnection;
+-use crate::{transport::TransportEvent, Result};
++use crate::transport::SipAddr;
++use crate::{transport::TransportEvent, EndpointBuilder, Result};
+ use std::convert::TryFrom;
++use std::sync::{
++    atomic::{AtomicUsize, Ordering},
++    Arc, Mutex,
++};
+ use std::time::Duration;
+-use tokio::{select, time::sleep};
++use tokio::{
++    select,
++    time::{sleep, timeout},
++};
+ use tracing::info;
+ 
++struct RecordingEgressEffectGate {
++    prepare_calls: AtomicUsize,
++    fail_on_prepare_call: Option<usize>,
++    messages: Mutex<Vec<SipMessage>>,
++    outcomes: Mutex<Vec<EgressEffectOutcome>>,
++}
++
++#[async_trait::async_trait]
++impl EgressEffectGate for RecordingEgressEffectGate {
++    async fn prepare(
++        &self,
++        _transaction_key: &TransactionKey,
++        message: &SipMessage,
++        _destination: Option<&SipAddr>,
++    ) -> crate::Result<EgressEffectPermit> {
++        let call = self.prepare_calls.fetch_add(1, Ordering::SeqCst) + 1;
++        self.messages
++            .lock()
++            .expect("message lock")
++            .push(message.clone());
++        if self.fail_on_prepare_call == Some(call) {
++            return Err(crate::Error::EndpointError(
++                "durable egress decision unavailable".to_string(),
++            ));
++        }
++        EgressEffectPermit::try_new(&format!("client-effect-{call}"))
++    }
++
++    fn observe_transport(&self, _permit: EgressEffectPermit, outcome: EgressEffectOutcome) {
++        self.outcomes.lock().expect("outcome lock").push(outcome);
++    }
++}
++
++async fn udp_client_transaction_with_effect_gate(
++    gate: Arc<dyn EgressEffectGate>,
++) -> (Transaction, UdpConnection) {
++    udp_client_transaction_with_effect_gate_and_inspector(gate, None).await
++}
++
++async fn udp_client_transaction_with_effect_gate_and_inspector(
++    gate: Arc<dyn EgressEffectGate>,
++    inspector: Option<Box<dyn MessageInspector>>,
++) -> (Transaction, UdpConnection) {
++    let client = UdpConnection::create_connection(
++        "127.0.0.1:0".parse().expect("client address"),
++        None,
++        None,
++    )
++    .await
++    .expect("client UDP");
++    let peer =
++        UdpConnection::create_connection("127.0.0.1:0".parse().expect("peer address"), None, None)
++            .await
++            .expect("peer UDP");
++    let mut builder = EndpointBuilder::new();
++    builder
++        .with_user_agent("rsipstack-client-effect-gate-test")
++        .with_egress_effect_gate(gate);
++    if let Some(inspector) = inspector {
++        builder.with_inspector(inspector);
++    }
++    let endpoint = builder.build();
++    let request = make_invite_request("sip:bob@example.test").expect("INVITE");
++    let key =
++        TransactionKey::from_request(&request, TransactionRole::Client).expect("transaction key");
++    let mut transaction =
++        Transaction::new_client(key, request, endpoint.inner.clone(), Some(client.into()));
++    transaction.destination = Some(peer.get_addr().clone());
++    (transaction, peer)
++}
++
++async fn recv_udp_message(peer: &UdpConnection) -> SipMessage {
++    let buffer = recv_udp_bytes(peer).await;
++    SipMessage::try_from(buffer.as_slice()).expect("valid SIP message")
++}
++
++async fn recv_udp_bytes(peer: &UdpConnection) -> Vec<u8> {
++    let mut buffer = vec![0_u8; 65_535];
++    let (len, _) = timeout(Duration::from_secs(1), peer.recv_raw(&mut buffer))
++        .await
++        .expect("UDP message timeout")
++        .expect("UDP message");
++    buffer.truncate(len);
++    buffer
++}
++
++fn busy_response() -> Response {
++    Response::try_from(
++        "SIP/2.0 486 Busy Here\r\n\
++Via: SIP/2.0/TCP uac.example.com:5060;branch=z9hG4bK1\r\n\
++From: <sip:alice@example.com>;tag=from-tag\r\n\
++To: <sip:bob@example.com>;tag=to-tag\r\n\
++Call-ID: callid@example.com\r\n\
++CSeq: 1 INVITE\r\n\
++Content-Length: 0\r\n\r\n",
++    )
++    .expect("486 response")
++}
++
++#[tokio::test]
++async fn client_initial_cancel_and_ack_each_require_one_egress_effect_decision() {
++    let gate = Arc::new(RecordingEgressEffectGate {
++        prepare_calls: AtomicUsize::new(0),
++        fail_on_prepare_call: None,
++        messages: Mutex::new(Vec::new()),
++        outcomes: Mutex::new(Vec::new()),
++    });
++    let (mut transaction, peer) = udp_client_transaction_with_effect_gate(gate.clone()).await;
++
++    transaction.send().await.expect("send INVITE");
++    assert!(
++        matches!(recv_udp_message(&peer).await, SipMessage::Request(request) if request.method == crate::sip::Method::Invite)
++    );
++
++    let mut cancel = transaction.original.clone();
++    cancel.method = crate::sip::Method::Cancel;
++    cancel.headers.unique_push(CSeq::new("1 CANCEL").into());
++    transaction.send_cancel(cancel).await.expect("send CANCEL");
++    assert!(
++        matches!(recv_udp_message(&peer).await, SipMessage::Request(request) if request.method == crate::sip::Method::Cancel)
++    );
++
++    transaction.state = TransactionState::Completed;
++    transaction.last_response = Some(busy_response());
++    transaction
++        .send_ack(transaction.connection.clone())
++        .await
++        .expect("send ACK");
++    assert!(
++        matches!(recv_udp_message(&peer).await, SipMessage::Request(request) if request.method == crate::sip::Method::Ack)
++    );
++
++    assert_eq!(gate.prepare_calls.load(Ordering::SeqCst), 3);
++    let methods: Vec<_> = gate
++        .messages
++        .lock()
++        .expect("message lock")
++        .iter()
++        .filter_map(|message| match message {
++            SipMessage::Request(request) => Some(request.method.clone()),
++            SipMessage::Response(_) => None,
++        })
++        .collect();
++    assert_eq!(
++        methods,
++        [
++            crate::sip::Method::Invite,
++            crate::sip::Method::Cancel,
++            crate::sip::Method::Ack,
++        ]
++    );
++    assert_eq!(
++        gate.outcomes.lock().expect("outcome lock").as_slice(),
++        [
++            EgressEffectOutcome::TransportAccepted,
++            EgressEffectOutcome::TransportAccepted,
++            EgressEffectOutcome::TransportAccepted,
++        ]
++    );
++}
++
++#[tokio::test]
++async fn client_initial_prepare_failure_emits_no_bytes_and_preserves_nothing_state() {
++    let gate = Arc::new(RecordingEgressEffectGate {
++        prepare_calls: AtomicUsize::new(0),
++        fail_on_prepare_call: Some(1),
++        messages: Mutex::new(Vec::new()),
++        outcomes: Mutex::new(Vec::new()),
++    });
++    let (mut transaction, peer) = udp_client_transaction_with_effect_gate(gate.clone()).await;
++
++    assert!(transaction.send().await.is_err());
++    assert_eq!(transaction.state, TransactionState::Nothing);
++    assert_eq!(gate.prepare_calls.load(Ordering::SeqCst), 1);
++    assert!(gate.outcomes.lock().expect("outcome lock").is_empty());
++    let mut buffer = [0_u8; 2048];
++    assert!(
++        timeout(Duration::from_millis(25), peer.recv_raw(&mut buffer))
++            .await
++            .is_err(),
++        "a rejected durable decision must emit no SIP bytes"
++    );
++}
++
++#[tokio::test]
++async fn client_duplicate_final_retries_ack_after_durable_prepare_recovers() {
++    let gate = Arc::new(RecordingEgressEffectGate {
++        prepare_calls: AtomicUsize::new(0),
++        fail_on_prepare_call: Some(2),
++        messages: Mutex::new(Vec::new()),
++        outcomes: Mutex::new(Vec::new()),
++    });
++    let (mut transaction, peer) = udp_client_transaction_with_effect_gate(gate.clone()).await;
++
++    transaction.send().await.expect("send INVITE");
++    assert!(matches!(
++        recv_udp_message(&peer).await,
++        SipMessage::Request(request) if request.method == crate::sip::Method::Invite
++    ));
++
++    let final_response = busy_response();
++    transaction
++        .tu_sender
++        .send(TransactionEvent::Received(
++            final_response.clone().into(),
++            transaction.connection.clone(),
++        ))
++        .expect("first final response");
++    assert!(matches!(
++        transaction.receive().await,
++        Some(SipMessage::Response(response)) if response.status_code == crate::sip::StatusCode::BusyHere
++    ));
++    assert_eq!(transaction.state, TransactionState::Completed);
++    let mut buffer = [0_u8; 2048];
++    assert!(
++        timeout(Duration::from_millis(25), peer.recv_raw(&mut buffer))
++            .await
++            .is_err(),
++        "a rejected ACK durable decision must emit no bytes"
++    );
++
++    transaction
++        .tu_sender
++        .send(TransactionEvent::Received(
++            final_response.into(),
++            transaction.connection.clone(),
++        ))
++        .expect("duplicate final response");
++    assert!(matches!(
++        timeout(Duration::from_millis(25), transaction.receive()).await,
++        Ok(None)
++    ));
++    assert!(matches!(
++        recv_udp_message(&peer).await,
++        SipMessage::Request(request) if request.method == crate::sip::Method::Ack
++    ));
++    assert_eq!(transaction.state, TransactionState::Terminated);
++    assert_eq!(gate.prepare_calls.load(Ordering::SeqCst), 3);
++    assert_eq!(
++        gate.outcomes.lock().expect("outcome lock").as_slice(),
++        [
++            EgressEffectOutcome::TransportAccepted,
++            EgressEffectOutcome::TransportAccepted,
++        ]
++    );
++}
++
++struct CountingRequestInspector {
++    calls: Arc<AtomicUsize>,
++}
++
++impl MessageInspector for CountingRequestInspector {
++    fn before_send(&self, mut message: SipMessage, _destination: Option<&SipAddr>) -> SipMessage {
++        let call = self.calls.fetch_add(1, Ordering::SeqCst) + 1;
++        if let SipMessage::Request(request) = &mut message {
++            request.body = b"payload".to_vec();
++            request
++                .headers
++                .unique_push(ContentLength::from(0_u32).into());
++            request
++                .headers
++                .push(Header::Other("X-Wire-Generation".into(), call.to_string()));
++        }
++        message
++    }
++
++    fn after_received(&self, message: SipMessage, _source: Option<&SipAddr>) -> SipMessage {
++        message
++    }
++}
++
++#[tokio::test]
++async fn client_timer_retransmission_reuses_frozen_bytes_without_new_effect_decision() {
++    let gate = Arc::new(RecordingEgressEffectGate {
++        prepare_calls: AtomicUsize::new(0),
++        fail_on_prepare_call: None,
++        messages: Mutex::new(Vec::new()),
++        outcomes: Mutex::new(Vec::new()),
++    });
++    let inspector_calls = Arc::new(AtomicUsize::new(0));
++    let (mut transaction, peer) = udp_client_transaction_with_effect_gate_and_inspector(
++        gate.clone(),
++        Some(Box::new(CountingRequestInspector {
++            calls: inspector_calls.clone(),
++        })),
++    )
++    .await;
++
++    transaction.send().await.expect("initial INVITE");
++    let initial = recv_udp_bytes(&peer).await;
++    assert!(
++        String::from_utf8_lossy(&initial).contains("Content-Length: 7\r\n"),
++        "Content-Length must be finalized after the inspector"
++    );
++    transaction
++        .tu_sender
++        .send(TransactionEvent::Timer(TransactionTimer::TimerA(
++            transaction.key.clone(),
++            Duration::from_millis(10),
++        )))
++        .expect("Timer A event");
++    assert!(
++        timeout(Duration::from_millis(20), transaction.receive())
++            .await
++            .is_err(),
++        "Timer A must not deliver a transaction-user message"
++    );
++    let replay = recv_udp_bytes(&peer).await;
++
++    assert_eq!(replay, initial, "Timer A must replay exact frozen bytes");
++    assert_eq!(inspector_calls.load(Ordering::SeqCst), 1);
++    assert_eq!(
++        gate.prepare_calls.load(Ordering::SeqCst),
++        1,
++        "protocol retransmission must reuse the durable decision"
++    );
++}
++
+ fn make_invite_request(uri: &str) -> Result<crate::sip::Request> {
+     Ok(crate::sip::Request {
+         method: crate::sip::Method::Invite,
+diff --git a/src/transaction/tests/test_server.rs b/src/transaction/tests/test_server.rs
+index 4077895..6cfdef6 100644
+--- a/src/transaction/tests/test_server.rs
++++ b/src/transaction/tests/test_server.rs
+@@ -1,5 +1,8 @@
+ use crate::sip::{headers::*, HeadersExt};
+-use crate::transaction::endpoint::{EndpointCapacityLimits, EndpointOption, MessageInspector};
++use crate::transaction::endpoint::{
++    EgressEffectGate, EgressEffectOutcome, EgressEffectPermit, EndpointCapacityLimits,
++    EndpointOption, MessageInspector,
++};
+ use crate::transaction::transaction::{ServerInviteTermination, TransactionEvent};
+ use crate::transaction::{TransactionState, TransactionTimer};
+ use crate::transport::{
+@@ -23,6 +26,34 @@ use tokio::{
+ use tokio_util::sync::CancellationToken;
+ use tracing::info;
+ 
++struct RecordingEgressEffectGate {
++    prepare_calls: AtomicUsize,
++    outcomes: std::sync::Mutex<Vec<EgressEffectOutcome>>,
++    reject_prepare: bool,
++}
++
++#[async_trait::async_trait]
++impl EgressEffectGate for RecordingEgressEffectGate {
++    async fn prepare(
++        &self,
++        _transaction_key: &crate::transaction::TransactionKey,
++        _message: &crate::sip::SipMessage,
++        _destination: Option<&SipAddr>,
++    ) -> crate::Result<EgressEffectPermit> {
++        self.prepare_calls.fetch_add(1, Ordering::SeqCst);
++        if self.reject_prepare {
++            return Err(crate::Error::EndpointError(
++                "durable egress decision unavailable".to_string(),
++            ));
++        }
++        EgressEffectPermit::try_new("effect-test-1")
++    }
++
++    fn observe_transport(&self, _permit: EgressEffectPermit, outcome: EgressEffectOutcome) {
++        self.outcomes.lock().expect("outcome lock").push(outcome);
++    }
++}
++
+ fn invite_request(via_transport: &str, via_addr: &SipAddr, branch: &str) -> crate::sip::Request {
+     crate::sip::Request {
+         method: crate::sip::Method::Invite,
+@@ -92,6 +123,108 @@ async fn recv_udp_bytes(peer: &UdpConnection) -> Vec<u8> {
+     buffer
+ }
+ 
++async fn udp_server_transaction_with_effect_gate(
++    gate: Arc<dyn EgressEffectGate>,
++) -> (crate::transaction::transaction::Transaction, UdpConnection) {
++    let server = UdpConnection::create_connection(
++        "127.0.0.1:0".parse().expect("server address"),
++        None,
++        None,
++    )
++    .await
++    .expect("server UDP");
++    let peer =
++        UdpConnection::create_connection("127.0.0.1:0".parse().expect("peer address"), None, None)
++            .await
++            .expect("peer UDP");
++    let mut builder = EndpointBuilder::new();
++    builder
++        .with_user_agent("rsipstack-effect-gate-test")
++        .with_egress_effect_gate(gate);
++    let endpoint = builder.build();
++    let request = invite_request("UDP", peer.get_addr(), "z9hG4bK-effect-gate");
++    let key = crate::transaction::TransactionKey::from_request(
++        &request,
++        crate::transaction::key::TransactionRole::Server,
++    )
++    .expect("transaction key");
++    let transaction = crate::transaction::transaction::Transaction::new_server(
++        key,
++        request,
++        endpoint.inner.clone(),
++        Some(server.into()),
++    );
++    (transaction, peer)
++}
++
++#[tokio::test]
++async fn egress_effect_gate_bypasses_trying_and_retransmission_but_gates_first_final_send() {
++    let gate = Arc::new(RecordingEgressEffectGate {
++        prepare_calls: AtomicUsize::new(0),
++        outcomes: std::sync::Mutex::new(Vec::new()),
++        reject_prepare: false,
++    });
++    let (mut transaction, peer) = udp_server_transaction_with_effect_gate(gate.clone()).await;
++
++    transaction.send_trying().await.expect("send Trying");
++    let _trying = recv_udp_bytes(&peer).await;
++    assert_eq!(gate.prepare_calls.load(Ordering::SeqCst), 0);
++
++    transaction
++        .reply(crate::sip::StatusCode::ServiceUnavailable)
++        .await
++        .expect("send final response");
++    let initial_final = recv_udp_bytes(&peer).await;
++    assert_eq!(gate.prepare_calls.load(Ordering::SeqCst), 1);
++    assert_eq!(
++        gate.outcomes.lock().expect("outcome lock").as_slice(),
++        [EgressEffectOutcome::TransportAccepted]
++    );
++
++    transaction
++        .tu_sender
++        .send(TransactionEvent::Received(
++            transaction.original.clone().into(),
++            None,
++        ))
++        .expect("duplicate INVITE event");
++    assert!(timeout(Duration::from_millis(20), transaction.receive())
++        .await
++        .is_err());
++    assert_eq!(recv_udp_bytes(&peer).await, initial_final);
++    assert_eq!(
++        gate.prepare_calls.load(Ordering::SeqCst),
++        1,
++        "exact-byte protocol retransmission must reuse the durable decision"
++    );
++}
++
++#[tokio::test]
++async fn egress_effect_prepare_failure_prevents_visible_send_and_state_transition() {
++    let gate = Arc::new(RecordingEgressEffectGate {
++        prepare_calls: AtomicUsize::new(0),
++        outcomes: std::sync::Mutex::new(Vec::new()),
++        reject_prepare: true,
++    });
++    let (mut transaction, peer) = udp_server_transaction_with_effect_gate(gate.clone()).await;
++
++    assert!(transaction
++        .reply(crate::sip::StatusCode::ServiceUnavailable)
++        .await
++        .is_err());
++    assert_eq!(gate.prepare_calls.load(Ordering::SeqCst), 1);
++    assert!(gate.outcomes.lock().expect("outcome lock").is_empty());
++    assert_eq!(transaction.state, TransactionState::Trying);
++
++    let mut buffer = [0_u8; 2048];
++    assert!(
++        timeout(Duration::from_millis(25), peer.recv_raw(&mut buffer))
++            .await
++            .is_err(),
++        "a rejected durable decision must emit no SIP bytes"
++    );
++}
++
+ struct CountingWireInspector {
+     calls: Arc<AtomicUsize>,
+ }
+@@ -448,6 +581,11 @@ async fn reliable_transport_uses_h_but_no_g_or_i() {
+ 
+ #[tokio::test]
+ async fn initial_final_send_failure_does_not_commit_response_and_terminates() {
++    let gate = Arc::new(RecordingEgressEffectGate {
++        prepare_calls: AtomicUsize::new(0),
++        outcomes: std::sync::Mutex::new(Vec::new()),
++        reject_prepare: false,
++    });
+     let (_incoming_tx, incoming_rx) = crate::bounded::test_channel();
+     let (outgoing_tx, outgoing_rx) = crate::bounded::test_channel();
+     drop(outgoing_rx);
+@@ -462,6 +600,7 @@ async fn initial_final_send_failure_does_not_commit_response_and_terminates() {
+             .expect("channel connection");
+     let endpoint = EndpointBuilder::new()
+         .with_user_agent("rsipstack-test")
++        .with_egress_effect_gate(gate.clone())
+         .build();
+     let request = invite_request("UDP", &channel_addr, "z9hG4bK-final-send-failure");
+     let key = crate::transaction::TransactionKey::from_request(
+@@ -482,6 +621,11 @@ async fn initial_final_send_failure_does_not_commit_response_and_terminates() {
+         .is_err());
+     assert_eq!(transaction.state, TransactionState::Terminated);
+     assert!(transaction.last_response.is_none());
++    assert_eq!(gate.prepare_calls.load(Ordering::SeqCst), 1);
++    assert_eq!(
++        gate.outcomes.lock().expect("outcome lock").as_slice(),
++        [EgressEffectOutcome::TransportUnknown]
++    );
+     assert_eq!(
+         transaction
+             .drain_non_2xx_server_invite()
+@@ -567,6 +711,11 @@ async fn invite_2xx_does_not_start_non_2xx_g_or_h() {
+ 
+ #[tokio::test]
+ async fn endpoint_capacity_emergency_503_remains_stateless() {
++    let gate = Arc::new(RecordingEgressEffectGate {
++        prepare_calls: AtomicUsize::new(0),
++        outcomes: std::sync::Mutex::new(Vec::new()),
++        reject_prepare: true,
++    });
+     let server = UdpConnection::create_connection(
+         "127.0.0.1:0".parse().expect("server address"),
+         None,
+@@ -580,6 +729,7 @@ async fn endpoint_capacity_emergency_503_remains_stateless() {
+             .expect("peer UDP");
+     let endpoint = EndpointBuilder::new()
+         .with_user_agent("rsipstack-test")
++        .with_egress_effect_gate(gate.clone())
+         .with_capacity_limits(EndpointCapacityLimits::try_new(1, 8, 8, 8).expect("capacity limits"))
+         .build();
+     let mut incoming = endpoint
+@@ -610,6 +760,8 @@ async fn endpoint_capacity_emergency_503_remains_stateless() {
+     let stats = endpoint.inner.get_stats();
+     assert_eq!(stats.running_transactions, 1);
+     assert_eq!(stats.active_limit_rejections_total, 1);
++    assert_eq!(gate.prepare_calls.load(Ordering::SeqCst), 0);
++    assert!(gate.outcomes.lock().expect("outcome lock").is_empty());
+ 
+     drop(first_transaction);
+     assert_eq!(endpoint.inner.get_stats().running_transactions, 0);

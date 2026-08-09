@@ -361,6 +361,33 @@ physical PostgreSQL cases, real-peer, restart and capacity campaigns are still
 the durable SipEffect writer remain `not_run`; consequently
 `G03-E16-NATIVE-AUTHORITY` and production eligibility are not promoted.
 
+ivekit.55 adds an optional, application-owned durable egress-effect gate at
+the existing rsipstack transaction boundary. When configured, the first
+externally visible client request, CANCEL, ACK and application response must
+receive a durable permit before transport send; permit failure emits no bytes
+and does not advance transaction state. The gate sees the post-inspector SIP
+message after canonical `Content-Length` finalization. A synchronous bounded
+observer distinguishes transport acceptance from an unknown send result
+without putting database work, a spawned task, an unbounded queue or a scan in
+rsipstack.
+
+Protocol retransmissions reuse the frozen post-inspector message and do not
+request another permit. Initial `100 Trying`, unknown-transaction `481` and
+admission-overload `503` remain protocol-emergency paths that deliberately
+bypass the application store. The existing public `EndpointInner::new`
+signature remains source compatible; only `EndpointBuilder` can opt into the
+private gate-aware constructor. Exact canonical wire bytes are not yet carried
+by the gate and remain a separate wire-freeze slice.
+
+The exact `.53 + .55` rsipstack source passes its locked local aarch64 macOS
+library suite (`279` passed, `0` failed), and the exact `.54` RustPBX plus
+`.55` rsipstack combination passes the locked RustPBX library suite (`1,967`
+passed, `0` failed, `5` ignored). The runtime PostgreSQL gate adapter remains
+`not_run`, as do exact Linux image, physical PostgreSQL restart, crash-window,
+real-peer and capacity campaigns for this patchset. No live SIP path activates
+the optional gate in this slice, `G03-E16-NATIVE-AUTHORITY` remains `not_run`,
+and production eligibility remains false.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the
