@@ -83,6 +83,19 @@ event ID/hash, or fails closed.
 
 Race decisions are explicit:
 
+- Direction is part of every transition key. `outbound` means local UAC and
+  `inbound` means local UAS; it is not display metadata. Once the Native Leg is
+  bound, compatibility updates cannot relabel it. Only outbound Legs may
+  register fork branches or select a fork winner.
+- An outbound INVITE 2xx requires the local idempotent ACK effect. An inbound
+  final 2xx enters `awaiting_ack` with no local ACK effect and becomes
+  `confirmed` only after the remote INVITE-2xx ACK is observed. If local
+  termination is requested first, `awaiting_ack_terminate` durably records the
+  deferred intent and sends BYE only after that ACK.
+- An inbound CANCEL before final response requires separately registered
+  durable 200-to-CANCEL and 487-to-INVITE effects. A CANCEL after the INVITE
+  2xx receives its 200 but cannot reverse `awaiting_ack`. A remote BYE requires
+  its durable 2xx response before terminal observation.
 - CANCEL before final response sends CANCEL and closes 487 with a non-2xx ACK.
 - A racing 2xx after CANCEL is ACKed and then terminated with BYE.
 - Every fork branch is registered under one explicit bounded attempt before its
@@ -235,7 +248,7 @@ observation distinguishable even though both converge the effect record to
 | State | Meaning |
 | --- | --- |
 | current | RustPBX/rsipstack is the native runtime; TypeScript contains bounded conformance/reference models and a physical PostgreSQL reference ledger, but these are not a second live SIP/Call authority |
-| target | The complete interface and corpus are frozen; `.57` contains bounded protocol/control mailboxes, the native Call/Leg model, bounded PostgreSQL SipEffect primitives and a default-disabled exact-wire rsipstack gate adapter. Exact-image wire, raw latency, SIPp/Asterisk interop and a 2-vCPU capacity regression remain controlled `.53` evidence only; `.57` live endpoint/all-direction activation, host requalification and Native Authority remain `not_run` |
+| target | The complete interface and corpus are frozen; `.58` contains bounded protocol/control mailboxes, the direction-keyed native Call/Leg model, bounded PostgreSQL SipEffect primitives and a default-disabled exact-wire rsipstack gate adapter. Exact-image wire, raw latency, SIPp/Asterisk interop and a 2-vCPU capacity regression remain controlled `.53` evidence only; `.58` live endpoint/all-direction activation, host requalification and Native Authority remain `not_run` |
 | production eligible | `false` until long-run, fault/OOM, Native Authority, allocation and multi-core scaling evidence pass independent review |
 
 No rvoip benchmark, old server result or historical Wave result is inherited.

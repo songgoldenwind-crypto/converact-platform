@@ -1,0 +1,559 @@
+diff --git a/src/call/domain/native_call.rs b/src/call/domain/native_call.rs
+index a8b14d97561a9626d70a777749cf945872766119..06bf17309af5dc3a510eda1d1a0842f18afdd5cf 100644
+--- a/src/call/domain/native_call.rs
++++ b/src/call/domain/native_call.rs
+@@ -107,6 +107,8 @@ pub enum NativeLegState {
+     Planned,
+     Inviting,
+     Early,
++    AwaitingAck,
++    AwaitingAckTerminate,
+     Confirmed,
+     Held,
+     Transferring,
+@@ -125,10 +127,15 @@ impl NativeLegState {
+ #[serde(rename_all = "snake_case")]
+ pub enum NativeLegEvent {
+     StartInvite,
++    InboundInviteObserved,
+     Provisional,
+     Final2xx,
++    FinalNon2xx,
++    Invite2xxAckObserved,
+     CancelRequested,
+     LateFinal2xx,
++    RemoteCancelObserved,
++    RemoteByeObserved,
+     HoldCommitted,
+     ResumeCommitted,
+     TransferPrepare,
+@@ -142,10 +149,15 @@ impl NativeLegEvent {
+     const fn as_str(self) -> &'static str {
+         match self {
+             Self::StartInvite => "start_invite",
++            Self::InboundInviteObserved => "inbound_invite_observed",
+             Self::Provisional => "provisional",
+             Self::Final2xx => "final_2xx",
++            Self::FinalNon2xx => "final_non_2xx",
++            Self::Invite2xxAckObserved => "invite_2xx_ack_observed",
+             Self::CancelRequested => "cancel_requested",
+             Self::LateFinal2xx => "late_final_2xx",
++            Self::RemoteCancelObserved => "remote_cancel_observed",
++            Self::RemoteByeObserved => "remote_bye_observed",
+             Self::HoldCommitted => "hold_committed",
+             Self::ResumeCommitted => "resume_committed",
+             Self::TransferPrepare => "transfer_prepare",
+@@ -162,9 +174,14 @@ impl NativeLegEvent {
+ pub enum NativeRequiredEffect {
+     None,
+     Ack2xx,
++    AckNon2xx,
+     CancelIfInviteExists,
+     SendCancel,
+     AckThenBye,
++    RespondCancel2xxAndInvite487,
++    RespondCancel2xx,
++    RespondBye2xx,
++    DeferByeUntilAck,
+     ByeOldSelectedLeg,
+     SendBye,
+     AckThenByeNonWinner,
+@@ -481,8 +498,8 @@ impl NativeCall {
+         self.reserve_dedupe()?;
+ 
+         let leg = self.legs.get(leg_id).ok_or(NativeCallError::LegNotFound)?;
+-        let (mut next_state, required_effect) =
+-            transition(leg.state, event).ok_or(NativeCallError::TransitionInvalid)?;
++        let (mut next_state, required_effect) = transition(leg.direction, leg.state, event)
++            .ok_or(NativeCallError::TransitionInvalid)?;
+         if event == NativeLegEvent::TransferAbort {
+             next_state = leg
+                 .transfer_return_state
+@@ -610,11 +627,9 @@ impl NativeCall {
+         }
+         self.resolve_fence(fence, Some(leg_id))?;
+         self.reserve_dedupe()?;
+-        if self
+-            .legs
+-            .get(leg_id)
+-            .is_none_or(|leg| leg.state != NativeLegState::Planned)
+-        {
++        if self.legs.get(leg_id).is_none_or(|leg| {
++            leg.direction != NativeLegDirection::Outbound || leg.state != NativeLegState::Planned
++        }) {
+             return Err(NativeCallError::TransitionInvalid);
+         }
+         if self.fork_attempt_by_leg.contains_key(leg_id) {
+@@ -694,11 +709,14 @@ impl NativeCall {
+         }
+         let branches = attempt.branches.clone();
+         let existing_winner = attempt.winner.clone();
+-        let leg_state = self
++        let (leg_direction, leg_state) = self
+             .legs
+             .get(leg_id)
+-            .map(|leg| leg.state)
++            .map(|leg| (leg.direction, leg.state))
+             .ok_or(NativeCallError::LegNotFound)?;
++        if leg_direction != NativeLegDirection::Outbound {
++            return Err(NativeCallError::TransitionInvalid);
++        }
+         if !matches!(
+             leg_state,
+             NativeLegState::Inviting
+@@ -735,6 +753,9 @@ impl NativeCall {
+                     .legs
+                     .get(branch_id)
+                     .ok_or(NativeCallError::LegNotFound)?;
++                if branch.direction != NativeLegDirection::Outbound {
++                    return Err(NativeCallError::TransitionInvalid);
++                }
+                 if let Some(effect) = fork_cancellation_effect(branch.state) {
+                     branch_effects.push(NativeForkBranchEffect {
+                         leg_id: branch_id.clone(),
+@@ -1090,39 +1111,87 @@ impl NativeCall {
+ }
+ 
+ fn transition(
++    direction: NativeLegDirection,
+     state: NativeLegState,
+     event: NativeLegEvent,
+ ) -> Option<(NativeLegState, NativeRequiredEffect)> {
++    use NativeLegDirection as Direction;
+     use NativeLegEvent as Event;
+     use NativeLegState as State;
+     use NativeRequiredEffect as Effect;
+-    match (state, event) {
+-        (State::Planned, Event::StartInvite) => Some((State::Inviting, Effect::None)),
+-        (State::Inviting, Event::Provisional) => Some((State::Early, Effect::None)),
+-        (State::Inviting | State::Early, Event::Final2xx) => {
++    match (direction, state, event) {
++        (Direction::Outbound, State::Planned, Event::StartInvite) => {
++            Some((State::Inviting, Effect::None))
++        }
++        (Direction::Outbound, State::Inviting, Event::Provisional) => {
++            Some((State::Early, Effect::None))
++        }
++        (Direction::Outbound, State::Inviting | State::Early, Event::Final2xx) => {
+             Some((State::Confirmed, Effect::Ack2xx))
+         }
+-        (State::Planned, Event::CancelRequested) => {
++        (Direction::Outbound, State::Inviting | State::Early, Event::FinalNon2xx) => {
++            Some((State::Failed, Effect::AckNon2xx))
++        }
++        (Direction::Outbound, State::Planned, Event::CancelRequested) => {
+             Some((State::Terminating, Effect::CancelIfInviteExists))
+         }
+-        (State::Inviting | State::Early, Event::CancelRequested) => {
++        (Direction::Outbound, State::Inviting | State::Early, Event::CancelRequested) => {
+             Some((State::Terminating, Effect::SendCancel))
+         }
+-        (State::Terminating, Event::LateFinal2xx) => Some((State::Terminating, Effect::AckThenBye)),
+-        (State::Confirmed, Event::HoldCommitted) => Some((State::Held, Effect::None)),
+-        (State::Held, Event::ResumeCommitted) => Some((State::Confirmed, Effect::None)),
+-        (State::Confirmed | State::Held, Event::TransferPrepare) => {
++        (Direction::Outbound, State::Terminating, Event::LateFinal2xx) => {
++            Some((State::Terminating, Effect::AckThenBye))
++        }
++        (Direction::Inbound, State::Planned, Event::InboundInviteObserved) => {
++            Some((State::Inviting, Effect::None))
++        }
++        (Direction::Inbound, State::Inviting, Event::Provisional) => {
++            Some((State::Early, Effect::None))
++        }
++        (Direction::Inbound, State::Inviting | State::Early, Event::Final2xx) => {
++            Some((State::AwaitingAck, Effect::None))
++        }
++        (Direction::Inbound, State::Inviting | State::Early, Event::FinalNon2xx) => {
++            Some((State::Failed, Effect::None))
++        }
++        (Direction::Inbound, State::AwaitingAck, Event::Invite2xxAckObserved) => {
++            Some((State::Confirmed, Effect::None))
++        }
++        (Direction::Inbound, State::AwaitingAckTerminate, Event::Invite2xxAckObserved) => {
++            Some((State::Terminating, Effect::SendBye))
++        }
++        (Direction::Inbound, State::Inviting | State::Early, Event::RemoteCancelObserved) => {
++            Some((State::Terminating, Effect::RespondCancel2xxAndInvite487))
++        }
++        (
++            Direction::Inbound,
++            State::AwaitingAck | State::AwaitingAckTerminate,
++            Event::RemoteCancelObserved,
++        ) => Some((state, Effect::RespondCancel2xx)),
++        (Direction::Inbound, State::AwaitingAck, Event::ByeRequested) => {
++            Some((State::AwaitingAckTerminate, Effect::DeferByeUntilAck))
++        }
++        (_, State::Confirmed, Event::HoldCommitted) => Some((State::Held, Effect::None)),
++        (_, State::Held, Event::ResumeCommitted) => Some((State::Confirmed, Effect::None)),
++        (_, State::Confirmed | State::Held, Event::TransferPrepare) => {
+             Some((State::Transferring, Effect::None))
+         }
+-        (State::Transferring, Event::TransferAbort) => Some((State::Confirmed, Effect::None)),
+-        (State::Confirmed | State::Held, Event::ByeRequested) => {
++        (_, State::Transferring, Event::TransferAbort) => Some((State::Confirmed, Effect::None)),
++        (_, State::Confirmed | State::Held, Event::ByeRequested) => {
+             Some((State::Terminating, Effect::SendBye))
+         }
+-        (State::Terminating, Event::TerminationObserved) => Some((State::Terminated, Effect::None)),
++        (_, State::Confirmed | State::Held, Event::RemoteByeObserved) => {
++            Some((State::Terminating, Effect::RespondBye2xx))
++        }
++        (_, State::Terminating, Event::TerminationObserved) => {
++            Some((State::Terminated, Effect::None))
++        }
+         (
++            _,
+             State::Planned
+             | State::Inviting
+             | State::Early
++            | State::AwaitingAck
++            | State::AwaitingAckTerminate
+             | State::Confirmed
+             | State::Held
+             | State::Transferring
+@@ -1599,6 +1668,254 @@ mod tests {
+         assert_eq!(call.leg(&leg_id).unwrap().state, NativeLegState::Held);
+     }
+ 
++    #[test]
++    fn inbound_uas_and_outbound_uac_keep_ack_ownership_directional() {
++        let mut inbound = NativeCall::new(identity(), NativeCallBounds::default()).unwrap();
++        let inbound_leg = leg("inbound-directional");
++        inbound
++            .add_leg(
++                &inbound.fence(),
++                inbound_leg.clone(),
++                ProviderCallId::parse("provider-inbound").unwrap(),
++                NativeLegDirection::Inbound,
++            )
++            .unwrap();
++        assert_eq!(
++            inbound
++                .register_fork_branch(
++                    &inbound.fence(),
++                    &inbound_leg,
++                    "inbound-fork",
++                    "inbound-fork-event",
++                    HASH_A,
++                )
++                .unwrap_err(),
++            NativeCallError::TransitionInvalid,
++        );
++
++        let before = inbound.snapshot();
++        assert_eq!(
++            inbound
++                .apply_leg_event(
++                    &inbound.fence(),
++                    &inbound_leg,
++                    "wrong-start",
++                    HASH_A,
++                    NativeLegEvent::StartInvite,
++                )
++                .unwrap_err(),
++            NativeCallError::TransitionInvalid,
++        );
++        assert_eq!(inbound.snapshot(), before);
++
++        for (event_id, event) in [
++            ("inbound-invite", NativeLegEvent::InboundInviteObserved),
++            ("inbound-answer", NativeLegEvent::Final2xx),
++        ] {
++            inbound
++                .apply_leg_event(&inbound.fence(), &inbound_leg, event_id, HASH_A, event)
++                .unwrap();
++        }
++        assert_eq!(
++            inbound.leg(&inbound_leg).unwrap().state,
++            NativeLegState::AwaitingAck,
++        );
++        let late_cancel = inbound
++            .apply_leg_event(
++                &inbound.fence(),
++                &inbound_leg,
++                "late-cancel",
++                HASH_A,
++                NativeLegEvent::RemoteCancelObserved,
++            )
++            .unwrap();
++        assert_eq!(late_cancel.state, NativeLegState::AwaitingAck);
++        assert_eq!(
++            late_cancel.required_effect,
++            NativeRequiredEffect::RespondCancel2xx,
++        );
++        let ack = inbound
++            .apply_leg_event(
++                &inbound.fence(),
++                &inbound_leg,
++                "ack-observed",
++                HASH_A,
++                NativeLegEvent::Invite2xxAckObserved,
++            )
++            .unwrap();
++        assert_eq!(ack.state, NativeLegState::Confirmed);
++        assert_eq!(ack.required_effect, NativeRequiredEffect::None);
++        let remote_bye = inbound
++            .apply_leg_event(
++                &inbound.fence(),
++                &inbound_leg,
++                "remote-bye",
++                HASH_A,
++                NativeLegEvent::RemoteByeObserved,
++            )
++            .unwrap();
++        assert_eq!(remote_bye.state, NativeLegState::Terminating);
++        assert_eq!(
++            remote_bye.required_effect,
++            NativeRequiredEffect::RespondBye2xx,
++        );
++
++        let mut outbound = NativeCall::new(identity(), NativeCallBounds::default()).unwrap();
++        let outbound_leg = leg("outbound-directional");
++        outbound
++            .add_leg(
++                &outbound.fence(),
++                outbound_leg.clone(),
++                ProviderCallId::parse("provider-outbound").unwrap(),
++                NativeLegDirection::Outbound,
++            )
++            .unwrap();
++        outbound
++            .apply_leg_event(
++                &outbound.fence(),
++                &outbound_leg,
++                "outbound-start",
++                HASH_A,
++                NativeLegEvent::StartInvite,
++            )
++            .unwrap();
++        let answer = outbound
++            .apply_leg_event(
++                &outbound.fence(),
++                &outbound_leg,
++                "outbound-answer",
++                HASH_A,
++                NativeLegEvent::Final2xx,
++            )
++            .unwrap();
++        assert_eq!(answer.state, NativeLegState::Confirmed);
++        assert_eq!(answer.required_effect, NativeRequiredEffect::Ack2xx);
++        assert_eq!(
++            outbound
++                .apply_leg_event(
++                    &outbound.fence(),
++                    &outbound_leg,
++                    "wrong-ack",
++                    HASH_A,
++                    NativeLegEvent::Invite2xxAckObserved,
++                )
++                .unwrap_err(),
++            NativeCallError::TransitionInvalid,
++        );
++    }
++
++    #[test]
++    fn directional_final_cancel_and_deferred_bye_races_are_explicit() {
++        let mut inbound = NativeCall::new(identity(), NativeCallBounds::default()).unwrap();
++        let inbound_leg = leg("inbound-cancel");
++        inbound
++            .add_leg(
++                &inbound.fence(),
++                inbound_leg.clone(),
++                ProviderCallId::parse("provider-inbound-cancel").unwrap(),
++                NativeLegDirection::Inbound,
++            )
++            .unwrap();
++        inbound
++            .apply_leg_event(
++                &inbound.fence(),
++                &inbound_leg,
++                "inbound-invite",
++                HASH_A,
++                NativeLegEvent::InboundInviteObserved,
++            )
++            .unwrap();
++        let cancel = inbound
++            .apply_leg_event(
++                &inbound.fence(),
++                &inbound_leg,
++                "remote-cancel",
++                HASH_A,
++                NativeLegEvent::RemoteCancelObserved,
++            )
++            .unwrap();
++        assert_eq!(cancel.state, NativeLegState::Terminating);
++        assert_eq!(
++            cancel.required_effect,
++            NativeRequiredEffect::RespondCancel2xxAndInvite487,
++        );
++
++        let mut outbound = NativeCall::new(identity(), NativeCallBounds::default()).unwrap();
++        let outbound_leg = leg("outbound-final");
++        outbound
++            .add_leg(
++                &outbound.fence(),
++                outbound_leg.clone(),
++                ProviderCallId::parse("provider-outbound-final").unwrap(),
++                NativeLegDirection::Outbound,
++            )
++            .unwrap();
++        outbound
++            .apply_leg_event(
++                &outbound.fence(),
++                &outbound_leg,
++                "outbound-start",
++                HASH_A,
++                NativeLegEvent::StartInvite,
++            )
++            .unwrap();
++        let failed = outbound
++            .apply_leg_event(
++                &outbound.fence(),
++                &outbound_leg,
++                "outbound-final",
++                HASH_A,
++                NativeLegEvent::FinalNon2xx,
++            )
++            .unwrap();
++        assert_eq!(failed.state, NativeLegState::Failed);
++        assert_eq!(failed.required_effect, NativeRequiredEffect::AckNon2xx);
++
++        let mut deferred = NativeCall::new(identity(), NativeCallBounds::default()).unwrap();
++        let deferred_leg = leg("inbound-deferred-bye");
++        deferred
++            .add_leg(
++                &deferred.fence(),
++                deferred_leg.clone(),
++                ProviderCallId::parse("provider-inbound-deferred").unwrap(),
++                NativeLegDirection::Inbound,
++            )
++            .unwrap();
++        for (event_id, event) in [
++            ("deferred-invite", NativeLegEvent::InboundInviteObserved),
++            ("deferred-answer", NativeLegEvent::Final2xx),
++        ] {
++            deferred
++                .apply_leg_event(&deferred.fence(), &deferred_leg, event_id, HASH_A, event)
++                .unwrap();
++        }
++        let requested = deferred
++            .apply_leg_event(
++                &deferred.fence(),
++                &deferred_leg,
++                "deferred-bye",
++                HASH_A,
++                NativeLegEvent::ByeRequested,
++            )
++            .unwrap();
++        assert_eq!(requested.state, NativeLegState::AwaitingAckTerminate);
++        assert_eq!(
++            requested.required_effect,
++            NativeRequiredEffect::DeferByeUntilAck,
++        );
++        let after_ack = deferred
++            .apply_leg_event(
++                &deferred.fence(),
++                &deferred_leg,
++                "deferred-ack",
++                HASH_A,
++                NativeLegEvent::Invite2xxAckObserved,
++            )
++            .unwrap();
++        assert_eq!(after_ack.state, NativeLegState::Terminating);
++        assert_eq!(after_ack.required_effect, NativeRequiredEffect::SendBye);
++    }
++
+     #[test]
+     fn stale_authority_and_dedupe_pressure_fail_without_mutation() {
+         let bounds = NativeCallBounds {
+diff --git a/src/proxy/active_call_registry.rs b/src/proxy/active_call_registry.rs
+index fd3b714c58d7454259193e713ff04759969e9cec..196e3974b35e65300434ecd73ef7bf730dcafd49 100644
+--- a/src/proxy/active_call_registry.rs
++++ b/src/proxy/active_call_registry.rs
+@@ -60,6 +60,7 @@ struct ActiveProxyCallSlot {
+ struct NativeCallBinding {
+     call_id: CallId,
+     leg_id: LegId,
++    direction: NativeLegDirection,
+     cell: Arc<NativeCallCell>,
+ }
+ 
+@@ -183,9 +184,8 @@ impl ActiveProxyCallRegistry {
+     #[cfg(test)]
+     pub fn upsert(&self, entry: ActiveProxyCallEntry, handle: SipSessionHandle) {
+         let provider_call_id = entry.session_id.clone();
+-        let result = live_native_identity(&provider_call_id).and_then(|identity| {
+-            self.try_upsert_slot(entry, handle, Some(identity), true)
+-        });
++        let result = live_native_identity(&provider_call_id)
++            .and_then(|identity| self.try_upsert_slot(entry, handle, Some(identity), true));
+         if let Err(error) = result {
+             warn!(error = %error, "active call compatibility registration rejected");
+         }
+@@ -261,6 +261,12 @@ impl ActiveProxyCallRegistry {
+                     return Err(ActiveCallRegistryError::ProviderAlreadyRegistered);
+                 }
+                 let current = occupied.get_mut();
++                if let Some(binding) = current.native_binding.as_ref() {
++                    let incoming_direction = native_leg_direction(&entry.direction)?;
++                    if incoming_direction != binding.direction {
++                        return Err(ActiveCallRegistryError::AuthorityConflict);
++                    }
++                }
+                 match (&current.identity, &identity) {
+                     (Some(existing), Some(incoming)) if existing != incoming => {
+                         return Err(ActiveCallRegistryError::AuthorityConflict);
+@@ -426,6 +432,7 @@ impl ActiveProxyCallRegistry {
+                 return Ok(NativeCallBinding {
+                     call_id,
+                     leg_id,
++                    direction,
+                     cell,
+                 });
+             }
+@@ -464,6 +471,7 @@ impl ActiveProxyCallRegistry {
+                     return Ok(NativeCallBinding {
+                         call_id,
+                         leg_id,
++                        direction,
+                         cell,
+                     });
+                 }
+@@ -1117,6 +1125,35 @@ mod tests {
+         );
+     }
+ 
++    #[test]
++    fn authoritative_native_leg_direction_cannot_be_relabelled_by_compatibility_update() {
++        let registry = ActiveProxyCallRegistry::with_limits(4, 16);
++        let session = "provider-call-a";
++        let handle = make_handle(session);
++        let identity = native_identity("vcall_a", session);
++        let call_id = identity.call_id().clone();
++        registry
++            .try_upsert_authoritative(make_entry(session), handle.clone(), identity)
++            .unwrap();
++        let before_entry = registry.get(session).unwrap();
++        let before_call = registry.native_call_snapshot(&call_id).unwrap().unwrap();
++
++        let mut relabelled = make_entry(session);
++        relabelled.direction = "inbound".to_string();
++        assert_eq!(
++            registry.try_upsert(relabelled, handle).unwrap_err(),
++            ActiveCallRegistryError::AuthorityConflict,
++        );
++        assert_eq!(
++            registry.get(session).unwrap().direction,
++            before_entry.direction
++        );
++        assert_eq!(
++            registry.native_call_snapshot(&call_id).unwrap(),
++            Some(before_call),
++        );
++    }
++
+     #[test]
+     fn conflicting_native_call_authority_cannot_add_a_second_provider_leg() {
+         let registry = ActiveProxyCallRegistry::with_limits(4, 16);
+

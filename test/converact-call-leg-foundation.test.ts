@@ -267,6 +267,168 @@ test('Call/Leg mutations are owner, generation and revision fenced', () => {
   );
 });
 
+test('inbound UAS and outbound UAC Legs have distinct ACK and termination ownership', () => {
+  const inboundRegistry = boundedRegistry();
+  const inbound = openCall(inboundRegistry, 'directional-inbound');
+  inboundRegistry.addLeg(
+    fence(inbound.callId, '0'),
+    { leg_id: inbound.legId, direction: 'inbound' }
+  );
+  assert.throws(
+    () => inboundRegistry.registerForkBranch(
+      fence(inbound.callId, '1'),
+      forkBranchEvent(inbound.legId, 'inbound-fork-forbidden')
+    ),
+    hasCode('call_leg_transition_invalid')
+  );
+
+  assert.throws(
+    () => inboundRegistry.applyLegEvent(
+      fence(inbound.callId, '1'),
+      event(inbound.legId, 'inbound-wrong-start', 'start_invite')
+    ),
+    hasCode('call_leg_transition_invalid')
+  );
+  assert.equal(inboundRegistry.getCall(inbound.callId).revision, '1');
+
+  const admitted = inboundRegistry.applyLegEvent(
+    fence(inbound.callId, '1'),
+    event(inbound.legId, 'inbound-invite', 'inbound_invite_observed')
+  );
+  assert.equal(admitted.state, 'inviting');
+  assert.equal(admitted.required_effect, 'none');
+
+  const answered = inboundRegistry.applyLegEvent(
+    fence(inbound.callId, '2'),
+    event(inbound.legId, 'inbound-answer', 'final_2xx')
+  );
+  assert.equal(answered.state, 'awaiting_ack');
+  assert.equal(answered.required_effect, 'none');
+
+  const lateCancel = inboundRegistry.applyLegEvent(
+    fence(inbound.callId, '3'),
+    event(inbound.legId, 'inbound-late-cancel', 'remote_cancel_observed')
+  );
+  assert.equal(lateCancel.state, 'awaiting_ack');
+  assert.equal(lateCancel.required_effect, 'respond_cancel_2xx');
+
+  const acknowledged = inboundRegistry.applyLegEvent(
+    fence(inbound.callId, '4'),
+    event(inbound.legId, 'inbound-ack', 'invite_2xx_ack_observed')
+  );
+  assert.equal(acknowledged.state, 'confirmed');
+  assert.equal(acknowledged.required_effect, 'none');
+
+  const remoteBye = inboundRegistry.applyLegEvent(
+    fence(inbound.callId, '5'),
+    event(inbound.legId, 'inbound-remote-bye', 'remote_bye_observed')
+  );
+  assert.equal(remoteBye.state, 'terminating');
+  assert.equal(remoteBye.required_effect, 'respond_bye_2xx');
+  const terminated = inboundRegistry.applyLegEvent(
+    fence(inbound.callId, '6'),
+    event(inbound.legId, 'inbound-bye-complete', 'termination_observed')
+  );
+  assert.equal(terminated.state, 'terminated');
+
+  const outbound = callFixture();
+  outbound.registry.applyLegEvent(
+    outbound.fence('1'),
+    event(outbound.legA, 'outbound-invite', 'start_invite')
+  );
+  const outboundAnswer = outbound.registry.applyLegEvent(
+    outbound.fence('2'),
+    event(outbound.legA, 'outbound-answer', 'final_2xx')
+  );
+  assert.equal(outboundAnswer.state, 'confirmed');
+  assert.equal(outboundAnswer.required_effect, 'ack_2xx');
+  assert.throws(
+    () => outbound.registry.applyLegEvent(
+      outbound.fence('3'),
+      event(outbound.legA, 'outbound-inbound-ack', 'invite_2xx_ack_observed')
+    ),
+    hasCode('call_leg_transition_invalid')
+  );
+});
+
+test('directional final, CANCEL and deferred-BYE races remain explicit', () => {
+  const inboundCancelRegistry = boundedRegistry();
+  const inboundCancel = openCall(inboundCancelRegistry, 'inbound-cancel');
+  inboundCancelRegistry.addLeg(
+    fence(inboundCancel.callId, '0'),
+    { leg_id: inboundCancel.legId, direction: 'inbound' }
+  );
+  inboundCancelRegistry.applyLegEvent(
+    fence(inboundCancel.callId, '1'),
+    event(inboundCancel.legId, 'cancel-invite', 'inbound_invite_observed')
+  );
+  const cancel = inboundCancelRegistry.applyLegEvent(
+    fence(inboundCancel.callId, '2'),
+    event(inboundCancel.legId, 'cancel-observed', 'remote_cancel_observed')
+  );
+  assert.equal(cancel.state, 'terminating');
+  assert.equal(
+    cancel.required_effect,
+    'respond_cancel_2xx_and_invite_487'
+  );
+
+  const inboundRejectRegistry = boundedRegistry();
+  const inboundReject = openCall(inboundRejectRegistry, 'inbound-reject');
+  inboundRejectRegistry.addLeg(
+    fence(inboundReject.callId, '0'),
+    { leg_id: inboundReject.legId, direction: 'inbound' }
+  );
+  inboundRejectRegistry.applyLegEvent(
+    fence(inboundReject.callId, '1'),
+    event(inboundReject.legId, 'reject-invite', 'inbound_invite_observed')
+  );
+  const rejected = inboundRejectRegistry.applyLegEvent(
+    fence(inboundReject.callId, '2'),
+    event(inboundReject.legId, 'reject-final', 'final_non_2xx')
+  );
+  assert.equal(rejected.state, 'failed');
+  assert.equal(rejected.required_effect, 'none');
+
+  const outboundFailure = callFixture();
+  outboundFailure.registry.applyLegEvent(
+    outboundFailure.fence('1'),
+    event(outboundFailure.legA, 'failure-invite', 'start_invite')
+  );
+  const failed = outboundFailure.registry.applyLegEvent(
+    outboundFailure.fence('2'),
+    event(outboundFailure.legA, 'failure-final', 'final_non_2xx')
+  );
+  assert.equal(failed.state, 'failed');
+  assert.equal(failed.required_effect, 'ack_non_2xx');
+
+  const deferredRegistry = boundedRegistry();
+  const deferred = openCall(deferredRegistry, 'inbound-deferred-bye');
+  deferredRegistry.addLeg(
+    fence(deferred.callId, '0'),
+    { leg_id: deferred.legId, direction: 'inbound' }
+  );
+  deferredRegistry.applyLegEvent(
+    fence(deferred.callId, '1'),
+    event(deferred.legId, 'defer-invite', 'inbound_invite_observed')
+  );
+  deferredRegistry.applyLegEvent(
+    fence(deferred.callId, '2'),
+    event(deferred.legId, 'defer-answer', 'final_2xx')
+  );
+  const requested = deferredRegistry.applyLegEvent(
+    fence(deferred.callId, '3'),
+    event(deferred.legId, 'defer-bye', 'bye_requested')
+  );
+  assert.equal(requested.state, 'awaiting_ack_terminate');
+  assert.equal(requested.required_effect, 'defer_bye_until_ack');
+  const afterAck = deferredRegistry.applyLegEvent(
+    fence(deferred.callId, '4'),
+    event(deferred.legId, 'defer-ack', 'invite_2xx_ack_observed')
+  );
+  assert.equal(afterAck.state, 'terminating');
+  assert.equal(afterAck.required_effect, 'send_bye');
+});
+
 test('CANCEL/2xx, transfer and re-INVITE races retain one unambiguous Leg', () => {
   const fixture = callFixture();
   fixture.registry.applyLegEvent(

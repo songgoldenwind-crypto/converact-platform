@@ -111,7 +111,8 @@ Run serially:
 2. New Call/Leg tests.
 3. SipFoundation, effect and recovery tests.
 4. Exact rsipstack/RustPBX patch contract tests.
-5. Native Call/Leg/effect binding tests; the `.57` RustPBX port exists as a
+5. Native Call/Leg/effect binding tests; the `.58` RustPBX port includes a
+   direction-keyed UAS/UAC state model and the `.57` durable gate remains a
    default-disabled adapter, but retain activation `not_run` until every SIP
    direction registers intent and the fixed observer/reconciler workers are
    supervised in the live endpoint.

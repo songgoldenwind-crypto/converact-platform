@@ -16,6 +16,7 @@
     "typescript_model_role",
     "control_plane_voice_call_role",
     "provider_call_id_role",
+    "direction_semantics",
     "identifiers",
     "call_states",
     "leg_states",
@@ -36,7 +37,7 @@
       "const": "converact-call-leg-state-machine-v1"
     },
     "version": {
-      "const": "1.0.0"
+      "const": "1.1.0"
     },
     "generated_at": {
       "const": "2026-08-02T00:00:00.000Z"
@@ -112,6 +113,38 @@
     },
     "provider_call_id_role": {
       "const": "opaque_native_runtime_reference_never_CallId"
+    },
+    "direction_semantics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inbound",
+        "outbound",
+        "outbound_final_2xx",
+        "inbound_final_2xx",
+        "fork",
+        "registry_update"
+      ],
+      "properties": {
+        "inbound": {
+          "const": "local_UAS_remote_UAC"
+        },
+        "outbound": {
+          "const": "local_UAC_remote_UAS"
+        },
+        "outbound_final_2xx": {
+          "const": "local_ACK_effect_required"
+        },
+        "inbound_final_2xx": {
+          "const": "wait_for_remote_ACK_no_local_ACK_effect"
+        },
+        "fork": {
+          "const": "outbound_only"
+        },
+        "registry_update": {
+          "const": "authoritative_direction_immutable_fail_closed"
+        }
+      }
     },
     "identifiers": {
       "type": "object",
@@ -409,8 +442,8 @@
     },
     "leg_states": {
       "type": "array",
-      "minItems": 9,
-      "maxItems": 9,
+      "minItems": 11,
+      "maxItems": 11,
       "prefixItems": [
         {
           "const": "planned"
@@ -420,6 +453,12 @@
         },
         {
           "const": "early"
+        },
+        {
+          "const": "awaiting_ack"
+        },
+        {
+          "const": "awaiting_ack_terminate"
         },
         {
           "const": "confirmed"
@@ -458,11 +497,14 @@
     },
     "events": {
       "type": "array",
-      "minItems": 12,
-      "maxItems": 12,
+      "minItems": 17,
+      "maxItems": 17,
       "prefixItems": [
         {
           "const": "start_invite"
+        },
+        {
+          "const": "inbound_invite_observed"
         },
         {
           "const": "provisional"
@@ -471,10 +513,22 @@
           "const": "final_2xx"
         },
         {
+          "const": "final_non_2xx"
+        },
+        {
+          "const": "invite_2xx_ack_observed"
+        },
+        {
           "const": "cancel_requested"
         },
         {
           "const": "late_final_2xx"
+        },
+        {
+          "const": "remote_cancel_observed"
+        },
+        {
+          "const": "remote_bye_observed"
         },
         {
           "const": "hold_committed"
@@ -502,19 +556,31 @@
     },
     "transitions": {
       "type": "array",
-      "minItems": 23,
-      "maxItems": 23,
+      "minItems": 42,
+      "maxItems": 42,
       "prefixItems": [
         {
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "directions",
             "from",
             "event",
             "to",
             "required_effect"
           ],
           "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
             "from": {
               "const": "planned"
             },
@@ -533,12 +599,24 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "directions",
             "from",
             "event",
             "to",
             "required_effect"
           ],
           "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
             "from": {
               "const": "inviting"
             },
@@ -557,12 +635,24 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "directions",
             "from",
             "event",
             "to",
             "required_effect"
           ],
           "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
             "from": {
               "const": "inviting"
             },
@@ -581,12 +671,24 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "directions",
             "from",
             "event",
             "to",
             "required_effect"
           ],
           "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
             "from": {
               "const": "early"
             },
@@ -605,12 +707,96 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "directions",
             "from",
             "event",
             "to",
             "required_effect"
           ],
           "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
+            "from": {
+              "const": "inviting"
+            },
+            "event": {
+              "const": "final_non_2xx"
+            },
+            "to": {
+              "const": "failed"
+            },
+            "required_effect": {
+              "const": "ack_non_2xx"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directions",
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
+            "from": {
+              "const": "early"
+            },
+            "event": {
+              "const": "final_non_2xx"
+            },
+            "to": {
+              "const": "failed"
+            },
+            "required_effect": {
+              "const": "ack_non_2xx"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directions",
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
             "from": {
               "const": "planned"
             },
@@ -629,12 +815,24 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "directions",
             "from",
             "event",
             "to",
             "required_effect"
           ],
           "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
             "from": {
               "const": "inviting"
             },
@@ -653,12 +851,24 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "directions",
             "from",
             "event",
             "to",
             "required_effect"
           ],
           "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
             "from": {
               "const": "early"
             },
@@ -677,12 +887,24 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "directions",
             "from",
             "event",
             "to",
             "required_effect"
           ],
           "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
             "from": {
               "const": "terminating"
             },
@@ -701,12 +923,495 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "directions",
             "from",
             "event",
             "to",
             "required_effect"
           ],
           "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                }
+              ],
+              "items": false
+            },
+            "from": {
+              "const": "planned"
+            },
+            "event": {
+              "const": "inbound_invite_observed"
+            },
+            "to": {
+              "const": "inviting"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directions",
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                }
+              ],
+              "items": false
+            },
+            "from": {
+              "const": "inviting"
+            },
+            "event": {
+              "const": "provisional"
+            },
+            "to": {
+              "const": "early"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directions",
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                }
+              ],
+              "items": false
+            },
+            "from": {
+              "const": "inviting"
+            },
+            "event": {
+              "const": "final_2xx"
+            },
+            "to": {
+              "const": "awaiting_ack"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directions",
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                }
+              ],
+              "items": false
+            },
+            "from": {
+              "const": "early"
+            },
+            "event": {
+              "const": "final_2xx"
+            },
+            "to": {
+              "const": "awaiting_ack"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directions",
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                }
+              ],
+              "items": false
+            },
+            "from": {
+              "const": "inviting"
+            },
+            "event": {
+              "const": "final_non_2xx"
+            },
+            "to": {
+              "const": "failed"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directions",
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                }
+              ],
+              "items": false
+            },
+            "from": {
+              "const": "early"
+            },
+            "event": {
+              "const": "final_non_2xx"
+            },
+            "to": {
+              "const": "failed"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directions",
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                }
+              ],
+              "items": false
+            },
+            "from": {
+              "const": "awaiting_ack"
+            },
+            "event": {
+              "const": "invite_2xx_ack_observed"
+            },
+            "to": {
+              "const": "confirmed"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directions",
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                }
+              ],
+              "items": false
+            },
+            "from": {
+              "const": "awaiting_ack_terminate"
+            },
+            "event": {
+              "const": "invite_2xx_ack_observed"
+            },
+            "to": {
+              "const": "terminating"
+            },
+            "required_effect": {
+              "const": "send_bye"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directions",
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                }
+              ],
+              "items": false
+            },
+            "from": {
+              "const": "inviting"
+            },
+            "event": {
+              "const": "remote_cancel_observed"
+            },
+            "to": {
+              "const": "terminating"
+            },
+            "required_effect": {
+              "const": "respond_cancel_2xx_and_invite_487"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directions",
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                }
+              ],
+              "items": false
+            },
+            "from": {
+              "const": "early"
+            },
+            "event": {
+              "const": "remote_cancel_observed"
+            },
+            "to": {
+              "const": "terminating"
+            },
+            "required_effect": {
+              "const": "respond_cancel_2xx_and_invite_487"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directions",
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                }
+              ],
+              "items": false
+            },
+            "from": {
+              "const": "awaiting_ack"
+            },
+            "event": {
+              "const": "remote_cancel_observed"
+            },
+            "to": {
+              "const": "awaiting_ack"
+            },
+            "required_effect": {
+              "const": "respond_cancel_2xx"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directions",
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                }
+              ],
+              "items": false
+            },
+            "from": {
+              "const": "awaiting_ack_terminate"
+            },
+            "event": {
+              "const": "remote_cancel_observed"
+            },
+            "to": {
+              "const": "awaiting_ack_terminate"
+            },
+            "required_effect": {
+              "const": "respond_cancel_2xx"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directions",
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                }
+              ],
+              "items": false
+            },
+            "from": {
+              "const": "awaiting_ack"
+            },
+            "event": {
+              "const": "bye_requested"
+            },
+            "to": {
+              "const": "awaiting_ack_terminate"
+            },
+            "required_effect": {
+              "const": "defer_bye_until_ack"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directions",
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                },
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
             "from": {
               "const": "confirmed"
             },
@@ -725,12 +1430,27 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "directions",
             "from",
             "event",
             "to",
             "required_effect"
           ],
           "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                },
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
             "from": {
               "const": "held"
             },
@@ -749,12 +1469,27 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "directions",
             "from",
             "event",
             "to",
             "required_effect"
           ],
           "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                },
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
             "from": {
               "const": "confirmed"
             },
@@ -773,12 +1508,27 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "directions",
             "from",
             "event",
             "to",
             "required_effect"
           ],
           "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                },
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
             "from": {
               "const": "held"
             },
@@ -797,12 +1547,27 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "directions",
             "from",
             "event",
             "to",
             "required_effect"
           ],
           "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                },
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
             "from": {
               "const": "transferring"
             },
@@ -821,12 +1586,27 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "directions",
             "from",
             "event",
             "to",
             "required_effect"
           ],
           "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                },
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
             "from": {
               "const": "confirmed"
             },
@@ -845,12 +1625,27 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "directions",
             "from",
             "event",
             "to",
             "required_effect"
           ],
           "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                },
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
             "from": {
               "const": "held"
             },
@@ -869,12 +1664,105 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "directions",
             "from",
             "event",
             "to",
             "required_effect"
           ],
           "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                },
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
+            "from": {
+              "const": "confirmed"
+            },
+            "event": {
+              "const": "remote_bye_observed"
+            },
+            "to": {
+              "const": "terminating"
+            },
+            "required_effect": {
+              "const": "respond_bye_2xx"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directions",
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                },
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
+            "from": {
+              "const": "held"
+            },
+            "event": {
+              "const": "remote_bye_observed"
+            },
+            "to": {
+              "const": "terminating"
+            },
+            "required_effect": {
+              "const": "respond_bye_2xx"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directions",
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                },
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
             "from": {
               "const": "terminating"
             },
@@ -893,12 +1781,27 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "directions",
             "from",
             "event",
             "to",
             "required_effect"
           ],
           "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                },
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
             "from": {
               "const": "planned"
             },
@@ -917,12 +1820,27 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "directions",
             "from",
             "event",
             "to",
             "required_effect"
           ],
           "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                },
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
             "from": {
               "const": "inviting"
             },
@@ -941,12 +1859,27 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "directions",
             "from",
             "event",
             "to",
             "required_effect"
           ],
           "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                },
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
             "from": {
               "const": "early"
             },
@@ -965,12 +1898,105 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "directions",
             "from",
             "event",
             "to",
             "required_effect"
           ],
           "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                },
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
+            "from": {
+              "const": "awaiting_ack"
+            },
+            "event": {
+              "const": "protocol_failure"
+            },
+            "to": {
+              "const": "failed"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directions",
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                },
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
+            "from": {
+              "const": "awaiting_ack_terminate"
+            },
+            "event": {
+              "const": "protocol_failure"
+            },
+            "to": {
+              "const": "failed"
+            },
+            "required_effect": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directions",
+            "from",
+            "event",
+            "to",
+            "required_effect"
+          ],
+          "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                },
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
             "from": {
               "const": "confirmed"
             },
@@ -989,12 +2015,27 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "directions",
             "from",
             "event",
             "to",
             "required_effect"
           ],
           "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                },
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
             "from": {
               "const": "held"
             },
@@ -1013,12 +2054,27 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "directions",
             "from",
             "event",
             "to",
             "required_effect"
           ],
           "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                },
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
             "from": {
               "const": "transferring"
             },
@@ -1037,12 +2093,27 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "directions",
             "from",
             "event",
             "to",
             "required_effect"
           ],
           "properties": {
+            "directions": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "const": "inbound"
+                },
+                {
+                  "const": "outbound"
+                }
+              ],
+              "items": false
+            },
             "from": {
               "const": "terminating"
             },
@@ -1193,6 +2264,12 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "direction_is_part_of_transition_key",
+        "inbound_2xx",
+        "inbound_2xx_local_bye",
+        "inbound_cancel_before_final",
+        "inbound_cancel_after_2xx",
+        "remote_bye",
         "cancel_before_final",
         "cancel_races_2xx",
         "bye_duplicate",
@@ -1211,6 +2288,24 @@
         "transfer_abort"
       ],
       "properties": {
+        "direction_is_part_of_transition_key": {
+          "const": true
+        },
+        "inbound_2xx": {
+          "const": "await_remote_ACK_without_local_ACK_effect"
+        },
+        "inbound_2xx_local_bye": {
+          "const": "defer_until_remote_ACK_then_send_BYE"
+        },
+        "inbound_cancel_before_final": {
+          "const": "durable_200_CANCEL_and_487_INVITE_effects_then_terminal_observation"
+        },
+        "inbound_cancel_after_2xx": {
+          "const": "durable_200_CANCEL_without_reversing_awaiting_ACK"
+        },
+        "remote_bye": {
+          "const": "durable_2xx_response_then_terminal_observation"
+        },
         "cancel_before_final": {
           "const": "CANCEL_then_487_ACK"
         },

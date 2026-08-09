@@ -46,6 +46,8 @@ export type CallLegState =
   | 'planned'
   | 'inviting'
   | 'early'
+  | 'awaiting_ack'
+  | 'awaiting_ack_terminate'
   | 'confirmed'
   | 'held'
   | 'transferring'
@@ -55,10 +57,15 @@ export type CallLegState =
 
 export type CallLegEvent =
   | 'start_invite'
+  | 'inbound_invite_observed'
   | 'provisional'
   | 'final_2xx'
+  | 'final_non_2xx'
+  | 'invite_2xx_ack_observed'
   | 'cancel_requested'
   | 'late_final_2xx'
+  | 'remote_cancel_observed'
+  | 'remote_bye_observed'
   | 'hold_committed'
   | 'resume_committed'
   | 'transfer_prepare'
@@ -70,9 +77,14 @@ export type CallLegEvent =
 export type CallLegRequiredEffect =
   | 'none'
   | 'ack_2xx'
+  | 'ack_non_2xx'
   | 'cancel_if_invite_exists'
   | 'send_cancel'
   | 'ack_then_bye'
+  | 'respond_cancel_2xx_and_invite_487'
+  | 'respond_cancel_2xx'
+  | 'respond_bye_2xx'
+  | 'defer_bye_until_ack'
   | 'bye_old_selected_leg'
   | 'send_bye'
   | 'ack_then_bye_non_winner'
@@ -266,10 +278,15 @@ const IDENTIFIER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/;
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
 const CALL_LEG_EVENTS = new Set<CallLegEvent>([
   'start_invite',
+  'inbound_invite_observed',
   'provisional',
   'final_2xx',
+  'final_non_2xx',
+  'invite_2xx_ack_observed',
   'cancel_requested',
   'late_final_2xx',
+  'remote_cancel_observed',
+  'remote_bye_observed',
   'hold_committed',
   'resume_committed',
   'transfer_prepare',
@@ -283,31 +300,110 @@ const TRANSITIONS = new Map<string, Readonly<{
   to: CallLegState;
   required_effect: CallLegRequiredEffect;
 }>>([
-  transition('planned', 'start_invite', 'inviting', 'none'),
-  transition('inviting', 'provisional', 'early', 'none'),
-  transition('inviting', 'final_2xx', 'confirmed', 'ack_2xx'),
-  transition('early', 'final_2xx', 'confirmed', 'ack_2xx'),
-  transition('planned', 'cancel_requested', 'terminating', 'cancel_if_invite_exists'),
-  transition('inviting', 'cancel_requested', 'terminating', 'send_cancel'),
-  transition('early', 'cancel_requested', 'terminating', 'send_cancel'),
-  transition('terminating', 'late_final_2xx', 'terminating', 'ack_then_bye'),
-  transition('confirmed', 'hold_committed', 'held', 'none'),
-  transition('held', 'resume_committed', 'confirmed', 'none'),
-  transition('confirmed', 'transfer_prepare', 'transferring', 'none'),
-  transition('held', 'transfer_prepare', 'transferring', 'none'),
-  transition('transferring', 'transfer_abort', 'confirmed', 'none'),
-  transition('confirmed', 'bye_requested', 'terminating', 'send_bye'),
-  transition('held', 'bye_requested', 'terminating', 'send_bye'),
-  transition('terminating', 'termination_observed', 'terminated', 'none'),
+  transition('outbound', 'planned', 'start_invite', 'inviting', 'none'),
+  transition('outbound', 'inviting', 'provisional', 'early', 'none'),
+  transition('outbound', 'inviting', 'final_2xx', 'confirmed', 'ack_2xx'),
+  transition('outbound', 'early', 'final_2xx', 'confirmed', 'ack_2xx'),
+  transition('outbound', 'inviting', 'final_non_2xx', 'failed', 'ack_non_2xx'),
+  transition('outbound', 'early', 'final_non_2xx', 'failed', 'ack_non_2xx'),
+  transition(
+    'outbound',
+    'planned',
+    'cancel_requested',
+    'terminating',
+    'cancel_if_invite_exists'
+  ),
+  transition('outbound', 'inviting', 'cancel_requested', 'terminating', 'send_cancel'),
+  transition('outbound', 'early', 'cancel_requested', 'terminating', 'send_cancel'),
+  transition('outbound', 'terminating', 'late_final_2xx', 'terminating', 'ack_then_bye'),
+  transition('inbound', 'planned', 'inbound_invite_observed', 'inviting', 'none'),
+  transition('inbound', 'inviting', 'provisional', 'early', 'none'),
+  transition('inbound', 'inviting', 'final_2xx', 'awaiting_ack', 'none'),
+  transition('inbound', 'early', 'final_2xx', 'awaiting_ack', 'none'),
+  transition('inbound', 'inviting', 'final_non_2xx', 'failed', 'none'),
+  transition('inbound', 'early', 'final_non_2xx', 'failed', 'none'),
+  transition(
+    'inbound',
+    'awaiting_ack',
+    'invite_2xx_ack_observed',
+    'confirmed',
+    'none'
+  ),
+  transition(
+    'inbound',
+    'awaiting_ack_terminate',
+    'invite_2xx_ack_observed',
+    'terminating',
+    'send_bye'
+  ),
+  transition(
+    'inbound',
+    'inviting',
+    'remote_cancel_observed',
+    'terminating',
+    'respond_cancel_2xx_and_invite_487'
+  ),
+  transition(
+    'inbound',
+    'early',
+    'remote_cancel_observed',
+    'terminating',
+    'respond_cancel_2xx_and_invite_487'
+  ),
+  transition(
+    'inbound',
+    'awaiting_ack',
+    'remote_cancel_observed',
+    'awaiting_ack',
+    'respond_cancel_2xx'
+  ),
+  transition(
+    'inbound',
+    'awaiting_ack_terminate',
+    'remote_cancel_observed',
+    'awaiting_ack_terminate',
+    'respond_cancel_2xx'
+  ),
+  transition(
+    'inbound',
+    'awaiting_ack',
+    'bye_requested',
+    'awaiting_ack_terminate',
+    'defer_bye_until_ack'
+  ),
+  ...bothDirections('confirmed', 'hold_committed', 'held', 'none'),
+  ...bothDirections('held', 'resume_committed', 'confirmed', 'none'),
+  ...bothDirections('confirmed', 'transfer_prepare', 'transferring', 'none'),
+  ...bothDirections('held', 'transfer_prepare', 'transferring', 'none'),
+  ...bothDirections('transferring', 'transfer_abort', 'confirmed', 'none'),
+  ...bothDirections('confirmed', 'bye_requested', 'terminating', 'send_bye'),
+  ...bothDirections('held', 'bye_requested', 'terminating', 'send_bye'),
+  ...bothDirections(
+    'confirmed',
+    'remote_bye_observed',
+    'terminating',
+    'respond_bye_2xx'
+  ),
+  ...bothDirections(
+    'held',
+    'remote_bye_observed',
+    'terminating',
+    'respond_bye_2xx'
+  ),
+  ...bothDirections('terminating', 'termination_observed', 'terminated', 'none'),
   ...([
     'planned',
     'inviting',
     'early',
+    'awaiting_ack',
+    'awaiting_ack_terminate',
     'confirmed',
     'held',
     'transferring',
     'terminating'
-  ] as const).map((state) => transition(state, 'protocol_failure', 'failed', 'none'))
+  ] as const).flatMap((state) =>
+    bothDirections(state, 'protocol_failure', 'failed', 'none')
+  )
 ]);
 
 interface MutableLeg {
@@ -466,7 +562,7 @@ export class CallLegRegistry {
     if (replay) return replay;
     const { call, leg } = this.#resolveFence(fence, legId);
     this.#reserveDedupe(call);
-    const rule = TRANSITIONS.get(`${leg.state}:${event}`);
+    const rule = TRANSITIONS.get(`${leg.direction}:${leg.state}:${event}`);
     if (!rule) throw failure('call_leg_transition_invalid');
     const nextState = event === 'transfer_abort'
       ? leg.transferReturnState
@@ -582,6 +678,9 @@ export class CallLegRegistry {
         call.forkAttemptByLeg.get(legId) !== forkAttemptId) {
       throw failure('call_leg_transition_invalid');
     }
+    if (leg.direction !== 'outbound') {
+      throw failure('call_leg_transition_invalid');
+    }
     if (leg.state !== 'inviting' &&
         leg.state !== 'early' &&
         leg.state !== 'confirmed' &&
@@ -615,6 +714,9 @@ export class CallLegRegistry {
         if (branchId === legId) continue;
         const branch = call.legs.get(branchId);
         if (!branch) throw failure('call_leg_leg_not_found');
+        if (branch.direction !== 'outbound') {
+          throw failure('call_leg_transition_invalid');
+        }
         const effect = forkCancellationEffect(branch.state);
         if (!effect) continue;
         branch.state = 'terminating';
@@ -670,7 +772,7 @@ export class CallLegRegistry {
     if (replay) return replay;
     const { call, leg } = this.#resolveFence(fence, legId);
     this.#reserveDedupe(call);
-    if (leg.state !== 'planned') {
+    if (leg.direction !== 'outbound' || leg.state !== 'planned') {
       throw failure('call_leg_transition_invalid');
     }
     if (call.forkWinnerByAttempt.has(forkAttemptId) ||
@@ -1055,6 +1157,7 @@ function forkCancellationEffect(
 }
 
 function transition(
+  direction: 'inbound' | 'outbound',
   from: CallLegState,
   event: CallLegEvent,
   to: CallLegState,
@@ -1064,9 +1167,21 @@ function transition(
   required_effect: CallLegRequiredEffect;
 }>] {
   return [
-    `${from}:${event}`,
+    `${direction}:${from}:${event}`,
     Object.freeze({ to, required_effect })
   ] as const;
+}
+
+function bothDirections(
+  from: CallLegState,
+  event: CallLegEvent,
+  to: CallLegState,
+  requiredEffect: CallLegRequiredEffect
+): ReadonlyArray<ReturnType<typeof transition>> {
+  return [
+    transition('inbound', from, event, to, requiredEffect),
+    transition('outbound', from, event, to, requiredEffect)
+  ];
 }
 
 function validateBounds(input: CallLegRegistryBounds): Readonly<CallLegRegistryBounds> {

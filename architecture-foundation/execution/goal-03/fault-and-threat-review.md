@@ -24,7 +24,8 @@ Production eligibility: `false`
 | duplicate visible effect | idempotency key + exact prepared bytes + receipt replay | native isolated PostgreSQL transition/repair tests and restart verified; live SIP dispatch `not_run` |
 | unknown send blindly retried | unknown state, query, repair lease/token/revision fence | `.57` native gate and ledger tests; live endpoint activation `not_run` |
 | auth/SDP secret leak | raw values excluded from logs, metrics, evidence and error details | source review plus exact-campaign generated-secret scans passed |
-| queue/connection exhaustion | hard capacities, deterministic 503/Retry-After, no unbounded waiter/task | `.57` local bounded-gate tests and `.53` exact 2-vCPU 1000-CPS controlled step passed separately; `.57` host allocation and saturation frontier remain `not_run` |
+| queue/connection exhaustion | hard capacities, deterministic 503/Retry-After, no unbounded waiter/task | `.58` local bounded-gate and direction-key tests plus the `.53` exact 2-vCPU 1000-CPS controlled step passed separately; `.58` host allocation and saturation frontier remain `not_run` |
+| inbound UAS emits a local ACK or enters outbound fork selection | direction is part of the transition key; inbound 2xx waits in `awaiting_ack`; fork registration/selection is outbound-only | `.58` TypeScript/native focused tests; live endpoint activation remains `not_run` |
 | malicious object/accessor/proxy input | closed own-data snapshots and bounded copies | existing local SipFoundation tests |
 | async callback continues after registry failure | Call registry invokes no callbacks; only fenced bounded dequeue, supervised execution and fenced re-entry | G03 unit/source evidence required |
 | fork winner leaves early sibling ringing | register every branch before INVITE; winner receipt contains bounded per-Leg CANCEL effects and atomically marks siblings terminating | G03 race unit evidence required |
@@ -76,7 +77,7 @@ microbenchmark or citing rvoip upstream numbers cannot close that Gate.
 ## 6. Residual Risks
 
 1. TypeScript SipFoundation/effect source is a conformance/reference harness;
-   the `.57` native adapter is compiled but default-disabled and therefore is
+   the `.58` native composition is compiled but default-disabled and therefore is
    not yet an elected live writer path.
 2. Exact `.53` wire, raw latency, SIPp/Asterisk interop, two-hour SIP-control
    and 2-vCPU capacity regression campaigns passed; rvoip differential,
@@ -88,7 +89,7 @@ microbenchmark or citing rvoip upstream numbers cannot close that Gate.
 4. Native panic, process abort, OOM, disk/network loss and blocking-call
    campaigns have not run.
 5. Fault/OOM and complete host-performance evidence have not run for the exact
-   `.57` candidate. Retained `.53` evidence is scoped to its exact source, and
+   `.58` candidate. Retained `.53` evidence is scoped to its exact source, and
    `.42` results remain historical only.
 
 All five remain visible in `evidence-index-v1.json` and prevent production

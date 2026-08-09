@@ -1,7 +1,7 @@
 {
   "$schema": "./call-leg-state-machine-v1.schema.json",
   "contract_id": "converact-call-leg-state-machine-v1",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "generated_at": "2026-08-02T00:00:00.000Z",
   "binding": {
     "goal_path": "goals/goal-03-sip-call-durable-foundation.md",
@@ -22,6 +22,14 @@
   "typescript_model_role": "conformance_reference_not_live_native_authority",
   "control_plane_voice_call_role": "call_intent_and_rebuildable_projection",
   "provider_call_id_role": "opaque_native_runtime_reference_never_CallId",
+  "direction_semantics": {
+    "inbound": "local_UAS_remote_UAC",
+    "outbound": "local_UAC_remote_UAS",
+    "outbound_final_2xx": "local_ACK_effect_required",
+    "inbound_final_2xx": "wait_for_remote_ACK_no_local_ACK_effect",
+    "fork": "outbound_only",
+    "registry_update": "authoritative_direction_immutable_fail_closed"
+  },
   "identifiers": {
     "common_representation": "opaque_ascii_1_to_128_no_whitespace",
     "generated_identity": "sha256_length_prefixed_tenant_namespace_components",
@@ -103,6 +111,8 @@
     "planned",
     "inviting",
     "early",
+    "awaiting_ack",
+    "awaiting_ack_terminate",
     "confirmed",
     "held",
     "transferring",
@@ -116,10 +126,15 @@
   ],
   "events": [
     "start_invite",
+    "inbound_invite_observed",
     "provisional",
     "final_2xx",
+    "final_non_2xx",
+    "invite_2xx_ack_observed",
     "cancel_requested",
     "late_final_2xx",
+    "remote_cancel_observed",
+    "remote_bye_observed",
     "hold_committed",
     "resume_committed",
     "transfer_prepare",
@@ -130,138 +145,397 @@
   ],
   "transitions": [
     {
+      "directions": [
+        "outbound"
+      ],
       "from": "planned",
       "event": "start_invite",
       "to": "inviting",
       "required_effect": "none"
     },
     {
+      "directions": [
+        "outbound"
+      ],
       "from": "inviting",
       "event": "provisional",
       "to": "early",
       "required_effect": "none"
     },
     {
+      "directions": [
+        "outbound"
+      ],
       "from": "inviting",
       "event": "final_2xx",
       "to": "confirmed",
       "required_effect": "ack_2xx"
     },
     {
+      "directions": [
+        "outbound"
+      ],
       "from": "early",
       "event": "final_2xx",
       "to": "confirmed",
       "required_effect": "ack_2xx"
     },
     {
+      "directions": [
+        "outbound"
+      ],
+      "from": "inviting",
+      "event": "final_non_2xx",
+      "to": "failed",
+      "required_effect": "ack_non_2xx"
+    },
+    {
+      "directions": [
+        "outbound"
+      ],
+      "from": "early",
+      "event": "final_non_2xx",
+      "to": "failed",
+      "required_effect": "ack_non_2xx"
+    },
+    {
+      "directions": [
+        "outbound"
+      ],
       "from": "planned",
       "event": "cancel_requested",
       "to": "terminating",
       "required_effect": "cancel_if_invite_exists"
     },
     {
+      "directions": [
+        "outbound"
+      ],
       "from": "inviting",
       "event": "cancel_requested",
       "to": "terminating",
       "required_effect": "send_cancel"
     },
     {
+      "directions": [
+        "outbound"
+      ],
       "from": "early",
       "event": "cancel_requested",
       "to": "terminating",
       "required_effect": "send_cancel"
     },
     {
+      "directions": [
+        "outbound"
+      ],
       "from": "terminating",
       "event": "late_final_2xx",
       "to": "terminating",
       "required_effect": "ack_then_bye"
     },
     {
+      "directions": [
+        "inbound"
+      ],
+      "from": "planned",
+      "event": "inbound_invite_observed",
+      "to": "inviting",
+      "required_effect": "none"
+    },
+    {
+      "directions": [
+        "inbound"
+      ],
+      "from": "inviting",
+      "event": "provisional",
+      "to": "early",
+      "required_effect": "none"
+    },
+    {
+      "directions": [
+        "inbound"
+      ],
+      "from": "inviting",
+      "event": "final_2xx",
+      "to": "awaiting_ack",
+      "required_effect": "none"
+    },
+    {
+      "directions": [
+        "inbound"
+      ],
+      "from": "early",
+      "event": "final_2xx",
+      "to": "awaiting_ack",
+      "required_effect": "none"
+    },
+    {
+      "directions": [
+        "inbound"
+      ],
+      "from": "inviting",
+      "event": "final_non_2xx",
+      "to": "failed",
+      "required_effect": "none"
+    },
+    {
+      "directions": [
+        "inbound"
+      ],
+      "from": "early",
+      "event": "final_non_2xx",
+      "to": "failed",
+      "required_effect": "none"
+    },
+    {
+      "directions": [
+        "inbound"
+      ],
+      "from": "awaiting_ack",
+      "event": "invite_2xx_ack_observed",
+      "to": "confirmed",
+      "required_effect": "none"
+    },
+    {
+      "directions": [
+        "inbound"
+      ],
+      "from": "awaiting_ack_terminate",
+      "event": "invite_2xx_ack_observed",
+      "to": "terminating",
+      "required_effect": "send_bye"
+    },
+    {
+      "directions": [
+        "inbound"
+      ],
+      "from": "inviting",
+      "event": "remote_cancel_observed",
+      "to": "terminating",
+      "required_effect": "respond_cancel_2xx_and_invite_487"
+    },
+    {
+      "directions": [
+        "inbound"
+      ],
+      "from": "early",
+      "event": "remote_cancel_observed",
+      "to": "terminating",
+      "required_effect": "respond_cancel_2xx_and_invite_487"
+    },
+    {
+      "directions": [
+        "inbound"
+      ],
+      "from": "awaiting_ack",
+      "event": "remote_cancel_observed",
+      "to": "awaiting_ack",
+      "required_effect": "respond_cancel_2xx"
+    },
+    {
+      "directions": [
+        "inbound"
+      ],
+      "from": "awaiting_ack_terminate",
+      "event": "remote_cancel_observed",
+      "to": "awaiting_ack_terminate",
+      "required_effect": "respond_cancel_2xx"
+    },
+    {
+      "directions": [
+        "inbound"
+      ],
+      "from": "awaiting_ack",
+      "event": "bye_requested",
+      "to": "awaiting_ack_terminate",
+      "required_effect": "defer_bye_until_ack"
+    },
+    {
+      "directions": [
+        "inbound",
+        "outbound"
+      ],
       "from": "confirmed",
       "event": "hold_committed",
       "to": "held",
       "required_effect": "none"
     },
     {
+      "directions": [
+        "inbound",
+        "outbound"
+      ],
       "from": "held",
       "event": "resume_committed",
       "to": "confirmed",
       "required_effect": "none"
     },
     {
+      "directions": [
+        "inbound",
+        "outbound"
+      ],
       "from": "confirmed",
       "event": "transfer_prepare",
       "to": "transferring",
       "required_effect": "none"
     },
     {
+      "directions": [
+        "inbound",
+        "outbound"
+      ],
       "from": "held",
       "event": "transfer_prepare",
       "to": "transferring",
       "required_effect": "none"
     },
     {
+      "directions": [
+        "inbound",
+        "outbound"
+      ],
       "from": "transferring",
       "event": "transfer_abort",
       "to": "previous_confirmed_or_held_state",
       "required_effect": "none"
     },
     {
+      "directions": [
+        "inbound",
+        "outbound"
+      ],
       "from": "confirmed",
       "event": "bye_requested",
       "to": "terminating",
       "required_effect": "send_bye"
     },
     {
+      "directions": [
+        "inbound",
+        "outbound"
+      ],
       "from": "held",
       "event": "bye_requested",
       "to": "terminating",
       "required_effect": "send_bye"
     },
     {
+      "directions": [
+        "inbound",
+        "outbound"
+      ],
+      "from": "confirmed",
+      "event": "remote_bye_observed",
+      "to": "terminating",
+      "required_effect": "respond_bye_2xx"
+    },
+    {
+      "directions": [
+        "inbound",
+        "outbound"
+      ],
+      "from": "held",
+      "event": "remote_bye_observed",
+      "to": "terminating",
+      "required_effect": "respond_bye_2xx"
+    },
+    {
+      "directions": [
+        "inbound",
+        "outbound"
+      ],
       "from": "terminating",
       "event": "termination_observed",
       "to": "terminated",
       "required_effect": "none"
     },
     {
+      "directions": [
+        "inbound",
+        "outbound"
+      ],
       "from": "planned",
       "event": "protocol_failure",
       "to": "failed",
       "required_effect": "none"
     },
     {
+      "directions": [
+        "inbound",
+        "outbound"
+      ],
       "from": "inviting",
       "event": "protocol_failure",
       "to": "failed",
       "required_effect": "none"
     },
     {
+      "directions": [
+        "inbound",
+        "outbound"
+      ],
       "from": "early",
       "event": "protocol_failure",
       "to": "failed",
       "required_effect": "none"
     },
     {
+      "directions": [
+        "inbound",
+        "outbound"
+      ],
+      "from": "awaiting_ack",
+      "event": "protocol_failure",
+      "to": "failed",
+      "required_effect": "none"
+    },
+    {
+      "directions": [
+        "inbound",
+        "outbound"
+      ],
+      "from": "awaiting_ack_terminate",
+      "event": "protocol_failure",
+      "to": "failed",
+      "required_effect": "none"
+    },
+    {
+      "directions": [
+        "inbound",
+        "outbound"
+      ],
       "from": "confirmed",
       "event": "protocol_failure",
       "to": "failed",
       "required_effect": "none"
     },
     {
+      "directions": [
+        "inbound",
+        "outbound"
+      ],
       "from": "held",
       "event": "protocol_failure",
       "to": "failed",
       "required_effect": "none"
     },
     {
+      "directions": [
+        "inbound",
+        "outbound"
+      ],
       "from": "transferring",
       "event": "protocol_failure",
       "to": "failed",
       "required_effect": "none"
     },
     {
+      "directions": [
+        "inbound",
+        "outbound"
+      ],
       "from": "terminating",
       "event": "protocol_failure",
       "to": "failed",
@@ -303,6 +577,12 @@
     "call_work_dispatch": "dequeue_only_no_callback_execution"
   },
   "race_policy": {
+    "direction_is_part_of_transition_key": true,
+    "inbound_2xx": "await_remote_ACK_without_local_ACK_effect",
+    "inbound_2xx_local_bye": "defer_until_remote_ACK_then_send_BYE",
+    "inbound_cancel_before_final": "durable_200_CANCEL_and_487_INVITE_effects_then_terminal_observation",
+    "inbound_cancel_after_2xx": "durable_200_CANCEL_without_reversing_awaiting_ACK",
+    "remote_bye": "durable_2xx_response_then_terminal_observation",
     "cancel_before_final": "CANCEL_then_487_ACK",
     "cancel_races_2xx": "ACK_2xx_then_BYE_without_second_CDR",
     "bye_duplicate": "idempotent_same_effect_identity",

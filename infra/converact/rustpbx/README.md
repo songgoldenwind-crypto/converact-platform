@@ -445,6 +445,32 @@ image, physical PostgreSQL restart, crash-window, real-peer and capacity work
 remain `not_run`. `G03-E16-NATIVE-AUTHORITY` is not promoted, and production
 eligibility remains false.
 
+ivekit.58 makes SIP Leg direction part of the Native Call transition key. An
+outbound Leg is the local UAC and therefore a received INVITE 2xx requires the
+durable local `ACK_2xx` effect. An inbound Leg is the local UAS: its committed
+2xx enters `awaiting_ack`, emits no local ACK, and becomes confirmed only after
+the remote INVITE-2xx ACK is observed. A local termination requested in that
+window enters the distinct `awaiting_ack_terminate` state, defers BYE until the
+ACK, and cannot be confused with CANCEL or non-2xx transaction completion.
+
+Inbound pre-final CANCEL, post-2xx CANCEL and remote BYE have separate effect
+policies. Outbound non-2xx final responses retain local ACK ownership. Fork
+registration and winner selection reject inbound Legs, including mixed-branch
+corruption, before mutation. The transition remains one bounded per-Call map
+lookup under the existing Call cell; this slice adds no task, queue, global
+lock, scan, database call or media-path work.
+
+The v1 machine contract is explicitly revised to `1.1.0` because the former
+direction-free `final_2xx -> ack_2xx` row was not valid for a UAS. The native
+model and TypeScript conformance reference share the same directional cases.
+On the exact local Rust 1.94.1 source, the complete locked RustPBX library suite
+passes (`1,980` passed, `0` failed, `5` ignored); the focused Native Call and
+registry groups pass `11/11` and `24/24`. The G03 machine-contract suite passes
+`9/9`, and the TypeScript directional Call/Leg suite passes `15/15`. Live
+endpoint event/effect activation, protocol-completion observation and host
+requalification remain `not_run`; `G03-E16-NATIVE-AUTHORITY` and production
+eligibility remain unpromoted.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the
