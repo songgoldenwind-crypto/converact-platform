@@ -1,0 +1,578 @@
+diff --git a/src/call/adapters/rsipstack_sip_effect_gate.rs b/src/call/adapters/rsipstack_sip_effect_gate.rs
+index 4a6843a..f1878eb 100644
+--- a/src/call/adapters/rsipstack_sip_effect_gate.rs
++++ b/src/call/adapters/rsipstack_sip_effect_gate.rs
+@@ -14,8 +14,8 @@ use dashmap::DashMap;
+ use rsipstack::sip::SipMessage;
+ use rsipstack::sip::prelude::{HeadersExt, ToTypedHeader};
+ use rsipstack::transaction::{
+-    EgressDerivedEffectKind, EgressEffectGate, EgressEffectOutcome, EgressEffectPermit,
+-    EgressEffectProtocolObservation,
++    EgressDerivedEffectKind, EgressEffectGate, EgressEffectOutcome, EgressEffectPeerDerivedKind,
++    EgressEffectPermit, EgressEffectProtocolObservation, PeerIngressProof,
+     key::{TransactionKey, TransactionRole},
+ };
+ use rsipstack::transport::connection::{EgressTransportBinding, EgressTransportSelectionKind};
+@@ -309,6 +309,24 @@ impl SipEffectIntentRegistry {
+     ) -> Result<SipEffectIntentLease, SipEffectGateError> {
+         intent.validate()?;
+         let binding_key = effect_binding_key(transaction_key, message)?;
++        self.register_binding(binding_key, intent)
++    }
++
++    pub fn register_peer_derived(
++        &self,
++        transaction_key: &TransactionKey,
++        kind: EgressEffectPeerDerivedKind,
++        intent: SipEffectIntent,
++    ) -> Result<SipEffectIntentLease, SipEffectGateError> {
++        intent.validate()?;
++        self.register_binding(peer_derived_binding_key(transaction_key, kind), intent)
++    }
++
++    fn register_binding(
++        &self,
++        binding_key: String,
++        intent: SipEffectIntent,
++    ) -> Result<SipEffectIntentLease, SipEffectGateError> {
+         self.inner
+             .registered
+             .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+@@ -762,6 +780,89 @@ pub(crate) fn materialize_derived_effect(
+     )
+ }
+ 
++#[derive(Clone)]
++pub(crate) struct SipEffectPeerDerivedAttempt {
++    pub(crate) kind: EgressEffectPeerDerivedKind,
++    pub(crate) transaction_key: TransactionKey,
++    pub(crate) trigger_message: SipMessage,
++    pub(crate) message: SipMessage,
++    pub(crate) transport_binding: EgressTransportBinding,
++    pub(crate) canonical_wire_bytes: Vec<u8>,
++}
++
++pub(crate) fn materialize_peer_derived_effect(
++    intent: &SipEffectIntent,
++    attempt: &SipEffectPeerDerivedAttempt,
++) -> Result<PreparedSipEffect, SipEffectGateError> {
++    if attempt.kind != EgressEffectPeerDerivedKind::ServerInviteCancelOk
++        || attempt.canonical_wire_bytes != attempt.message.to_bytes()
++    {
++        return Err(SipEffectGateError::InvalidIntent);
++    }
++    let (cancel, response) = match (&attempt.trigger_message, &attempt.message) {
++        (SipMessage::Request(cancel), SipMessage::Response(response))
++            if cancel.method == rsipstack::sip::Method::Cancel
++                && response.status_code == rsipstack::sip::StatusCode::OK
++                && cancel.body.is_empty()
++                && response.body.is_empty() =>
++        {
++            (cancel, response)
++        }
++        _ => return Err(SipEffectGateError::InvalidIntent),
++    };
++    if TransactionKey::from_request(cancel, TransactionRole::Server)
++        .ok()
++        .as_ref()
++        != Some(&attempt.transaction_key)
++    {
++        return Err(SipEffectGateError::InvalidIntent);
++    }
++
++    let cancel_cseq = cancel
++        .cseq_header()
++        .map_err(|_| SipEffectGateError::InvalidIntent)?;
++    let response_cseq = response
++        .cseq_header()
++        .map_err(|_| SipEffectGateError::InvalidIntent)?;
++    let cancel_sequence = cancel_cseq
++        .seq()
++        .map_err(|_| SipEffectGateError::InvalidIntent)?;
++    let cancel_to = cancel
++        .to_header()
++        .map_err(|_| SipEffectGateError::InvalidIntent)?
++        .typed()
++        .map_err(|_| SipEffectGateError::InvalidIntent)?;
++    let response_to = response
++        .to_header()
++        .map_err(|_| SipEffectGateError::InvalidIntent)?
++        .typed()
++        .map_err(|_| SipEffectGateError::InvalidIntent)?;
++    if response_cseq.seq().ok() != Some(cancel_sequence)
++        || cancel_cseq.method().ok() != Some(rsipstack::sip::Method::Cancel)
++        || response_cseq.method().ok() != Some(rsipstack::sip::Method::Cancel)
++        || cancel.call_id_header().ok().map(|header| header.value())
++            != response.call_id_header().ok().map(|header| header.value())
++        || cancel.from_header().ok().map(|header| header.value())
++            != response.from_header().ok().map(|header| header.value())
++        || cancel.via_header().ok().map(|header| header.value())
++            != response.via_header().ok().map(|header| header.value())
++        || cancel_to.uri != response_to.uri
++        || response_to.tag().is_none()
++        || cancel_to
++            .tag()
++            .is_some_and(|tag| response_to.tag() != Some(tag))
++    {
++        return Err(SipEffectGateError::InvalidIntent);
++    }
++
++    intent.prepare(
++        &attempt.message,
++        &attempt.transport_binding,
++        &attempt.canonical_wire_bytes,
++        COMPLETION_SCOPE_TRANSPORT_TERMINAL,
++    )
++}
++
+ struct PendingTransportObservation {
+     protocol_locator: SipEffectObservationLocator,
+     transport_work_permit: mpsc::OwnedPermit<EffectObservationWork>,
+@@ -1173,6 +1274,104 @@ impl DurableRsipstackEgressGate {
+         Ok(permit)
+     }
+ 
++    async fn prepare_peer_derived_inner(
++        &self,
++        kind: EgressEffectPeerDerivedKind,
++        transaction_key: &TransactionKey,
++        trigger_message: &SipMessage,
++        message: &SipMessage,
++        transport_binding: &EgressTransportBinding,
++        canonical_wire_bytes: &[u8],
++    ) -> Result<EgressEffectPermit, SipEffectGateError> {
++        let binding_key = peer_derived_binding_key(transaction_key, kind);
++        let observation_shard = observation_shard(&binding_key, self.observation_txs.len());
++        if self.observation_txs[observation_shard].is_closed()
++            || matches!(
++                self.observation_shards[observation_shard]
++                    .lifecycle
++                    .load(Ordering::Acquire),
++                0 | OBSERVATION_SHARD_QUARANTINED
++            )
++        {
++            return Err(SipEffectGateError::StoreUnavailable);
++        }
++        let pending_transport_capacity = self.pending_transport_capacity[observation_shard]
++            .clone()
++            .try_acquire_owned()
++            .map_err(|_| SipEffectGateError::ObservationCapacityExhausted)?;
++        let pending_protocol_capacity = self.pending_protocol_capacity[observation_shard]
++            .clone()
++            .try_acquire_owned()
++            .map_err(|_| SipEffectGateError::ObservationCapacityExhausted)?;
++        let transport_work_permit = self.reserve_observation_slot(observation_shard)?;
++        let protocol_work_permit = self.reserve_observation_slot(observation_shard)?;
++        if matches!(
++            self.observation_shards[observation_shard]
++                .lifecycle
++                .load(Ordering::Acquire),
++            0 | OBSERVATION_SHARD_QUARANTINED
++        ) {
++            return Err(SipEffectGateError::StoreUnavailable);
++        }
++
++        let mut intent = self.intents.claim(&binding_key)?;
++        let effect = materialize_peer_derived_effect(
++            &intent.intent,
++            &SipEffectPeerDerivedAttempt {
++                kind,
++                transaction_key: transaction_key.clone(),
++                trigger_message: trigger_message.clone(),
++                message: message.clone(),
++                transport_binding: transport_binding.clone(),
++                canonical_wire_bytes: canonical_wire_bytes.to_vec(),
++            },
++        )?;
++        let send_attempt = match self.store.prepare_for_send(effect).await {
++            Ok(outcome) => outcome,
++            Err(_) => {
++                intent.consume();
++                return Err(SipEffectGateError::ReconciliationRequired);
++            }
++        };
++        if send_attempt.send_attempt_replayed
++            || send_attempt.record.state != SipEffectState::SendAttempted
++            || intent.released()
++        {
++            intent.consume();
++            return Err(SipEffectGateError::ReconciliationRequired);
++        }
++        let record = send_attempt.record;
++        let effect_identity_hash = protocol_effect_identity_hash(&record.identity)
++            .map_err(|_| SipEffectGateError::InvalidIntent)?;
++        let protocol_locator =
++            SipEffectObservationLocator::from_record(&record, effect_identity_hash.clone());
++        let permit_token = permit_token(&effect_identity_hash, record.revision);
++        let permit = EgressEffectPermit::try_new(&permit_token)
++            .map_err(|_| SipEffectGateError::InvalidConfiguration)?;
++
++        use dashmap::mapref::entry::Entry;
++        match self.pending_transport.entry(permit_token) {
++            Entry::Occupied(_) => {
++                intent.consume();
++                return Err(SipEffectGateError::ReconciliationRequired);
++            }
++            Entry::Vacant(entry) => {
++                entry.insert(PendingTransportObservation {
++                    protocol_locator,
++                    transport_work_permit,
++                    protocol_work_permit,
++                    _transport_capacity: pending_transport_capacity,
++                    protocol_capacity: pending_protocol_capacity,
++                });
++                self.metrics
++                    .pending_transport_observations
++                    .fetch_add(1, Ordering::AcqRel);
++            }
++        }
++        intent.consume();
++        Ok(permit)
++    }
++
+     fn reserve_observation_slot(
+         &self,
+         shard: usize,
+@@ -1237,6 +1436,28 @@ impl EgressEffectGate for DurableRsipstackEgressGate {
+         .map_err(|error| rsipstack::Error::EndpointError(error.to_string()))
+     }
+ 
++    async fn prepare_peer_derived(
++        &self,
++        kind: EgressEffectPeerDerivedKind,
++        transaction_key: &TransactionKey,
++        trigger_message: &SipMessage,
++        message: &SipMessage,
++        transport_binding: &EgressTransportBinding,
++        canonical_wire_bytes: &[u8],
++        _ingress_proof: PeerIngressProof,
++    ) -> rsipstack::Result<EgressEffectPermit> {
++        self.prepare_peer_derived_inner(
++            kind,
++            transaction_key,
++            trigger_message,
++            message,
++            transport_binding,
++            canonical_wire_bytes,
++        )
++        .await
++        .map_err(|error| rsipstack::Error::EndpointError(error.to_string()))
++    }
++
+     fn observe_transport(&self, permit: EgressEffectPermit, outcome: EgressEffectOutcome) {
+         let Some((permit_token, pending)) = self.pending_transport.remove(permit.token()) else {
+             self.metrics
+@@ -1961,6 +2182,20 @@ fn effect_binding_key(
+     Ok(lower_hex(&hasher.finalize()))
+ }
+ 
++fn peer_derived_binding_key(
++    transaction_key: &TransactionKey,
++    kind: EgressEffectPeerDerivedKind,
++) -> String {
++    let kind = match kind {
++        EgressEffectPeerDerivedKind::ServerInviteCancelOk => "server_invite_cancel_ok",
++    };
++    let mut hasher = Sha256::new();
++    update_length_prefixed(&mut hasher, b"sip-peer-derived-intent-v1");
++    update_length_prefixed(&mut hasher, transaction_key.to_string().as_bytes());
++    update_length_prefixed(&mut hasher, kind.as_bytes());
++    lower_hex(&hasher.finalize())
++}
++
+ fn update_length_prefixed(hasher: &mut Sha256, value: &[u8]) {
+     hasher.update((value.len() as u64).to_be_bytes());
+     hasher.update(value);
+@@ -1989,7 +2224,8 @@ mod tests {
+         COMPLETION_SCOPE_TRANSACTION_PEER, COMPLETION_SCOPE_TRANSPORT_TERMINAL,
+         DurableRsipstackEgressGate, SipEffectDerivedAttempt, SipEffectDurableObservation,
+         SipEffectGateError, SipEffectGateOptions, SipEffectIntent, SipEffectIntentRegistry,
+-        SipEffectPrepareForSendOutcome, SipEffectStorePort, materialize_derived_effect,
++        SipEffectPeerDerivedAttempt, SipEffectPrepareForSendOutcome, SipEffectStorePort,
++        materialize_derived_effect, materialize_peer_derived_effect,
+     };
+     use crate::call::adapters::postgres_sip_effect::SipEffectStoreError;
+     use crate::call::domain::sip_effect::{
+@@ -2000,8 +2236,8 @@ mod tests {
+     use chrono::{Duration as ChronoDuration, TimeZone, Utc};
+     use rsipstack::sip::{HasHeaders, Request, SipMessage, Transport, headers::CSeq};
+     use rsipstack::transaction::{
+-        EgressDerivedEffectKind, EgressEffectGate, EgressEffectOutcome, EgressEffectPermit,
+-        EgressEffectProtocolObservation,
++        EgressDerivedEffectKind, EgressEffectGate, EgressEffectOutcome,
++        EgressEffectPeerDerivedKind, EgressEffectPermit, EgressEffectProtocolObservation,
+         key::{TransactionKey, TransactionRole},
+     };
+     use rsipstack::transport::{
+@@ -2362,6 +2598,41 @@ Content-Length: 0\r\n\r\n"
+         .into()
+     }
+ 
++    fn cancel(call: &str, branch: &str) -> (TransactionKey, SipMessage) {
++        let request = Request::try_from(
++            format!(
++                "CANCEL sip:bob@example.test SIP/2.0\r\n\
++Via: SIP/2.0/UDP 127.0.0.1:5060;branch={branch}\r\n\
++From: <sip:alice@example.test>;tag=from-tag\r\n\
++To: <sip:bob@example.test>\r\n\
++Call-ID: {call}\r\n\
++CSeq: 1 CANCEL\r\n\
++Content-Length: 0\r\n\r\n"
++            )
++            .as_str(),
++        )
++        .unwrap();
++        let key = TransactionKey::from_request(&request, TransactionRole::Server).unwrap();
++        (key, request.into())
++    }
++
++    fn cancel_ok(call: &str, branch: &str) -> SipMessage {
++        rsipstack::sip::Response::try_from(
++            format!(
++                "SIP/2.0 200 OK\r\n\
++Via: SIP/2.0/UDP 127.0.0.1:5060;branch={branch}\r\n\
++From: <sip:alice@example.test>;tag=from-tag\r\n\
++To: <sip:bob@example.test>;tag=to-tag\r\n\
++Call-ID: {call}\r\n\
++CSeq: 1 CANCEL\r\n\
++Content-Length: 0\r\n\r\n"
++            )
++            .as_str(),
++        )
++        .unwrap()
++        .into()
++    }
++
+     fn intent(effect: &str, session: &str) -> SipEffectIntent {
+         let semantic_intent_sha256 = sha256_lower_hex(effect.as_bytes());
+         let prepared_at = Utc.with_ymd_and_hms(2026, 8, 9, 0, 0, 0).unwrap();
+@@ -2834,6 +3105,229 @@ Content-Length: 0\r\n\r\n"
+         assert_eq!(gate.snapshot().pending_protocol_observations, 1);
+     }
+ 
++    #[tokio::test]
++    async fn peer_derived_cancel_ok_consumes_one_pre_registered_capability() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, mut observer) = runtime(
++            registry.clone(),
++            writer.clone(),
++            SipEffectGateOptions::default(),
++        );
++        let call = "call-peer-cancel@example.test";
++        let branch = "z9hG4bK-peer-cancel";
++        let (key, trigger) = cancel(call, branch);
++        let response = cancel_ok(call, branch);
++        let _lease = registry
++            .register_peer_derived(
++                &key,
++                EgressEffectPeerDerivedKind::ServerInviteCancelOk,
++                intent("effect-peer-cancel", "session-peer-cancel"),
++            )
++            .unwrap();
++        let transport_binding = test_transport_binding(&response).await;
++
++        let permit = gate
++            .prepare_peer_derived_inner(
++                EgressEffectPeerDerivedKind::ServerInviteCancelOk,
++                &key,
++                &trigger,
++                &response,
++                &transport_binding,
++                &response.to_bytes(),
++            )
++            .await
++            .expect("peer-derived durable permit");
++
++        let prepared = writer.prepared.lock().unwrap()[0].clone();
++        assert_eq!(prepared.canonical_wire_bytes, response.to_bytes());
++        assert_eq!(
++            prepared.wire_attempt_facts["completion_scope"],
++            COMPLETION_SCOPE_TRANSPORT_TERMINAL
++        );
++        assert_eq!(registry.snapshot().registered, 0);
++        gate.observe_transport(permit.clone(), EgressEffectOutcome::TransportAccepted);
++        gate.observe_protocol(permit, EgressEffectProtocolObservation::TransportTerminal);
++        assert!(observer.persist_next().await.unwrap());
++        assert!(observer.persist_next().await.unwrap());
++        assert_eq!(
++            writer.state(&prepared).await,
++            SipEffectState::TransportCompleted
++        );
++        assert_eq!(gate.snapshot().pending_observations, 0);
++    }
++
++    #[tokio::test]
++    async fn peer_derived_cancel_ok_rejects_mismatched_response_before_store() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, _observer) = runtime(
++            registry.clone(),
++            writer.clone(),
++            SipEffectGateOptions::default(),
++        );
++        let call = "call-peer-mismatch@example.test";
++        let branch = "z9hG4bK-peer-mismatch";
++        let (key, trigger) = cancel(call, branch);
++        let response = cancel_ok("different-call@example.test", "z9hG4bK-peer-mismatch");
++        let _lease = registry
++            .register_peer_derived(
++                &key,
++                EgressEffectPeerDerivedKind::ServerInviteCancelOk,
++                intent("effect-peer-mismatch", "session-peer-mismatch"),
++            )
++            .unwrap();
++        let attempt = SipEffectPeerDerivedAttempt {
++            kind: EgressEffectPeerDerivedKind::ServerInviteCancelOk,
++            transaction_key: key.clone(),
++            trigger_message: trigger.clone(),
++            message: response.clone(),
++            transport_binding: test_transport_binding(&response).await,
++            canonical_wire_bytes: response.to_bytes(),
++        };
++        assert!(
++            materialize_peer_derived_effect(
++                &intent("effect-peer-mismatch", "session-peer-mismatch"),
++                &attempt,
++            )
++            .is_err()
++        );
++        assert!(
++            gate.prepare_peer_derived_inner(
++                EgressEffectPeerDerivedKind::ServerInviteCancelOk,
++                &key,
++                &trigger,
++                &response,
++                &attempt.transport_binding,
++                &attempt.canonical_wire_bytes,
++            )
++            .await
++            .is_err()
++        );
++        assert!(writer.prepared.lock().unwrap().is_empty());
++        assert_eq!(registry.snapshot().registered, 1);
++        assert_eq!(gate.snapshot().pending_observations, 0);
++
++        let valid_response = cancel_ok(call, branch);
++        let valid_transport_binding = test_transport_binding(&valid_response).await;
++        gate.prepare_peer_derived_inner(
++            EgressEffectPeerDerivedKind::ServerInviteCancelOk,
++            &key,
++            &trigger,
++            &valid_response,
++            &valid_transport_binding,
++            &valid_response.to_bytes(),
++        )
++        .await
++        .expect("the unchanged capability remains available after local validation failure");
++        assert_eq!(writer.prepared.lock().unwrap().len(), 1);
++        assert_eq!(registry.snapshot().registered, 0);
++    }
++
++    #[tokio::test]
++    async fn peer_derived_cancel_ok_capability_cannot_issue_a_second_permit() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, _observer) = runtime(
++            registry.clone(),
++            writer.clone(),
++            SipEffectGateOptions::default(),
++        );
++        let call = "call-peer-once@example.test";
++        let branch = "z9hG4bK-peer-once";
++        let (key, trigger) = cancel(call, branch);
++        let response = cancel_ok(call, branch);
++        let _lease = registry
++            .register_peer_derived(
++                &key,
++                EgressEffectPeerDerivedKind::ServerInviteCancelOk,
++                intent("effect-peer-once", "session-peer-once"),
++            )
++            .unwrap();
++        let transport_binding = test_transport_binding(&response).await;
++
++        gate.prepare_peer_derived_inner(
++            EgressEffectPeerDerivedKind::ServerInviteCancelOk,
++            &key,
++            &trigger,
++            &response,
++            &transport_binding,
++            &response.to_bytes(),
++        )
++        .await
++        .expect("first peer-derived permit");
++        assert!(
++            gate.prepare_peer_derived_inner(
++                EgressEffectPeerDerivedKind::ServerInviteCancelOk,
++                &key,
++                &trigger,
++                &response,
++                &transport_binding,
++                &response.to_bytes(),
++            )
++            .await
++            .is_err()
++        );
++        assert_eq!(writer.prepared.lock().unwrap().len(), 1);
++        assert_eq!(gate.snapshot().pending_observations, 1);
++    }
++
++    #[tokio::test]
++    async fn peer_derived_commit_ack_loss_consumes_capability_and_requires_reconciliation() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        writer
++            .fail_send_attempt_after_commit
++            .store(true, Ordering::SeqCst);
++        let (gate, _observer) = runtime(
++            registry.clone(),
++            writer.clone(),
++            SipEffectGateOptions::default(),
++        );
++        let call = "call-peer-ack-loss@example.test";
++        let branch = "z9hG4bK-peer-ack-loss";
++        let (key, trigger) = cancel(call, branch);
++        let response = cancel_ok(call, branch);
++        let _lease = registry
++            .register_peer_derived(
++                &key,
++                EgressEffectPeerDerivedKind::ServerInviteCancelOk,
++                intent("effect-peer-ack-loss", "session-peer-ack-loss"),
++            )
++            .unwrap();
++        let transport_binding = test_transport_binding(&response).await;
++
++        assert_eq!(
++            gate.prepare_peer_derived_inner(
++                EgressEffectPeerDerivedKind::ServerInviteCancelOk,
++                &key,
++                &trigger,
++                &response,
++                &transport_binding,
++                &response.to_bytes(),
++            )
++            .await
++            .unwrap_err(),
++            SipEffectGateError::ReconciliationRequired
++        );
++        assert_eq!(registry.snapshot().registered, 0);
++        assert_eq!(gate.snapshot().pending_observations, 0);
++        assert_eq!(writer.prepared.lock().unwrap().len(), 1);
++        assert!(
++            gate.prepare_peer_derived_inner(
++                EgressEffectPeerDerivedKind::ServerInviteCancelOk,
++                &key,
++                &trigger,
++                &response,
++                &transport_binding,
++                &response.to_bytes(),
++            )
++            .await
++            .is_err()
++        );
++        assert_eq!(writer.prepared.lock().unwrap().len(), 1);
++    }
++
+     #[tokio::test]
+     async fn protocol_unknown_is_persisted_after_transport_acceptance() {
+         let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());

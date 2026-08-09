@@ -563,11 +563,40 @@ old server service, container, database or source was deleted or changed.
 
 The proof does not yet carry an independently verified transport flow
 generation into the durable receipt, and the default-disabled gate is not wired
-through a live RustPBX Endpoint. Automatic 200-to-CANCEL, UAS-Core 2xx ACK
-ownership, stale nonterminal recovery, mixed-binary activation, real-peer,
-long-call, fault/OOM and capacity campaigns remain `not_run`.
+through a live RustPBX Endpoint. UAS-Core 2xx ACK ownership, stale nonterminal
+recovery, mixed-binary activation, real-peer, long-call, fault/OOM and capacity
+campaigns remain `not_run`.
 `G03-E15-REVIEW`, `G03-E16-NATIVE-AUTHORITY` and production eligibility remain
 unpromoted.
+
+ivekit.62 adds the matched server-INVITE CANCEL direction without making the
+transaction layer a business-intent authority. Call Core must pre-register one
+bounded `ServerInviteCancelOk` capability against the exact server transaction.
+Only an opaque Endpoint peer-ingress proof can trigger it. RustPBX consumes that
+capability once, verifies the CANCEL transaction key, CSeq, Call-ID, From, top
+Via, To URI/tag relationship, exact finalized 200 response bytes and actual
+transport binding, then uses the existing atomic durable prepare-for-send path.
+An absent capability or mismatched trigger emits no bytes. A commit-ACK or
+transport ambiguity consumes the capability and latches reconciliation instead
+of authorizing another response.
+
+The first successful 200 response freezes both message and bytes; a duplicate
+CANCEL reuses that image without another durable prepare. The response reuses
+the transaction's stable To-tag or generates it once and writes it back to the
+original INVITE, so a later 487 and all retransmissions retain one dialog
+lineage. Transport acceptance terminates this response as
+`transport_completed`; it is never reported as peer `protocol_observed`.
+Cancellation-safe RAII records `TransportUnknown` exactly once. The existing
+fixed-shard semaphores, reserved queues and shared intent ceiling bound all new
+work; this slice adds no task, global scan, unbounded channel or media-path work.
+
+Local Rust 1.94.1 component tests pass the complete rsipstack library suite
+(`306/306`) and the full RustPBX durable-gate group (`31/31`). Current `.62`
+server suites, a real Call Core capability holder, live Endpoint composition,
+restart/reconcile resumption, exact release image, real-peer, long-call,
+fault/OOM and capacity qualification remain `not_run`. These component tests do
+not inherit older release-image or capacity evidence; production eligibility
+remains false.
 
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out

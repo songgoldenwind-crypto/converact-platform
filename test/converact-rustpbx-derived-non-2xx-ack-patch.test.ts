@@ -31,7 +31,7 @@ test("ivekit.60 applies the durable child after protocol observation", () => {
   assert.equal(parsed.status, 0, parsed.stderr);
 
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.61"/);
+  assert.match(build, /PATCHSET="ivekit\.62"/);
   assert.match(
     build,
     /rustpbx-converact-protocol-observation\.patch"[\s\S]*rustpbx-converact-derived-non-2xx-ack\.patch"/,

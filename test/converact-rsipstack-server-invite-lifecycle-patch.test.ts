@@ -36,7 +36,7 @@ function effective(patch: string): string {
 test('ivekit.42 retains the server INVITE lifecycle and owner patches in order', () => {
   assert.equal(spawnSync('git', ['apply', '--numstat', RSIPSTACK_PATCH]).status, 0);
   assert.equal(spawnSync('git', ['apply', '--numstat', RUSTPBX_PATCH]).status, 0);
-  assert.match(build, /PATCHSET="ivekit\.61"/);
+  assert.match(build, /PATCHSET="ivekit\.62"/);
   assert.match(
     build,
     /rsipstack-ivekit-single-trying\.patch"[\s\S]*rsipstack-ivekit-server-invite-lifecycle\.patch"[\s\S]*rsipstack-ivekit-wire-guard\.patch"[\s\S]*rustrtc-ivekit-udp-socket-capacity\.patch"/
