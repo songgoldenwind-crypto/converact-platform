@@ -51,9 +51,9 @@ test("every live SIP call resolves exactly one native identity and admission aut
   assert.doesNotMatch(source, /\.iter\(\).*native_calls|native_calls.*\.iter\(/s);
 });
 
-test("ivekit.55 retains native admission authority before durable egress activation", () => {
+test("ivekit.56 retains native admission authority before durable egress activation", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.55"/);
+  assert.match(build, /PATCHSET="ivekit\.56"/);
   assert.match(
     build,
     /rustpbx-converact-postgres-sip-effect-repair-batch\.patch"[\s\S]*rustpbx-converact-native-call-live-authority\.patch"/,

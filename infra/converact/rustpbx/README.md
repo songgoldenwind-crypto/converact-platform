@@ -388,6 +388,29 @@ real-peer and capacity campaigns for this patchset. No live SIP path activates
 the optional gate in this slice, `G03-E16-NATIVE-AUTHORITY` remains `not_run`,
 and production eligibility remains false.
 
+ivekit.56 freezes one canonical wire image after the message inspector and
+final `Content-Length` update, then gives that same byte slice to both the
+durable egress gate and the network transport. UDP uses one datagram payload;
+TCP and TLS write the frozen bytes directly; WebSocket validates UTF-8 and
+emits the exact image as a SIP text frame. Listener-only handles now fail
+closed instead of reporting a false successful send.
+
+The transaction keeps bounded `Arc` references only for its initial request,
+CANCEL, ACK and latest successfully sent response. A prepare retry reuses the
+frozen CANCEL or ACK, while Timer A, duplicate INVITE and Timer G replay the
+same committed bytes without another inspector call, durable decision,
+serialization or wire-buffer allocation. The in-memory `Channel` transport
+continues to carry a structured message for local tests and is not evidence of
+a production network wire path.
+
+The exact `.55 + .56` rsipstack source passes its locked Rust 1.94 aarch64
+macOS library suite (`282` passed, `0` failed). The exact `.54` RustPBX plus
+`.55 + .56` rsipstack combination passes the locked Rust 1.94 aarch64 macOS
+RustPBX library suite (`1,967` passed, `0` failed, `5` ignored). The runtime
+PostgreSQL gate adapter, Linux image, physical PostgreSQL restart, crash-window,
+real-peer and capacity campaigns remain `not_run` for `.56`; no live SIP path
+activates the optional gate, and production eligibility remains false.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the
