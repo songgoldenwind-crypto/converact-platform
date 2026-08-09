@@ -38,11 +38,11 @@ unchanged container IDs are retained instead.
 Neither accepted review proves that the TypeScript `VoiceCall`, Call/Leg model,
 `RsipstackFoundationAdapter` or PostgreSQL reference ledger is a live native
 authority. Unified RustPBX remains the sole active Call/Leg authority;
-`G03-E16-NATIVE-AUTHORITY` and the `.61` current patchset, including its
+`G03-E16-NATIVE-AUTHORITY` and the `.62` current patchset, including its
 default-disabled native durable egress adapter, are outside those old reviewed
 diffs and remain pending exact-source review.
 
-## Current `.61` interim review boundary
+## Current `.62` interim review boundary
 
 The `.59` protocol-observation slice received iterative code review while it
 was developed. Findings around cancellation ownership, queue loss, receipt
@@ -71,13 +71,23 @@ before the boundary and GREEN after it; exact incremental replay, rsipstack
 server. The component-only raw bundle is
 `evidence/raw/peer-ingress-proof-701475a-07/`.
 
+The `.62` slice adds one matched server-INVITE CANCEL response without granting
+the transaction layer business-intent authority. Review findings around
+pre-authorization, exact trigger/response matching, stable To-tag lineage,
+duplicate replay and ambiguity after durable commit became tests before the
+implementation was accepted. The final server sources pass exact incremental
+replay, rsipstack `306/306`, doctest `67/67` and RustPBX `2,006/0/8`. The
+component-only raw bundle is
+`evidence/raw/peer-derived-cancel-56e0d42-08/`.
+
 That work is not a final independent acceptance. Live Endpoint composition and
-transport-flow-generation binding, automatic 200-to-CANCEL,
-UAS-Core 2xx ACK ownership, parent-Unknown reconciliation, stale nonterminal
-observer-crash recovery, live endpoint composition, mixed-binary activation,
-fault/OOM and capacity evidence remain open. The candidate therefore remains
-default-disabled and `G03-E15-REVIEW`, `G03-E16-NATIVE-AUTHORITY` and production
-eligibility remain `not_run`/false.
+transport-flow-generation binding, the live Call Core holder for the matched
+CANCEL capability, reconciliation resumption, UAS-Core 2xx ACK ownership,
+parent-Unknown reconciliation, stale nonterminal observer-crash recovery,
+mixed-binary activation, fault/OOM and capacity evidence remain open. The
+candidate therefore remains default-disabled and `G03-E15-REVIEW`,
+`G03-E16-NATIVE-AUTHORITY` and production eligibility remain
+`not_run`/false.
 
 ## Rejection history and remaining gate
 

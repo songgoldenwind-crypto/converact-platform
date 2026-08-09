@@ -1,0 +1,68 @@
+campaign=converact-g03-peer-derived-cancel-56e0d42-08
+status=verified_controlled_component_only
+
+SOURCE AND PATCH BINDING
+- G03 binding SHA-256: 05ce7f940782ab0efcd013d413220d068a7d3be1bab981f2c2c4f6a6f2a217af
+- candidate commit: 56e0d429c22b4b428433f774c35e0da19784d631
+- patchset: ivekit.62
+- rsipstack incremental patch SHA-256:
+  f14d0a8cbab9d0a104588d78f4f2bc3bf0b48fd8a0e9a1515cbf487318a20eef
+- RustPBX incremental patch SHA-256:
+  fc56524e5b753d2a4ec354a07fb2f9679de90b0af32a0d9f3ea2a11e489b301c
+- complete sorted patch-set SHA-256:
+  8b591ca5031b2beb1dee118d4e3090ba034ffa0c3a43315cf8d1e4b0594e90a9
+- the server `.61` baseline hashes exactly matched the committed `.61` source;
+  both `.62` patches passed dry-run before applying once.
+- the five resulting server source hashes exactly match the packaged `.62`
+  implementation sources. `server-incremental-patch-apply.log` retains both
+  before and after hashes.
+
+TDD OBSERVATION
+- before implementation, the rsipstack path sent the matched CANCEL 200
+  directly and RustPBX had no peer-derived capability materializer;
+- RED tests required a peer proof plus one bounded capability, exact response
+  validation, stable duplicate replay and cancellation/commit-ambiguity
+  handling;
+- the minimal implementation made those tests GREEN while retaining the
+  existing fixed-shard observation and atomic durable preparation paths.
+
+AUTHORIZED-HOST RESULTS
+- all Docker commands ran only on ubuntu@101.42.7.139;
+- Rust image: rust:1.94.1-bookworm / Rust 1.94.1;
+- rsipstack: 306 passed, 0 failed;
+- rsipstack compile-fail/doctest: 67 passed, 0 failed;
+- RustPBX: 2,006 passed, 0 failed, 8 ignored; 226.56 seconds test execution;
+- the four RustPBX peer-derived capability/mismatch/replay/ambiguity tests are
+  present as explicit `ok` rows in the full log.
+
+LOCAL CANONICAL VERIFICATION
+- all 42 changed exact-patch/source test files: 172 passed, 0 failed;
+- Goal 03 generated-contract suite: 9 passed, 0 failed;
+- incremental replay reproduced the exact four rsipstack files and one
+  RustPBX adapter file;
+- `bash -n infra/converact/rustpbx/build.sh`, exact-source rustfmt and
+  canonical diff checks passed before the candidate commit.
+
+SERVER POSTFLIGHT
+- only converact-g03-current-pg-7f4cd00c remained running and healthy;
+- all old containers and PM2 applications were stopped and retained;
+- nginx was inactive;
+- the externally bound TCP listener was SSH only;
+- temporary Rust test containers were removed automatically.
+
+EXECUTION DISCLOSURE
+- the final RustPBX success summary was durably present in the server log and
+  its test container had exited before the local streaming session was closed;
+- no local Docker was used;
+- no release image was built or deployed;
+- no old server service, image, volume, database, configuration, restart
+  policy, source or user artifact was deleted or edited.
+
+NOT RUN / NOT CLAIMED
+- live Call Core capability registration and live RustPBX Endpoint composition;
+- restart/reconcile resumption for an ambiguous peer-derived response;
+- UAS-Core 2xx ACK ownership and parent-Unknown/stale nonterminal recovery;
+- transport flow-generation receipt binding and mixed-binary activation;
+- exact `.62` release image, real peer, carrier interop and long call;
+- process fault/OOM, allocation, 2/4/8-core scaling and capacity;
+- G03-E15 final review, G03-E16 Native Authority and production eligibility.

@@ -590,13 +590,16 @@ Cancellation-safe RAII records `TransportUnknown` exactly once. The existing
 fixed-shard semaphores, reserved queues and shared intent ceiling bound all new
 work; this slice adds no task, global scan, unbounded channel or media-path work.
 
-Local Rust 1.94.1 component tests pass the complete rsipstack library suite
-(`306/306`) and the full RustPBX durable-gate group (`31/31`). Current `.62`
-server suites, a real Call Core capability holder, live Endpoint composition,
-restart/reconcile resumption, exact release image, real-peer, long-call,
-fault/OOM and capacity qualification remain `not_run`. These component tests do
-not inherit older release-image or capacity evidence; production eligibility
-remains false.
+On the authorized validation server, the final exact Rust 1.94.1 sources pass
+the complete rsipstack library suite (`306/306`), its compile-fail/doctest suite
+(`67/67`) and the complete RustPBX library suite (`2,006` passed, `0` failed,
+`8` ignored). The retained component-only bundle is
+`architecture-foundation/execution/goal-03/evidence/raw/peer-derived-cancel-56e0d42-08/`.
+No release image was built or deployed. A real Call Core capability holder,
+live Endpoint composition, restart/reconcile resumption, exact release image,
+real-peer, long-call, fault/OOM and capacity qualification remain `not_run`.
+These component tests do not inherit older release-image or capacity evidence;
+production eligibility remains false.
 
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
