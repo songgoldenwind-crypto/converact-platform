@@ -1,0 +1,743 @@
+diff --git a/src/transaction/endpoint.rs b/src/transaction/endpoint.rs
+index 22d09948c4a0072995d3fb984fd290587dd251ae..1aff115a046ac1d69f161a6ee0527317958ace67 100644
+--- a/src/transaction/endpoint.rs
++++ b/src/transaction/endpoint.rs
+@@ -86,6 +86,15 @@ pub enum EgressEffectProtocolObservation {
+     TransportTerminal,
+ }
+ 
++/// A protocol-mandated egress effect that is authorized by a previously
++/// permitted parent effect rather than by a new application command.
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub enum EgressDerivedEffectKind {
++    /// The transaction-layer ACK generated for a matching non-2xx final
++    /// response to a client INVITE.
++    ClientNon2xxInviteAck,
++}
++
+ /// Optional application-owned durable gate for the first externally visible
+ /// transmission of a SIP effect. Implementations must durably record the
+ /// exact canonical wire image and send-attempt decision before returning a
+@@ -104,6 +113,26 @@ pub trait EgressEffectGate: Send + Sync {
+         canonical_wire_bytes: &[u8],
+     ) -> Result<EgressEffectPermit>;
+ 
++    /// Durably authorize a protocol-mandated child effect from an exact parent
++    /// permit and the peer message that triggered the child. Implementations
++    /// must fail closed when they cannot prove the parent/trigger/child
++    /// relationship. The default rejects derivation so existing gates cannot
++    /// silently acquire this authority.
++    async fn prepare_derived(
++        &self,
++        _parent_permit: &EgressEffectPermit,
++        _kind: EgressDerivedEffectKind,
++        _transaction_key: &TransactionKey,
++        _trigger_message: &SipMessage,
++        _message: &SipMessage,
++        _transport_binding: &EgressTransportBinding,
++        _canonical_wire_bytes: &[u8],
++    ) -> Result<EgressEffectPermit> {
++        Err(Error::EndpointError(
++            "SIP egress effect derivation is not authorized".to_string(),
++        ))
++    }
++
+     fn observe_transport(&self, permit: EgressEffectPermit, outcome: EgressEffectOutcome);
+ 
+     /// Perform bounded, non-blocking publication of a protocol observation.
+diff --git a/src/transaction/mod.rs b/src/transaction/mod.rs
+index 400d745ba8328eba3b89b79321882530dcd1a54c..1c8093029df51cbc8d2dd7712e6531622d48fecb 100644
+--- a/src/transaction/mod.rs
++++ b/src/transaction/mod.rs
+@@ -14,7 +14,8 @@ pub use endpoint::EndpointBuilder;
+ pub use endpoint::EndpointCapacityLimits;
+ pub use endpoint::EndpointStats;
+ pub use endpoint::{
+-    EgressEffectGate, EgressEffectOutcome, EgressEffectPermit, EgressEffectProtocolObservation,
++    EgressDerivedEffectKind, EgressEffectGate, EgressEffectOutcome, EgressEffectPermit,
++    EgressEffectProtocolObservation,
+ };
+ #[cfg(test)]
+ mod tests;
+diff --git a/src/transaction/tests/test_client.rs b/src/transaction/tests/test_client.rs
+index 57d8719124912f6c43ff4c911c2aedbb2956b659..8894d8f5761d868c7129af0f38d82306eab82375 100644
+--- a/src/transaction/tests/test_client.rs
++++ b/src/transaction/tests/test_client.rs
+@@ -1,8 +1,8 @@
+ use crate::bounded::test_channel;
+ use crate::sip::{headers::*, prelude::HeadersExt, Header, Response, SipMessage, Uri};
+ use crate::transaction::endpoint::{
+-    EgressEffectGate, EgressEffectOutcome, EgressEffectPermit, EgressEffectProtocolObservation,
+-    MessageInspector,
++    EgressDerivedEffectKind, EgressEffectGate, EgressEffectOutcome, EgressEffectPermit,
++    EgressEffectProtocolObservation, MessageInspector,
+ };
+ use crate::transaction::key::{TransactionKey, TransactionRole};
+ use crate::transaction::transaction::{Transaction, TransactionEvent};
+@@ -60,6 +60,38 @@ impl EgressEffectGate for RecordingEgressEffectGate {
+         EgressEffectPermit::try_new(&format!("client-effect-{call}"))
+     }
+ 
++    async fn prepare_derived(
++        &self,
++        _parent_permit: &EgressEffectPermit,
++        kind: EgressDerivedEffectKind,
++        _transaction_key: &TransactionKey,
++        trigger_message: &SipMessage,
++        message: &SipMessage,
++        _transport_binding: &EgressTransportBinding,
++        canonical_wire_bytes: &[u8],
++    ) -> crate::Result<EgressEffectPermit> {
++        assert_eq!(kind, EgressDerivedEffectKind::ClientNon2xxInviteAck);
++        assert!(matches!(
++            trigger_message,
++            SipMessage::Response(response) if (300..=699).contains(&response.status_code.code())
++        ));
++        let call = self.prepare_calls.fetch_add(1, Ordering::SeqCst) + 1;
++        self.messages
++            .lock()
++            .expect("message lock")
++            .push(message.clone());
++        self.canonical_wire_images
++            .lock()
++            .expect("wire image lock")
++            .push(canonical_wire_bytes.to_vec());
++        if self.fail_on_prepare_call == Some(call) {
++            return Err(crate::Error::EndpointError(
++                "durable egress decision unavailable".to_string(),
++            ));
++        }
++        EgressEffectPermit::try_new(&format!("client-effect-{call}"))
++    }
++
+     fn observe_transport(&self, _permit: EgressEffectPermit, outcome: EgressEffectOutcome) {
+         self.outcomes.lock().expect("outcome lock").push(outcome);
+     }
+@@ -76,6 +108,17 @@ struct ProtocolRecordingGate {
+     observations: Mutex<Vec<(String, EgressEffectProtocolObservation)>>,
+ }
+ 
++struct RejectOrdinaryAckGate {
++    ordinary_ack_prepares: AtomicUsize,
++    derived_ack_prepares: AtomicUsize,
++    observations: Mutex<Vec<(String, EgressEffectProtocolObservation)>>,
++}
++
++struct PendingDerivedAckGate {
++    ordinary_ack_prepares: AtomicUsize,
++    observations: Mutex<Vec<(String, EgressEffectProtocolObservation)>>,
++}
++
+ struct TransportBindingGate {
+     binding: Mutex<Option<EgressTransportBinding>>,
+ }
+@@ -122,6 +165,142 @@ impl EgressEffectGate for ProtocolRecordingGate {
+         EgressEffectPermit::try_new(&format!("client-{effect}"))
+     }
+ 
++    async fn prepare_derived(
++        &self,
++        parent_permit: &EgressEffectPermit,
++        kind: EgressDerivedEffectKind,
++        _transaction_key: &TransactionKey,
++        trigger_message: &SipMessage,
++        message: &SipMessage,
++        _transport_binding: &EgressTransportBinding,
++        _canonical_wire_bytes: &[u8],
++    ) -> crate::Result<EgressEffectPermit> {
++        assert_eq!(parent_permit.token(), "client-invite");
++        assert_eq!(kind, EgressDerivedEffectKind::ClientNon2xxInviteAck);
++        assert!(matches!(
++            trigger_message,
++            SipMessage::Response(response) if (300..=699).contains(&response.status_code.code())
++        ));
++        assert!(matches!(
++            message,
++            SipMessage::Request(request) if request.method == crate::sip::Method::Ack
++        ));
++        EgressEffectPermit::try_new("client-ack")
++    }
++
++    fn observe_transport(&self, _permit: EgressEffectPermit, _outcome: EgressEffectOutcome) {}
++
++    fn observe_protocol(
++        &self,
++        permit: EgressEffectPermit,
++        observation: EgressEffectProtocolObservation,
++    ) {
++        self.observations
++            .lock()
++            .expect("protocol observation lock")
++            .push((permit.token().to_string(), observation));
++    }
++}
++
++#[async_trait::async_trait]
++impl EgressEffectGate for RejectOrdinaryAckGate {
++    async fn prepare(
++        &self,
++        _transaction_key: &TransactionKey,
++        message: &SipMessage,
++        _transport_binding: &EgressTransportBinding,
++        _canonical_wire_bytes: &[u8],
++    ) -> crate::Result<EgressEffectPermit> {
++        match message {
++            SipMessage::Request(request) if request.method == crate::sip::Method::Invite => {
++                EgressEffectPermit::try_new("client-parent-invite")
++            }
++            SipMessage::Request(request) if request.method == crate::sip::Method::Ack => {
++                self.ordinary_ack_prepares.fetch_add(1, Ordering::SeqCst);
++                Err(crate::Error::EndpointError(
++                    "automatic ACK must use parent-bound derivation authority".to_string(),
++                ))
++            }
++            _ => Err(crate::Error::EndpointError(
++                "unexpected egress effect".to_string(),
++            )),
++        }
++    }
++
++    async fn prepare_derived(
++        &self,
++        parent_permit: &EgressEffectPermit,
++        kind: EgressDerivedEffectKind,
++        _transaction_key: &TransactionKey,
++        trigger_message: &SipMessage,
++        message: &SipMessage,
++        _transport_binding: &EgressTransportBinding,
++        _canonical_wire_bytes: &[u8],
++    ) -> crate::Result<EgressEffectPermit> {
++        assert_eq!(parent_permit.token(), "client-parent-invite");
++        assert_eq!(kind, EgressDerivedEffectKind::ClientNon2xxInviteAck);
++        assert!(matches!(
++            trigger_message,
++            SipMessage::Response(response) if (300..=699).contains(&response.status_code.code())
++        ));
++        assert!(matches!(
++            message,
++            SipMessage::Request(request) if request.method == crate::sip::Method::Ack
++        ));
++        self.derived_ack_prepares.fetch_add(1, Ordering::SeqCst);
++        EgressEffectPermit::try_new("client-derived-ack")
++    }
++
++    fn observe_transport(&self, _permit: EgressEffectPermit, _outcome: EgressEffectOutcome) {}
++
++    fn observe_protocol(
++        &self,
++        permit: EgressEffectPermit,
++        observation: EgressEffectProtocolObservation,
++    ) {
++        self.observations
++            .lock()
++            .expect("protocol observation lock")
++            .push((permit.token().to_string(), observation));
++    }
++}
++
++#[async_trait::async_trait]
++impl EgressEffectGate for PendingDerivedAckGate {
++    async fn prepare(
++        &self,
++        _transaction_key: &TransactionKey,
++        message: &SipMessage,
++        _transport_binding: &EgressTransportBinding,
++        _canonical_wire_bytes: &[u8],
++    ) -> crate::Result<EgressEffectPermit> {
++        match message {
++            SipMessage::Request(request) if request.method == crate::sip::Method::Invite => {
++                EgressEffectPermit::try_new("client-pending-parent")
++            }
++            SipMessage::Request(request) if request.method == crate::sip::Method::Ack => {
++                self.ordinary_ack_prepares.fetch_add(1, Ordering::SeqCst);
++                EgressEffectPermit::try_new("client-forbidden-ordinary-ack")
++            }
++            _ => Err(crate::Error::EndpointError(
++                "unexpected egress effect".to_string(),
++            )),
++        }
++    }
++
++    async fn prepare_derived(
++        &self,
++        _parent_permit: &EgressEffectPermit,
++        _kind: EgressDerivedEffectKind,
++        _transaction_key: &TransactionKey,
++        _trigger_message: &SipMessage,
++        _message: &SipMessage,
++        _transport_binding: &EgressTransportBinding,
++        _canonical_wire_bytes: &[u8],
++    ) -> crate::Result<EgressEffectPermit> {
++        std::future::pending().await
++    }
++
+     fn observe_transport(&self, _permit: EgressEffectPermit, _outcome: EgressEffectOutcome) {}
+ 
+     fn observe_protocol(
+@@ -489,6 +668,107 @@ async fn client_request_is_protocol_completed_only_after_a_final_response() {
+     );
+ }
+ 
++#[tokio::test]
++async fn automatic_non_2xx_ack_uses_parent_bound_derivation_not_ordinary_prepare() {
++    let gate = Arc::new(RejectOrdinaryAckGate {
++        ordinary_ack_prepares: AtomicUsize::new(0),
++        derived_ack_prepares: AtomicUsize::new(0),
++        observations: Mutex::new(Vec::new()),
++    });
++    let (mut transaction, peer) = udp_client_transaction_with_effect_gate(gate.clone()).await;
++
++    transaction.send().await.expect("send INVITE");
++    assert!(matches!(
++        recv_udp_message(&peer).await,
++        SipMessage::Request(request) if request.method == crate::sip::Method::Invite
++    ));
++    transaction
++        .tu_sender
++        .send(TransactionEvent::Received(
++            busy_response().into(),
++            transaction.connection.clone().expect("client connection"),
++        ))
++        .expect("final response event");
++
++    assert!(matches!(
++        transaction.receive().await,
++        Some(SipMessage::Response(response))
++            if response.status_code == crate::sip::StatusCode::BusyHere
++    ));
++    assert!(matches!(
++        recv_udp_message(&peer).await,
++        SipMessage::Request(request) if request.method == crate::sip::Method::Ack
++    ));
++    assert_eq!(transaction.state, TransactionState::Terminated);
++    assert_eq!(gate.ordinary_ack_prepares.load(Ordering::SeqCst), 0);
++    assert_eq!(gate.derived_ack_prepares.load(Ordering::SeqCst), 1);
++    assert_eq!(
++        gate.observations
++            .lock()
++            .expect("protocol observation lock")
++            .as_slice(),
++        [
++            (
++                "client-parent-invite".to_string(),
++                EgressEffectProtocolObservation::Completed,
++            ),
++            (
++                "client-derived-ack".to_string(),
++                EgressEffectProtocolObservation::TransportTerminal,
++            )
++        ]
++    );
++}
++
++#[tokio::test]
++async fn cancelled_derived_ack_prepare_keeps_reconcile_latch_and_never_falls_back() {
++    let gate = Arc::new(PendingDerivedAckGate {
++        ordinary_ack_prepares: AtomicUsize::new(0),
++        observations: Mutex::new(Vec::new()),
++    });
++    let (mut transaction, peer) = udp_client_transaction_with_effect_gate(gate.clone()).await;
++    transaction.send().await.expect("send INVITE");
++    let _invite = recv_udp_message(&peer).await;
++    let final_response = busy_response();
++    transaction
++        .tu_sender
++        .send(TransactionEvent::Received(
++            final_response.clone().into(),
++            transaction.connection.clone().expect("client connection"),
++        ))
++        .expect("first final response");
++
++    assert!(timeout(Duration::from_millis(20), transaction.receive())
++        .await
++        .is_err());
++    assert_eq!(transaction.state, TransactionState::Completed);
++    assert!(transaction.automatic_ack_reconciliation_required());
++    assert_eq!(
++        gate.observations
++            .lock()
++            .expect("protocol observation lock")
++            .as_slice(),
++        [(
++            "client-pending-parent".to_string(),
++            EgressEffectProtocolObservation::Completed,
++        )]
++    );
++
++    transaction
++        .tu_sender
++        .send(TransactionEvent::Received(
++            final_response.into(),
++            transaction.connection.clone().expect("client connection"),
++        ))
++        .expect("duplicate final response");
++    assert!(timeout(Duration::from_millis(20), transaction.receive())
++        .await
++        .is_err());
++    assert_eq!(gate.ordinary_ack_prepares.load(Ordering::SeqCst), 0);
++    assert_eq!(transaction.state, TransactionState::Completed);
++    assert!(transaction.automatic_ack_reconciliation_required());
++}
++
+ #[tokio::test]
+ async fn non_timeout_local_response_cannot_terminate_client_transaction() {
+     let gate = Arc::new(ProtocolRecordingGate {
+@@ -747,7 +1027,7 @@ impl MessageInspector for CountingAckInspector {
+ }
+ 
+ #[tokio::test]
+-async fn client_duplicate_final_retries_ack_after_durable_prepare_recovers() {
++async fn client_derived_ack_prepare_failure_requires_reconcile_without_blind_retry() {
+     let gate = Arc::new(RecordingEgressEffectGate {
+         prepare_calls: AtomicUsize::new(0),
+         fail_on_prepare_call: Some(2),
+@@ -783,6 +1063,7 @@ async fn client_duplicate_final_retries_ack_after_durable_prepare_recovers() {
+         Some(SipMessage::Response(response)) if response.status_code == crate::sip::StatusCode::BusyHere
+     ));
+     assert_eq!(transaction.state, TransactionState::Completed);
++    assert!(transaction.take_automatic_ack_error().is_some());
+     let mut buffer = [0_u8; 2048];
+     assert!(
+         timeout(Duration::from_millis(25), peer.recv_raw(&mut buffer))
+@@ -798,28 +1079,22 @@ async fn client_duplicate_final_retries_ack_after_durable_prepare_recovers() {
+             transaction.connection.clone().expect("client connection"),
+         ))
+         .expect("duplicate final response");
+-    assert!(matches!(
+-        timeout(Duration::from_millis(25), transaction.receive()).await,
+-        Ok(None)
+-    ));
+-    assert!(matches!(
+-        recv_udp_message(&peer).await,
+-        SipMessage::Request(request) if request.method == crate::sip::Method::Ack
+-    ));
+-    assert_eq!(transaction.state, TransactionState::Terminated);
+-    assert_eq!(gate.prepare_calls.load(Ordering::SeqCst), 3);
+-    let wire_images = gate.canonical_wire_images.lock().expect("wire image lock");
+-    assert_eq!(
+-        wire_images[1], wire_images[2],
+-        "peer retransmission must retry the exact frozen ACK wire image"
++    assert!(timeout(Duration::from_millis(25), transaction.receive())
++        .await
++        .is_err());
++    assert!(
++        timeout(Duration::from_millis(25), peer.recv_raw(&mut buffer))
++            .await
++            .is_err()
+     );
++    assert_eq!(transaction.state, TransactionState::Completed);
++    assert_eq!(gate.prepare_calls.load(Ordering::SeqCst), 2);
++    let wire_images = gate.canonical_wire_images.lock().expect("wire image lock");
++    assert_eq!(wire_images.len(), 2);
+     assert_eq!(ack_inspector_calls.load(Ordering::SeqCst), 1);
+     assert_eq!(
+         gate.outcomes.lock().expect("outcome lock").as_slice(),
+-        [
+-            EgressEffectOutcome::TransportAccepted,
+-            EgressEffectOutcome::TransportAccepted,
+-        ]
++        [EgressEffectOutcome::TransportAccepted]
+     );
+ }
+ 
+diff --git a/src/transaction/transaction.rs b/src/transaction/transaction.rs
+index 314d6dc069e23c8748efe3560a5521746c165274..8c9b7406f7dff19c9cf89a5f77036ac7e3a1fcae 100644
+--- a/src/transaction/transaction.rs
++++ b/src/transaction/transaction.rs
+@@ -1,6 +1,6 @@
+ use super::endpoint::{
+-    EgressEffectGate, EgressEffectOutcome, EgressEffectPermit, EgressEffectProtocolObservation,
+-    EndpointInnerRef,
++    EgressDerivedEffectKind, EgressEffectGate, EgressEffectOutcome, EgressEffectPermit,
++    EgressEffectProtocolObservation, EndpointInnerRef,
+ };
+ use super::key::TransactionKey;
+ use super::{SipConnection, TransactionState, TransactionTimer, TransactionType};
+@@ -87,6 +87,46 @@ impl Drop for EgressTransportAttempt {
+     }
+ }
+ 
++/// Ensures a real peer observation is published even if preparing or sending
++/// its protocol-mandated child effect is cancelled.
++struct EgressProtocolObservationAttempt {
++    gate: Option<Arc<dyn EgressEffectGate>>,
++    permit: Option<EgressEffectPermit>,
++    observation: EgressEffectProtocolObservation,
++}
++
++impl EgressProtocolObservationAttempt {
++    fn new(
++        gate: Option<Arc<dyn EgressEffectGate>>,
++        permit: Option<EgressEffectPermit>,
++        observation: EgressEffectProtocolObservation,
++    ) -> Self {
++        Self {
++            gate,
++            permit,
++            observation,
++        }
++    }
++
++    fn permit(&self) -> Option<&EgressEffectPermit> {
++        self.permit.as_ref()
++    }
++
++    fn observe(mut self) {
++        if let (Some(gate), Some(permit)) = (self.gate.as_ref(), self.permit.take()) {
++            gate.observe_protocol(permit, self.observation);
++        }
++    }
++}
++
++impl Drop for EgressProtocolObservationAttempt {
++    fn drop(&mut self) {
++        if let (Some(gate), Some(permit)) = (self.gate.as_ref(), self.permit.take()) {
++            gate.observe_protocol(permit, self.observation);
++        }
++    }
++}
++
+ /// SIP Transaction Events
+ ///
+ /// `TransactionEvent` represents the various events that can occur during
+@@ -260,6 +300,8 @@ pub struct Transaction {
+     cancel_effect_attempt_started: bool,
+     ack_effect_attempt_started: bool,
+     final_response_effect_attempt_started: bool,
++    automatic_ack_reconciliation_required: bool,
++    last_automatic_ack_error: Option<String>,
+     pub tu_receiver: TransactionEventReceiver,
+     pub(crate) tu_sender: TransactionEventSender,
+     pub timer_a: Option<u64>,
+@@ -304,6 +346,38 @@ impl Transaction {
+         Ok(EgressTransportAttempt::new(gate, permit))
+     }
+ 
++    async fn prepare_derived_egress_effect(
++        &self,
++        parent_permit: &EgressEffectPermit,
++        kind: EgressDerivedEffectKind,
++        trigger_message: &SipMessage,
++        message: &SipMessage,
++        connection: &SipConnection,
++        canonical_wire_bytes: &[u8],
++    ) -> Result<EgressTransportAttempt> {
++        let gate = self.endpoint_inner.egress_effect_gate.clone();
++        let permit = match gate.as_ref() {
++            Some(gate) => {
++                let transport_binding =
++                    connection.egress_transport_binding(message, self.destination.as_ref())?;
++                Some(
++                    gate.prepare_derived(
++                        parent_permit,
++                        kind,
++                        &self.key,
++                        trigger_message,
++                        message,
++                        &transport_binding,
++                        canonical_wire_bytes,
++                    )
++                    .await?,
++                )
++            }
++            None => None,
++        };
++        Ok(EgressTransportAttempt::new(gate, permit))
++    }
++
+     fn observe_egress_protocol(
+         &self,
+         permit: Option<EgressEffectPermit>,
+@@ -353,6 +427,8 @@ impl Transaction {
+             cancel_effect_attempt_started: false,
+             ack_effect_attempt_started: false,
+             final_response_effect_attempt_started: false,
++            automatic_ack_reconciliation_required: false,
++            last_automatic_ack_error: None,
+             timer_a: None,
+             timer_b: None,
+             timer_c: None,
+@@ -792,6 +868,30 @@ impl Transaction {
+     }
+ 
+     pub async fn send_ack(&mut self, connection: Option<SipConnection>) -> Result<()> {
++        self.send_ack_inner(connection, None).await
++    }
++
++    async fn send_non_2xx_ack(
++        &mut self,
++        connection: Option<SipConnection>,
++        parent_observation: EgressProtocolObservationAttempt,
++        final_response: &Response,
++    ) -> Result<()> {
++        self.send_ack_inner(
++            connection,
++            Some((
++                parent_observation,
++                SipMessage::Response(final_response.clone()),
++            )),
++        )
++        .await
++    }
++
++    async fn send_ack_inner(
++        &mut self,
++        connection: Option<SipConnection>,
++        derivation: Option<(EgressProtocolObservationAttempt, SipMessage)>,
++    ) -> Result<()> {
+         if self.transaction_type != TransactionType::ClientInvite {
+             return Err(Error::TransactionError(
+                 "send_ack is only valid for client invite transactions".to_string(),
+@@ -875,9 +975,34 @@ impl Transaction {
+             )
+         })?;
+         if let Some(conn) = connection {
+-            let effect_attempt = self
+-                .prepare_egress_effect(&ack.message, &conn, &ack.canonical_wire_bytes)
+-                .await?;
++            let effect_attempt = match derivation {
++                Some((parent_observation, ref trigger_message)) => {
++                    let effect_attempt = self
++                        .prepare_derived_egress_effect(
++                            parent_observation.permit().ok_or_else(|| {
++                                Error::TransactionError(
++                                    "non-2xx ACK parent effect permit is unavailable".to_string(),
++                                    self.key.clone(),
++                                )
++                            })?,
++                            EgressDerivedEffectKind::ClientNon2xxInviteAck,
++                            trigger_message,
++                            &ack.message,
++                            &conn,
++                            &ack.canonical_wire_bytes,
++                        )
++                        .await;
++                    // The peer final response is true independently of whether
++                    // the derived ACK can be prepared. Publish it before the
++                    // ACK transport attempt, and on cancellation via Drop.
++                    parent_observation.observe();
++                    effect_attempt?
++                }
++                None => {
++                    self.prepare_egress_effect(&ack.message, &conn, &ack.canonical_wire_bytes)
++                        .await?
++                }
++            };
+             self.ack_effect_attempt_started = effect_attempt.is_armed();
+             if let Err(error) = conn
+                 .send_frozen(
+@@ -900,6 +1025,19 @@ impl Transaction {
+         self.transition(TransactionState::Terminated).map(|_| ())
+     }
+ 
++    /// Return and clear the most recent automatic ACK failure. When a durable
++    /// gate was active, the transaction remains in Completed and requires
++    /// query/reconcile rather than a blind second effect attempt.
++    pub fn take_automatic_ack_error(&mut self) -> Option<String> {
++        self.last_automatic_ack_error.take()
++    }
++
++    /// Whether an automatic ACK has an ambiguous or rejected durable outcome
++    /// that must be queried/reconciled before any replacement attempt.
++    pub fn automatic_ack_reconciliation_required(&self) -> bool {
++        self.automatic_ack_reconciliation_required
++    }
++
+     pub async fn receive(&mut self) -> Option<SipMessage> {
+         while let Some(event) = self.tu_receiver.recv().await {
+             match event {
+@@ -1224,14 +1362,18 @@ impl Transaction {
+         if self.state == new_state {
+             if let Some(last) = self.last_response.as_ref() {
+                 if last.status_code == resp.status_code && last.body == resp.body {
+-                    // A failed ACK prepare/send leaves an INVITE transaction in
+-                    // Completed. A retransmitted final response is the protocol
+-                    // retry signal, so retry the same frozen ACK effect instead
+-                    // of silently discarding the response forever.
+                     if self.transaction_type == TransactionType::ClientInvite
+                         && new_state == TransactionState::Completed
++                        && !self.automatic_ack_reconciliation_required
+                     {
+-                        self.send_ack(Some(connection.clone())).await.ok();
++                        if let Err(error) = self.send_ack(Some(connection.clone())).await {
++                            self.last_automatic_ack_error = Some(error.to_string());
++                            warn!(
++                                key = %self.key,
++                                error = %error,
++                                "automatic ACK retry failed"
++                            );
++                        }
+                     }
+                     return None;
+                 }
+@@ -1239,14 +1381,17 @@ impl Transaction {
+         }
+         self.can_transition(&new_state).ok()?;
+ 
+-        if peer_matches && resp.status_code.kind() != StatusCodeKind::Provisional {
++        let protocol_permit = if peer_matches
++            && resp.status_code.kind() != StatusCodeKind::Provisional
++        {
+             let response_method = resp.cseq_header().ok().and_then(|cseq| cseq.method().ok());
+-            let permit = match response_method {
++            match response_method {
+                 Some(method) if method == self.original.method => self.initial_effect_permit.take(),
+                 _ => None,
+-            };
+-            self.observe_egress_protocol(permit, EgressEffectProtocolObservation::Completed);
+-        }
++            }
++        } else {
++            None
++        };
+ 
+         self.last_response.replace(resp.clone());
+         let is_completed_client_invite = self.transaction_type == TransactionType::ClientInvite
+@@ -1255,7 +1400,46 @@ impl Transaction {
+         self.transition(new_state).ok();
+ 
+         if is_completed_client_invite {
+-            self.send_ack(Some(connection)).await.ok();
++            let gate = self.endpoint_inner.egress_effect_gate.clone();
++            let gated_automatic_ack = gate.is_some();
++            // Arm reconciliation before the first cancellation point. If this
++            // receive future is dropped while the derived ACK is being
++            // prepared or sent, a duplicate final response must not fall back
++            // to an ordinary prepare and create a second wire authority.
++            if gated_automatic_ack {
++                self.automatic_ack_reconciliation_required = true;
++            }
++            let automatic_ack = if (300..=699).contains(&resp.status_code.code()) && gate.is_some()
++            {
++                let parent_observation = EgressProtocolObservationAttempt::new(
++                    gate,
++                    protocol_permit,
++                    EgressEffectProtocolObservation::Completed,
++                );
++                self.send_non_2xx_ack(Some(connection), parent_observation, &resp)
++                    .await
++            } else {
++                self.observe_egress_protocol(
++                    protocol_permit,
++                    EgressEffectProtocolObservation::Completed,
++                );
++                self.send_ack(Some(connection)).await
++            };
++            match automatic_ack {
++                Ok(()) => {
++                    self.automatic_ack_reconciliation_required = false;
++                }
++                Err(error) => {
++                    self.last_automatic_ack_error = Some(error.to_string());
++                    self.automatic_ack_reconciliation_required = gated_automatic_ack;
++                    warn!(key = %self.key, error = %error, "automatic ACK failed");
++                }
++            }
++        } else {
++            self.observe_egress_protocol(
++                protocol_permit,
++                EgressEffectProtocolObservation::Completed,
++            );
+         }
+ 
+         Some(SipMessage::Response(resp))

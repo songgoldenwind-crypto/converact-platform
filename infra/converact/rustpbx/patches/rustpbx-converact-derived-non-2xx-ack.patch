@@ -1,0 +1,1264 @@
+diff --git a/src/call/adapters/postgres_sip_effect.rs b/src/call/adapters/postgres_sip_effect.rs
+index 4db8257e804ae437a545b90b2cc0f7a814f9a9f1..f661597296651a46b1a87ac0757a09cbbc29f87f 100644
+--- a/src/call/adapters/postgres_sip_effect.rs
++++ b/src/call/adapters/postgres_sip_effect.rs
+@@ -1,3 +1,6 @@
++use crate::call::adapters::rsipstack_sip_effect_gate::{
++    SipEffectDerivedAttempt, materialize_derived_effect,
++};
+ use crate::call::domain::sip_effect::{
+     PreparedSipEffect, SIP_EFFECT_REPAIR_ATTEMPT_CEILING, SIP_EFFECT_SCHEMA_HASH,
+     SIP_EFFECT_SCHEMA_ID, SIP_EFFECT_SCHEMA_V1_HASH, SIP_EFFECT_SCHEMA_V1_VERSION,
+@@ -464,82 +467,52 @@ impl PostgresSipEffectStore {
+         &self,
+         effect: PreparedSipEffect,
+     ) -> Result<SipEffectPrepareForSendOutcome, SipEffectStoreError> {
+-        effect.validate()?;
+-        let audit_retention_ms = audit_retention_millis(&effect)?;
+-        let effect_identity_hash = protocol_effect_identity_hash(&effect.identity)?;
+         let (_admission, mut transaction) = self
+             .begin_tenant_transaction(&effect.identity.tenant_id)
+             .await?;
+-        let (prepared, schema) = prepare_locked(
+-            &mut transaction,
+-            &effect,
+-            &effect_identity_hash,
+-            audit_retention_ms,
++        let outcome = prepare_for_send_locked(&mut transaction, &effect).await?;
++        transaction.commit().await.map_err(map_sqlx_error)?;
++        Ok(outcome)
++    }
++
++    pub(crate) async fn prepare_derived_for_send(
++        &self,
++        attempt: SipEffectDerivedAttempt,
++    ) -> Result<SipEffectPrepareForSendOutcome, SipEffectStoreError> {
++        run_with_store_deadline(
++            self.wait_timeout,
++            self.prepare_derived_for_send_inner(attempt),
+         )
+-        .await?;
+-        let mut record = prepared.record;
+-        if record.state == SipEffectState::Prepared {
+-            let receipt = prepare_stage_receipt(
+-                &record,
+-                "durable-decision",
+-                SipEffectReceiptLevel::DurableDecision,
+-            )?;
+-            record = apply_locked(
+-                &mut transaction,
+-                DecodedEffect {
+-                    record,
+-                    payload_retained: true,
+-                    schema,
+-                },
+-                receipt,
+-                &effect_identity_hash,
+-            )
+-            .await?
+-            .record;
+-            flush_receipt_constraint(&mut transaction).await?;
+-        }
+-        if record.state == SipEffectState::DurableDecision {
+-            let receipt = prepare_stage_receipt(
+-                &record,
+-                "send-attempted",
+-                SipEffectReceiptLevel::SendAttempted,
+-            )?;
+-            let sent = apply_locked(
+-                &mut transaction,
+-                DecodedEffect {
+-                    record,
+-                    payload_retained: true,
+-                    schema,
+-                },
+-                receipt,
+-                &effect_identity_hash,
+-            )
++        .await
++    }
++
++    async fn prepare_derived_for_send_inner(
++        &self,
++        attempt: SipEffectDerivedAttempt,
++    ) -> Result<SipEffectPrepareForSendOutcome, SipEffectStoreError> {
++        validate_sip_effect_identifier(&attempt.parent.tenant_id)?;
++        validate_sip_effect_identifier(&attempt.parent.protocol_effect_id)?;
++        let (_admission, mut transaction) = self
++            .begin_tenant_transaction(&attempt.parent.tenant_id)
+             .await?;
+-            record = sent.record;
+-            if sent.replayed {
+-                transaction.commit().await.map_err(map_sqlx_error)?;
+-                return Ok(SipEffectPrepareForSendOutcome {
+-                    record,
+-                    send_attempt_replayed: true,
+-                });
+-            }
+-        } else if record.state == SipEffectState::SendAttempted {
+-            transaction.commit().await.map_err(map_sqlx_error)?;
+-            return Ok(SipEffectPrepareForSendOutcome {
+-                record,
+-                send_attempt_replayed: true,
+-            });
+-        } else {
+-            return Err(SipEffectError::TransitionConflict.into());
+-        }
+-        if record.state != SipEffectState::SendAttempted {
+-            return Err(SipEffectStoreError::SchemaIncompatible);
++        let parent_row = sqlx::query(TRANSITION_LOCK_SQL)
++            .bind(attempt.parent.tenant_id.as_ref())
++            .bind(attempt.parent.protocol_effect_id.as_ref())
++            .fetch_optional(&mut *transaction)
++            .await
++            .map_err(map_sqlx_error)?
++            .ok_or(SipEffectError::IdentityConflict)?;
++        let parent = decode_effect(&parent_row)?.record;
++        if protocol_effect_identity_hash(&parent.identity)?
++            != attempt.parent.effect_identity_hash.as_ref()
++        {
++            return Err(SipEffectError::IdentityConflict.into());
+         }
++        let effect = materialize_derived_effect(&parent, &attempt)
++            .map_err(|_| SipEffectError::InvalidInput)?;
++        let outcome = prepare_for_send_locked(&mut transaction, &effect).await?;
+         transaction.commit().await.map_err(map_sqlx_error)?;
+-        Ok(SipEffectPrepareForSendOutcome {
+-            record,
+-            send_attempt_replayed: false,
+-        })
++        Ok(outcome)
+     }
+ 
+     pub async fn apply(
+@@ -1188,6 +1161,82 @@ fn observation_receipt(
+     }
+ }
+ 
++async fn prepare_for_send_locked(
++    transaction: &mut Transaction<'_, Postgres>,
++    effect: &PreparedSipEffect,
++) -> Result<SipEffectPrepareForSendOutcome, SipEffectStoreError> {
++    effect.validate()?;
++    let audit_retention_ms = audit_retention_millis(effect)?;
++    let effect_identity_hash = protocol_effect_identity_hash(&effect.identity)?;
++    let (prepared, schema) = prepare_locked(
++        transaction,
++        effect,
++        &effect_identity_hash,
++        audit_retention_ms,
++    )
++    .await?;
++    let mut record = prepared.record;
++    if record.state == SipEffectState::Prepared {
++        let receipt = prepare_stage_receipt(
++            &record,
++            "durable-decision",
++            SipEffectReceiptLevel::DurableDecision,
++        )?;
++        record = apply_locked(
++            transaction,
++            DecodedEffect {
++                record,
++                payload_retained: true,
++                schema,
++            },
++            receipt,
++            &effect_identity_hash,
++        )
++        .await?
++        .record;
++        flush_receipt_constraint(transaction).await?;
++    }
++    if record.state == SipEffectState::DurableDecision {
++        let receipt = prepare_stage_receipt(
++            &record,
++            "send-attempted",
++            SipEffectReceiptLevel::SendAttempted,
++        )?;
++        let sent = apply_locked(
++            transaction,
++            DecodedEffect {
++                record,
++                payload_retained: true,
++                schema,
++            },
++            receipt,
++            &effect_identity_hash,
++        )
++        .await?;
++        record = sent.record;
++        if sent.replayed {
++            return Ok(SipEffectPrepareForSendOutcome {
++                record,
++                send_attempt_replayed: true,
++            });
++        }
++    } else if record.state == SipEffectState::SendAttempted {
++        return Ok(SipEffectPrepareForSendOutcome {
++            record,
++            send_attempt_replayed: true,
++        });
++    } else {
++        return Err(SipEffectError::TransitionConflict.into());
++    }
++    if record.state != SipEffectState::SendAttempted {
++        return Err(SipEffectStoreError::SchemaIncompatible);
++    }
++    Ok(SipEffectPrepareForSendOutcome {
++        record,
++        send_attempt_replayed: false,
++    })
++}
++
+ async fn prepare_locked(
+     transaction: &mut Transaction<'_, Postgres>,
+     effect: &PreparedSipEffect,
+@@ -1906,11 +1955,20 @@ impl Drop for SipEffectAdmissionLease {
+ #[cfg(test)]
+ mod tests {
+     use super::*;
++    use crate::call::adapters::rsipstack_sip_effect_gate::{
++        SipEffectObservationLocator, materialize_derived_effect,
++    };
+     use crate::call::domain::sip_effect::{
+         SipEffectIdentity, SipEffectReceipt, SipEffectReceiptLevel, SipEffectReceiptSemantic,
+         SipEffectReconcileOutcome, canonical_json_sha256, sha256_lower_hex, sip_wire_freeze_sha256,
+     };
+     use chrono::{Duration as ChronoDuration, TimeZone};
++    use rsipstack::sip::{Request, Response, SipMessage, Transport};
++    use rsipstack::transaction::{
++        EgressDerivedEffectKind,
++        key::{TransactionKey, TransactionRole},
++    };
++    use rsipstack::transport::{SipAddr, SipConnection, udp::UdpConnection};
+     use std::sync::Arc;
+     use std::time::Duration;
+ 
+@@ -2554,6 +2612,69 @@ mod tests {
+         recovered_store.pool.close().await;
+     }
+ 
++    #[tokio::test]
++    #[ignore = "requires an isolated migrated PostgreSQL database"]
++    async fn postgres_atomically_derives_one_non_2xx_ack_from_its_parent_effect() {
++        let database_url = std::env::var("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL")
++            .expect("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL must be set");
++        let run_id = std::env::var("CONVERACT_SIP_EFFECT_TEST_RUN_ID")
++            .expect("CONVERACT_SIP_EFFECT_TEST_RUN_ID must be set");
++        let (parent, transaction_key, trigger_message, ack_message) =
++            postgres_invite_and_ack_fixture(&format!("{run_id}-derived-ack"));
++        prepare_postgres_test_tenant(&parent.identity.tenant_id).await;
++        let options = PostgresSipEffectStoreOptions {
++            max_in_flight: 2,
++            max_queue_depth: 2,
++            wait_timeout: Duration::from_millis(250),
++        };
++        let store = PostgresSipEffectStore::connect(&database_url, options)
++            .await
++            .unwrap();
++        let parent_outcome = store.prepare_for_send(parent.clone()).await.unwrap();
++        assert!(!parent_outcome.send_attempt_replayed);
++
++        let connection = SipConnection::Udp(
++            UdpConnection::create_connection("127.0.0.1:0".parse().unwrap(), None, None)
++                .await
++                .unwrap(),
++        );
++        let destination = SipAddr::new(
++            Transport::Udp,
++            "127.0.0.1:5099"
++                .parse::<std::net::SocketAddr>()
++                .unwrap()
++                .into(),
++        );
++        let transport_binding = connection
++            .egress_transport_binding(&ack_message, Some(&destination))
++            .unwrap();
++        let attempt = SipEffectDerivedAttempt {
++            parent: SipEffectObservationLocator::from_record(
++                &parent_outcome.record,
++                protocol_effect_identity_hash(&parent.identity).unwrap(),
++            ),
++            kind: EgressDerivedEffectKind::ClientNon2xxInviteAck,
++            transaction_key,
++            trigger_message,
++            message: ack_message.clone(),
++            transport_binding,
++            canonical_wire_bytes: ack_message.to_bytes(),
++        };
++        let expected_child = materialize_derived_effect(&parent_outcome.record, &attempt).unwrap();
++        let child = store
++            .prepare_derived_for_send(attempt.clone())
++            .await
++            .unwrap();
++        assert_eq!(child.record.identity, expected_child.identity);
++        assert_eq!(child.record.state, SipEffectState::SendAttempted);
++        assert!(!child.send_attempt_replayed);
++
++        let replay = store.prepare_derived_for_send(attempt).await.unwrap();
++        assert_eq!(replay.record, child.record);
++        assert!(replay.send_attempt_replayed);
++        store.pool.close().await;
++    }
++
+     #[tokio::test]
+     #[ignore = "requires an isolated migrated PostgreSQL database"]
+     async fn postgres_prepare_and_terminal_receipts_use_database_clock_under_host_skew() {
+@@ -2726,4 +2847,146 @@ mod tests {
+             audit_until: prepared_at + ChronoDuration::days(30),
+         }
+     }
++
++    fn postgres_invite_and_ack_fixture(
++        run_id: &str,
++    ) -> (PreparedSipEffect, TransactionKey, SipMessage, SipMessage) {
++        let tenant_id = format!("rust-pg-{run_id}");
++        let effect_id = format!("effect-{run_id}");
++        let session_id = format!("session-{run_id}");
++        let call_id = format!("call-{run_id}@example.test");
++        let branch = format!("z9hG4bK-{run_id}");
++        let parent_request = Request::try_from(
++            format!(
++                "INVITE sip:bob@example.test SIP/2.0\r\n\
++Via: SIP/2.0/UDP 127.0.0.1:5060;branch={branch}\r\n\
++From: <sip:alice@example.test>;tag=from-tag\r\n\
++To: <sip:bob@example.test>\r\n\
++Call-ID: {call_id}\r\n\
++CSeq: 1 INVITE\r\n\
++Content-Length: 0\r\n\r\n"
++            )
++            .as_str(),
++        )
++        .unwrap();
++        let transaction_key =
++            TransactionKey::from_request(&parent_request, TransactionRole::Client).unwrap();
++        let trigger_message: SipMessage = Response::try_from(
++            format!(
++                "SIP/2.0 486 Busy Here\r\n\
++Via: SIP/2.0/UDP 127.0.0.1:5060;branch={branch}\r\n\
++From: <sip:alice@example.test>;tag=from-tag\r\n\
++To: <sip:bob@example.test>;tag=to-tag\r\n\
++Call-ID: {call_id}\r\n\
++CSeq: 1 INVITE\r\n\
++Content-Length: 0\r\n\r\n"
++            )
++            .as_str(),
++        )
++        .unwrap()
++        .into();
++        let ack_message: SipMessage = Request::try_from(
++            format!(
++                "ACK sip:bob@example.test SIP/2.0\r\n\
++Via: SIP/2.0/UDP 127.0.0.1:5060;branch={branch}\r\n\
++From: <sip:alice@example.test>;tag=from-tag\r\n\
++To: <sip:bob@example.test>;tag=to-tag\r\n\
++Call-ID: {call_id}\r\n\
++CSeq: 1 ACK\r\n\
++Content-Length: 0\r\n\r\n"
++            )
++            .as_str(),
++        )
++        .unwrap()
++        .into();
++        let canonical_wire_bytes = SipMessage::Request(parent_request).to_bytes();
++        let prepared_at = Utc.with_ymd_and_hms(2026, 8, 10, 0, 0, 0).unwrap();
++        let adapter_identity = serde_json::json!({
++            "adapter_id": "rsipstack",
++            "source_commit": "8318e97b1170de4e5245b120afec1cdf53e3d716"
++        });
++        let route_binding = serde_json::json!({
++            "schema_id": "sip-foundation-route-binding-v1",
++            "schema_version": "1.0.0",
++            "route": {"id": "route-1", "revision": 1},
++            "rfc3263_candidate": "127.0.0.1:5099/udp",
++            "route_set": [],
++            "transport": {
++                "id": "transport-udp-1",
++                "protocol": "udp",
++                "next_hop": {"address": "127.0.0.1", "port": 5099}
++            },
++            "local_endpoint": {"address": "127.0.0.1", "port": 5060},
++            "advertised_via_sent_by": {"host": "127.0.0.1", "port": 5060},
++            "tls_sni": null,
++            "authorization_identity": null,
++            "authorization_headers_sha256": []
++        });
++        let request_hash = sha256_lower_hex(effect_id.as_bytes());
++        let wire_attempt_facts = serde_json::json!({
++            "schema_id": "sip-foundation-effect-wire-attempt-v2",
++            "schema_version": "2.0.0",
++            "lineage": {
++                "schema_id": "sip-foundation-wire-attempt-v1",
++                "schema_version": "1.0.0",
++                "attempt_id": effect_id,
++                "transaction_lineage_id": effect_id,
++                "semantic_intent_sha256": request_hash,
++                "parent_attempt_id": null,
++                "lineage_reason": "transaction_root",
++            },
++            "via_branch": branch,
++            "canonical_destination": {
++                "transport_id": "transport-udp-1",
++                "protocol": "udp",
++                "address": "127.0.0.1",
++                "port": 5099,
++                "selection_kind": "datagram_destination",
++                "flow_id": null,
++                "flow_generation": null,
++            },
++            "transaction_binding_sha256": sha256_lower_hex(
++                format!("postgres-derived-binding:{run_id}").as_bytes(),
++            ),
++            "completion_scope": "transaction_peer_observation",
++        });
++        let wire_bytes_hash = sha256_lower_hex(&canonical_wire_bytes);
++        let wire_length_bytes = u32::try_from(canonical_wire_bytes.len()).unwrap();
++        let route_binding_hash = canonical_json_sha256(&route_binding).unwrap();
++        let wire_attempt_facts_hash = canonical_json_sha256(&wire_attempt_facts).unwrap();
++        let wire_freeze_sha256 = sip_wire_freeze_sha256(
++            &route_binding_hash,
++            &wire_attempt_facts_hash,
++            &wire_bytes_hash,
++            wire_length_bytes,
++        )
++        .unwrap();
++        let parent = PreparedSipEffect {
++            identity: SipEffectIdentity {
++                tenant_id: tenant_id.clone(),
++                protocol_effect_id: effect_id,
++                protocol_session_id: session_id,
++                protocol_session_generation: "1".to_string(),
++                decision_id: format!("decision-{run_id}"),
++                idempotency_key: format!("{tenant_id}/session/1/invite/1"),
++                request_hash,
++                command_id: format!("command-{run_id}"),
++                adapter_identity_hash: canonical_json_sha256(&adapter_identity).unwrap(),
++                wire_bytes_hash,
++                wire_length_bytes,
++                route_binding_hash,
++                wire_attempt_facts_hash,
++                wire_freeze_sha256,
++                owner_epoch: 7,
++                command_sequence: 1,
++            },
++            canonical_wire_bytes,
++            adapter_identity,
++            route_binding,
++            wire_attempt_facts,
++            prepared_at,
++            audit_until: prepared_at + ChronoDuration::days(30),
++        };
++        (parent, transaction_key, trigger_message, ack_message)
++    }
+ }
+diff --git a/src/call/adapters/rsipstack_sip_effect_gate.rs b/src/call/adapters/rsipstack_sip_effect_gate.rs
+index 7ae8dcc87972c324018e3fa0da8ee8c5a213bd57..4a6843ad62663f928cf73185e175a9686e6cc235 100644
+--- a/src/call/adapters/rsipstack_sip_effect_gate.rs
++++ b/src/call/adapters/rsipstack_sip_effect_gate.rs
+@@ -14,8 +14,9 @@ use dashmap::DashMap;
+ use rsipstack::sip::SipMessage;
+ use rsipstack::sip::prelude::{HeadersExt, ToTypedHeader};
+ use rsipstack::transaction::{
+-    EgressEffectGate, EgressEffectOutcome, EgressEffectPermit, EgressEffectProtocolObservation,
+-    key::TransactionKey,
++    EgressDerivedEffectKind, EgressEffectGate, EgressEffectOutcome, EgressEffectPermit,
++    EgressEffectProtocolObservation,
++    key::{TransactionKey, TransactionRole},
+ };
+ use rsipstack::transport::connection::{EgressTransportBinding, EgressTransportSelectionKind};
+ use serde_json::Value;
+@@ -482,6 +483,11 @@ pub(crate) trait SipEffectStorePort: Send + Sync {
+         effect: PreparedSipEffect,
+     ) -> Result<SipEffectPrepareForSendOutcome, SipEffectStoreError>;
+ 
++    async fn prepare_derived_for_send(
++        &self,
++        attempt: SipEffectDerivedAttempt,
++    ) -> Result<SipEffectPrepareForSendOutcome, SipEffectStoreError>;
++
+     async fn persist_observation(
+         &self,
+         tenant_id: &str,
+@@ -501,6 +507,13 @@ impl SipEffectStorePort for PostgresSipEffectStore {
+         PostgresSipEffectStore::prepare_for_send(self, effect).await
+     }
+ 
++    async fn prepare_derived_for_send(
++        &self,
++        attempt: SipEffectDerivedAttempt,
++    ) -> Result<SipEffectPrepareForSendOutcome, SipEffectStoreError> {
++        PostgresSipEffectStore::prepare_derived_for_send(self, attempt).await
++    }
++
+     async fn persist_observation(
+         &self,
+         tenant_id: &str,
+@@ -548,14 +561,14 @@ struct SipEffectGateMetrics {
+ }
+ 
+ #[derive(Clone)]
+-struct SipEffectObservationLocator {
+-    tenant_id: Box<str>,
+-    protocol_effect_id: Box<str>,
+-    effect_identity_hash: Box<str>,
++pub(crate) struct SipEffectObservationLocator {
++    pub(crate) tenant_id: Box<str>,
++    pub(crate) protocol_effect_id: Box<str>,
++    pub(crate) effect_identity_hash: Box<str>,
+ }
+ 
+ impl SipEffectObservationLocator {
+-    fn from_record(record: &SipEffectRecord, effect_identity_hash: String) -> Self {
++    pub(crate) fn from_record(record: &SipEffectRecord, effect_identity_hash: String) -> Self {
+         Self {
+             tenant_id: record.identity.tenant_id.clone().into_boxed_str(),
+             protocol_effect_id: record.identity.protocol_effect_id.clone().into_boxed_str(),
+@@ -564,6 +577,191 @@ impl SipEffectObservationLocator {
+     }
+ }
+ 
++#[derive(Clone)]
++pub(crate) struct SipEffectDerivedAttempt {
++    pub(crate) parent: SipEffectObservationLocator,
++    pub(crate) kind: EgressDerivedEffectKind,
++    pub(crate) transaction_key: TransactionKey,
++    pub(crate) trigger_message: SipMessage,
++    pub(crate) message: SipMessage,
++    pub(crate) transport_binding: EgressTransportBinding,
++    pub(crate) canonical_wire_bytes: Vec<u8>,
++}
++
++pub(crate) fn materialize_derived_effect(
++    parent: &SipEffectRecord,
++    attempt: &SipEffectDerivedAttempt,
++) -> Result<PreparedSipEffect, SipEffectGateError> {
++    if attempt.kind != EgressDerivedEffectKind::ClientNon2xxInviteAck
++        || !matches!(
++            parent.state,
++            SipEffectState::SendAttempted
++                | SipEffectState::TransportAccepted
++                | SipEffectState::ProtocolObserved
++        )
++        || parent.identity.tenant_id.as_str() != attempt.parent.tenant_id.as_ref()
++        || parent.identity.protocol_effect_id.as_str() != attempt.parent.protocol_effect_id.as_ref()
++        || protocol_effect_identity_hash(&parent.identity)
++            .map_err(|_| SipEffectGateError::InvalidIntent)?
++            != attempt.parent.effect_identity_hash.as_ref()
++    {
++        return Err(SipEffectGateError::InvalidIntent);
++    }
++
++    let parent_message = SipMessage::try_from(parent.canonical_wire_bytes.as_slice())
++        .map_err(|_| SipEffectGateError::InvalidIntent)?;
++    let (parent_request, final_response, ack_request) =
++        match (&parent_message, &attempt.trigger_message, &attempt.message) {
++            (
++                SipMessage::Request(parent_request),
++                SipMessage::Response(final_response),
++                SipMessage::Request(ack_request),
++            ) if parent_request.method == rsipstack::sip::Method::Invite
++                && ack_request.method == rsipstack::sip::Method::Ack
++                && (300..=699).contains(&final_response.status_code.code()) =>
++            {
++                (parent_request, final_response, ack_request)
++            }
++            _ => return Err(SipEffectGateError::InvalidIntent),
++        };
++    let parent_branch = message_via_branch(&parent_message)?;
++    let trigger_branch = message_via_branch(&attempt.trigger_message)?;
++    let ack_branch = message_via_branch(&attempt.message)?;
++    if attempt.canonical_wire_bytes != attempt.message.to_bytes()
++        || TransactionKey::from_request(parent_request, TransactionRole::Client)
++            .ok()
++            .as_ref()
++            != Some(&attempt.transaction_key)
++        || TransactionKey::from_response(final_response, TransactionRole::Client)
++            .ok()
++            .as_ref()
++            != Some(&attempt.transaction_key)
++        || parent_request.uri != ack_request.uri
++        || parent_branch != trigger_branch
++        || parent_branch != ack_branch
++    {
++        return Err(SipEffectGateError::InvalidIntent);
++    }
++
++    let parent_cseq = parent_request
++        .cseq_header()
++        .map_err(|_| SipEffectGateError::InvalidIntent)?;
++    let response_cseq = final_response
++        .cseq_header()
++        .map_err(|_| SipEffectGateError::InvalidIntent)?;
++    let ack_cseq = ack_request
++        .cseq_header()
++        .map_err(|_| SipEffectGateError::InvalidIntent)?;
++    let parent_cseq_sequence = parent_cseq
++        .seq()
++        .map_err(|_| SipEffectGateError::InvalidIntent)?;
++    if response_cseq.seq().ok() != Some(parent_cseq_sequence)
++        || ack_cseq.seq().ok() != Some(parent_cseq_sequence)
++        || response_cseq.method().ok() != Some(rsipstack::sip::Method::Invite)
++        || ack_cseq.method().ok() != Some(rsipstack::sip::Method::Ack)
++        || parent_request
++            .call_id_header()
++            .ok()
++            .map(|value| value.value())
++            != final_response
++                .call_id_header()
++                .ok()
++                .map(|value| value.value())
++        || parent_request
++            .call_id_header()
++            .ok()
++            .map(|value| value.value())
++            != ack_request.call_id_header().ok().map(|value| value.value())
++        || parent_request.from_header().ok().map(|value| value.value())
++            != final_response.from_header().ok().map(|value| value.value())
++        || parent_request.from_header().ok().map(|value| value.value())
++            != ack_request.from_header().ok().map(|value| value.value())
++        || final_response.to_header().ok().map(|value| value.value())
++            != ack_request.to_header().ok().map(|value| value.value())
++    {
++        return Err(SipEffectGateError::InvalidIntent);
++    }
++
++    let parent_facts = parent
++        .wire_attempt_facts
++        .as_object()
++        .ok_or(SipEffectGateError::InvalidIntent)?;
++    if parent_facts.get("schema_id").and_then(Value::as_str)
++        != Some("sip-foundation-effect-wire-attempt-v2")
++        || parent_facts.get("completion_scope").and_then(Value::as_str)
++            != Some(COMPLETION_SCOPE_TRANSACTION_PEER)
++    {
++        return Err(SipEffectGateError::InvalidIntent);
++    }
++    let lineage = parent_facts
++        .get("lineage")
++        .and_then(Value::as_object)
++        .ok_or(SipEffectGateError::InvalidIntent)?;
++    let transaction_lineage_id = lineage
++        .get("transaction_lineage_id")
++        .and_then(Value::as_str)
++        .ok_or(SipEffectGateError::InvalidIntent)?;
++    validate_sip_effect_identifier(transaction_lineage_id)
++        .map_err(|_| SipEffectGateError::InvalidIntent)?;
++
++    let trigger_wire_hash = sha256_lower_hex(&attempt.trigger_message.to_bytes());
++    let child_wire_hash = sha256_lower_hex(&attempt.canonical_wire_bytes);
++    // One parent INVITE owns at most one transaction-layer non-2xx ACK
++    // effect. Keep that child identity stable across retransmission variants;
++    // bind the exact trigger and child bytes separately so a changed replay
++    // conflicts with the existing identity instead of authorizing a second
++    // wire effect.
++    let child_identity_hash = canonical_json_sha256(&serde_json::json!({
++        "schema_id": "sip-foundation-derived-effect-id-v1",
++        "schema_version": "1.0.0",
++        "kind": "client_non_2xx_invite_ack",
++        "parent_effect_identity_sha256": attempt.parent.effect_identity_hash,
++    }))
++    .map_err(|_| SipEffectGateError::InvalidIntent)?;
++    let derivation_binding_hash = canonical_json_sha256(&serde_json::json!({
++        "schema_id": "sip-foundation-derived-effect-v1",
++        "schema_version": "1.0.0",
++        "kind": "client_non_2xx_invite_ack",
++        "parent_effect_identity_sha256": attempt.parent.effect_identity_hash,
++        "transaction_key": attempt.transaction_key.to_string(),
++        "trigger_wire_sha256": trigger_wire_hash,
++        "child_wire_sha256": child_wire_hash,
++    }))
++    .map_err(|_| SipEffectGateError::InvalidIntent)?;
++    let child_effect_id = format!("sip-derived-ack-{child_identity_hash}");
++    let child_intent = SipEffectIntent {
++        tenant_id: parent.identity.tenant_id.clone(),
++        protocol_effect_id: child_effect_id.clone(),
++        protocol_session_id: parent.identity.protocol_session_id.clone(),
++        protocol_session_generation: parent.identity.protocol_session_generation.clone(),
++        decision_id: format!("sip-derived-decision-{derivation_binding_hash}"),
++        idempotency_key: format!("sip-derived-idempotency-{derivation_binding_hash}"),
++        semantic_intent_sha256: parent.identity.request_hash.clone(),
++        command_id: format!("sip-derived-command-{derivation_binding_hash}"),
++        adapter_identity: parent.adapter_identity.clone(),
++        route_binding: parent.route_binding.clone(),
++        wire_attempt_facts: serde_json::json!({
++            "schema_id": "sip-foundation-wire-attempt-v1",
++            "schema_version": "1.0.0",
++            "attempt_id": child_effect_id,
++            "transaction_lineage_id": transaction_lineage_id,
++            "semantic_intent_sha256": parent.identity.request_hash,
++            "parent_attempt_id": parent.identity.protocol_effect_id,
++            "lineage_reason": "derived_attempt",
++        }),
++        owner_epoch: parent.identity.owner_epoch,
++        command_sequence: parent.identity.command_sequence,
++        prepared_at: parent.prepared_at,
++        audit_until: parent.audit_until,
++    };
++    child_intent.prepare(
++        &attempt.message,
++        &attempt.transport_binding,
++        &attempt.canonical_wire_bytes,
++        COMPLETION_SCOPE_TRANSPORT_TERMINAL,
++    )
++}
++
+ struct PendingTransportObservation {
+     protocol_locator: SipEffectObservationLocator,
+     transport_work_permit: mpsc::OwnedPermit<EffectObservationWork>,
+@@ -880,6 +1078,101 @@ impl DurableRsipstackEgressGate {
+         Ok(permit)
+     }
+ 
++    async fn prepare_derived_inner(
++        &self,
++        parent_permit: &EgressEffectPermit,
++        kind: EgressDerivedEffectKind,
++        transaction_key: &TransactionKey,
++        trigger_message: &SipMessage,
++        message: &SipMessage,
++        transport_binding: &EgressTransportBinding,
++        canonical_wire_bytes: &[u8],
++    ) -> Result<EgressEffectPermit, SipEffectGateError> {
++        let parent = self
++            .pending_protocol
++            .get(parent_permit.token())
++            .map(|pending| pending.locator.clone())
++            .ok_or(SipEffectGateError::ReconciliationRequired)?;
++        let binding_key = effect_binding_key(transaction_key, message)?;
++        let observation_shard = observation_shard(&binding_key, self.observation_txs.len());
++        if self.observation_txs[observation_shard].is_closed()
++            || matches!(
++                self.observation_shards[observation_shard]
++                    .lifecycle
++                    .load(Ordering::Acquire),
++                0 | OBSERVATION_SHARD_QUARANTINED
++            )
++        {
++            return Err(SipEffectGateError::StoreUnavailable);
++        }
++        let pending_transport_capacity = self.pending_transport_capacity[observation_shard]
++            .clone()
++            .try_acquire_owned()
++            .map_err(|_| SipEffectGateError::ObservationCapacityExhausted)?;
++        let pending_protocol_capacity = self.pending_protocol_capacity[observation_shard]
++            .clone()
++            .try_acquire_owned()
++            .map_err(|_| SipEffectGateError::ObservationCapacityExhausted)?;
++        let transport_work_permit = self.reserve_observation_slot(observation_shard)?;
++        let protocol_work_permit = self.reserve_observation_slot(observation_shard)?;
++        if matches!(
++            self.observation_shards[observation_shard]
++                .lifecycle
++                .load(Ordering::Acquire),
++            0 | OBSERVATION_SHARD_QUARANTINED
++        ) {
++            return Err(SipEffectGateError::StoreUnavailable);
++        }
++
++        let send_attempt = match self
++            .store
++            .prepare_derived_for_send(SipEffectDerivedAttempt {
++                parent,
++                kind,
++                transaction_key: transaction_key.clone(),
++                trigger_message: trigger_message.clone(),
++                message: message.clone(),
++                transport_binding: transport_binding.clone(),
++                canonical_wire_bytes: canonical_wire_bytes.to_vec(),
++            })
++            .await
++        {
++            Ok(outcome) => outcome,
++            Err(_) => return Err(SipEffectGateError::ReconciliationRequired),
++        };
++        if send_attempt.send_attempt_replayed
++            || send_attempt.record.state != SipEffectState::SendAttempted
++        {
++            return Err(SipEffectGateError::ReconciliationRequired);
++        }
++        let record = send_attempt.record;
++        let effect_identity_hash = protocol_effect_identity_hash(&record.identity)
++            .map_err(|_| SipEffectGateError::InvalidIntent)?;
++        let protocol_locator =
++            SipEffectObservationLocator::from_record(&record, effect_identity_hash.clone());
++        let permit_token = permit_token(&effect_identity_hash, record.revision);
++        let permit = EgressEffectPermit::try_new(&permit_token)
++            .map_err(|_| SipEffectGateError::InvalidConfiguration)?;
++
++        use dashmap::mapref::entry::Entry;
++        match self.pending_transport.entry(permit_token) {
++            Entry::Occupied(_) => return Err(SipEffectGateError::ReconciliationRequired),
++            Entry::Vacant(entry) => {
++                entry.insert(PendingTransportObservation {
++                    protocol_locator,
++                    transport_work_permit,
++                    protocol_work_permit,
++                    _transport_capacity: pending_transport_capacity,
++                    protocol_capacity: pending_protocol_capacity,
++                });
++                self.metrics
++                    .pending_transport_observations
++                    .fetch_add(1, Ordering::AcqRel);
++            }
++        }
++        Ok(permit)
++    }
++
+     fn reserve_observation_slot(
+         &self,
+         shard: usize,
+@@ -921,6 +1214,29 @@ impl EgressEffectGate for DurableRsipstackEgressGate {
+         .map_err(|error| rsipstack::Error::EndpointError(error.to_string()))
+     }
+ 
++    async fn prepare_derived(
++        &self,
++        parent_permit: &EgressEffectPermit,
++        kind: EgressDerivedEffectKind,
++        transaction_key: &TransactionKey,
++        trigger_message: &SipMessage,
++        message: &SipMessage,
++        transport_binding: &EgressTransportBinding,
++        canonical_wire_bytes: &[u8],
++    ) -> rsipstack::Result<EgressEffectPermit> {
++        self.prepare_derived_inner(
++            parent_permit,
++            kind,
++            transaction_key,
++            trigger_message,
++            message,
++            transport_binding,
++            canonical_wire_bytes,
++        )
++        .await
++        .map_err(|error| rsipstack::Error::EndpointError(error.to_string()))
++    }
++
+     fn observe_transport(&self, permit: EgressEffectPermit, outcome: EgressEffectOutcome) {
+         let Some((permit_token, pending)) = self.pending_transport.remove(permit.token()) else {
+             self.metrics
+@@ -1671,9 +1987,9 @@ fn is_sha256(value: &str) -> bool {
+ mod tests {
+     use super::{
+         COMPLETION_SCOPE_TRANSACTION_PEER, COMPLETION_SCOPE_TRANSPORT_TERMINAL,
+-        DurableRsipstackEgressGate, SipEffectDurableObservation, SipEffectGateError,
+-        SipEffectGateOptions, SipEffectIntent, SipEffectIntentRegistry,
+-        SipEffectPrepareForSendOutcome, SipEffectStorePort,
++        DurableRsipstackEgressGate, SipEffectDerivedAttempt, SipEffectDurableObservation,
++        SipEffectGateError, SipEffectGateOptions, SipEffectIntent, SipEffectIntentRegistry,
++        SipEffectPrepareForSendOutcome, SipEffectStorePort, materialize_derived_effect,
+     };
+     use crate::call::adapters::postgres_sip_effect::SipEffectStoreError;
+     use crate::call::domain::sip_effect::{
+@@ -1682,9 +1998,10 @@ mod tests {
+     };
+     use async_trait::async_trait;
+     use chrono::{Duration as ChronoDuration, TimeZone, Utc};
+-    use rsipstack::sip::{Request, SipMessage, Transport};
++    use rsipstack::sip::{HasHeaders, Request, SipMessage, Transport, headers::CSeq};
+     use rsipstack::transaction::{
+-        EgressEffectGate, EgressEffectOutcome, EgressEffectPermit, EgressEffectProtocolObservation,
++        EgressDerivedEffectKind, EgressEffectGate, EgressEffectOutcome, EgressEffectPermit,
++        EgressEffectProtocolObservation,
+         key::{TransactionKey, TransactionRole},
+     };
+     use rsipstack::transport::{
+@@ -1748,11 +2065,8 @@ mod tests {
+                 .unwrap()
+                 .unwrap()
+         }
+-    }
+ 
+-    #[async_trait]
+-    impl SipEffectStorePort for InMemoryWriter {
+-        async fn prepare_for_send(
++        async fn prepare_effect_for_send(
+             &self,
+             effect: PreparedSipEffect,
+         ) -> Result<SipEffectPrepareForSendOutcome, SipEffectStoreError> {
+@@ -1805,6 +2119,44 @@ mod tests {
+                 send_attempt_replayed,
+             })
+         }
++    }
++
++    #[async_trait]
++    impl SipEffectStorePort for InMemoryWriter {
++        async fn prepare_for_send(
++            &self,
++            effect: PreparedSipEffect,
++        ) -> Result<SipEffectPrepareForSendOutcome, SipEffectStoreError> {
++            self.prepare_effect_for_send(effect).await
++        }
++
++        async fn prepare_derived_for_send(
++            &self,
++            attempt: SipEffectDerivedAttempt,
++        ) -> Result<SipEffectPrepareForSendOutcome, SipEffectStoreError> {
++            let parent_identity = self
++                .prepared
++                .lock()
++                .unwrap()
++                .iter()
++                .find(|effect| {
++                    effect.identity.tenant_id.as_str() == attempt.parent.tenant_id.as_ref()
++                        && effect.identity.protocol_effect_id.as_str()
++                            == attempt.parent.protocol_effect_id.as_ref()
++                })
++                .map(|effect| effect.identity.clone())
++                .ok_or(SipEffectError::IdentityConflict)?;
++            let parent = self
++                .ledger
++                .lock()
++                .await
++                .query(&parent_identity)
++                .map_err(SipEffectStoreError::from)?
++                .ok_or(SipEffectError::IdentityConflict)?;
++            let effect = materialize_derived_effect(&parent, &attempt)
++                .map_err(|_| SipEffectError::InvalidInput)?;
++            self.prepare_effect_for_send(effect).await
++        }
+ 
+         async fn persist_observation(
+             &self,
+@@ -1993,6 +2345,23 @@ Content-Length: 0\r\n\r\n"
+         (key, request.into())
+     }
+ 
++    fn busy(call: &str, branch: &str) -> SipMessage {
++        rsipstack::sip::Response::try_from(
++            format!(
++                "SIP/2.0 486 Busy Here\r\n\
++Via: SIP/2.0/UDP 127.0.0.1:5060;branch={branch}\r\n\
++From: <sip:alice@example.test>;tag=from-tag\r\n\
++To: <sip:bob@example.test>;tag=to-tag\r\n\
++Call-ID: {call}\r\n\
++CSeq: 1 INVITE\r\n\
++Content-Length: 0\r\n\r\n"
++            )
++            .as_str(),
++        )
++        .unwrap()
++        .into()
++    }
++
+     fn intent(effect: &str, session: &str) -> SipEffectIntent {
+         let semantic_intent_sha256 = sha256_lower_hex(effect.as_bytes());
+         let prepared_at = Utc.with_ymd_and_hms(2026, 8, 9, 0, 0, 0).unwrap();
+@@ -2156,6 +2525,315 @@ Content-Length: 0\r\n\r\n"
+         assert_eq!(gate.snapshot().observation_persist_failures, 0);
+     }
+ 
++    #[tokio::test]
++    async fn non_2xx_ack_is_atomically_derived_from_the_parent_invite_permit() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, mut observer) = runtime(
++            registry.clone(),
++            writer.clone(),
++            SipEffectGateOptions::default(),
++        );
++        let call = "call-derived-ack@example.test";
++        let branch = "z9hG4bK-derived-ack";
++        let (invite_key, invite_message) = invite(call, branch);
++        let _intent_lease = registry
++            .register(
++                &invite_key,
++                &invite_message,
++                intent("effect-derived-parent", "session-derived-ack"),
++            )
++            .unwrap();
++        let parent_permit = prepare_with_transport_binding(
++            &gate,
++            &invite_key,
++            &invite_message,
++            &invite_message.to_bytes(),
++        )
++        .await
++        .expect("parent durable permit");
++        gate.observe_transport(
++            parent_permit.clone(),
++            EgressEffectOutcome::TransportAccepted,
++        );
++
++        let (_ack_key, ack_message) = ack(call, branch);
++        let trigger = busy(call, branch);
++        let transport_binding = test_transport_binding(&ack_message).await;
++        let child_permit = EgressEffectGate::prepare_derived(
++            gate.as_ref(),
++            &parent_permit,
++            EgressDerivedEffectKind::ClientNon2xxInviteAck,
++            &invite_key,
++            &trigger,
++            &ack_message,
++            &transport_binding,
++            &ack_message.to_bytes(),
++        )
++        .await
++        .expect("derived ACK durable permit");
++
++        let prepared = writer.prepared.lock().unwrap();
++        assert_eq!(prepared.len(), 2);
++        let parent = prepared[0].clone();
++        let child = prepared[1].clone();
++        assert_ne!(
++            child.identity.protocol_effect_id,
++            parent.identity.protocol_effect_id
++        );
++        assert_eq!(
++            child.wire_attempt_facts["lineage"]["parent_attempt_id"],
++            parent.identity.protocol_effect_id
++        );
++        assert_eq!(
++            child.wire_attempt_facts["completion_scope"],
++            COMPLETION_SCOPE_TRANSPORT_TERMINAL
++        );
++        assert_eq!(child.canonical_wire_bytes, ack_message.to_bytes());
++        assert_ne!(child_permit.token(), parent_permit.token());
++        drop(prepared);
++
++        gate.observe_protocol(parent_permit, EgressEffectProtocolObservation::Completed);
++        gate.observe_transport(child_permit.clone(), EgressEffectOutcome::TransportAccepted);
++        gate.observe_protocol(
++            child_permit,
++            EgressEffectProtocolObservation::TransportTerminal,
++        );
++        for _ in 0..4 {
++            assert!(observer.persist_next().await.unwrap());
++        }
++        assert_eq!(
++            writer.state(&parent).await,
++            SipEffectState::ProtocolObserved
++        );
++        assert_eq!(
++            writer.state(&child).await,
++            SipEffectState::TransportCompleted
++        );
++        assert_eq!(gate.snapshot().pending_observations, 0);
++    }
++
++    #[tokio::test]
++    async fn derived_ack_rejects_a_mismatched_peer_trigger_before_child_prepare() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, _observer) = runtime(
++            registry.clone(),
++            writer.clone(),
++            SipEffectGateOptions::default(),
++        );
++        let call = "call-derived-trigger@example.test";
++        let branch = "z9hG4bK-derived-trigger";
++        let (invite_key, invite_message) = invite(call, branch);
++        let _intent_lease = registry
++            .register(
++                &invite_key,
++                &invite_message,
++                intent("effect-derived-trigger", "session-derived-trigger"),
++            )
++            .unwrap();
++        let parent_permit = prepare_with_transport_binding(
++            &gate,
++            &invite_key,
++            &invite_message,
++            &invite_message.to_bytes(),
++        )
++        .await
++        .unwrap();
++        gate.observe_transport(
++            parent_permit.clone(),
++            EgressEffectOutcome::TransportAccepted,
++        );
++
++        let (_ack_key, ack_message) = ack(call, branch);
++        let mut trigger = busy(call, branch);
++        trigger
++            .headers_mut()
++            .unique_push(CSeq::new("2 INVITE").into());
++        let transport_binding = test_transport_binding(&ack_message).await;
++        assert!(
++            EgressEffectGate::prepare_derived(
++                gate.as_ref(),
++                &parent_permit,
++                EgressDerivedEffectKind::ClientNon2xxInviteAck,
++                &invite_key,
++                &trigger,
++                &ack_message,
++                &transport_binding,
++                &ack_message.to_bytes(),
++            )
++            .await
++            .is_err()
++        );
++        assert_eq!(writer.prepared.lock().unwrap().len(), 1);
++        assert_eq!(gate.snapshot().pending_transport_observations, 0);
++        assert_eq!(gate.snapshot().pending_protocol_observations, 1);
++    }
++
++    #[tokio::test]
++    async fn derived_ack_waits_for_reconciliation_when_parent_transport_is_unknown() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, mut observer) = runtime(
++            registry.clone(),
++            writer.clone(),
++            SipEffectGateOptions::default(),
++        );
++        let call = "call-derived-unknown@example.test";
++        let branch = "z9hG4bK-derived-unknown";
++        let (invite_key, invite_message) = invite(call, branch);
++        let _intent_lease = registry
++            .register(
++                &invite_key,
++                &invite_message,
++                intent("effect-derived-unknown", "session-derived-unknown"),
++            )
++            .unwrap();
++        let parent_permit = prepare_with_transport_binding(
++            &gate,
++            &invite_key,
++            &invite_message,
++            &invite_message.to_bytes(),
++        )
++        .await
++        .unwrap();
++        gate.observe_transport(parent_permit.clone(), EgressEffectOutcome::TransportUnknown);
++        assert!(observer.persist_next().await.unwrap());
++        let parent = writer.prepared.lock().unwrap()[0].clone();
++        let unknown_parent = writer.record(&parent).await;
++        assert_eq!(unknown_parent.state, SipEffectState::Unknown);
++
++        let (_ack_key, ack_message) = ack(call, branch);
++        let trigger = busy(call, branch);
++        let transport_binding = test_transport_binding(&ack_message).await;
++        let derived_attempt = SipEffectDerivedAttempt {
++            parent: super::SipEffectObservationLocator::from_record(
++                &unknown_parent,
++                protocol_effect_identity_hash(&unknown_parent.identity).unwrap(),
++            ),
++            kind: EgressDerivedEffectKind::ClientNon2xxInviteAck,
++            transaction_key: invite_key.clone(),
++            trigger_message: trigger.clone(),
++            message: ack_message.clone(),
++            transport_binding: transport_binding.clone(),
++            canonical_wire_bytes: ack_message.to_bytes(),
++        };
++        assert!(materialize_derived_effect(&unknown_parent, &derived_attempt).is_err());
++        assert!(
++            EgressEffectGate::prepare_derived(
++                gate.as_ref(),
++                &parent_permit,
++                EgressDerivedEffectKind::ClientNon2xxInviteAck,
++                &invite_key,
++                &trigger,
++                &ack_message,
++                &transport_binding,
++                &ack_message.to_bytes(),
++            )
++            .await
++            .is_err()
++        );
++        assert_eq!(writer.prepared.lock().unwrap().len(), 1);
++        assert_eq!(gate.snapshot().pending_transport_observations, 0);
++        assert_eq!(gate.snapshot().pending_protocol_observations, 0);
++    }
++
++    #[tokio::test]
++    async fn derived_ack_replay_never_issues_a_second_wire_permit() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, _observer) = runtime(
++            registry.clone(),
++            writer.clone(),
++            SipEffectGateOptions::default(),
++        );
++        let call = "call-derived-replay@example.test";
++        let branch = "z9hG4bK-derived-replay";
++        let (invite_key, invite_message) = invite(call, branch);
++        let _intent_lease = registry
++            .register(
++                &invite_key,
++                &invite_message,
++                intent("effect-derived-replay", "session-derived-replay"),
++            )
++            .unwrap();
++        let parent_permit = prepare_with_transport_binding(
++            &gate,
++            &invite_key,
++            &invite_message,
++            &invite_message.to_bytes(),
++        )
++        .await
++        .unwrap();
++        gate.observe_transport(
++            parent_permit.clone(),
++            EgressEffectOutcome::TransportAccepted,
++        );
++        let (_ack_key, ack_message) = ack(call, branch);
++        let trigger = busy(call, branch);
++        let transport_binding = test_transport_binding(&ack_message).await;
++
++        EgressEffectGate::prepare_derived(
++            gate.as_ref(),
++            &parent_permit,
++            EgressDerivedEffectKind::ClientNon2xxInviteAck,
++            &invite_key,
++            &trigger,
++            &ack_message,
++            &transport_binding,
++            &ack_message.to_bytes(),
++        )
++        .await
++        .expect("first derived permit");
++        assert!(
++            EgressEffectGate::prepare_derived(
++                gate.as_ref(),
++                &parent_permit,
++                EgressDerivedEffectKind::ClientNon2xxInviteAck,
++                &invite_key,
++                &trigger,
++                &ack_message,
++                &transport_binding,
++                &ack_message.to_bytes(),
++            )
++            .await
++            .is_err()
++        );
++
++        let mut trigger_variant = trigger.clone();
++        trigger_variant
++            .headers_mut()
++            .push(rsipstack::sip::Header::Other(
++                "X-Retransmission-Variant".into(),
++                "1".into(),
++            ));
++        assert!(
++            EgressEffectGate::prepare_derived(
++                gate.as_ref(),
++                &parent_permit,
++                EgressDerivedEffectKind::ClientNon2xxInviteAck,
++                &invite_key,
++                &trigger_variant,
++                &ack_message,
++                &transport_binding,
++                &ack_message.to_bytes(),
++            )
++            .await
++            .is_err()
++        );
++
++        let prepared = writer.prepared.lock().unwrap();
++        assert_eq!(prepared.len(), 4);
++        assert_eq!(prepared[1], prepared[2]);
++        assert_eq!(
++            prepared[1].identity.protocol_effect_id,
++            prepared[3].identity.protocol_effect_id
++        );
++        assert_ne!(prepared[1].identity, prepared[3].identity);
++        assert_eq!(gate.snapshot().pending_transport_observations, 1);
++        assert_eq!(gate.snapshot().pending_protocol_observations, 1);
++    }
++
+     #[tokio::test]
+     async fn protocol_unknown_is_persisted_after_transport_acceptance() {
+         let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());

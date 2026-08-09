@@ -58,7 +58,7 @@ test("standalone outbound INVITEs acquire bounded Call and Dialog authority befo
 
 test("the exact build applies outbound admission after the native registry", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.59"/);
+  assert.match(build, /PATCHSET="ivekit\.60"/);
   assert.match(
     build,
     /rustpbx-converact-native-call-registry\.patch"[\s\S]*rustpbx-converact-outbound-call-admission\.patch"/,

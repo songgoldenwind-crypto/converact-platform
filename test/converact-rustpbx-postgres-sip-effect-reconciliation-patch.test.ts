@@ -121,7 +121,7 @@ test("controlled repair evidence binds attempts, restart and cleared claim", () 
 
 test("exact build retains reconciliation in ivekit.57", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.59"/);
+  assert.match(build, /PATCHSET="ivekit\.60"/);
   assert.match(
     build,
     /rustpbx-converact-postgres-sip-effect-transitions\.patch"[\s\S]*rustpbx-converact-postgres-sip-effect-reconciliation\.patch"/,
