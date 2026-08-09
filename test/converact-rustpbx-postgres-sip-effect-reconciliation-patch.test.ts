@@ -119,9 +119,9 @@ test("controlled repair evidence binds attempts, restart and cleared claim", () 
   assert.match(report, /`G03-E16-NATIVE-AUTHORITY` remain[\s\S]*`not_run`/);
 });
 
-test("exact build applies ivekit.53 after atomic transitions", () => {
+test("exact build applies ivekit.54 after atomic transitions", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.53"/);
+  assert.match(build, /PATCHSET="ivekit\.54"/);
   assert.match(
     build,
     /rustpbx-converact-postgres-sip-effect-transitions\.patch"[\s\S]*rustpbx-converact-postgres-sip-effect-reconciliation\.patch"/,

@@ -305,9 +305,61 @@ cleared. All preceding failed attempts and the pre-Clippy successful candidate
 are retained separately; only the final exact-source run is cited as current.
 
 This slice still does not start a repair worker or activate live SIP dispatch.
-Real-peer, raw `100 Trying`, long-call, fault/OOM, capacity and
-`G03-E16-NATIVE-AUTHORITY` remain `not_run`; production eligibility is not
-promoted.
+At its implementation checkpoint, real-peer, raw `100 Trying`, long-call,
+fault/OOM, capacity and `G03-E16-NATIVE-AUTHORITY` remained `not_run`. The
+following exact-image campaign supersedes only the listed host-evidence status;
+it does not activate live Native Authority or promote production eligibility.
+
+The exact `.53` release image was subsequently rebuilt from source commit
+`b63383bda16bcd9d311c9ce5e0761877d474797b` on the authorized validation
+host as image ID
+`sha256:14e51e4f51388c8811e1472426a01840e061ad2ddf639caebe6b0eca4a206eaf`.
+Controlled raw evidence now closes only `G03-E06-TRYING`, `G03-E07-WIRE`,
+`G03-E11-INTEROP` and `G03-E12-LONG-CALL`: one hundred INVITEs produced
+exactly one hundred initial Trying responses at 1 ms p99, all 22 frozen wire
+cases matched the versioned contract, ten SIPp scenarios plus an Asterisk 20
+peer passed, and one direct-SIP control call ran for 7,201,279 ms with one
+successful UAC and UAS call, no failed call or retransmission, exact router/CDR
+deltas, no process restart and no residual test container. Both SIPp error
+files retain the same reviewed process-exit epoll cleanup warning; it occurred
+after the scenario and is not hidden. This is a SIP control soak, not decoded
+media, RTPengine, recording or audio-quality evidence.
+
+A separate direct-SIP 2-vCPU regression passed 750, 1,500,
+3,000 and 60,000 calls at 50, 100, 200 and 1,000 target CPS; the 1,000-CPS
+step delivered 993.542 cumulative CPS with 10/23 ms route p95/p99 and no
+failure, retransmission or queue-drop log. That capacity slice deliberately
+does not promote `G03-E13-PERFORMANCE`: allocator instrumentation, 2/4/8-core
+scaling, saturation, Kamailio, RTP/media and VOS/100K acceptance were not part
+of it. Fault/OOM, final review and `G03-E16-NATIVE-AUTHORITY` remain
+`not_run`; production eligibility remains false.
+
+ivekit.54 makes the existing active registry the single Native Call/Leg
+identity and admission entry point for both owner-attested and standalone SIP
+sessions. Owner-attested Calls retain their durable tenant, Call, interaction,
+epoch and generation. Compatibility Calls receive a deterministic
+`standalone` identity derived from—but never equal to—the opaque provider SIP
+Call-ID. Live standalone SIP Calls enter the native identity and admission
+authority before their initial Dialog becomes visible. Admission or initial
+Dialog failure rolls back every registry index.
+
+This slice deliberately leaves each newly admitted Native Leg in `Planned`.
+Ordinary `Ringing`/`Talking` projection updates do not dispatch `StartInvite`
+or `Final2xx`: the frozen v1 transition currently models a UAC-side ACK effect
+and cannot be applied to an inbound UAS leg without direction-specific intent
+and a durable effect executor. Lifecycle event activation remains `not_run`,
+preventing a shadow state machine from claiming an effect that the existing
+SIP path actually owns.
+
+The added admission path performs expected O(1) keyed lookup and one bounded
+per-Call mutation. It starts no task, scans no registry, performs no database
+or network operation and never enters the RTP/media path. The exact `.53 +
+.54` source combination passes the locked local aarch64 macOS Rust library
+suite (`1,967` passed, `0` failed, `5` ignored). The exact Linux build,
+physical PostgreSQL cases, real-peer, restart and capacity campaigns are still
+`not_run`. Directional lifecycle events, termination/transfer/fork wiring and
+the durable SipEffect writer remain `not_run`; consequently
+`G03-E16-NATIVE-AUTHORITY` and production eligibility are not promoted.
 
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out

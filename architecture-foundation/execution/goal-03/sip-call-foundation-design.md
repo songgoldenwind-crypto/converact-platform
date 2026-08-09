@@ -184,9 +184,11 @@ headers retain wire order. Authentication material, numbers, SDP keys and raw
 provider payloads are excluded from ordinary logs, metrics and evidence.
 
 The 22 raw fixtures under `wire-corpus/` freeze required G03 inputs and SHA-256
-identities. Controlled rsipstack baseline semantic capture is verified for the
-exact `.42` candidate; future rvoip differential replay and `.43`
-requalification remain separate `not_run` evidence.
+identities. Controlled dual-binary replay verifies the exact `.53` candidate
+against the `.40` pre-wire-guard baseline: all 18 accepted semantics are
+unchanged, the four malformed inputs are rejected under
+`G03-WIRE-SECURITY-001`, and there are zero unexplained differences. Future
+rvoip differential replay remains separate `not_run` evidence.
 
 ## 6. Initial INVITE and Durable Store
 
@@ -233,7 +235,7 @@ observation distinguishable even though both converge the effect record to
 | State | Meaning |
 | --- | --- |
 | current | RustPBX/rsipstack is the native runtime; TypeScript contains bounded conformance/reference models and a physical PostgreSQL reference ledger, but these are not a second live SIP/Call authority |
-| target | The complete interface and corpus are frozen; `.43` bounds native protocol/control mailboxes, while native Call/Leg/effect-port activation and candidate host requalification remain `not_run` |
-| production eligible | `false` until physical store, real peers, latency distribution, long-run, fault/OOM, native safety and host performance evidence pass independent review |
+| target | The complete interface and corpus are frozen; `.53` contains bounded protocol/control mailboxes, the native Call/Leg model and bounded PostgreSQL SipEffect primitives. Exact-image wire, raw latency, SIPp/Asterisk interop and a 2-vCPU capacity regression have controlled evidence; live Native Authority activation remains `not_run` |
+| production eligible | `false` until long-run, fault/OOM, Native Authority, allocation and multi-core scaling evidence pass independent review |
 
 No rvoip benchmark, old server result or historical Wave result is inherited.

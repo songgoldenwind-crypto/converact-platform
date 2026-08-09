@@ -171,9 +171,9 @@ test("attempt eight becomes a durable operator-attention fact", () => {
   );
 });
 
-test("exact build applies ivekit.53 after single-effect reconciliation", () => {
+test("exact build applies ivekit.54 after single-effect reconciliation", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.53"/);
+  assert.match(build, /PATCHSET="ivekit\.54"/);
   assert.match(
     build,
     /rustpbx-converact-postgres-sip-effect-reconciliation\.patch"[\s\S]*rustpbx-converact-postgres-sip-effect-repair-batch\.patch"/,
@@ -189,7 +189,7 @@ test("repair batch slice leaves live native authority and host evidence not_run"
   const evidence = JSON.parse(readFileSync(EVIDENCE, "utf8")) as {
     entries: Array<{ evidence_id: string; status: string }>;
   };
-  assert.match(readme, /ivekit\.53/);
+  assert.match(readme, /ivekit\.54/);
   assert.match(readme, /bounded batch/i);
   assert.match(readme, /operator\s+attention/i);
   assert.match(readme, /live SIP dispatch[\s\S]*`not_run`/i);

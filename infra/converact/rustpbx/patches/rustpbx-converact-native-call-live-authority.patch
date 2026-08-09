@@ -1,0 +1,173 @@
+--- a/src/call/domain/foundation_identity.rs
++++ b/src/call/domain/foundation_identity.rs
+@@ -126,6 +126,28 @@
+ }
+ 
+ impl NativeCallIdentity {
++    pub fn standalone(provider_call_id: &str) -> Result<Self, FoundationIdentityError> {
++        const TENANT_ID: &str = "standalone";
++        let provider_call_id = ProviderCallId::parse(provider_call_id)?;
++        let call_id = derive_call_id(
++            TENANT_ID,
++            &["native-provider-call", provider_call_id.as_str()],
++        )?;
++        let interaction_id = derive_interaction_id(
++            TENANT_ID,
++            &["native-provider-call", provider_call_id.as_str()],
++        )?;
++        Self::from_canonical(
++            TENANT_ID,
++            call_id,
++            interaction_id,
++            provider_call_id,
++            1,
++            1,
++            1,
++        )
++    }
++
+     pub fn adopt_projection(
+         tenant_id: &str,
+         projection_call_id: &str,
+@@ -468,6 +490,23 @@
+     }
+ 
+     #[test]
++    fn standalone_native_identity_is_stable_and_never_reuses_the_sip_call_id() {
++        let provider_call_id = "provider-call-id@example.test";
++        let first = NativeCallIdentity::standalone(provider_call_id).unwrap();
++        let replay = NativeCallIdentity::standalone(provider_call_id).unwrap();
++        let other = NativeCallIdentity::standalone("other-provider-call@example.test").unwrap();
++
++        assert_eq!(first, replay);
++        assert_ne!(first.call_id(), other.call_id());
++        assert_ne!(first.call_id().as_str(), provider_call_id);
++        assert_eq!(first.provider_call_id().as_str(), provider_call_id);
++        assert_eq!(first.tenant_id(), "standalone");
++        assert_eq!(first.owner_epoch(), 1);
++        assert_eq!(first.generation(), 1);
++        assert_eq!(first.revision(), 1);
++    }
++
++    #[test]
+     fn native_identity_rejects_unattested_or_unfenced_projection_data() {
+         assert!(
+             NativeCallIdentity::adopt_projection(
+--- a/src/proxy/active_call_registry.rs
++++ b/src/proxy/active_call_registry.rs
+@@ -182,7 +182,11 @@
+ 
+     #[cfg(test)]
+     pub fn upsert(&self, entry: ActiveProxyCallEntry, handle: SipSessionHandle) {
+-        if let Err(error) = self.try_upsert(entry, handle) {
++        let provider_call_id = entry.session_id.clone();
++        let result = live_native_identity(&provider_call_id).and_then(|identity| {
++            self.try_upsert_slot(entry, handle, Some(identity), true)
++        });
++        if let Err(error) = result {
+             warn!(error = %error, "active call compatibility registration rejected");
+         }
+     }
+@@ -219,14 +223,8 @@
+         initial_dialog_id: String,
+     ) -> Result<ActiveCallAdmissionLease, ActiveCallRegistryError> {
+         let provider_call_id = entry.session_id.clone();
+-        match crate::ivekit_owner::owner_identity(&provider_call_id) {
+-            Some(identity) => {
+-                self.try_upsert_authoritative(entry, handle.clone(), identity)?;
+-            }
+-            None => {
+-                self.try_insert(entry, handle.clone())?;
+-            }
+-        }
++        let identity = live_native_identity(&provider_call_id)?;
++        self.try_upsert_authoritative(entry, handle.clone(), identity)?;
+         if let Err(error) = self.try_register_dialog(initial_dialog_id, handle) {
+             self.remove(&provider_call_id);
+             return Err(error);
+@@ -770,10 +768,8 @@
+             answered_at: None,
+             status: ActiveProxyCallStatus::Ringing,
+         };
+-        match crate::ivekit_owner::owner_identity(&session_id) {
+-            Some(identity) => self.try_upsert_authoritative(entry, handle, identity),
+-            None => self.try_insert(entry, handle),
+-        }
++        let identity = live_native_identity(&session_id)?;
++        self.try_upsert_authoritative(entry, handle, identity)
+     }
+ 
+     #[cfg(test)]
+@@ -817,6 +813,17 @@
+         "outbound" => Ok(NativeLegDirection::Outbound),
+         _ => Err(ActiveCallRegistryError::InvalidDirection),
+     }
++}
++
++fn live_native_identity(
++    provider_call_id: &str,
++) -> Result<NativeCallIdentity, ActiveCallRegistryError> {
++    crate::ivekit_owner::owner_identity(provider_call_id)
++        .map(Ok)
++        .unwrap_or_else(|| {
++            NativeCallIdentity::standalone(provider_call_id)
++                .map_err(|_| ActiveCallRegistryError::AuthorityConflict)
++        })
+ }
+ 
+ fn map_native_leg_registration_error(error: NativeCallError) -> ActiveCallRegistryError {
+@@ -1636,4 +1643,54 @@
+         assert_eq!(registry.handles_by_dialog_count(), 0);
+     }
+ 
++    #[test]
++    fn live_standalone_registration_uses_native_identity_and_admission_authority() {
++        let registry = ActiveProxyCallRegistry::with_limits(4, 16);
++        let session = "standalone-provider-call@example.test";
++        let handle = make_handle(session);
++
++        assert!(
++            registry
++                .register_handle(session.to_string(), handle)
++                .unwrap()
++        );
++        let identity = registry
++            .get_identity(session)
++            .expect("live registration must always resolve one native identity");
++        assert_ne!(identity.call_id().as_str(), session);
++        let admitted = registry
++            .native_call_snapshot(identity.call_id())
++            .unwrap()
++            .expect("live registration must publish one native Call");
++        assert_eq!(admitted.legs.len(), 1);
++        assert_eq!(admitted.legs[0].state, NativeLegState::Planned);
++
++        registry.update(session, |entry| {
++            entry.answered_at = Some(Utc::now());
++            entry.status = ActiveProxyCallStatus::Talking;
++        });
++        let unchanged = registry
++            .native_call_snapshot(identity.call_id())
++            .unwrap()
++            .unwrap();
++        assert_eq!(unchanged.revision, admitted.revision);
++        assert_eq!(unchanged.legs[0].state, NativeLegState::Planned);
++    }
++
++    #[test]
++    fn live_open_rolls_back_when_native_dialog_admission_fails() {
++        let registry = std::sync::Arc::new(ActiveProxyCallRegistry::with_limits(4, 16));
++        let session = "standalone-provider-call@example.test";
++        let error = registry
++            .try_open(
++                make_entry(session),
++                make_handle(session),
++                "invalid dialog".to_string(),
++            )
++            .unwrap_err();
++
++        assert_eq!(error, ActiveCallRegistryError::InvalidDialogIdentifier);
++        assert!(registry.get_identity(session).is_none());
++        assert!(registry.is_empty());
++    }
+ }
