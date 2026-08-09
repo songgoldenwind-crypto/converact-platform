@@ -1,0 +1,72 @@
+campaign=converact-g03-derived-non-2xx-ack-9fc99ee-06
+status=verified_controlled_component_only
+
+SOURCE AND PATCH BINDING
+- G03 binding SHA-256: 05ce7f940782ab0efcd013d413220d068a7d3be1bab981f2c2c4f6a6f2a217af
+- rsipstack incremental patch SHA-256: a10917ee50e38abb7a5eaa34cf3a1ffb23046be2bed77b88396b545c57010371
+- RustPBX incremental patch SHA-256: 3eccf50d126a25c3032836c560f84a0fd7dd6a24ae00b840b1646751f00a8724
+- complete sorted patch-set SHA-256: e1f74df8102647c7cfb7119d79fa79d05b5637f09becc8924814ae77cdf8a46d
+- fresh clones of the committed .59 exact-source baselines accepted both .60
+  incremental patches with `git apply --check`, `git apply`, and
+  `git diff --check`.
+- byte comparison reproduced exactly:
+  rsipstack endpoint.rs, mod.rs, transaction.rs, test_client.rs; RustPBX
+  rsipstack_sip_effect_gate.rs and postgres_sip_effect.rs.
+
+FINAL AUTHORIZED-HOST COMMAND CLASS
+- All Docker commands ran only on ubuntu@101.42.7.139.
+- Each Rust test used a `--rm` container, the pinned Rust 1.94.1 image digest,
+  the isolated current-code source mount and the isolated Cargo cache.
+- The physical database test joined only
+  `converact-g03-current-net-7f4cd00c` and used the healthy isolated PostgreSQL
+  container. Credentials and full environment output were not captured.
+
+FINAL RESULTS
+- server-rsipstack-derived-r7.log:
+  `test result: ok. 302 passed; 0 failed; 0 ignored`.
+- server-rustpbx-derived-r15.log:
+  `test result: ok. 2002 passed; 0 failed; 8 ignored`; 451.89 seconds.
+- server-postgres-derived-ack-r6.log:
+  selected physical PostgreSQL test `1 passed; 0 failed`; 2009 filtered out.
+
+FINAL LOCAL CANONICAL VERIFICATION
+- Goal 03 generated-contract suite: `9 passed; 0 failed`.
+- Exact RustPBX/rsipstack/rustrtc patch and wire gates: `171 passed; 0 failed`.
+- `npm run typecheck`: passed.
+- exact-source rustfmt checks: passed for rsipstack Rust 2021 and RustPBX
+  Rust 2024.
+- `bash -n infra/converact/rustpbx/build.sh`: passed.
+- `git diff --check`: passed.
+- Prettier check for both new TypeScript patch gates: passed.
+
+TDD HARDENING OBSERVATIONS
+- cancellation/reconciliation accessor was first absent and the regression did
+  not compile; the accessor and pre-await latch made it pass;
+- a retransmitted final with changed extension bytes first received a second
+  permit; stable parent-derived child identity changed the test to pass while
+  retaining exact trigger/child binding conflict;
+- an Unknown parent was initially accepted by the materializer; the explicit
+  state restriction and regression now fail closed without retaining capacity.
+
+SERVER POSTFLIGHT
+- only `converact-g03-current-pg-7f4cd00c` remained running and healthy;
+- every old OPC, RustPBX, LiveKit, Converact baseline and Metafate application
+  container remained stopped and retained;
+- nginx was inactive and all four pre-existing PM2 applications were stopped;
+- externally bound TCP listener remained SSH only;
+- all test containers were removed automatically.
+
+ATTEMPT DISCLOSURE
+- Every rsipstack r1--r7, RustPBX r12--r15 and PostgreSQL r1--r6 log listed in
+  README.md is retained and hashed.
+- Harness/cache/precondition failures are not counted as code failures or
+  hidden as passes; only the named final logs support the final result.
+
+NOT RUN / NOT CLAIMED
+- live RustPBX endpoint composition and native Authority activation;
+- automatic 200-to-CANCEL and UAS-Core 2xx ACK ownership;
+- Unknown-parent repair handoff and stale nonterminal crash recovery;
+- mixed-binary N/N+1 activation and drain;
+- exact .60 release image, real peer, carrier interop, long call;
+- process fault/OOM, allocation, 2/4/8-core scaling and capacity;
+- G03-E15 final review, G03-E16 Native Authority and production eligibility.
