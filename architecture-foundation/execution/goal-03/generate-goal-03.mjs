@@ -1593,6 +1593,10 @@ function evidenceIndex() {
     'architecture-foundation/execution/goal-03/evidence/raw/local-verification-a18229c';
   const postgresEvidenceRoot =
     'architecture-foundation/execution/goal-03/evidence/raw/postgres-restart-a18229cd-02';
+  const staleRecoveryEvidenceRoot =
+    'architecture-foundation/execution/goal-03/evidence/raw/stale-nonterminal-recovery-6abf714-11';
+  const staleRecoverySourceCommit =
+    '6abf714ea8b71817e91fa9493e882c360050cf7f';
   const entry = (
     evidence_id,
     claim,
@@ -1687,9 +1691,15 @@ function evidenceIndex() {
       entry(
         'G03-E08-RECOVERY',
         'Confirmed-quiescent recovery, clock and fencing',
-        'verified_local',
-        [`${localEvidenceRoot}/focused.log`],
-        '9d212173335acf075dd07ab0ef198b8e76b1fd97dacc820f8b5c6f5c071025b9',
+        'verified_controlled',
+        [
+          `${staleRecoveryEvidenceRoot}/README.md`,
+          `${staleRecoveryEvidenceRoot}/remote-artifacts.sha256`,
+          `${staleRecoveryEvidenceRoot}/server-verify.log`,
+          `${staleRecoveryEvidenceRoot}/verification.txt`,
+        ],
+        '45072f23e6e8eff7a3f77b1ec075c596d8049a2072437934278898e14f9666ca',
+        staleRecoverySourceCommit,
       ),
       entry(
         'G03-E09-DRAIN',

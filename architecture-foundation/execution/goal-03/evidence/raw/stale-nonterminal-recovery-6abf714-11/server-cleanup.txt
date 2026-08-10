@@ -1,0 +1,14 @@
+captured_at=2026-08-10T07:46:40Z
+target_before=1.9G
+target_after=4.0K
+target_entries_after=0
+cargo_clean_final_mountpoint_result=EBUSY
+cargo_clean_interpretation=contents_removed_bind_mount_root_retained
+removed_transient_test_containers=3
+retained_source_directories=true
+retained_old_service_containers=true
+retained_postgres_container=converact-g03-current-pg-7f4cd00c
+running_container_count=1
+nginx=inactive
+pm2_all_stopped=true
+disk_after=79G_total_67G_used_8.7G_available_89_percent

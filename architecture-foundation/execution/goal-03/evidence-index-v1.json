@@ -103,12 +103,15 @@
     {
       "evidence_id": "G03-E08-RECOVERY",
       "claim": "Confirmed-quiescent recovery, clock and fencing",
-      "status": "verified_local",
+      "status": "verified_controlled",
       "evidence_uris": [
-        "architecture-foundation/execution/goal-03/evidence/raw/local-verification-a18229c/focused.log"
+        "architecture-foundation/execution/goal-03/evidence/raw/stale-nonterminal-recovery-6abf714-11/README.md",
+        "architecture-foundation/execution/goal-03/evidence/raw/stale-nonterminal-recovery-6abf714-11/remote-artifacts.sha256",
+        "architecture-foundation/execution/goal-03/evidence/raw/stale-nonterminal-recovery-6abf714-11/server-verify.log",
+        "architecture-foundation/execution/goal-03/evidence/raw/stale-nonterminal-recovery-6abf714-11/verification.txt"
       ],
-      "source_commit": "a18229cde752e2fbd4a3ffa3b8d8a8cc7cef7beb",
-      "raw_output_sha256": "9d212173335acf075dd07ab0ef198b8e76b1fd97dacc820f8b5c6f5c071025b9",
+      "source_commit": "6abf714ea8b71817e91fa9493e882c360050cf7f",
+      "raw_output_sha256": "45072f23e6e8eff7a3f77b1ec075c596d8049a2072437934278898e14f9666ca",
       "production_eligible": false
     },
     {

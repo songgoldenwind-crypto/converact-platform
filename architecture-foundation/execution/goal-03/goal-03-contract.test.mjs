@@ -532,7 +532,7 @@ test('evidence promotes only exact proved slices and retains every open gate', (
     'G03-E05-POSTGRES': 'verified_controlled',
     'G03-E06-TRYING': 'verified_controlled',
     'G03-E07-WIRE': 'verified_controlled',
-    'G03-E08-RECOVERY': 'verified_local',
+    'G03-E08-RECOVERY': 'verified_controlled',
     'G03-E09-DRAIN': 'verified_local',
     'G03-E10-FAULT': 'not_run',
     'G03-E11-INTEROP': 'verified_controlled',
@@ -550,23 +550,32 @@ test('evidence promotes only exact proved slices and retains every open gate', (
       assert.equal(entry.raw_output_sha256, null);
     } else {
       assert.ok(entry.evidence_uris.length > 0, entry.evidence_id);
-      const controlledHostEvidence = new Set([
-        'G03-E06-TRYING',
-        'G03-E07-WIRE',
-        'G03-E11-INTEROP',
-        'G03-E12-LONG-CALL',
+      const controlledSourceCommits = new Map([
+        ['G03-E06-TRYING', 'b63383bda16bcd9d311c9ce5e0761877d474797b'],
+        ['G03-E07-WIRE', 'b63383bda16bcd9d311c9ce5e0761877d474797b'],
+        ['G03-E08-RECOVERY', '6abf714ea8b71817e91fa9493e882c360050cf7f'],
+        ['G03-E11-INTEROP', 'b63383bda16bcd9d311c9ce5e0761877d474797b'],
+        ['G03-E12-LONG-CALL', 'b63383bda16bcd9d311c9ce5e0761877d474797b'],
       ]);
       assert.equal(
         entry.source_commit,
-        controlledHostEvidence.has(entry.evidence_id)
-          ? 'b63383bda16bcd9d311c9ce5e0761877d474797b'
-          : 'a18229cde752e2fbd4a3ffa3b8d8a8cc7cef7beb',
+        controlledSourceCommits.get(entry.evidence_id) ??
+          'a18229cde752e2fbd4a3ffa3b8d8a8cc7cef7beb',
         entry.evidence_id,
       );
       assert.match(entry.raw_output_sha256, /^[a-f0-9]{64}$/u);
     }
     assert.equal(entry.production_eligible, false);
   }
+  const recovery = evidence.entries.find(
+    (entry) => entry.evidence_id === 'G03-E08-RECOVERY',
+  );
+  assert.ok(recovery.evidence_uris.some((uri) =>
+    uri.includes('stale-nonterminal-recovery-6abf714-11')));
+  assert.equal(
+    recovery.raw_output_sha256,
+    '45072f23e6e8eff7a3f77b1ec075c596d8049a2072437934278898e14f9666ca',
+  );
   for (const path of requiredMarkdown) {
     const absolute = join(goalDirectory, path);
     assert.ok(existsSync(absolute), `missing ${path}`);

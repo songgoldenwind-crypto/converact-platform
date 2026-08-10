@@ -1,0 +1,24 @@
+captured_at=2026-08-10T07:46:40Z
+hostname=VM-0-3-ubuntu
+Linux 6.8.0-71-generic x86_64
+nginx=inactive
+pm2.liuyao-server=stopped
+pm2.metafate-prediction=stopped
+pm2.metafate-teacher-domestic=stopped
+pm2.metafate-user-center-domestic=stopped
+container.converact-g03-current-pg-7f4cd00c=healthy
+postgres.ports={"5432/tcp":null}
+container.mongodb-metafate=exited
+container.mysql-metafate=exited
+container.opc-livekit-1=exited
+container.opc-opc-1=exited
+container.opc-postgres-1=exited
+container.opc-redis-1=exited
+container.opc-rustpbx-1=exited
+container.wenxin-studio-app-1=exited
+container.wenxin-studio-proxy-1=exited
+temporary_target_cleanup=1.9G_to_empty_mountpoint
+transient_test_containers_removed=3
+disk=79G_total_67G_used_8.7G_available_89_percent
+external_tcp_listener=22
+postgres_host_port=none

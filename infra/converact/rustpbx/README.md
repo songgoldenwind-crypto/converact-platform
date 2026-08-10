@@ -690,9 +690,10 @@ tenant transaction, so the cold path performs three bounded database statements
 per batch rather than per-effect queries. No periodic scanner, per-effect task,
 unbounded queue, tenant-wide scan, blind resend or media-path work is added.
 The canonical migration runner builds the five-key partial index concurrently
-and rejects a malformed same-name index. Live successor-owner wiring, automatic
-worker activation, physical PostgreSQL crash-window evidence, exact Linux
-verification and production eligibility remain `not_run`.
+and rejects a malformed same-name index. The controlled `.70` pool-recreation
+case proves this focused PostgreSQL transition. Live successor-owner wiring,
+automatic worker activation, real observer-process crash recovery, exact Linux
+full-suite verification and production eligibility remain `not_run`.
 
 ivekit.67 changes only the ignored isolated-PostgreSQL recovery fixture. Its
 administrator-only clock-age setup now advances the immutable ledger revision
@@ -724,8 +725,12 @@ keeps the recovery predicate on
 `effect.protocol_effect_id = candidate.candidate_effect_id`. Local `.70`
 exact-patch gates pass `187/187`, affected database and delivery gates pass
 `121/121`, the G03 machine contract passes `9/9`, and repository typecheck
-passes. Exact `.70` Linux physical-PostgreSQL evidence remains `not_run`; the
-local source/component results do not prove that corrected path.
+passes. Exact `.70` Linux then passed both focused tests (`2/2`, `31.25s`) on
+PostgreSQL 16.14 after pool recreation, with no PostgreSQL error and no OOM.
+The controlled bundle is
+`architecture-foundation/execution/goal-03/evidence/raw/stale-nonterminal-recovery-6abf714-11/`.
+It does not promote the unrun full Linux suite, real process crash, live owner
+wiring, performance or production paths.
 
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out

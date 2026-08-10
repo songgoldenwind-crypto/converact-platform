@@ -1,0 +1,11 @@
+container=converact-g03-69-focused-03
+started_at=2026-08-10T07:24:21.025403741Z
+finished_at=2026-08-10T07:28:41.569422467Z
+exit=101
+oom_killed=false
+
+running 2 tests
+
+postgres_error=column reference "protocol_effect_id" is ambiguous
+rust_error=StoreUnavailable
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 2023 filtered out; finished in 31.15s

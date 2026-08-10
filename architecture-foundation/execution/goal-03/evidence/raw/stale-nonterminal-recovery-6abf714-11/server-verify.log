@@ -1,0 +1,12 @@
+container=converact-g03-70-focused-01
+started_at=2026-08-10T07:37:48.166335016Z
+finished_at=2026-08-10T07:42:09.570979957Z
+exit=0
+oom_killed=false
+command=cargo test --quiet --locked --offline --manifest-path /build/rustpbx/Cargo.toml --lib postgres_stale_nonterminal_recovery -- --include-ignored --nocapture
+
+running 2 tests
+..
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 2023 filtered out; finished in 31.25s
+
+postgres_error_fatal_panic_count=0
