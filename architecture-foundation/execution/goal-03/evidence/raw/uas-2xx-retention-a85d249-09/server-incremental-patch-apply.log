@@ -1,0 +1,10 @@
+candidate_commit=a85d249
+patchset=ivekit.64
+9719e5b4d6b3fe1a2b4d88fab3d39f28267becdc3a1535df7383e0ea90bf7fbe  /home/ubuntu/converact-g03-64-a85d249/infra/converact/rustpbx/patches/rsipstack-converact-uas-2xx-owner-retention.patch
+627b584861eb6731a4c8876309f74ec54fae6371aa1011df9a92ee4c9c2e556a  /home/ubuntu/converact-g03-64-a85d249/infra/converact/rustpbx/patches/rustpbx-converact-uas-2xx-owner-retention.patch
+bf5ec7981865108bfafa776b1ac21f1e8b6acebc34ddc06f9b428a63761424ab  /home/ubuntu/converact-g03-64-a85d249/native/rsipstack/src/transaction/endpoint.rs
+fc8b08d35cb2214fc1bb9f0b8c16e6b10ad41e5b760b28001f5e40569de64d50  /home/ubuntu/converact-g03-64-a85d249/native/rsipstack/src/transaction/mod.rs
+b932a5adf5328426a7fa54b9419972bfc0c6297aec00748525534983ba491e17  /home/ubuntu/converact-g03-64-a85d249/native/rsipstack/src/transaction/transaction.rs
+731c9a7afafd74225f863c3cf574fce7f239518cbb4a1b0ade3672f10591e396  /home/ubuntu/converact-g03-64-a85d249/native/rsipstack/src/transaction/tests/test_server.rs
+32fa584de9328e8388447a6660b9707a0698a18205f3dd86ec23e83057decc78  /home/ubuntu/converact-g03-64-a85d249/native/rustpbx/src/call/adapters/rsipstack_sip_effect_gate.rs
+a9d49fe32e9e993d3ef7b586fad550a4fd7f99156c570388dc7a73e3c0a4559b  /home/ubuntu/converact-g03-64-a85d249/native/rustpbx/src/proxy/server.rs

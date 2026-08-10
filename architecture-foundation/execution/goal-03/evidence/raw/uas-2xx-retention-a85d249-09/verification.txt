@@ -1,0 +1,70 @@
+campaign=converact-g03-uas-2xx-retention-a85d249-09
+status=verified_controlled_component_only
+
+SOURCE AND PATCH BINDING
+- G03 binding SHA-256: 05ce7f940782ab0efcd013d413220d068a7d3be1bab981f2c2c4f6a6f2a217af
+- candidate commit: a85d24965f00767bb79a7c0546be71f97d1d8e45
+- patchset: ivekit.64
+- rsipstack incremental patch SHA-256:
+  9719e5b4d6b3fe1a2b4d88fab3d39f28267becdc3a1535df7383e0ea90bf7fbe
+- RustPBX incremental patch SHA-256:
+  627b584861eb6731a4c8876309f74ec54fae6371aa1011df9a92ee4c9c2e556a
+- complete sorted patch-set SHA-256:
+  aed4e1584825f090b03d84351fa936fea2ab6bf96c5ccf7977160589462a813d
+- the isolated server source began from the exact `.63` native source with
+  Cargo target directories excluded; both `.64` patches passed dry-run before
+  applying once;
+- all six resulting server source hashes exactly match the packaged `.64`
+  implementation sources. `server-incremental-patch-apply.log` retains the
+  patch and final-source hashes.
+
+TDD OBSERVATION
+- before implementation, `.63` returned from the RustPBX drain path while the
+  UAS 2xx owner was active and the server build did not cover its typed deadline;
+- RED tests required product-lifetime retention and deterministic termination
+  after an initial 2xx transport failure;
+- the minimal `.64` implementation made those tests GREEN while retaining the
+  shared timer heap and existing bounded durable effect path.
+
+AUTHORIZED-HOST RESULTS
+- all Docker commands ran only on ubuntu@101.42.7.139;
+- Rust image: rust:1.94.1-bookworm / Rust 1.94.1;
+- rsipstack: 311 passed, 0 failed;
+- rsipstack compile-fail/doctest: 67 passed, 0 failed;
+- RustPBX: 2,008 passed, 0 failed, 8 ignored; 226.66 seconds test execution;
+- the owner-retention, deadline, initial-send-failure and reliable-transport
+  rows are present as explicit `ok` rows in the full logs.
+
+LOCAL CANONICAL VERIFICATION BEFORE CANDIDATE COMMIT
+- 179 changed exact-patch/source tests passed, 0 failed;
+- Goal 03 generated-contract suite: 9 passed, 0 failed;
+- exact `.63 -> .64` replay reproduced all six final source hashes;
+- `npm run typecheck`, `bash -n infra/converact/rustpbx/build.sh`, exact-source
+  rustfmt and canonical diff checks passed.
+
+SERVER POSTFLIGHT
+- only converact-g03-current-pg-7f4cd00c remained running and healthy;
+- all old containers and PM2 applications were stopped and retained;
+- nginx was inactive;
+- the only externally bound TCP listener was SSH;
+- temporary Rust test containers were removed automatically;
+- the current-task Cargo target moved from 7,443 files / 4,953,681,609 bytes
+  to 0 files / 0 bytes; `cargo clean` then returned 101 solely because it could
+  not delete its bind-mount root. No broad or recursive shell deletion followed.
+
+EXECUTION DISCLOSURE
+- the final test command returned exit 0 and the complete success summary is
+  durably present in the server-side log;
+- no local Docker was used;
+- no release image was built or deployed;
+- no old server service, image, volume, database, configuration, restart
+  policy, source or user artifact was deleted or edited.
+
+NOT RUN / NOT CLAIMED
+- live Call Core capability registration and live RustPBX Endpoint composition;
+- restart/reconcile resumption and in-flight UAS 2xx owner crash recovery;
+- parent-Unknown and stale nonterminal recovery;
+- transport flow-generation receipt binding and mixed-binary activation;
+- exact `.64` release image, real peer, carrier interop and long call;
+- process fault/OOM, allocation, 2/4/8-core scaling and capacity;
+- G03-E15 final review, G03-E16 Native Authority and production eligibility.
