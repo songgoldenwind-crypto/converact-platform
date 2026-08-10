@@ -18,6 +18,10 @@ export interface PostgresMigration {
 
 const VOICE_CDR_MIGRATION = '103_ivekit_voice_cdr_convergence';
 const VOICE_EVENT_UNIQUE_INDEX = 'uq_ivekit_tenant_events_tenant_id';
+const SIP_EFFECT_STALE_NONTERMINAL_MIGRATION =
+  '115_converact_sip_effect_stale_nonterminal_recovery';
+const SIP_EFFECT_STALE_NONTERMINAL_INDEX =
+  'idx_ivekit_sip_effect_stale_nonterminal';
 
 export function isPostgresMigrationFile(file: string): boolean {
   return /^\d{3}_[a-z0-9_]+\.sql$/.test(file);
@@ -79,6 +83,9 @@ export async function runPostgresMigrationsOnClient(
 
     if (migration.version === VOICE_CDR_MIGRATION) {
       await prepareVoiceCdrConcurrentIndex(pg);
+    }
+    if (migration.version === SIP_EFFECT_STALE_NONTERMINAL_MIGRATION) {
+      await prepareSipEffectStaleNonterminalIndex(pg);
     }
     await pg.query('BEGIN');
     try {
@@ -176,6 +183,84 @@ export async function prepareVoiceCdrConcurrentIndex(
     CREATE UNIQUE INDEX CONCURRENTLY ${VOICE_EVENT_UNIQUE_INDEX}
       ON public.ivekit_tenant_events (tenant_id, id)
   `);
+}
+
+export async function prepareSipEffectStaleNonterminalIndex(
+  pg: MigrationQueryable
+): Promise<void> {
+  const index = await pg.query(`
+    SELECT
+      index_meta.indisunique,
+      index_meta.indisvalid,
+      index_meta.indisready,
+      index_meta.indexprs IS NULL AS no_expressions,
+      index_meta.indnkeyatts,
+      index_meta.indnatts,
+      pg_get_expr(index_meta.indpred, index_meta.indrelid) AS predicate,
+      ARRAY(
+        SELECT attribute.attname::text
+        FROM unnest(index_meta.indkey::smallint[]) WITH ORDINALITY
+          AS key_column(attnum, position)
+        JOIN pg_attribute attribute
+          ON attribute.attrelid = index_meta.indrelid
+         AND attribute.attnum = key_column.attnum
+        WHERE key_column.position <= index_meta.indnkeyatts
+        ORDER BY key_column.position
+      ) AS key_columns
+    FROM pg_index index_meta
+    JOIN pg_class index_relation
+      ON index_relation.oid = index_meta.indexrelid
+    JOIN pg_namespace index_namespace
+      ON index_namespace.oid = index_relation.relnamespace
+    WHERE index_namespace.nspname = 'public'
+      AND index_relation.relname = '${SIP_EFFECT_STALE_NONTERMINAL_INDEX}'
+      AND index_meta.indrelid = 'public.ivekit_sip_protocol_effects'::regclass
+  `);
+  if (isValidSipEffectStaleNonterminalIndex(index.rows[0])) return;
+
+  if (index.rowCount && index.rowCount > 0) {
+    await pg.query(
+      `DROP INDEX CONCURRENTLY public.${SIP_EFFECT_STALE_NONTERMINAL_INDEX}`
+    );
+  }
+  await pg.query(`
+    CREATE INDEX CONCURRENTLY IF NOT EXISTS ${SIP_EFFECT_STALE_NONTERMINAL_INDEX}
+      ON public.ivekit_sip_protocol_effects (
+        tenant_id,
+        protocol_session_id,
+        protocol_session_generation,
+        updated_at,
+        protocol_effect_id
+      )
+      WHERE state IN ('send_attempted', 'transport_accepted')
+  `);
+}
+
+function isValidSipEffectStaleNonterminalIndex(
+  row: Record<string, unknown> | undefined
+): boolean {
+  if (!row) return false;
+  const columns = row.key_columns;
+  const expectedPredicate =
+    "state=ANY(ARRAY['send_attempted','transport_accepted'])";
+  const predicate = String(row.predicate || '')
+    .replace(/::text/g, '')
+    .replace(/\s+/g, '')
+    .replace(/^\((.*)\)$/, '$1');
+  return row.indisunique === false &&
+    row.indisvalid === true &&
+    row.indisready === true &&
+    row.no_expressions === true &&
+    Number(row.indnkeyatts) === 5 &&
+    Number(row.indnatts) === 5 &&
+    Array.isArray(columns) &&
+    columns.length === 5 &&
+    columns[0] === 'tenant_id' &&
+    columns[1] === 'protocol_session_id' &&
+    columns[2] === 'protocol_session_generation' &&
+    columns[3] === 'updated_at' &&
+    columns[4] === 'protocol_effect_id' &&
+    predicate === expectedPredicate;
 }
 
 function isValidVoiceEventUniqueIndex(

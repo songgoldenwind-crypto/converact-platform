@@ -26,7 +26,7 @@ const sourceIdentity = Object.freeze({
   rustpbx_commit: '6c49ee76baa54fdbf8f98020cc9bee158c7c15de',
   rsipstack_commit: '8318e97b1170de4e5245b120afec1cdf53e3d716',
   rustrtc_commit: '166c6d22984429eb6b509920c14fcd69f974f0b3',
-  patchset: 'ivekit.65',
+  patchset: 'ivekit.66',
   current_adapter: 'rsipstack',
   target_adapter: 'rvoip_low_level_slices_after_separate_gates',
   native_runtime_authority: 'Unified RustPBX process',
@@ -1788,6 +1788,7 @@ const sourceMaps = Object.freeze({
       'src/migrations/107_ivekit_sip_effect_oracle.sql',
       'src/migrations/113_converact_sip_effect_transport_completed.sql',
       'src/migrations/114_converact_sip_effect_transport_completed_validate.sql',
+      'src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql',
     ],
     test_paths: [
       'test/converact-sip-receipt-drain.test.ts',
@@ -1816,6 +1817,7 @@ const sourceMaps = Object.freeze({
       'infra/converact/rustpbx/patches/rsipstack-ivekit-bounded-protocol-mailboxes.patch',
       'infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch',
       'infra/converact/rustpbx/patches/rustpbx-ivekit-bounded-call-mailboxes.patch',
+      'infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery.patch',
     ],
     test_paths: [
       'test/converact-sip-receipt-drain.test.ts',
@@ -1823,6 +1825,7 @@ const sourceMaps = Object.freeze({
       'test/converact-rsipstack-server-invite-lifecycle-patch.test.ts',
       'test/converact-rustpbx-dialog-recovery-patch.test.ts',
       'test/converact-rustpbx-bounded-control-mailboxes-patch.test.ts',
+      'test/converact-rustpbx-stale-nonterminal-recovery-patch.test.ts',
     ],
   },
   legacy_assessment: {

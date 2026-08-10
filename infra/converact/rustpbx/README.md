@@ -666,9 +666,33 @@ The Rust and TypeScript codecs share a 16 KiB plaintext ceiling and the fixed
 binding hash vector
 `aa731eba74f64cc5b2eb67d10ea8da044e87cb87b30e5b0550b8a7dfaf759871`.
 This slice adds no task, queue, database query, global scan or media-path work.
-Local exact-source tests pass; authorized-server evidence, exact release image,
-real process-crash takeover, multi-node fencing, long-call and capacity
-qualification remain `not_run`, so production eligibility remains false.
+Local exact-source tests pass. Authorized-server candidate `1d05333…` exits
+zero with RustPBX `2,015/0/8`, the dialog-shadow integration contract `20/20`,
+rsipstack `311/311` and doctests `67/67`; its component-only bundle is
+`architecture-foundation/execution/goal-03/evidence/raw/native-call-recovery-1d05333-10/`.
+External old-service restarts during that run prohibit a performance claim.
+Exact release image, real process-crash takeover, multi-node fencing, long-call
+and capacity qualification remain `not_run`, so production eligibility remains
+false.
+
+ivekit.66 adds a default-disabled recovery primitive for stale
+`send_attempted` and `transport_accepted` effects left by an observer-process
+crash. Selection is confined to one exact tenant, Protocol Session and Protocol
+Session generation, requires a strictly higher successor owner epoch, uses the
+database clock and the rolling partial index, locks with `SKIP LOCKED`, and is
+hard-bounded to 100 rows. A 30-second minimum age prevents immediate takeover;
+the configurable age is capped at one day.
+
+Each selected effect moves to honest `unknown` with one deterministic receipt
+and an explicit repair due time. It is never renamed peer-observed or transport
+completed. The receipt insert and state update are set-based inside the same
+tenant transaction, so the cold path performs three bounded database statements
+per batch rather than per-effect queries. No periodic scanner, per-effect task,
+unbounded queue, tenant-wide scan, blind resend or media-path work is added.
+The canonical migration runner builds the five-key partial index concurrently
+and rejects a malformed same-name index. Live successor-owner wiring, automatic
+worker activation, physical PostgreSQL crash-window evidence, exact Linux
+verification and production eligibility remain `not_run`.
 
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out

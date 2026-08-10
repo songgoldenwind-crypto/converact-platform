@@ -4,6 +4,7 @@
 --   src/migrations/107_ivekit_sip_effect_oracle.sql
 --   src/migrations/113_converact_sip_effect_transport_completed.sql
 --   src/migrations/114_converact_sip_effect_transport_completed_validate.sql
+--   src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql
 --
 -- Keeping a single executable source prevents drift between the application
 -- migration runner, standalone packaging and SIP-foundation documentation.

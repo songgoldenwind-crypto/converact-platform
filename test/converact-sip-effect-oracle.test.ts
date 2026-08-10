@@ -2423,7 +2423,7 @@ test('Postgres NUMERIC uint64 values decode only from canonical decimal strings'
   );
 });
 
-test('migration 107 remains immutable while 113 expands v2 without activating it', async () => {
+test('migration 107 remains immutable while v2 and stale recovery expand additively', async () => {
   const migrationUrl = new URL(
     '../src/migrations/107_ivekit_sip_effect_oracle.sql',
     import.meta.url
@@ -2439,6 +2439,13 @@ test('migration 107 remains immutable while 113 expands v2 without activating it
   const transportCompletedValidation = await readFile(
     new URL(
       '../src/migrations/114_converact_sip_effect_transport_completed_validate.sql',
+      import.meta.url
+    ),
+    'utf8'
+  );
+  const staleNonterminalRecovery = await readFile(
+    new URL(
+      '../src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql',
       import.meta.url
     ),
     'utf8'
@@ -2539,6 +2546,15 @@ test('migration 107 remains immutable while 113 expands v2 without activating it
     );
   }
   assert.doesNotMatch(transportCompletedValidation, /DROP CONSTRAINT|UPDATE\s/i);
+  assert.match(staleNonterminalRecovery, /idx_ivekit_sip_effect_stale_nonterminal/);
+  assert.match(staleNonterminalRecovery, /protocol_session_id/);
+  assert.match(staleNonterminalRecovery, /protocol_session_generation/);
+  assert.match(staleNonterminalRecovery, /updated_at/);
+  assert.match(
+    staleNonterminalRecovery,
+    /WHERE state IN \('send_attempted', 'transport_accepted'\)/
+  );
+  assert.doesNotMatch(staleNonterminalRecovery, /UPDATE\s+ivekit_sip_protocol_effects/i);
   assert.match(
     migration,
     /GRANT USAGE ON SCHEMA public TO opc_sip_effect_executor/
@@ -2594,22 +2610,28 @@ test('migration 107 remains immutable while 113 expands v2 without activating it
   const transportCompletedValidationEntry = plan.find((entry) =>
     entry.file === '114_converact_sip_effect_transport_completed_validate.sql'
   );
+  const staleNonterminalRecoveryEntry = plan.find((entry) =>
+    entry.file === '115_converact_sip_effect_stale_nonterminal_recovery.sql'
+  );
   assert.ok(sipEffectMigration);
   assert.ok(transportCompletedEntry);
   assert.ok(transportCompletedValidationEntry);
+  assert.ok(staleNonterminalRecoveryEntry);
   const runner = new MigrationRecorder();
   await runPostgresMigrationsOnClient(
     runner,
     [
       sipEffectMigration,
       transportCompletedEntry,
-      transportCompletedValidationEntry
+      transportCompletedValidationEntry,
+      staleNonterminalRecoveryEntry
     ]
   );
   assert.deepEqual(runner.applied, [
     '107_ivekit_sip_effect_oracle',
     '113_converact_sip_effect_transport_completed',
-    '114_converact_sip_effect_transport_completed_validate'
+    '114_converact_sip_effect_transport_completed_validate',
+    '115_converact_sip_effect_stale_nonterminal_recovery'
   ]);
 
   assert.equal(SIP_EFFECT_SCHEMA_ID, 'ivekit.sip-effect-oracle');

@@ -1,0 +1,590 @@
+diff --git a/src/call/adapters/postgres_sip_effect.rs b/src/call/adapters/postgres_sip_effect.rs
+index f661597296651a46b1a87ac0757a09cbbc29f87f..244705343954f88723fb8d28110328f4e25dc0b7 100644
+--- a/src/call/adapters/postgres_sip_effect.rs
++++ b/src/call/adapters/postgres_sip_effect.rs
+@@ -27,6 +27,10 @@ const MAX_STORE_WAIT: Duration = Duration::from_millis(250);
+ const MAX_REPAIR_LEASE: Duration = Duration::from_secs(30);
+ const MAX_REPAIR_BATCH_SIZE: usize = 100;
+ const MAX_REPAIR_TOKEN_PREFIX_BYTES: usize = 128;
++const MIN_STALE_NONTERMINAL_AGE: Duration = Duration::from_secs(30);
++const MAX_STALE_NONTERMINAL_AGE: Duration = Duration::from_secs(86_400);
++const MAX_STALE_NONTERMINAL_BATCH_SIZE: usize = 100;
++const MAX_STALE_RECOVERY_REPAIR_DELAY_MS: u32 = 86_400_000;
+ const MAX_AUDIT_RETENTION_MS: i64 = 315_576_000_000;
+ 
+ #[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+@@ -364,12 +368,97 @@ const EXHAUST_UNKNOWN_BATCH_UPDATE_SQL: &str = r#"
+     RETURNING effect.protocol_effect_id
+ "#;
+ 
++const STALE_NONTERMINAL_SELECT_SQL: &str = concat!(
++    "SELECT ",
++    effect_columns!(),
++    r#"
++    FROM ivekit_sip_protocol_effects
++    WHERE tenant_id = $1
++      AND protocol_session_id = $2
++      AND protocol_session_generation = $3
++      AND state IN ('send_attempted', 'transport_accepted')
++      AND owner_epoch < $5::numeric
++      AND repair_owner_id IS NULL
++      AND operator_attention_required = FALSE
++      AND updated_at <= statement_timestamp() -
++        ($4::bigint * INTERVAL '1 millisecond')
++    ORDER BY updated_at, protocol_effect_id
++    FOR UPDATE SKIP LOCKED
++    LIMIT $6
++    "#,
++);
++
++const STALE_NONTERMINAL_RECEIPT_INSERT_SQL: &str = r#"
++    INSERT INTO ivekit_sip_effect_receipts
++      (receipt_id, tenant_id, protocol_effect_id, decision_id,
++       idempotency_key, request_hash, command_id, wire_bytes_hash,
++       effect_identity_hash, owner_epoch, command_sequence, receipt_hash,
++       level, from_state, failure_code, repair_delay_ms, observed_at,
++       schema_id, schema_version, schema_hash, writer_identity)
++    SELECT candidate.receipt_id, effect.tenant_id, effect.protocol_effect_id,
++           effect.decision_id, effect.idempotency_key, effect.request_hash,
++           effect.command_id, effect.wire_bytes_hash, effect.effect_identity_hash,
++           effect.owner_epoch, effect.command_sequence, candidate.receipt_hash,
++           'unknown', candidate.expected_state, '', $8::integer,
++           statement_timestamp(), effect.schema_id, effect.schema_version,
++           effect.schema_hash, $10
++    FROM ivekit_sip_protocol_effects AS effect
++    JOIN unnest(
++      $1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[]
++    ) AS candidate(
++      protocol_effect_id, expected_revision, expected_state,
++      expected_identity_hash, receipt_id, receipt_hash
++    ) ON effect.protocol_effect_id = candidate.protocol_effect_id
++    WHERE effect.tenant_id = $7
++      AND effect.revision = candidate.expected_revision::numeric
++      AND effect.state = candidate.expected_state
++      AND effect.effect_identity_hash = candidate.expected_identity_hash
++      AND effect.owner_epoch < $9::numeric
++    ON CONFLICT (tenant_id, receipt_id) DO NOTHING
++    RETURNING protocol_effect_id
++"#;
++
++const STALE_NONTERMINAL_UPDATE_SQL: &str = concat!(
++    r#"
++    UPDATE ivekit_sip_protocol_effects AS effect
++    SET state = 'unknown',
++        revision = effect.revision + 1,
++        unknown_count = effect.unknown_count + 1,
++        last_receipt_id = candidate.receipt_id,
++        last_receipt_hash = candidate.receipt_hash,
++        last_receipt_repair_delay_ms = $8::integer,
++        failure_code = '',
++        repair_due_at = statement_timestamp() +
++          ($8::integer * INTERVAL '1 millisecond'),
++        updated_at = statement_timestamp()
++    FROM unnest(
++      $1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[]
++    ) AS candidate(
++      protocol_effect_id, expected_revision, expected_state,
++      expected_identity_hash, receipt_id, receipt_hash
++    )
++    WHERE effect.tenant_id = $7
++      AND effect.protocol_effect_id = candidate.protocol_effect_id
++      AND effect.revision = candidate.expected_revision::numeric
++      AND effect.state = candidate.expected_state
++      AND effect.effect_identity_hash = candidate.expected_identity_hash
++      AND effect.owner_epoch < $9::numeric
++    RETURNING
++    "#,
++    effect_columns!(),
++);
++
+ #[derive(Clone, Debug, Eq, PartialEq)]
+ pub struct SipEffectRepairBatch {
+     pub effects: Vec<SipEffectRecord>,
+     pub exhausted_count: usize,
+ }
+ 
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct SipEffectStaleNonterminalBatch {
++    pub effects: Vec<SipEffectRecord>,
++}
++
+ #[derive(Clone, Debug, Eq, PartialEq)]
+ pub(crate) struct SipEffectPrepareForSendOutcome {
+     pub record: SipEffectRecord,
+@@ -913,6 +1002,208 @@ impl PostgresSipEffectStore {
+         })
+     }
+ 
++    pub async fn recover_stale_nonterminal_batch(
++        &self,
++        tenant_id: &str,
++        protocol_session_id: &str,
++        protocol_session_generation: &str,
++        successor_owner_epoch: u64,
++        stale_after: Duration,
++        unknown_repair_after_ms: u32,
++        limit: usize,
++    ) -> Result<SipEffectStaleNonterminalBatch, SipEffectStoreError> {
++        run_with_store_deadline(
++            self.wait_timeout,
++            self.recover_stale_nonterminal_batch_inner(
++                tenant_id,
++                protocol_session_id,
++                protocol_session_generation,
++                successor_owner_epoch,
++                stale_after,
++                unknown_repair_after_ms,
++                limit,
++            ),
++        )
++        .await
++    }
++
++    async fn recover_stale_nonterminal_batch_inner(
++        &self,
++        tenant_id: &str,
++        protocol_session_id: &str,
++        protocol_session_generation: &str,
++        successor_owner_epoch: u64,
++        stale_after: Duration,
++        unknown_repair_after_ms: u32,
++        limit: usize,
++    ) -> Result<SipEffectStaleNonterminalBatch, SipEffectStoreError> {
++        validate_stale_nonterminal_scope(
++            tenant_id,
++            protocol_session_id,
++            protocol_session_generation,
++            successor_owner_epoch,
++        )?;
++        let stale_after_ms = bounded_stale_nonterminal_millis(stale_after)?;
++        let limit = bounded_stale_nonterminal_batch_limit(limit)?;
++        let repair_after_ms = bounded_stale_recovery_repair_delay(unknown_repair_after_ms)?;
++        let (_admission, mut transaction) = self.begin_tenant_transaction(tenant_id).await?;
++        let rows = sqlx::query(STALE_NONTERMINAL_SELECT_SQL)
++            .bind(tenant_id)
++            .bind(protocol_session_id)
++            .bind(protocol_session_generation)
++            .bind(stale_after_ms)
++            .bind(successor_owner_epoch.to_string())
++            .bind(limit)
++            .fetch_all(&mut *transaction)
++            .await
++            .map_err(map_sqlx_error)?;
++        if rows.len() > usize::try_from(limit).unwrap_or(MAX_STALE_NONTERMINAL_BATCH_SIZE) {
++            return Err(SipEffectStoreError::SchemaIncompatible);
++        }
++
++        let mut expected = Vec::with_capacity(rows.len());
++        let mut effect_ids = Vec::with_capacity(rows.len());
++        let mut expected_revisions = Vec::with_capacity(rows.len());
++        let mut expected_states = Vec::with_capacity(rows.len());
++        let mut expected_identity_hashes = Vec::with_capacity(rows.len());
++        let mut receipt_ids = Vec::with_capacity(rows.len());
++        let mut receipt_hashes = Vec::with_capacity(rows.len());
++        for row in rows {
++            let decoded = decode_effect(&row)?;
++            if decoded.record.identity.tenant_id != tenant_id
++                || decoded.record.identity.protocol_session_id != protocol_session_id
++                || decoded.record.identity.protocol_session_generation
++                    != protocol_session_generation
++                || !matches!(
++                    decoded.record.state,
++                    SipEffectState::SendAttempted | SipEffectState::TransportAccepted
++                )
++                || decoded.record.identity.owner_epoch >= successor_owner_epoch
++                || decoded.record.repair_claim.is_some()
++                || decoded.record.operator_attention_required
++            {
++                return Err(SipEffectStoreError::SchemaIncompatible);
++            }
++            let identity_hash = protocol_effect_identity_hash(&decoded.record.identity)?;
++            let receipt_id = sip_effect_stage_token(
++                "receipt",
++                &decoded.record.identity.protocol_effect_id,
++                &format!(
++                    "stale-nonterminal-{}-{successor_owner_epoch}",
++                    decoded.record.state.as_str()
++                ),
++            );
++            let receipt = SipEffectReceipt::new(
++                decoded.record.fence(),
++                &receipt_id,
++                SipEffectReceiptLevel::Unknown,
++                "",
++                Some(unknown_repair_after_ms),
++            )?;
++            classify_receipt(decoded.record.state, receipt.level)?;
++            effect_ids.push(decoded.record.identity.protocol_effect_id.clone());
++            expected_revisions.push(decoded.record.revision.to_string());
++            expected_states.push(decoded.record.state.as_str().to_string());
++            expected_identity_hashes.push(identity_hash);
++            receipt_ids.push(receipt.receipt_id);
++            receipt_hashes.push(receipt.receipt_hash);
++            expected.push((decoded.record, decoded.schema));
++        }
++
++        if expected.is_empty() {
++            transaction.commit().await.map_err(map_sqlx_error)?;
++            return Ok(SipEffectStaleNonterminalBatch {
++                effects: Vec::new(),
++            });
++        }
++
++        let inserted = sqlx::query(STALE_NONTERMINAL_RECEIPT_INSERT_SQL)
++            .bind(&effect_ids)
++            .bind(&expected_revisions)
++            .bind(&expected_states)
++            .bind(&expected_identity_hashes)
++            .bind(&receipt_ids)
++            .bind(&receipt_hashes)
++            .bind(tenant_id)
++            .bind(repair_after_ms)
++            .bind(successor_owner_epoch.to_string())
++            .bind(SIP_EFFECT_WRITER_IDENTITY)
++            .fetch_all(&mut *transaction)
++            .await
++            .map_err(map_sqlx_error)?;
++        let inserted_ids = inserted
++            .iter()
++            .map(|row| schema_field::<String>(row, "protocol_effect_id"))
++            .collect::<Result<HashSet<_>, _>>()?;
++        if inserted_ids.len() != expected.len()
++            || inserted_ids != effect_ids.iter().cloned().collect::<HashSet<_>>()
++        {
++            return Err(SipEffectError::ReceiptConflict.into());
++        }
++
++        let updated_rows = sqlx::query(STALE_NONTERMINAL_UPDATE_SQL)
++            .bind(&effect_ids)
++            .bind(&expected_revisions)
++            .bind(&expected_states)
++            .bind(&expected_identity_hashes)
++            .bind(&receipt_ids)
++            .bind(&receipt_hashes)
++            .bind(tenant_id)
++            .bind(repair_after_ms)
++            .bind(successor_owner_epoch.to_string())
++            .fetch_all(&mut *transaction)
++            .await
++            .map_err(map_sqlx_error)?;
++        if updated_rows.len() != expected.len() {
++            return Err(SipEffectError::FenceLost.into());
++        }
++        let mut updated = HashMap::with_capacity(updated_rows.len());
++        for row in updated_rows {
++            let decoded = decode_effect(&row)?;
++            if updated
++                .insert(
++                    decoded.record.identity.protocol_effect_id.clone(),
++                    (decoded.record, decoded.schema),
++                )
++                .is_some()
++            {
++                return Err(SipEffectStoreError::SchemaIncompatible);
++            }
++        }
++
++        let mut recovered = Vec::with_capacity(expected.len());
++        for (index, (prior, schema)) in expected.into_iter().enumerate() {
++            let next = updated
++                .remove(&prior.identity.protocol_effect_id)
++                .ok_or(SipEffectError::FenceLost)?;
++            let expected_revision = prior
++                .revision
++                .checked_add(1)
++                .ok_or(SipEffectStoreError::SchemaIncompatible)?;
++            let expected_unknown_count = prior
++                .unknown_count
++                .checked_add(1)
++                .ok_or(SipEffectStoreError::SchemaIncompatible)?;
++            if next.1 != schema
++                || next.0.identity != prior.identity
++                || next.0.state != SipEffectState::Unknown
++                || next.0.revision != expected_revision
++                || next.0.unknown_count != expected_unknown_count
++                || next.0.last_receipt_id.as_deref() != Some(receipt_ids[index].as_str())
++                || next.0.last_receipt_hash.as_deref() != Some(receipt_hashes[index].as_str())
++                || next.0.repair_delay_ms != Some(unknown_repair_after_ms)
++            {
++                return Err(SipEffectStoreError::SchemaIncompatible);
++            }
++            recovered.push(next.0);
++        }
++        if !updated.is_empty() {
++            return Err(SipEffectStoreError::SchemaIncompatible);
++        }
++        transaction.commit().await.map_err(map_sqlx_error)?;
++        Ok(SipEffectStaleNonterminalBatch { effects: recovered })
++    }
++
+     pub async fn reconcile(
+         &self,
+         identity: &crate::call::domain::sip_effect::SipEffectIdentity,
+@@ -1747,6 +2038,52 @@ fn bounded_repair_batch_limit(limit: usize) -> Result<i64, SipEffectStoreError>
+     i64::try_from(limit).map_err(|_| SipEffectStoreError::InvalidConfiguration)
+ }
+ 
++fn bounded_stale_nonterminal_millis(duration: Duration) -> Result<i64, SipEffectStoreError> {
++    let milliseconds = u64::try_from(duration.as_millis())
++        .map_err(|_| SipEffectStoreError::InvalidConfiguration)?;
++    if duration < MIN_STALE_NONTERMINAL_AGE
++        || duration > MAX_STALE_NONTERMINAL_AGE
++        || Duration::from_millis(milliseconds) != duration
++    {
++        return Err(SipEffectStoreError::InvalidConfiguration);
++    }
++    i64::try_from(milliseconds).map_err(|_| SipEffectStoreError::InvalidConfiguration)
++}
++
++fn bounded_stale_nonterminal_batch_limit(limit: usize) -> Result<i64, SipEffectStoreError> {
++    if limit == 0 || limit > MAX_STALE_NONTERMINAL_BATCH_SIZE {
++        return Err(SipEffectStoreError::InvalidConfiguration);
++    }
++    i64::try_from(limit).map_err(|_| SipEffectStoreError::InvalidConfiguration)
++}
++
++fn bounded_stale_recovery_repair_delay(value: u32) -> Result<i32, SipEffectStoreError> {
++    if value > MAX_STALE_RECOVERY_REPAIR_DELAY_MS {
++        return Err(SipEffectStoreError::InvalidConfiguration);
++    }
++    i32::try_from(value).map_err(|_| SipEffectStoreError::InvalidConfiguration)
++}
++
++fn validate_stale_nonterminal_scope(
++    tenant_id: &str,
++    protocol_session_id: &str,
++    protocol_session_generation: &str,
++    successor_owner_epoch: u64,
++) -> Result<(), SipEffectStoreError> {
++    validate_sip_effect_identifier(tenant_id)?;
++    validate_sip_effect_identifier(protocol_session_id)?;
++    let generation = protocol_session_generation
++        .parse::<u64>()
++        .map_err(|_| SipEffectStoreError::InvalidConfiguration)?;
++    if generation == 0
++        || generation.to_string() != protocol_session_generation
++        || successor_owner_epoch == 0
++    {
++        return Err(SipEffectStoreError::InvalidConfiguration);
++    }
++    Ok(())
++}
++
+ fn validate_repair_batch_identity(
+     tenant_id: &str,
+     repair_owner_id: &str,
+@@ -2094,6 +2431,71 @@ mod tests {
+         assert!(EXHAUST_UNKNOWN_BATCH_UPDATE_SQL.contains("operator_attention_required = TRUE"));
+     }
+ 
++    #[test]
++    fn postgres_stale_nonterminal_recovery_is_bounded_and_fenced() {
++        assert_eq!(
++            bounded_stale_nonterminal_millis(Duration::from_secs(30)).unwrap(),
++            30_000,
++        );
++        assert_eq!(
++            bounded_stale_nonterminal_millis(Duration::from_secs(86_400)).unwrap(),
++            86_400_000,
++        );
++        assert_eq!(
++            bounded_stale_nonterminal_millis(Duration::from_secs(29)).unwrap_err(),
++            SipEffectStoreError::InvalidConfiguration,
++        );
++        assert_eq!(
++            bounded_stale_nonterminal_millis(Duration::from_millis(30_001)).unwrap(),
++            30_001,
++        );
++        assert_eq!(
++            bounded_stale_nonterminal_millis(Duration::from_micros(30_000_001)).unwrap_err(),
++            SipEffectStoreError::InvalidConfiguration,
++        );
++        assert_eq!(bounded_stale_nonterminal_batch_limit(1).unwrap(), 1);
++        assert_eq!(bounded_stale_nonterminal_batch_limit(100).unwrap(), 100);
++        assert_eq!(
++            bounded_stale_nonterminal_batch_limit(0).unwrap_err(),
++            SipEffectStoreError::InvalidConfiguration,
++        );
++        assert_eq!(
++            bounded_stale_nonterminal_batch_limit(101).unwrap_err(),
++            SipEffectStoreError::InvalidConfiguration,
++        );
++        assert_eq!(bounded_stale_recovery_repair_delay(0).unwrap(), 0);
++        assert_eq!(
++            bounded_stale_recovery_repair_delay(86_400_000).unwrap(),
++            86_400_000,
++        );
++        assert_eq!(
++            bounded_stale_recovery_repair_delay(86_400_001).unwrap_err(),
++            SipEffectStoreError::InvalidConfiguration,
++        );
++        assert!(validate_stale_nonterminal_scope("tenant", "session", "1", 2).is_ok());
++        assert_eq!(
++            validate_stale_nonterminal_scope("tenant", "session", "01", 2).unwrap_err(),
++            SipEffectStoreError::InvalidConfiguration,
++        );
++        assert_eq!(
++            validate_stale_nonterminal_scope("tenant", "session", "1", 0).unwrap_err(),
++            SipEffectStoreError::InvalidConfiguration,
++        );
++        assert!(
++            STALE_NONTERMINAL_SELECT_SQL
++                .contains("state IN ('send_attempted', 'transport_accepted')")
++        );
++        assert!(STALE_NONTERMINAL_SELECT_SQL.contains("protocol_session_id = $2"));
++        assert!(STALE_NONTERMINAL_SELECT_SQL.contains("protocol_session_generation = $3"));
++        assert!(STALE_NONTERMINAL_SELECT_SQL.contains("owner_epoch < $5::numeric"));
++        assert!(STALE_NONTERMINAL_SELECT_SQL.contains("statement_timestamp() -"));
++        assert!(STALE_NONTERMINAL_SELECT_SQL.contains("FOR UPDATE SKIP LOCKED"));
++        assert!(STALE_NONTERMINAL_SELECT_SQL.contains("LIMIT $6"));
++        assert!(STALE_NONTERMINAL_RECEIPT_INSERT_SQL.contains("FROM ivekit_sip_protocol_effects"));
++        assert!(STALE_NONTERMINAL_UPDATE_SQL.contains("unknown_count + 1"));
++        assert!(!STALE_NONTERMINAL_SELECT_SQL.contains("clock_timestamp()"));
++    }
++
+     #[tokio::test]
+     async fn admission_bounds_active_and_queued_database_work() {
+         let admission = Arc::new(SipEffectAdmission::new(1, 1, Duration::from_millis(50)).unwrap());
+@@ -2410,6 +2812,142 @@ mod tests {
+         recovered_store.pool.close().await;
+     }
+ 
++    #[tokio::test]
++    #[ignore = "requires an isolated migrated PostgreSQL database"]
++    async fn postgres_stale_nonterminal_recovery_survives_pool_recreation() {
++        let database_url = std::env::var("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL")
++            .expect("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL must be set");
++        let admin_database_url = std::env::var("CONVERACT_SIP_EFFECT_TEST_ADMIN_DATABASE_URL")
++            .expect("CONVERACT_SIP_EFFECT_TEST_ADMIN_DATABASE_URL must be set");
++        let run_id = std::env::var("CONVERACT_SIP_EFFECT_TEST_RUN_ID")
++            .expect("CONVERACT_SIP_EFFECT_TEST_RUN_ID must be set");
++        let send_attempted = postgres_effect_fixture(&format!("{run_id}-stale-send"));
++        let transport_accepted = postgres_effect_fixture(&format!("{run_id}-stale-accepted"));
++        prepare_postgres_test_tenant(&send_attempted.identity.tenant_id).await;
++        prepare_postgres_test_tenant(&transport_accepted.identity.tenant_id).await;
++        let options = PostgresSipEffectStoreOptions {
++            max_in_flight: 2,
++            max_queue_depth: 2,
++            wait_timeout: Duration::from_millis(250),
++        };
++        let store = PostgresSipEffectStore::connect(&database_url, options)
++            .await
++            .unwrap();
++        let first = store
++            .prepare_for_send(send_attempted.clone())
++            .await
++            .unwrap()
++            .record;
++        assert_eq!(first.state, SipEffectState::SendAttempted);
++        let second = store
++            .prepare_for_send(transport_accepted.clone())
++            .await
++            .unwrap()
++            .record;
++        assert_eq!(second.state, SipEffectState::SendAttempted);
++        let second_hash = protocol_effect_identity_hash(&transport_accepted.identity).unwrap();
++        let second = store
++            .apply_observation(
++                &transport_accepted.identity.tenant_id,
++                &transport_accepted.identity.protocol_effect_id,
++                &second_hash,
++                SipEffectDurableObservation::TransportAccepted,
++                1_000,
++            )
++            .await
++            .unwrap();
++        assert_eq!(second.state, SipEffectState::TransportAccepted);
++        store.pool.close().await;
++
++        let admin_pool = PgPoolOptions::new()
++            .max_connections(1)
++            .connect(&admin_database_url)
++            .await
++            .unwrap();
++        for effect in [&send_attempted, &transport_accepted] {
++            let result = sqlx::query(
++                "UPDATE ivekit_sip_protocol_effects \
++                 SET updated_at = statement_timestamp() - INTERVAL '60 seconds' \
++                 WHERE tenant_id = $1 AND protocol_effect_id = $2",
++            )
++            .bind(&effect.identity.tenant_id)
++            .bind(&effect.identity.protocol_effect_id)
++            .execute(&admin_pool)
++            .await
++            .unwrap();
++            assert_eq!(result.rows_affected(), 1);
++        }
++        admin_pool.close().await;
++
++        let recovered_store = PostgresSipEffectStore::connect(&database_url, options)
++            .await
++            .unwrap();
++        for effect in [&send_attempted, &transport_accepted] {
++            let batch = recovered_store
++                .recover_stale_nonterminal_batch(
++                    &effect.identity.tenant_id,
++                    &effect.identity.protocol_session_id,
++                    &effect.identity.protocol_session_generation,
++                    8,
++                    Duration::from_secs(30),
++                    0,
++                    1,
++                )
++                .await
++                .unwrap();
++            assert_eq!(batch.effects.len(), 1);
++            assert_eq!(batch.effects[0].identity, effect.identity);
++            assert_eq!(batch.effects[0].state, SipEffectState::Unknown);
++            assert_eq!(
++                recovered_store
++                    .recover_stale_nonterminal_batch(
++                        &effect.identity.tenant_id,
++                        &effect.identity.protocol_session_id,
++                        &effect.identity.protocol_session_generation,
++                        8,
++                        Duration::from_secs(30),
++                        0,
++                        1,
++                    )
++                    .await
++                    .unwrap()
++                    .effects,
++                Vec::new(),
++            );
++        }
++        let unknown = recovered_store
++            .query(&send_attempted.identity)
++            .await
++            .unwrap()
++            .unwrap();
++        let claim = recovered_store
++            .claim_unknown(
++                &unknown.identity,
++                "successor-owner",
++                8,
++                &format!("claim-{run_id}-stale"),
++                Duration::from_secs(10),
++            )
++            .await
++            .unwrap();
++        recovered_store.pool.close().await;
++
++        let reconciled_store = PostgresSipEffectStore::connect(&database_url, options)
++            .await
++            .unwrap();
++        let reconciled = reconciled_store
++            .reconcile(
++                &send_attempted.identity,
++                &claim,
++                &format!("receipt-{run_id}-stale-reconciled"),
++                SipEffectReconcileOutcome::ProtocolObserved,
++            )
++            .await
++            .unwrap();
++        assert_eq!(reconciled.record.state, SipEffectState::ProtocolObserved);
++        reconciled_store.pool.close().await;
++    }
++
+     #[tokio::test]
+     #[ignore = "requires an isolated migrated PostgreSQL database"]
+     async fn postgres_repair_batch_exhausts_after_eight_bounded_attempts() {

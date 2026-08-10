@@ -2823,6 +2823,16 @@ CREATE INDEX IF NOT EXISTS idx_ivekit_sip_effect_repair_due
   )
   WHERE state = 'unknown' AND operator_attention_required = 0;
 
+CREATE INDEX IF NOT EXISTS idx_ivekit_sip_effect_stale_nonterminal
+  ON ivekit_sip_protocol_effects(
+    tenant_id,
+    protocol_session_id,
+    protocol_session_generation,
+    updated_at,
+    protocol_effect_id
+  )
+  WHERE state IN ('send_attempted', 'transport_accepted');
+
 CREATE INDEX IF NOT EXISTS idx_ivekit_sip_effect_operator_attention
   ON ivekit_sip_protocol_effects(
     tenant_id, repair_exhausted_at, protocol_effect_id

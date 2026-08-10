@@ -114,6 +114,7 @@ test('standalone migration order includes RLS and communication overlays but exc
   assert.equal(migrations.includes('112_converact_platform_history_receipt_integrity.sql'), true);
   assert.equal(migrations.includes('113_converact_sip_effect_transport_completed.sql'), true);
   assert.equal(migrations.includes('114_converact_sip_effect_transport_completed_validate.sql'), true);
+  assert.equal(migrations.includes('115_converact_sip_effect_stale_nonterminal_recovery.sql'), true);
   assert.equal(
     migrations.indexOf('043_ivekit_intelligence_translation.sql') <
       migrations.indexOf('044_quality_review_policy_routing.sql') &&
@@ -246,10 +247,12 @@ test('standalone migration order includes RLS and communication overlays but exc
       migrations.indexOf('112_converact_platform_history_receipt_integrity.sql') <
       migrations.indexOf('113_converact_sip_effect_transport_completed.sql') &&
       migrations.indexOf('113_converact_sip_effect_transport_completed.sql') <
-      migrations.indexOf('114_converact_sip_effect_transport_completed_validate.sql'),
+      migrations.indexOf('114_converact_sip_effect_transport_completed_validate.sql') &&
+      migrations.indexOf('114_converact_sip_effect_transport_completed_validate.sql') <
+      migrations.indexOf('115_converact_sip_effect_stale_nonterminal_recovery.sql'),
     true
   );
-  assert.equal(migrations.at(-1), '114_converact_sip_effect_transport_completed_validate.sql');
+  assert.equal(migrations.at(-1), '115_converact_sip_effect_stale_nonterminal_recovery.sql');
   const runtimeSecurity = readFileSync(
     'services/converact-service/migrations/090_ivekit_runtime_security.sql',
     'utf8'

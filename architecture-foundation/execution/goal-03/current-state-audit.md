@@ -18,9 +18,9 @@ claims and this audit does not mark G02 complete or production eligible.
 | --- | --- | --- | --- |
 | Product Call model | `src/agent-runtime/converact/voice/types.ts`; `state-machine.ts`; `call-service.ts` | `VoiceCall` is a durable Call intent/rebuildable control-plane projection with legacy string IDs | preserve product behavior, but never treat it or `provider_call_id` as native Call/Leg authority |
 | SipFoundation seam | `src/agent-runtime/converact/voice/sip-foundation/*` | Exported Converact-owned types, bounded Protocol Session model, capability selection, route/wire binding and rsipstack-named conformance Adapter exist | retain as conformance/migration harness; native SIP authority stays inside RustPBX |
-| Durable effect ledger | `effect-oracle.ts`; `postgres-effect-store.ts`; migrations `107`, `113` and `114`; native `.59` protocol-observation, `.60` derived-ACK, `.61` peer-ingress, `.62` peer-derived CANCEL, `.63` UAS-2xx owner and `.64` owner-retention patches | Reference and native implementations use closed v1/v2 wire-attempt facts, keep `transport_completed` distinct from peer `protocol_observed`, and use atomic prepare/observation transactions, repair fences and resource-bounded fixed shards; `.60` derives one parent-bound non-2xx ACK and rejects an Unknown parent; `.61` requires a private Endpoint-minted proof before a network event can become peer evidence; `.62` consumes one pre-registered capability to durably send and replay the matched CANCEL 200; `.63` creates one bounded UAS 2xx owner; `.64` retains that owner through the product transaction and classifies its deadline/initial-send failure without a second authority; the native adapter is compiled but default-disabled | retain TypeScript as contract/reference evidence; controlled component and PostgreSQL tests pass, while live Call Core capability registration and native RustPBX endpoint activation remain `not_run` |
-| Recovery | `sip-foundation/recovery.ts`; reciprocal dialog shadow/takeover sources; `.65` Native Call recovery identity patch | Confirmed, transaction-quiescent, same-runtime eligibility exists. The closed v2 capsule now authenticates one canonical Native Call binding across both legs and advances owner/generation/revision fences exactly once; legacy v1 remains readable but cannot resume live authority | retain the single RustPBX Native Call registry as Authority; real process-crash/two-node takeover, early-dialog and cross-Adapter recovery remain `not_run` |
-| RustPBX/rsipstack runtime | `infra/converact/rustpbx/build.sh` and patch queue | RustPBX `6c49ee76…`, rsipstack `8318e97b…`, rustrtc `166c6d22…`, patchset `.65` is pinned; `.65` layers authenticated Native Call identity continuity over `.64` without adding a task, queue, database lookup, global scan or media-path work | exact-source local static gates pass `191/191`; authorized-server candidate `1d05333…` exits zero with RustPBX `2,015/0/8`, dialog-shadow integration `20/20`, rsipstack `311/311` and doctests `67/67`. The component bundle is `evidence/raw/native-call-recovery-1d05333-10/`; old services were externally restarted during the run, so it is not performance evidence. `.63` remains rejected; `.65` image/wire/latency/peer/long-call/capacity evidence and production activation remain `not_run` |
+| Durable effect ledger | `effect-oracle.ts`; `postgres-effect-store.ts`; migrations `107`, `113`, `114` and `115`; native `.59` protocol-observation, `.60` derived-ACK, `.61` peer-ingress, `.62` peer-derived CANCEL, `.63` UAS-2xx owner, `.64` owner-retention and `.66` stale-nonterminal recovery patches | Reference and native implementations use closed v1/v2 wire-attempt facts, keep `transport_completed` distinct from peer `protocol_observed`, and use atomic prepare/observation transactions, repair fences and resource-bounded fixed shards; `.60` derives one parent-bound non-2xx ACK and rejects an Unknown parent; `.61` requires a private Endpoint-minted proof before a network event can become peer evidence; `.62` consumes one pre-registered capability to durably send and replay the matched CANCEL 200; `.63` creates one bounded UAS 2xx owner; `.64` retains that owner through the product transaction; `.66` adds an exact-tenant/session/generation, successor-epoch-fenced, database-clock and 100-row-bounded transition from stale `send_attempted`/`transport_accepted` to honest `unknown`; the native adapter and recovery entrypoint remain default-disabled | retain TypeScript as contract/reference evidence; local component gates pass, while physical PostgreSQL crash-window proof, live successor-owner wiring, live Call Core capability registration and native RustPBX endpoint activation remain `not_run` |
+| Recovery | `sip-foundation/recovery.ts`; reciprocal dialog shadow/takeover sources; `.65` Native Call recovery identity patch; `.66` stale SipEffect recovery patch | The closed v2 capsule authenticates one canonical Native Call binding across both legs and advances owner/generation/revision fences exactly once. The new stale-effect primitive uses a rolling partial index and one atomic bounded batch to preserve uncertainty as `unknown`; legacy v1 remains readable but cannot resume live authority | retain the single RustPBX Native Call registry as Authority; `.66` live owner fencing and physical restart evidence, real process-crash/two-node takeover, early-dialog and cross-Adapter recovery remain `not_run` |
+| RustPBX/rsipstack runtime | `infra/converact/rustpbx/build.sh` and patch queue | RustPBX `6c49ee76…`, rsipstack `8318e97b…`, rustrtc `166c6d22…`, patchset `.66` is pinned; `.66` layers default-disabled indexed stale-effect recovery over `.65` without a periodic worker, global scan, per-effect task, unbounded queue or media-path work | `.66` local exact-patch gates pass `186/186`, affected TypeScript gates pass `121/121`, the G03 contract passes `9/9`, the Rust focused unit passes `1/1`, and typecheck passes. Exact `.66` Linux/physical-PostgreSQL verification remains `not_run`. The retained `.65` server candidate `1d05333…` passed RustPBX `2,015/0/8`, dialog-shadow `20/20`, rsipstack `311/311` and doctests `67/67`; old services were externally restarted, so it is not performance evidence. `.63` remains rejected; `.66` image/wire/latency/peer/long-call/capacity evidence and production activation remain `not_run` |
 | Initial 100 Trying | `rsipstack-ivekit-single-trying.patch`; SIPp campaign sources | Exact `.53` image emitted exactly 100 Trying responses for 100 INVITEs; p99/max were 1/1 ms, with zero response retransmissions | `G03-E06` controlled evidence; no inherited `.42` promotion |
 | SIP wire tests | frozen 22-case corpus and exact dual-binary replay | `.53` matches all 18 accepted semantics and applies four versioned malformed-input tightenings with zero unexplained differences | `G03-E07` controlled evidence; future rvoip differential remains `not_run` |
 | rvoip runtime | no G03 runtime source dependency found | Not a parser, transaction, Dialog or transport production path | `not_run`; reserved for G06 layer-by-layer gates |
@@ -68,6 +68,10 @@ candidate `1d05333…`: RustPBX `2,015/0/8`, dialog-shadow integration `20/20`,
 rsipstack `311/311` and doctests `67/67`. Its component-only bundle is
 `evidence/raw/native-call-recovery-1d05333-10/`. An external mechanism restarted
 old services during the run, so no performance claim is inherited. The
+incremental `.66` source passes exact-patch gates `186/186`, affected
+TypeScript gates `121/121`, the G03 contract `9/9`, the repository typecheck
+and its focused Rust unit `1/1`. Its physical PostgreSQL restart case, exact
+Linux full suite and live successor-owner composition have not run. The
 following remain `not_run`:
 
 - native Call/Leg and effect-writer activation;
@@ -77,8 +81,9 @@ following remain `not_run`:
 - process-crash recovery of an in-flight UAS 2xx owner;
 - real process-crash/two-node Native Call takeover using the v2 capsule;
 - parent-Unknown reconciliation and derived-ACK live endpoint composition;
-- indexed stale `send_attempted`/`transport_accepted` recovery after an
-  observer-process crash and mixed-binary v1/v2 activation;
+- live and physical-PostgreSQL proof of the indexed stale
+  `send_attempted`/`transport_accepted` recovery after an observer-process
+  crash, plus mixed-binary v1/v2 activation;
 - node loss, blocking syscall, native panic, OOM and process-abort campaigns;
 - allocation and 2/4/8-core scaling (the retained 2-vCPU capacity result is a
   controlled regression baseline, not the complete performance Gate);
@@ -106,9 +111,9 @@ following remain `not_run`:
 8. Wire only direction-specific protocol observations: inbound 2xx waits for a
    remote ACK, outbound 2xx creates a local ACK effect, and inbound Legs can
    never enter outbound fork selection.
-9. Wire the `.65` matched-CANCEL capability holder and UAS-2xx owner through the
+9. Wire the `.66` matched-CANCEL capability holder and UAS-2xx owner through the
    live Endpoint path and reconciliation resume; close parent-Unknown and
-   stale-nonterminal/UAS-owner crash recovery before the default-disabled `.65`
+   stale-nonterminal/UAS-owner crash recovery before the default-disabled `.66`
    gate can enter live endpoint composition. The v2 recovery capsule must remain
    the only path that restores the existing canonical Native Call identity;
    legacy v1 capsules fail closed for live resume.

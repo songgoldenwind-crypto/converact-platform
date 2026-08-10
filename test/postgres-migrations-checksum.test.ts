@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 import {
+  prepareSipEffectStaleNonterminalIndex,
   prepareVoiceCdrConcurrentIndex,
   readPostgresMigrationPlan,
   runPostgresMigrationsOnClient,
@@ -246,4 +247,72 @@ test('voice CDR migration uses a bounded transaction lock timeout', async () => 
     ),
     true
   );
+});
+
+test('SIP stale-nonterminal migration preflight creates its partial index concurrently', async () => {
+  const pg = new ConcurrentIndexPg([]);
+
+  await prepareSipEffectStaleNonterminalIndex(pg);
+
+  assert.equal(
+    pg.queries.some((query) =>
+      query.includes(
+        'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_ivekit_sip_effect_stale_nonterminal'
+      )
+    ),
+    true
+  );
+  assert.equal(
+    pg.queries.some((query) => query.includes('DROP INDEX CONCURRENTLY')),
+    false
+  );
+});
+
+test('SIP stale-nonterminal migration preflight preserves only the exact index', async () => {
+  const valid = {
+    indisunique: false,
+    indisvalid: true,
+    indisready: true,
+    no_expressions: true,
+    indnkeyatts: 5,
+    indnatts: 5,
+    key_columns: [
+      'tenant_id',
+      'protocol_session_id',
+      'protocol_session_generation',
+      'updated_at',
+      'protocol_effect_id'
+    ],
+    predicate: "(state = ANY (ARRAY['send_attempted'::text, 'transport_accepted'::text]))"
+  };
+  const exact = new ConcurrentIndexPg([valid]);
+  const malformed = new ConcurrentIndexPg([{
+    ...valid,
+    key_columns: ['tenant_id', 'updated_at', 'protocol_effect_id'],
+    indnkeyatts: 3,
+    indnatts: 3
+  }]);
+
+  await prepareSipEffectStaleNonterminalIndex(exact);
+  await prepareSipEffectStaleNonterminalIndex(malformed);
+
+  assert.equal(
+    exact.queries.some((query) =>
+      query.includes('CREATE INDEX CONCURRENTLY') ||
+      query.includes('DROP INDEX CONCURRENTLY')
+    ),
+    false
+  );
+  const drop = malformed.queries.findIndex((query) =>
+    query.includes(
+      'DROP INDEX CONCURRENTLY public.idx_ivekit_sip_effect_stale_nonterminal'
+    )
+  );
+  const create = malformed.queries.findIndex((query) =>
+    query.includes(
+      'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_ivekit_sip_effect_stale_nonterminal'
+    )
+  );
+  assert.ok(drop >= 0);
+  assert.ok(create > drop);
 });

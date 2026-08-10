@@ -12,7 +12,7 @@ import {
 
 const SHA256 = /^[a-f0-9]{64}$/u;
 const TOKEN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/u;
-const EXPECTED_MIGRATION = '114_converact_sip_effect_transport_completed_validate';
+const EXPECTED_MIGRATION = '115_converact_sip_effect_stale_nonterminal_recovery';
 const MAX_RECOVERY_MS = 24 * 60 * 60 * 1_000;
 const MAX_OPERATIONS = 100_000_000;
 const DRAIN_PHASES = Object.freeze([

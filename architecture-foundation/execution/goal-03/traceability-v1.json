@@ -195,7 +195,8 @@
         "src/agent-runtime/converact/voice/sip-foundation/postgres-effect-store.ts",
         "src/migrations/107_ivekit_sip_effect_oracle.sql",
         "src/migrations/113_converact_sip_effect_transport_completed.sql",
-        "src/migrations/114_converact_sip_effect_transport_completed_validate.sql"
+        "src/migrations/114_converact_sip_effect_transport_completed_validate.sql",
+        "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
@@ -221,7 +222,8 @@
         "src/agent-runtime/converact/voice/sip-foundation/postgres-effect-store.ts",
         "src/migrations/107_ivekit_sip_effect_oracle.sql",
         "src/migrations/113_converact_sip_effect_transport_completed.sql",
-        "src/migrations/114_converact_sip_effect_transport_completed_validate.sql"
+        "src/migrations/114_converact_sip_effect_transport_completed_validate.sql",
+        "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
@@ -936,7 +938,8 @@
         "src/agent-runtime/converact/voice/sip-foundation/postgres-effect-store.ts",
         "src/migrations/107_ivekit_sip_effect_oracle.sql",
         "src/migrations/113_converact_sip_effect_transport_completed.sql",
-        "src/migrations/114_converact_sip_effect_transport_completed_validate.sql"
+        "src/migrations/114_converact_sip_effect_transport_completed_validate.sql",
+        "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
@@ -1037,7 +1040,8 @@
         "src/agent-runtime/converact/voice/sip-foundation/postgres-effect-store.ts",
         "src/migrations/107_ivekit_sip_effect_oracle.sql",
         "src/migrations/113_converact_sip_effect_transport_completed.sql",
-        "src/migrations/114_converact_sip_effect_transport_completed_validate.sql"
+        "src/migrations/114_converact_sip_effect_transport_completed_validate.sql",
+        "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
@@ -1111,7 +1115,8 @@
         "src/agent-runtime/converact/voice/sip-foundation/postgres-effect-store.ts",
         "src/migrations/107_ivekit_sip_effect_oracle.sql",
         "src/migrations/113_converact_sip_effect_transport_completed.sql",
-        "src/migrations/114_converact_sip_effect_transport_completed_validate.sql"
+        "src/migrations/114_converact_sip_effect_transport_completed_validate.sql",
+        "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
@@ -1138,14 +1143,16 @@
         "infra/converact/rustpbx/patches/rsipstack-ivekit-capacity.patch",
         "infra/converact/rustpbx/patches/rsipstack-ivekit-bounded-protocol-mailboxes.patch",
         "infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch",
-        "infra/converact/rustpbx/patches/rustpbx-ivekit-bounded-call-mailboxes.patch"
+        "infra/converact/rustpbx/patches/rustpbx-ivekit-bounded-call-mailboxes.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery.patch"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-foundation-recovery.test.ts",
         "test/converact-rsipstack-server-invite-lifecycle-patch.test.ts",
         "test/converact-rustpbx-dialog-recovery-patch.test.ts",
-        "test/converact-rustpbx-bounded-control-mailboxes-patch.test.ts"
+        "test/converact-rustpbx-bounded-control-mailboxes-patch.test.ts",
+        "test/converact-rustpbx-stale-nonterminal-recovery-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1637,7 +1644,8 @@
         "src/agent-runtime/converact/voice/sip-foundation/postgres-effect-store.ts",
         "src/migrations/107_ivekit_sip_effect_oracle.sql",
         "src/migrations/113_converact_sip_effect_transport_completed.sql",
-        "src/migrations/114_converact_sip_effect_transport_completed_validate.sql"
+        "src/migrations/114_converact_sip_effect_transport_completed_validate.sql",
+        "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
@@ -3314,14 +3322,16 @@
         "infra/converact/rustpbx/patches/rsipstack-ivekit-capacity.patch",
         "infra/converact/rustpbx/patches/rsipstack-ivekit-bounded-protocol-mailboxes.patch",
         "infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch",
-        "infra/converact/rustpbx/patches/rustpbx-ivekit-bounded-call-mailboxes.patch"
+        "infra/converact/rustpbx/patches/rustpbx-ivekit-bounded-call-mailboxes.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery.patch"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-foundation-recovery.test.ts",
         "test/converact-rsipstack-server-invite-lifecycle-patch.test.ts",
         "test/converact-rustpbx-dialog-recovery-patch.test.ts",
-        "test/converact-rustpbx-bounded-control-mailboxes-patch.test.ts"
+        "test/converact-rustpbx-bounded-control-mailboxes-patch.test.ts",
+        "test/converact-rustpbx-stale-nonterminal-recovery-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
