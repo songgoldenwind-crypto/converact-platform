@@ -731,6 +731,8 @@ function sipFoundationContract() {
       capsule_payload_versions_read: [1, 2],
       capsule_payload_version_write_for_recoverable_call: 2,
       legacy_v1_resume: 'forbidden_fail_closed',
+      binding_field_presence: 'all_fields_required_no_nulls_no_unknowns',
+      legacy_v1_native_call_binding_key: 'absent_only_explicit_null_rejected',
       stable_identity_fields: [
         'tenant_id',
         'call_id',

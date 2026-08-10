@@ -16,11 +16,11 @@ test('ivekit.65 carries one fenced Native Call identity through HA recovery', ()
   assert.equal(
     parsed.stdout,
     '185\t0\tsrc/call/domain/foundation_identity.rs\n' +
-      '207\t5\tsrc/ivekit_dialog_shadow.rs\n'
+      '235\t5\tsrc/ivekit_dialog_shadow.rs\n'
   );
   assert.equal(
     createHash('sha256').update(patch).digest('hex'),
-    'd45c3578a4fc61357131418733c250ee9aa65013852a33aeb2e99b58d61f11fa'
+    '8cf81c5ff64a4c40a5bacfef9b1b1e9ed8b6fbe5da5167a7e3b092be7af3487c'
   );
 
   assert.match(patch, /pub struct NativeCallRecoveryBinding/);
@@ -30,6 +30,11 @@ test('ivekit.65 carries one fenced Native Call identity through HA recovery', ()
   assert.match(patch, /checked_add\(1\)/);
   assert.match(patch, /ensure_owner_with_identity/);
   assert.match(patch, /resume_capsule_v1_cannot_grant_native_call_authority/);
+  assert.match(patch, /deserialize_with = "deserialize_native_call_binding"/);
+  assert.match(
+    patch,
+    /capsule_v1_rejects_an_explicit_null_native_call_binding/
+  );
   assert.match(
     patch,
     /native_call_recovery_binding_hash_matches_typescript_golden_vector/
@@ -57,6 +62,7 @@ test('TypeScript freezes the same bounded Native Call recovery contract', () => 
   );
   assert.match(source, /const MAX_PLAINTEXT_BYTES = 16 \* 1024/);
   assert.match(source, /nativeCallRecoveryBindingSha256/);
+  assert.match(source, /typeof value !== 'string'/);
   assert.match(source, /schema_version: 1 \| 2/);
   assert.match(source, /result\.provider_call_id !== expectedProviderCallId/);
 });

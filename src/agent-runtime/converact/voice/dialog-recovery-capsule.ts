@@ -107,9 +107,9 @@ export interface NativeCallRecoveryBinding {
 }
 
 export function nativeCallRecoveryBindingSha256(
-  value: NativeCallRecoveryBinding
+  value: unknown
 ): string {
-  const validated = nativeCallRecoveryBinding(value, value.provider_call_id);
+  const validated = nativeCallRecoveryBinding(value);
   return createHash('sha256').update(canonicalJson(validated)).digest('hex');
 }
 
@@ -334,7 +334,7 @@ export function assertDialogRecoveryCapsulePayload(
 
 function nativeCallRecoveryBinding(
   value: unknown,
-  expectedProviderCallId: string
+  expectedProviderCallId?: string
 ): NativeCallRecoveryBinding {
   exactKeys(value, NATIVE_CALL_BINDING_KEYS);
   const record = value as unknown as NativeCallRecoveryBinding;
@@ -345,18 +345,21 @@ function nativeCallRecoveryBinding(
   const result: NativeCallRecoveryBinding = {
     schema_id: 'converact.native-call-recovery-binding',
     schema_version: '1.0.0',
-    tenant_id: identifier(record.tenant_id, 128),
+    tenant_id: strictIdentifier(record.tenant_id, 128),
     call_id: canonicalFoundationId(record.call_id, 'call_'),
     interaction_id: canonicalFoundationId(
       record.interaction_id,
       'interaction_'
     ),
-    provider_call_id: identifier(record.provider_call_id, 128),
+    provider_call_id: strictIdentifier(record.provider_call_id, 128),
     owner_epoch: canonicalUint64(record.owner_epoch),
     generation: canonicalUint64(record.generation),
     revision: canonicalUint64(record.revision)
   };
-  if (result.provider_call_id !== expectedProviderCallId) invalid();
+  if (expectedProviderCallId !== undefined &&
+      result.provider_call_id !== expectedProviderCallId) {
+    invalid();
+  }
   return result;
 }
 
@@ -479,18 +482,26 @@ function identifier(value: unknown, maximum: number): string {
   return result;
 }
 
+function strictIdentifier(value: unknown, maximum: number): string {
+  if (typeof value !== 'string') invalid();
+  return identifier(value, maximum);
+}
+
 function canonicalFoundationId(value: unknown, prefix: string): string {
-  const result = String(value || '');
-  if (!new RegExp(`^${prefix}[a-f0-9]{32}$`).test(result)) invalid();
-  return result;
+  if (typeof value !== 'string' ||
+      !new RegExp(`^${prefix}[a-f0-9]{32}$`).test(value)) {
+    invalid();
+  }
+  return value;
 }
 
 function canonicalUint64(value: unknown): string {
-  const result = String(value || '');
-  if (!/^(?:[1-9][0-9]*)$/.test(result)) invalid();
-  const parsed = BigInt(result);
+  if (typeof value !== 'string' || !/^(?:[1-9][0-9]*)$/.test(value)) {
+    invalid();
+  }
+  const parsed = BigInt(value);
   if (parsed > 0xffff_ffff_ffff_ffffn) invalid();
-  return result;
+  return value;
 }
 
 function mediaReservationId(value: unknown): string {

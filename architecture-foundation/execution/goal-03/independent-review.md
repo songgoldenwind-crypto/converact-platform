@@ -117,7 +117,7 @@ canonical `CallId`, canonical `InteractionId` and provider reference; takeover
 increments the owner epoch, generation and revision exactly once. Rust and
 TypeScript share a 16 KiB ceiling and one fixed binding hash. Local static gates
 pass `191/191`, TypeScript capsule tests pass `9/9`, and RustPBX passes
-`2,014/0/8`. Authorized-server replay, real crash/two-node takeover and final
+`2,015/0/8`. Authorized-server replay, real crash/two-node takeover and final
 independent acceptance remain `not_run`; this paragraph does not promote
 `G03-E15` or `G03-E16`.
 

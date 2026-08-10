@@ -146,6 +146,10 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
     contract.native_call_recovery.legacy_v1_resume,
     'forbidden_fail_closed',
   );
+  assert.equal(
+    contract.native_call_recovery.legacy_v1_native_call_binding_key,
+    'absent_only_explicit_null_rejected',
+  );
   assert.equal(contract.native_call_recovery.maximum_plaintext_bytes, 16384);
   assert.equal(
     contract.native_call_recovery.cross_runtime_binding_sha256,

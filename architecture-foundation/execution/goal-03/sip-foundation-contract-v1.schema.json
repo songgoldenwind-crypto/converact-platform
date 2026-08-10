@@ -267,6 +267,8 @@
         "capsule_payload_versions_read",
         "capsule_payload_version_write_for_recoverable_call",
         "legacy_v1_resume",
+        "binding_field_presence",
+        "legacy_v1_native_call_binding_key",
         "stable_identity_fields",
         "takeover_fence_fields",
         "takeover_transition",
@@ -308,6 +310,12 @@
         },
         "legacy_v1_resume": {
           "const": "forbidden_fail_closed"
+        },
+        "binding_field_presence": {
+          "const": "all_fields_required_no_nulls_no_unknowns"
+        },
+        "legacy_v1_native_call_binding_key": {
+          "const": "absent_only_explicit_null_rejected"
         },
         "stable_identity_fields": {
           "type": "array",

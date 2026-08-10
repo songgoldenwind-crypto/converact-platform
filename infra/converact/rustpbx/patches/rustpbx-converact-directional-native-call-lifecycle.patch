@@ -479,18 +479,6 @@ index fd3b714c58d7454259193e713ff04759969e9cec..196e3974b35e65300434ecd73ef7bf73
      cell: Arc<NativeCallCell>,
  }
  
-@@ -183,9 +184,8 @@ impl ActiveProxyCallRegistry {
-     #[cfg(test)]
-     pub fn upsert(&self, entry: ActiveProxyCallEntry, handle: SipSessionHandle) {
-         let provider_call_id = entry.session_id.clone();
--        let result = live_native_identity(&provider_call_id).and_then(|identity| {
--            self.try_upsert_slot(entry, handle, Some(identity), true)
--        });
-+        let result = live_native_identity(&provider_call_id)
-+            .and_then(|identity| self.try_upsert_slot(entry, handle, Some(identity), true));
-         if let Err(error) = result {
-             warn!(error = %error, "active call compatibility registration rejected");
-         }
 @@ -261,6 +261,12 @@ impl ActiveProxyCallRegistry {
                      return Err(ActiveCallRegistryError::ProviderAlreadyRegistered);
                  }
@@ -556,4 +544,3 @@ index fd3b714c58d7454259193e713ff04759969e9cec..196e3974b35e65300434ecd73ef7bf73
      #[test]
      fn conflicting_native_call_authority_cannot_add_a_second_provider_leg() {
          let registry = ActiveProxyCallRegistry::with_limits(4, 16);
-

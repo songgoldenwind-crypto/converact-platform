@@ -216,7 +216,7 @@ index 20cba53..e3de668 100644
      fn deserialization_cannot_bypass_identifier_validation() {
          assert!(
 diff --git a/src/ivekit_dialog_shadow.rs b/src/ivekit_dialog_shadow.rs
-index 308bd0f..daebf20 100644
+index 308bd0f..4559071 100644
 --- a/src/ivekit_dialog_shadow.rs
 +++ b/src/ivekit_dialog_shadow.rs
 @@ -14,6 +14,8 @@ use std::sync::{Arc, OnceLock};
@@ -228,16 +228,36 @@ index 308bd0f..daebf20 100644
  const PROFILE_T1: &str = "VOICE-HA-T1";
  const MAX_RECORD_BYTES: usize = 32 * 1024;
  const MAX_ROUTE_SET: usize = 16;
-@@ -127,6 +129,8 @@ pub struct DialogRecoveryCapsuleBinding {
+@@ -127,6 +129,12 @@ pub struct DialogRecoveryCapsuleBinding {
  #[serde(deny_unknown_fields)]
  pub struct DialogRecoveryCapsulePayload {
      pub schema_version: u8,
-+    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[serde(
++        default,
++        skip_serializing_if = "Option::is_none",
++        deserialize_with = "deserialize_native_call_binding"
++    )]
 +    pub native_call_binding: Option<NativeCallRecoveryBinding>,
      pub call_session_ref: String,
      pub interaction_id: String,
      pub dialog_id: String,
-@@ -207,6 +211,7 @@ impl DialogRecoveryCapsuleCodec {
+@@ -157,6 +165,15 @@ pub struct DialogRecoveryCapsulePayload {
+     pub route_snapshot_revision: u64,
+ }
+ 
++fn deserialize_native_call_binding<'de, D>(
++    deserializer: D,
++) -> Result<Option<NativeCallRecoveryBinding>, D::Error>
++where
++    D: serde::Deserializer<'de>,
++{
++    NativeCallRecoveryBinding::deserialize(deserializer).map(Some)
++}
++
+ fn default_route_snapshot_revision() -> u64 {
+     1
+ }
+@@ -207,6 +224,7 @@ impl DialogRecoveryCapsuleCodec {
      ) -> Result<DialogRecoveryCapsuleEnvelope, DialogShadowError> {
          validate_recovery_payload(value)?;
          validate_recovery_binding(binding)?;
@@ -245,7 +265,7 @@ index 308bd0f..daebf20 100644
          let plaintext = canonical_json(value)?;
          if plaintext.len() > MAX_RECOVERY_PLAINTEXT_BYTES {
              return Err(DialogShadowError::InvalidRecord);
-@@ -285,6 +290,7 @@ impl DialogRecoveryCapsuleCodec {
+@@ -285,6 +303,7 @@ impl DialogRecoveryCapsuleCodec {
          let payload: DialogRecoveryCapsulePayload =
              serde_json::from_value(raw).map_err(|_| DialogShadowError::InvalidRecord)?;
          validate_recovery_payload(&payload)?;
@@ -253,7 +273,7 @@ index 308bd0f..daebf20 100644
          Ok(payload)
      }
  }
-@@ -1293,6 +1299,13 @@ impl DialogShadowLifecycle {
+@@ -1293,6 +1312,13 @@ impl DialogShadowLifecycle {
          event: &DialogShadowEvent,
      ) -> Result<DialogShadowCommitRequest, DialogShadowError> {
          validate_event(event)?;
@@ -267,7 +287,7 @@ index 308bd0f..daebf20 100644
          let recovery_capsule = match &event.recovery_payload {
              Some(payload) => Some(
                  self.recovery_codec
-@@ -1581,7 +1594,9 @@ fn validate_recovery_payload(
+@@ -1581,7 +1607,9 @@ fn validate_recovery_payload(
                  .bytes()
                  .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace())
      };
@@ -278,7 +298,7 @@ index 308bd0f..daebf20 100644
          || !valid_identifier(&value.call_session_ref)
          || !valid_identifier(&value.interaction_id)
          || !valid_identifier(&value.dialog_id)
-@@ -1616,6 +1631,14 @@ fn validate_recovery_payload(
+@@ -1616,6 +1644,14 @@ fn validate_recovery_payload(
      {
          return Err(DialogShadowError::InvalidRecord);
      }
@@ -293,7 +313,7 @@ index 308bd0f..daebf20 100644
      let started_at = value
          .started_at
          .as_deref()
-@@ -1638,6 +1661,44 @@ fn validate_recovery_payload(
+@@ -1638,6 +1674,44 @@ fn validate_recovery_payload(
      Ok(())
  }
  
@@ -338,7 +358,7 @@ index 308bd0f..daebf20 100644
  fn validate_takeover_claim_request(
      value: &DialogOwnerTakeoverClaimRequest,
  ) -> Result<(), DialogShadowError> {
-@@ -1925,6 +1986,13 @@ pub fn open_recovery_pair(
+@@ -1925,6 +1999,13 @@ pub fn open_recovery_pair(
                      != record.media_reservation_id.as_deref()
                  || payload.cdr_sequence != record.cdr_sequence
                  || sha256(&payload.raw_call_id) != record.call_id_hash
@@ -352,7 +372,7 @@ index 308bd0f..daebf20 100644
              {
                  return Err(DialogShadowError::InvalidRecord);
              }
-@@ -1950,12 +2018,38 @@ pub fn open_recovery_pair(
+@@ -1950,12 +2031,38 @@ pub fn open_recovery_pair(
          || caller.route_snapshot_revision != callee.route_snapshot_revision
          || caller.started_at != callee.started_at
          || caller.answered_at != callee.answered_at
@@ -391,7 +411,7 @@ index 308bd0f..daebf20 100644
  pub async fn recover_dialog_pair(
      dialog_layer: &Arc<rsipstack::dialog::dialog_layer::DialogLayer>,
      requested_dialog_id: &str,
-@@ -1995,7 +2089,7 @@ pub async fn recover_dialog_pair(
+@@ -1995,7 +2102,7 @@ pub async fn recover_dialog_pair(
          .first()
          .map(|record| record.auth_context_ref.clone())
          .ok_or(DialogShadowError::InvalidRecord)?;
@@ -400,7 +420,7 @@ index 308bd0f..daebf20 100644
      let requested_payload = payloads
          .iter()
          .find(|payload| payload.dialog_id == requested_dialog_id)
-@@ -2003,6 +2097,12 @@ pub async fn recover_dialog_pair(
+@@ -2003,6 +2110,12 @@ pub async fn recover_dialog_pair(
      let call_session_ref = requested_payload.call_session_ref.clone();
      let interaction_id = requested_payload.interaction_id.clone();
      let previous_owner_epoch = claim.shadow_records[0].owner_epoch;
@@ -413,7 +433,7 @@ index 308bd0f..daebf20 100644
      let caller = payloads
          .iter()
          .find(|payload| payload.leg == "caller")
-@@ -2023,6 +2123,7 @@ pub async fn recover_dialog_pair(
+@@ -2023,6 +2136,7 @@ pub async fn recover_dialog_pair(
              &interaction_id,
              &auth_context_ref,
              &payloads,
@@ -421,7 +441,7 @@ index 308bd0f..daebf20 100644
          )
          .await?;
          return Err(DialogShadowError::AbsentOrTerminal);
-@@ -2165,7 +2266,7 @@ pub async fn recover_dialog_pair(
+@@ -2165,7 +2279,7 @@ pub async fn recover_dialog_pair(
          remove_restored_dialogs(dialog_layer, &restored_ids);
          return Err(DialogShadowError::InvalidRecord);
      }
@@ -430,7 +450,7 @@ index 308bd0f..daebf20 100644
          &call_session_ref,
          crate::ivekit_owner::OwnerContract {
              reservation_id,
-@@ -2179,6 +2280,7 @@ pub async fn recover_dialog_pair(
+@@ -2179,6 +2293,7 @@ pub async fn recover_dialog_pair(
              owner_node_id: owner_node_id.clone(),
              media_control_profile: callee.media_control_profile.clone(),
          },
@@ -438,7 +458,7 @@ index 308bd0f..daebf20 100644
      )
      .await
      .is_err()
-@@ -3098,6 +3200,7 @@ async fn finalize_recovered_dialog_pair(
+@@ -3098,6 +3213,7 @@ async fn finalize_recovered_dialog_pair(
      interaction_id: &str,
      auth_context_ref: &str,
      payloads: &[DialogRecoveryCapsulePayload],
@@ -446,7 +466,7 @@ index 308bd0f..daebf20 100644
  ) -> Result<(), DialogShadowError> {
      commit_recovered_shadow_pair(
          config,
-@@ -3154,7 +3257,7 @@ async fn finalize_recovered_dialog_pair(
+@@ -3154,7 +3270,7 @@ async fn finalize_recovered_dialog_pair(
          .strip_suffix("/callee")
          .ok_or(DialogShadowError::InvalidRecord)?
          .to_string();
@@ -455,7 +475,7 @@ index 308bd0f..daebf20 100644
          call_session_ref,
          crate::ivekit_owner::OwnerContract {
              reservation_id,
-@@ -3168,6 +3271,7 @@ async fn finalize_recovered_dialog_pair(
+@@ -3168,6 +3284,7 @@ async fn finalize_recovered_dialog_pair(
              owner_node_id: owner_node_id.to_string(),
              media_control_profile: callee.media_control_profile.clone(),
          },
@@ -463,7 +483,7 @@ index 308bd0f..daebf20 100644
      )
      .await
      .is_err()
-@@ -3480,8 +3584,11 @@ pub fn recovery_payload_from_dialog_snapshots_with_timing_and_profile(
+@@ -3480,8 +3597,11 @@ pub fn recovery_payload_from_dialog_snapshots_with_timing_and_profile(
          TransactionRole::Server => ("caller", "uas"),
          TransactionRole::Client => ("callee", "uac"),
      };
@@ -476,7 +496,7 @@ index 308bd0f..daebf20 100644
          call_session_ref: call_session_ref.to_string(),
          interaction_id: interaction_id.to_string(),
          dialog_id,
-@@ -3825,6 +3932,7 @@ mod tests {
+@@ -3825,6 +3945,7 @@ mod tests {
      ) -> DialogRecoveryCapsulePayload {
          DialogRecoveryCapsulePayload {
              schema_version: 1,
@@ -484,7 +504,7 @@ index 308bd0f..daebf20 100644
              call_session_ref: "call-session-a".into(),
              interaction_id: "interaction-a".into(),
              dialog_id: dialog_id.into(),
-@@ -3852,6 +3960,100 @@ mod tests {
+@@ -3852,6 +3973,115 @@ mod tests {
          }
      }
  
@@ -580,6 +600,21 @@ index 308bd0f..daebf20 100644
 +        capsule_binding.tenant_id = "tenant-a".into();
 +        capsule_binding.owner_epoch = 8;
 +        assert!(codec.seal(&value, &capsule_binding).is_err());
++    }
++
++    #[test]
++    fn capsule_v1_rejects_an_explicit_null_native_call_binding() {
++        let value = serde_json::to_value(recovery_payload("dialog-a", "dialog-b", "caller", "uas"))
++            .unwrap();
++        let mut value = value.as_object().unwrap().clone();
++        value.insert("native_call_binding".into(), serde_json::Value::Null);
++
++        assert!(
++            serde_json::from_value::<DialogRecoveryCapsulePayload>(serde_json::Value::Object(
++                value
++            ))
++            .is_err()
++        );
 +    }
 +
      #[test]

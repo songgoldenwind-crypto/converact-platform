@@ -60,6 +60,10 @@ test("the native Call transition key includes SIP direction", () => {
     /authoritative_native_leg_direction_cannot_be_relabelled/,
   );
   assert.doesNotMatch(
+    readFileSync(PATCH, "utf8"),
+    /live_native_identity|try_upsert_slot/,
+  );
+  assert.doesNotMatch(
     source,
     /tokio::spawn\(|unbounded_channel|interval\(|unsafe\s*\{|Mutex|RwLock/,
   );

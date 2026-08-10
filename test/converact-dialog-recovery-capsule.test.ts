@@ -228,6 +228,18 @@ test('capsule v2 freezes the canonical Native Call recovery binding', () => {
     }),
     payload({
       schema_version: 2,
+      native_call_binding: nativeCallBinding({
+        generation: 11 as unknown as string
+      })
+    }),
+    payload({
+      schema_version: 2,
+      native_call_binding: nativeCallBinding({
+        revision: 13 as unknown as string
+      })
+    }),
+    payload({
+      schema_version: 2,
       native_call_binding: {
         ...nativeCallBinding(),
         unexpected: true
@@ -239,12 +251,28 @@ test('capsule v2 freezes the canonical Native Call recovery binding', () => {
       (error) => code(error) === 'dialog_recovery_capsule_invalid'
     );
   }
+
+  for (const mismatchedAuthority of [
+    binding({ tenant_id: 'tenant-b' }),
+    binding({ owner_epoch: 8 })
+  ]) {
+    assert.throws(
+      () => codec().seal(value, mismatchedAuthority),
+      (error) => code(error) === 'dialog_recovery_capsule_invalid'
+    );
+  }
 });
 
 test('Native Call recovery binding hash matches the Rust golden vector', () => {
   assert.equal(
     nativeCallRecoveryBindingSha256(nativeCallBinding()),
     'aa731eba74f64cc5b2eb67d10ea8da044e87cb87b30e5b0550b8a7dfaf759871'
+  );
+  assert.throws(
+    () => nativeCallRecoveryBindingSha256(
+      null as unknown as NativeCallRecoveryBinding
+    ),
+    /invalid recovery capsule/
   );
 });
 
