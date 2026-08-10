@@ -23,6 +23,10 @@ Production eligibility: `false`
 | stale/split-brain owner | positive epoch, generation, expected revision and durable CAS | local logic/source tests; fleet partition `not_run` |
 | duplicate visible effect | idempotency key + exact prepared bytes + receipt replay | native isolated PostgreSQL transition/repair tests and restart verified; live SIP dispatch `not_run` |
 | unknown send blindly retried | unknown state, query, repair lease/token/revision fence | `.57` native gate and ledger tests; live endpoint activation `not_run` |
+| repair worker enumerates or takes cross-session authority | only an opaque/sealed crate-private minting surface can create the one-shot grant for one exact tenant/session/generation, one successor repair epoch and 1..100 exact ordered target IDs/revisions/identity hashes; worker cannot scan, mint/reuse epochs or send SIP | `.72` isolated local reconciler `28/28`, affected SipEffect `87 passed / 0 failed / 8 ignored` and sibling UI probes with expected `E0603`/`E0451`; live durable Authority issuer, physical PostgreSQL and activation `not_run` |
+| partial/stale repair claim mutates an ambiguous subset | existing composite primary key exact-target lookup; one transaction returns exact claimed/exhausted IDs; any missing/stale/locked target is `FenceLost` and rolls back; true monotonic expiry includes queue dwell and freezes one whole-ms execution lease at dequeue; usable timeout is at most 29 s and remaining lease must be strictly greater than timeout + 500 ms | `.72` local source/tests only; physical PostgreSQL rollback and 10K/100K distractor query-plan proof `not_run` |
+| cancelled or panicked reconciler accepts/reuses authority | reject submit after parent cancellation without queue-counter churn; a caught port panic cancels the reconciler child token, stops every repair worker and rejects new grants so shared dependencies are never reused; parent Call/Human Communication remains outside the child domain | `.72` local TDD only; process-crash/two-node and live supervision `not_run` |
+| later batch failure erases confirmed progress | increment process-local reconciled/exhausted counters immediately after each confirmed durable reconcile/exhaustion, including before later transient, `Terminal`, permanent, panic, timeout or cancel outcomes | `.72` local TDD only; durable completion sink and restart-persistent metrics `not_run` |
 | auth/SDP secret leak | raw values excluded from logs, metrics, evidence and error details | source review plus exact-campaign generated-secret scans passed |
 | queue/connection exhaustion | hard capacities, deterministic 503/Retry-After, no unbounded waiter/task | `.58` local bounded-gate and direction-key tests plus the `.53` exact 2-vCPU 1000-CPS controlled step passed separately; `.58` host allocation and saturation frontier remain `not_run` |
 | inbound UAS emits a local ACK or enters outbound fork selection | direction is part of the transition key; inbound 2xx waits in `awaiting_ack`; fork registration/selection is outbound-only | `.58` TypeScript/native focused tests; live endpoint activation remains `not_run` |
@@ -90,8 +94,17 @@ microbenchmark or citing rvoip upstream numbers cannot close that Gate.
 4. Native panic, process abort, OOM, disk/network loss and blocking-call
    campaigns have not run.
 5. Fault/OOM and complete host-performance evidence have not run for the exact
-   `.71` candidate. Retained `.53` evidence is scoped to its exact source, and
+   `.72` candidate. Retained `.53` evidence is scoped to its exact source, and
    `.42` results remain historical only.
+6. `.72` exact-target reconciliation remains default-disabled. Normal
+   `FenceLost`/`Terminal` races are classified as superseded and keep healthy
+   workers available. A caught port panic cancels the whole reconciler child
+   domain, stops every repair worker and rejects new grants; parent-
+   cancelled submission fails stopped, and process-local progress retains every
+   confirmed durable reconcile/exhaustion even when later batch work fails.
+   The authoritative issuer, durable completion sink,
+   physical PostgreSQL exact-target/10K/100K plan, live Endpoint,
+   process-crash/two-node and Linux full campaigns remain `not_run`.
 
-All five remain visible in `evidence-index-v1.json` and prevent production
+All six remain visible in the G03 status artifacts and prevent production
 eligibility.

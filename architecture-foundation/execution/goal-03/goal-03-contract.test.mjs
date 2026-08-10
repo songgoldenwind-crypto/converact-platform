@@ -127,7 +127,7 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
     rustpbx_commit: '6c49ee76baa54fdbf8f98020cc9bee158c7c15de',
     rsipstack_commit: '8318e97b1170de4e5245b120afec1cdf53e3d716',
     rustrtc_commit: '166c6d22984429eb6b509920c14fcd69f974f0b3',
-    patchset: 'ivekit.71',
+    patchset: 'ivekit.72',
     current_adapter: 'rsipstack',
     target_adapter: 'rvoip_low_level_slices_after_separate_gates',
     native_runtime_authority: 'Unified RustPBX process',
@@ -196,7 +196,7 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
   assert.match(build, /RUSTPBX_COMMIT="6c49ee76baa54fdbf8f98020cc9bee158c7c15de"/u);
   assert.match(build, /RSIPSTACK_COMMIT="8318e97b1170de4e5245b120afec1cdf53e3d716"/u);
   assert.match(build, /RUSTRTC_COMMIT="166c6d22984429eb6b509920c14fcd69f974f0b3"/u);
-  assert.match(build, /PATCHSET="ivekit\.71"/u);
+  assert.match(build, /PATCHSET="ivekit\.72"/u);
   assert.match(
     build,
     /rustpbx-converact-postgres-sip-effect-repair-batch\.patch/u,
@@ -471,6 +471,95 @@ test('Call/Leg and effect contracts distinguish identities, races and receipt me
     cancellation: 'armed_work_retained_for_explicit_restart',
     live_endpoint_activation: 'not_run',
   });
+  assert.deepEqual(effect.repair.reconciler_supervisor, {
+    contract_status: 'frozen_default_disabled',
+    grant_issuer_authority:
+      'Unified_RustPBX_durable_Call_session_authority',
+    grant_capability: {
+      construction:
+        'sealed_module_private_until_authoritative_issuer_is_wired',
+      clone: 'forbidden',
+      caller_supplied_owner_epoch: 'forbidden',
+      sibling_compile_fail_codes: ['E0603', 'E0451'],
+    },
+    exact_scope: {
+      fields: [
+        'tenant_id',
+        'protocol_session_id',
+        'protocol_session_generation',
+      ],
+      wildcard: 'forbidden',
+      cross_session_or_generation: 'forbidden',
+    },
+    exact_targets: {
+      minimum: 1,
+      maximum: 100,
+      ordering: 'strictly_ascending_protocol_effect_id',
+      uniqueness: 'protocol_effect_id',
+      fields: [
+        'protocol_effect_id',
+        'expected_revision',
+        'expected_effect_identity_hash',
+      ],
+    },
+    durable_lookup: {
+      access_path: 'existing_composite_primary_key_exact_target_lookup',
+      tenant_scan: 'forbidden',
+      session_scan: 'forbidden',
+      worker_enumeration: 'forbidden',
+    },
+    claim_transaction: {
+      success:
+        'all_targets_claimed_or_terminally_exhausted_in_one_transaction',
+      partial_claim: 'rollback_and_return_FenceLost',
+    },
+    worker_model: {
+      workers: 'fixed_configured_count',
+      queue: 'bounded',
+      enumerate_targets: 'forbidden',
+      mint_or_reuse_owner_epoch: 'forbidden',
+      send_SIP: 'forbidden',
+    },
+    lease_and_deadline: {
+      grant_deadline_clock: 'monotonic',
+      queue_dwell: 'debits_grant_deadline',
+      execution_lease:
+        'freeze_once_as_whole_milliseconds_before_store_claim',
+      operation_timeout_maximum_ms: 29000,
+      database_lease_clock: 'database_relative',
+      minimum_remaining_lease_margin_ms: 500,
+      submit_without_margin: 'reject_before_enqueue',
+      dequeue_without_margin: 'drop_without_store_claim',
+      parent_cancelled_submission:
+        'reject_Stopped_without_queue_metric_churn',
+    },
+    outcomes: {
+      FenceLost: 'superseded_continue_worker',
+      Terminal: 'superseded_continue_worker',
+      port_panic:
+        'cancel_child_supervisor_stop_all_workers_reject_new_grants_and_never_reuse_shared_dependencies',
+      schema_conflict: 'quarantine',
+      identity_conflict: 'quarantine',
+      receipt_conflict: 'quarantine',
+      partial_progress_metrics:
+        'advance_per_confirmed_durable_effect_even_if_later_work_fails',
+      progress_metrics_authority:
+        'process_local_observability_not_a_durable_completion_sink',
+    },
+    implementation_status: {
+      live_grant_issuer: 'not_run',
+      durable_completion_sink: 'not_run',
+      physical_postgresql_exact_target_claim: 'not_run',
+      distractor_query_plan: 'not_run',
+      process_crash_and_two_node_takeover: 'not_run',
+      activation: 'not_run',
+    },
+  });
+  assert.equal(effect.repair.claim_token_maximum_bytes, 512);
+  assert.equal(
+    effect.repair.claim_token_validation,
+    'shared_SipEffectRepairFence_validator_in_memory_and_postgresql',
+  );
   assert.equal(
     effect.network_claim,
     'idempotent_effect_plus_observation_not_exactly_once',

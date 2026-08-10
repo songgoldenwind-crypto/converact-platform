@@ -67,5 +67,5 @@ test('RustPBX reproducible build applies the realtime audio tap before HTTP capa
     build,
     /rustpbx-ivekit-webphone-edge-auth\.patch"[\s\S]*apply --check "\$PATCH_DIR\/rustpbx-ivekit-realtime-audio-tap\.patch"[\s\S]*apply "\$PATCH_DIR\/rustpbx-ivekit-realtime-audio-tap\.patch"[\s\S]*rustpbx-ivekit-http-client-capacity\.patch"/
   );
-  assert.match(build, /PATCHSET="ivekit\.71"/);
+  assert.match(build, /PATCHSET="ivekit\.72"/);
 });

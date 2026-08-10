@@ -38,11 +38,11 @@ unchanged container IDs are retained instead.
 Neither accepted review proves that the TypeScript `VoiceCall`, Call/Leg model,
 `RsipstackFoundationAdapter` or PostgreSQL reference ledger is a live native
 authority. Unified RustPBX remains the sole active Call/Leg authority;
-`G03-E16-NATIVE-AUTHORITY` and the `.71` current patchset, including its
+`G03-E16-NATIVE-AUTHORITY` and the `.72` current patchset, including its
 default-disabled native durable egress adapter, are outside those old reviewed
 diffs and remain pending exact-source review.
 
-## Current `.71` interim review boundary
+## Current `.72` interim review boundary
 
 The `.59` protocol-observation slice received iterative code review while it
 was developed. Findings around cancellation ownership, queue loss, receipt
@@ -144,9 +144,56 @@ typecheck. Controlled Linux requalification at exact source `1ebbd765…` passes
 RustPBX `2,022/0/9`, three focused regressions, dialog-shadow `20/20`,
 rsipstack `311/311` and doctests `67/67`; the bundle is
 `evidence/raw/full-linux-suites-1ebbd76-13/`. It does not touch product
-configuration, `SipServerBuilder` or live Endpoint composition. This is not
-final independent acceptance: reconciler supervision, live intent
-registration and every production gate remain `not_run`.
+configuration, `SipServerBuilder` or live Endpoint composition. At `.71`,
+reconciler supervision, live intent registration and every production gate
+remained `not_run`; this was not final independent acceptance.
+
+The incremental `.72` slice adds the separately default-disabled exact-target
+reconciler component. Its grant and target specifications now have an
+opaque/sealed crate-private minting surface, are non-cloneable at the worker
+boundary, and bind one tenant, Protocol Session, generation, successor repair
+epoch and 1..100 strictly ordered unique targets with exact revision and
+identity hash. The live durable Authority issuer remains `not_run`. The worker
+has a fixed configured count and bounded queue; it cannot enumerate, scan,
+mint/reuse an epoch or send SIP. PostgreSQL uses the existing
+`(tenant_id, protocol_effect_id)` primary key for bounded exact lookup, and the
+claim reports exact claimed/exhausted IDs rather than trusting counts. Minting
+freezes a real monotonic expiry, queue dwell reduces it, and dequeue freezes
+one whole-millisecond execution lease. Usable timeout is capped at 29 s and
+remaining lease must be strictly greater than timeout + 500 ms. Parent-cancelled
+submission fails stopped; a caught store/oracle panic cancels the reconciler
+child token, stops every repair worker and rejects future grants instead of
+reusing shared dependencies. The parent Call process remains outside that
+child cancellation. Process-local progress counters advance per
+confirmed durable reconcile/exhaustion even if later batch work fails
+transiently, with `Terminal`, permanently, by panic, timeout or cancellation.
+Ordinary `FenceLost`/`Terminal` races are superseded and keep healthy workers
+available.
+
+The initial `.72` review rejected five defects: grant self-minting, no true
+deadline, reuse after worker panic, partial progress missing from metrics, and
+submission accepted after parent cancellation. Each finding was first captured
+as a failing test and is closed in the current candidate by the sealed minting
+surface, monotonic expiry/lease rules, panic quarantine, per-effect durable
+progress accounting and cancelled-submit rejection. A later final review then
+rejected shared dependency reuse after panic, a weak privacy regression guard
+and the in-memory 200-byte/ PostgreSQL 512-byte fence mismatch. The current
+candidate closes those findings by child-domain cancellation, two real sibling
+compile-fail probes (`E0603` and `E0451`) and the shared 512-byte
+`SipEffectRepairFence` validator. Isolated exact-source tests now pass `28/28`,
+the affected SipEffect suite passes `87 passed / 0 failed / 8 ignored`, and
+locked library check plus Rust formatting pass. Final independent re-review
+accepted the exact candidate with no blocker or important finding after the
+canonical contract/static tests passed `12/12`, all related TypeScript patch
+tests passed `192/192`, and typecheck passed. Its one minor hardening suggestion
+is also closed: both whole-child panic tests now explicitly prove that stopping
+the reconciler child before and during supervisor shutdown never cancels the
+parent Call token. This accepts only the default-disabled `.72` component
+slice; it is not a `G03-E15` evidence promotion. The authoritative issuer,
+durable completion sink, physical
+PostgreSQL exact-target/rollback and 10K/100K distractor plans, live Endpoint,
+process-crash/two-node, Linux full, fault/performance and production gates
+remain `not_run`.
 
 ## Rejection history and remaining gate
 

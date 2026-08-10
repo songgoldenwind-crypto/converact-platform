@@ -745,6 +745,43 @@ repository typecheck passes. Live Call Core intent registration, Endpoint
 composition, reconciler supervision, crash/OOM campaigns and production
 eligibility remain `not_run`.
 
+ivekit.72 adds the separately default-disabled SipEffect reconciliation
+supervisor without activating the live Endpoint. The durable Call/session
+authority must eventually issue one opaque, non-cloneable grant containing one exact tenant,
+Protocol Session generation, successor repair epoch and between 1 and 100
+strictly ordered unique targets. Every target freezes its effect id, expected
+revision and effect-identity hash. The reconciler cannot enumerate effects,
+mint or reuse an epoch, or send SIP. The grant construction path is sealed
+inside the default-disabled module until that authoritative issuer is built, so
+ordinary crate callers cannot self-sign an owner epoch.
+
+PostgreSQL joins the bounded target relation through the existing
+`(tenant_id, protocol_effect_id)` primary key, locks targets in canonical grant
+order and validates session, generation, revision, identity, state, due time,
+lease and repair high-watermark in one transaction. Every target must be
+claimed or durably exhausted; a missing, stale or concurrently locked target
+rolls the whole claim back as `FenceLost`. Normal `FenceLost`/terminal races
+consume that one grant and leave the fixed worker available, while schema,
+identity or receipt conflicts quarantine it fail closed. The monotonic grant
+deadline includes queue dwell. Admission and worker dequeue both require a
+single whole-millisecond execution lease strictly longer than the operation
+timeout plus a 500 ms margin; the configured timeout is capped at 29 seconds.
+Parent cancellation rejects new submission. A caught store/oracle panic cancels
+the whole reconciler child domain, stops every repair worker and rejects new
+grants so the shared dependencies cannot be reused; the parent Call process
+remains outside that child cancellation. Confirmed durable exhaustion/reconciliation progress is counted
+per effect even when later work in the same grant fails or is cancelled.
+
+Isolated exact-source tests pass the reconciler slice `28/28`, the affected
+SipEffect suite `87/87` with 8 explicitly ignored external-prerequisite tests,
+and the two sibling privacy UI probes fail only with their exact expected
+`E0603`/`E0451` codes. Both in-memory and PostgreSQL claim paths validate the
+same maximum 512-byte repair fence. Locked library check and Rust formatting
+also pass. The authoritative grant issuer,
+durable per-target completion sink, physical PostgreSQL concurrency/rollback
+and query-plan proof, process-crash recovery, live Endpoint activation, Linux
+full-suite requalification and production eligibility remain `not_run`.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

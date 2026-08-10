@@ -1,0 +1,2491 @@
+diff --git a/src/call/adapters/mod.rs b/src/call/adapters/mod.rs
+index 23fe771..abb8c56 100644
+--- a/src/call/adapters/mod.rs
++++ b/src/call/adapters/mod.rs
+@@ -16,6 +16,60 @@ pub mod rsipstack_sip_effect_gate;
+ mod rwi_adapter;
+ mod session_action_bridge;
+ pub mod sip_effect_observer_supervisor;
++// Default-disabled until the authoritative repair-grant issuer is wired.
++#[cfg_attr(
++    not(test),
++    allow(
++        dead_code,
++        reason = "the authoritative repair-grant issuer and activation are later gated slices"
++    )
++)]
++pub(crate) mod sip_effect_reconciler_supervisor;
++
++// Compile-fail UI probe. Enable only with the dedicated privacy command; a
++// sibling adapter must never construct repair targets/specs or mint a grant.
++#[allow(dead_code, unexpected_cfgs)]
++mod sip_effect_reconciler_privacy_ui {
++    #[cfg(sip_effect_reconciler_privacy_ui)]
++    mod sibling_spec_probe {
++        fn cannot_mint_a_repair_grant() {
++            let target = super::super::sip_effect_reconciler_supervisor::SipEffectRepairTarget {
++                protocol_effect_id: "effect-a".to_string(),
++                expected_revision: 1,
++                expected_effect_identity_hash: "a".repeat(64),
++            };
++            let spec = super::super::sip_effect_reconciler_supervisor::SipEffectRepairGrantSpec {
++                grant_id: "grant-a".to_string(),
++                tenant_id: "tenant-a".to_string(),
++                protocol_session_id: "session-a".to_string(),
++                protocol_session_generation: "1".to_string(),
++                repair_owner_id: "owner-a".to_string(),
++                repair_owner_epoch: 1,
++                lease_duration: std::time::Duration::from_secs(1),
++                targets: vec![target],
++            };
++            let _ = super::super::sip_effect_reconciler_supervisor::SipEffectRepairGrant::try_from(
++                spec,
++            );
++        }
++    }
++
++    #[cfg(sip_effect_reconciler_privacy_direct_ui)]
++    mod sibling_direct_grant_probe {
++        fn cannot_construct_a_repair_grant_directly() {
++            let _ = super::super::sip_effect_reconciler_supervisor::SipEffectRepairGrant {
++                grant_id: "grant-b".to_string(),
++                tenant_id: "tenant-a".to_string(),
++                protocol_session_id: "session-a".to_string(),
++                protocol_session_generation: "1".to_string(),
++                repair_owner_id: "owner-a".to_string(),
++                repair_owner_epoch: 1,
++                expires_at: tokio::time::Instant::now(),
++                targets: Vec::new(),
++            };
++        }
++    }
++}
+ 
+ #[cfg(feature = "console")]
+ pub use console_adapter::*;
+diff --git a/src/call/adapters/postgres_sip_effect.rs b/src/call/adapters/postgres_sip_effect.rs
+index 2817689..c203856 100644
+--- a/src/call/adapters/postgres_sip_effect.rs
++++ b/src/call/adapters/postgres_sip_effect.rs
+@@ -295,6 +295,35 @@ const CLAIM_UNKNOWN_BATCH_SELECT_SQL: &str = concat!(
+     "#,
+ );
+ 
++const CLAIM_UNKNOWN_EXACT_TARGETS_SELECT_SQL: &str = concat!(
++    "SELECT ",
++    effect_columns!(),
++    r#"
++    FROM ivekit_sip_protocol_effects AS effect
++    JOIN unnest($2::text[], $3::text[], $4::text[]) WITH ORDINALITY
++      AS target(
++        target_effect_id, target_expected_revision, target_identity_hash, target_ordinality
++      )
++      ON effect.protocol_effect_id = target.target_effect_id
++     AND effect.revision = target.target_expected_revision::numeric
++     AND effect.effect_identity_hash = target.target_identity_hash
++    WHERE effect.tenant_id = $1
++      AND effect.protocol_session_id = $5
++      AND effect.protocol_session_generation = $6
++      AND effect.state = 'unknown'
++      AND effect.operator_attention_required = FALSE
++      AND effect.repair_due_at <= statement_timestamp()
++      AND (
++        effect.repair_lease_until IS NULL OR
++        effect.repair_lease_until <= statement_timestamp()
++      )
++      AND effect.repair_epoch_high_watermark < $7::numeric
++      AND effect.repair_attempts <= 8
++    ORDER BY target.target_ordinality
++    FOR UPDATE OF effect SKIP LOCKED
++    "#,
++);
++
+ const CLAIM_UNKNOWN_BATCH_UPDATE_SQL: &str = concat!(
+     r#"
+     UPDATE ivekit_sip_protocol_effects AS effect
+@@ -454,6 +483,53 @@ pub struct SipEffectRepairBatch {
+     pub exhausted_count: usize,
+ }
+ 
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct SipEffectExactRepairBatch {
++    pub effects: Vec<SipEffectRecord>,
++    pub exhausted_effect_ids: Vec<String>,
++}
++
++struct SipEffectRepairBatchResult {
++    effects: Vec<SipEffectRecord>,
++    exhausted_effect_ids: Vec<String>,
++}
++
++#[cfg_attr(
++    not(test),
++    allow(
++        dead_code,
++        reason = "the exact-target repair issuer and activation are later gated slices"
++    )
++)]
++pub(crate) struct SipEffectRepairGrantClaim<'a> {
++    pub tenant_id: &'a str,
++    pub protocol_session_id: &'a str,
++    pub protocol_session_generation: &'a str,
++    pub repair_owner_id: &'a str,
++    pub repair_owner_epoch: u64,
++    pub claim_token_prefix: &'a str,
++    pub lease_duration: Duration,
++    pub targets: &'a [SipEffectRepairTargetClaim<'a>],
++}
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub(crate) struct SipEffectRepairTargetClaim<'a> {
++    pub protocol_effect_id: &'a str,
++    pub expected_revision: u64,
++    pub expected_effect_identity_hash: &'a str,
++}
++
++struct SipEffectRepairBatchClaim<'a> {
++    tenant_id: &'a str,
++    session_scope: Option<(&'a str, &'a str)>,
++    exact_targets: Option<&'a [SipEffectRepairTargetClaim<'a>]>,
++    repair_owner_id: &'a str,
++    repair_owner_epoch: u64,
++    claim_token_prefix: &'a str,
++    lease_duration: Duration,
++    limit: usize,
++}
++
+ #[derive(Clone, Debug, Eq, PartialEq)]
+ pub struct SipEffectStaleNonterminalBatch {
+     pub effects: Vec<SipEffectRecord>,
+@@ -811,58 +887,168 @@ impl PostgresSipEffectStore {
+         lease_duration: Duration,
+         limit: usize,
+     ) -> Result<SipEffectRepairBatch, SipEffectStoreError> {
+-        run_with_store_deadline(
++        let result = run_with_store_deadline(
+             self.wait_timeout,
+-            self.claim_unknown_batch_inner(
++            self.claim_unknown_batch_inner(SipEffectRepairBatchClaim {
+                 tenant_id,
++                session_scope: None,
++                exact_targets: None,
+                 repair_owner_id,
+                 repair_owner_epoch,
+                 claim_token_prefix,
+                 lease_duration,
+                 limit,
+-            ),
++            }),
+         )
+-        .await
++        .await?;
++        Ok(SipEffectRepairBatch {
++            effects: result.effects,
++            exhausted_count: result.exhausted_effect_ids.len(),
++        })
++    }
++
++    #[cfg_attr(
++        not(test),
++        allow(
++            dead_code,
++            reason = "the exact-target repair issuer and activation are later gated slices"
++        )
++    )]
++    pub(crate) async fn claim_unknown_targets(
++        &self,
++        claim: SipEffectRepairGrantClaim<'_>,
++    ) -> Result<SipEffectExactRepairBatch, SipEffectStoreError> {
++        let result = run_with_store_deadline(
++            self.wait_timeout,
++            self.claim_unknown_batch_inner(SipEffectRepairBatchClaim {
++                tenant_id: claim.tenant_id,
++                session_scope: Some((claim.protocol_session_id, claim.protocol_session_generation)),
++                exact_targets: Some(claim.targets),
++                repair_owner_id: claim.repair_owner_id,
++                repair_owner_epoch: claim.repair_owner_epoch,
++                claim_token_prefix: claim.claim_token_prefix,
++                lease_duration: claim.lease_duration,
++                limit: claim.targets.len(),
++            }),
++        )
++        .await?;
++        Ok(SipEffectExactRepairBatch {
++            effects: result.effects,
++            exhausted_effect_ids: result.exhausted_effect_ids,
++        })
+     }
+ 
+     async fn claim_unknown_batch_inner(
+         &self,
+-        tenant_id: &str,
+-        repair_owner_id: &str,
+-        repair_owner_epoch: u64,
+-        claim_token_prefix: &str,
+-        lease_duration: Duration,
+-        limit: usize,
+-    ) -> Result<SipEffectRepairBatch, SipEffectStoreError> {
++        claim: SipEffectRepairBatchClaim<'_>,
++    ) -> Result<SipEffectRepairBatchResult, SipEffectStoreError> {
++        let SipEffectRepairBatchClaim {
++            tenant_id,
++            session_scope,
++            exact_targets,
++            repair_owner_id,
++            repair_owner_epoch,
++            claim_token_prefix,
++            lease_duration,
++            limit,
++        } = claim;
+         validate_repair_batch_identity(
+             tenant_id,
+             repair_owner_id,
+             repair_owner_epoch,
+             claim_token_prefix,
+         )?;
++        if let Some((protocol_session_id, protocol_session_generation)) = session_scope {
++            validate_repair_batch_scope(
++                tenant_id,
++                protocol_session_id,
++                protocol_session_generation,
++            )?;
++        }
++        match (session_scope, exact_targets) {
++            (None, None) => {}
++            (Some(_), Some(targets)) => validate_exact_repair_targets(targets)?,
++            _ => return Err(SipEffectStoreError::InvalidConfiguration),
++        }
+         let lease_ms = bounded_repair_lease_millis(lease_duration)?;
+         let limit = bounded_repair_batch_limit(limit)?;
+         let owner_epoch = repair_owner_epoch.to_string();
+         let (_admission, mut transaction) = self.begin_tenant_transaction(tenant_id).await?;
+-        let due_rows = sqlx::query(CLAIM_UNKNOWN_BATCH_SELECT_SQL)
+-            .bind(tenant_id)
+-            .bind(&owner_epoch)
+-            .bind(limit)
+-            .fetch_all(&mut *transaction)
+-            .await
+-            .map_err(map_sqlx_error)?;
++        let due_rows =
++            if let (Some((protocol_session_id, protocol_session_generation)), Some(targets)) =
++                (session_scope, exact_targets)
++            {
++                let effect_ids = targets
++                    .iter()
++                    .map(|target| target.protocol_effect_id)
++                    .collect::<Vec<_>>();
++                let revisions = targets
++                    .iter()
++                    .map(|target| target.expected_revision.to_string())
++                    .collect::<Vec<_>>();
++                let identity_hashes = targets
++                    .iter()
++                    .map(|target| target.expected_effect_identity_hash)
++                    .collect::<Vec<_>>();
++                sqlx::query(CLAIM_UNKNOWN_EXACT_TARGETS_SELECT_SQL)
++                    .bind(tenant_id)
++                    .bind(&effect_ids)
++                    .bind(&revisions)
++                    .bind(&identity_hashes)
++                    .bind(protocol_session_id)
++                    .bind(protocol_session_generation)
++                    .bind(&owner_epoch)
++                    .fetch_all(&mut *transaction)
++                    .await
++                    .map_err(map_sqlx_error)?
++            } else {
++                sqlx::query(CLAIM_UNKNOWN_BATCH_SELECT_SQL)
++                    .bind(tenant_id)
++                    .bind(&owner_epoch)
++                    .bind(limit)
++                    .fetch_all(&mut *transaction)
++                    .await
++                    .map_err(map_sqlx_error)?
++            };
++        if exact_targets.is_some_and(|targets| due_rows.len() != targets.len()) {
++            return Err(SipEffectError::FenceLost.into());
++        }
+         if due_rows.len() > usize::try_from(limit).unwrap_or(MAX_REPAIR_BATCH_SIZE) {
+             return Err(SipEffectStoreError::SchemaIncompatible);
+         }
+ 
++        let mut remaining_targets = exact_targets.map(|targets| {
++            targets
++                .iter()
++                .map(|target| (target.protocol_effect_id, target))
++                .collect::<HashMap<_, _>>()
++        });
+         let mut claimable = Vec::with_capacity(due_rows.len());
+         let mut exhausted = Vec::with_capacity(due_rows.len());
+         for row in &due_rows {
+             let record = decode_effect(row)?.record;
++            if let Some(targets) = &mut remaining_targets {
++                let target = targets
++                    .remove(record.identity.protocol_effect_id.as_str())
++                    .ok_or(SipEffectStoreError::SchemaIncompatible)?;
++                if record.revision != target.expected_revision
++                    || protocol_effect_identity_hash(&record.identity)?
++                        != target.expected_effect_identity_hash
++                {
++                    return Err(SipEffectError::FenceLost.into());
++                }
++            }
+             if record.identity.tenant_id != tenant_id
++                || session_scope.is_some_and(
++                    |(protocol_session_id, protocol_session_generation)| {
++                        record.identity.protocol_session_id != protocol_session_id
++                            || record.identity.protocol_session_generation
++                                != protocol_session_generation
++                    },
++                )
+                 || record.state != SipEffectState::Unknown
+                 || record.operator_attention_required
+-                || record.repair_claim.is_some()
++                || (exact_targets.is_none() && record.repair_claim.is_some())
+                 || record.repair_epoch_high_watermark >= repair_owner_epoch
+                 || record.repair_attempts > SIP_EFFECT_REPAIR_ATTEMPT_CEILING
+             {
+@@ -874,6 +1060,9 @@ impl PostgresSipEffectStore {
+                 exhausted.push(record);
+             }
+         }
++        if remaining_targets.is_some_and(|targets| !targets.is_empty()) {
++            return Err(SipEffectError::FenceLost.into());
++        }
+ 
+         let mut claimed_effects = Vec::with_capacity(claimable.len());
+         if !claimable.is_empty() {
+@@ -956,8 +1145,8 @@ impl PostgresSipEffectStore {
+             }
+         }
+ 
+-        let exhausted_count = if exhausted.is_empty() {
+-            0
++        let exhausted_effect_ids = if exhausted.is_empty() {
++            Vec::new()
+         } else {
+             let mut effect_ids = Vec::with_capacity(exhausted.len());
+             let mut revisions = Vec::with_capacity(exhausted.len());
+@@ -988,17 +1177,17 @@ impl PostgresSipEffectStore {
+                 .iter()
+                 .map(|row| schema_field::<String>(row, "protocol_effect_id"))
+                 .collect::<Result<HashSet<_>, _>>()?;
+-            let expected_ids = effect_ids.into_iter().collect::<HashSet<_>>();
++            let expected_ids = effect_ids.iter().cloned().collect::<HashSet<_>>();
+             if returned_ids.len() != exhausted.len() || returned_ids != expected_ids {
+                 return Err(SipEffectStoreError::SchemaIncompatible);
+             }
+-            exhausted.len()
++            effect_ids
+         };
+ 
+         transaction.commit().await.map_err(map_sqlx_error)?;
+-        Ok(SipEffectRepairBatch {
++        Ok(SipEffectRepairBatchResult {
+             effects: claimed_effects,
+-            exhausted_count,
++            exhausted_effect_ids,
+         })
+     }
+ 
+@@ -2109,6 +2298,47 @@ fn validate_repair_batch_identity(
+     Ok(())
+ }
+ 
++fn validate_repair_batch_scope(
++    tenant_id: &str,
++    protocol_session_id: &str,
++    protocol_session_generation: &str,
++) -> Result<(), SipEffectStoreError> {
++    validate_sip_effect_identifier(tenant_id)?;
++    validate_sip_effect_identifier(protocol_session_id)?;
++    let generation = protocol_session_generation
++        .parse::<u64>()
++        .map_err(|_| SipEffectStoreError::InvalidConfiguration)?;
++    if generation == 0 || generation.to_string() != protocol_session_generation {
++        return Err(SipEffectStoreError::InvalidConfiguration);
++    }
++    Ok(())
++}
++
++fn validate_exact_repair_targets(
++    targets: &[SipEffectRepairTargetClaim<'_>],
++) -> Result<(), SipEffectStoreError> {
++    if targets.is_empty() || targets.len() > MAX_REPAIR_BATCH_SIZE {
++        return Err(SipEffectStoreError::InvalidConfiguration);
++    }
++    let mut previous_effect_id = None;
++    for target in targets {
++        validate_sip_effect_identifier(target.protocol_effect_id)
++            .map_err(|_| SipEffectStoreError::InvalidConfiguration)?;
++        if target.expected_revision == 0
++            || target.expected_effect_identity_hash.len() != 64
++            || !target
++                .expected_effect_identity_hash
++                .bytes()
++                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
++            || previous_effect_id.is_some_and(|previous| previous >= target.protocol_effect_id)
++        {
++            return Err(SipEffectStoreError::InvalidConfiguration);
++        }
++        previous_effect_id = Some(target.protocol_effect_id);
++    }
++    Ok(())
++}
++
+ fn database_state(value: &str) -> Result<SipEffectState, SipEffectStoreError> {
+     match value {
+         "prepared" => Ok(SipEffectState::Prepared),
+@@ -2431,6 +2661,69 @@ mod tests {
+         assert!(EXHAUST_UNKNOWN_BATCH_UPDATE_SQL.contains("operator_attention_required = TRUE"));
+     }
+ 
++    #[test]
++    fn repair_grant_batch_targets_existing_primary_key_without_a_scope_scan() {
++        let targets = [
++            SipEffectRepairTargetClaim {
++                protocol_effect_id: "effect-a",
++                expected_revision: 1,
++                expected_effect_identity_hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++            },
++            SipEffectRepairTargetClaim {
++                protocol_effect_id: "effect-b",
++                expected_revision: 2,
++                expected_effect_identity_hash: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
++            },
++        ];
++        assert!(validate_exact_repair_targets(&targets).is_ok());
++        let duplicate = [targets[0], targets[0]];
++        assert_eq!(
++            validate_exact_repair_targets(&duplicate).unwrap_err(),
++            SipEffectStoreError::InvalidConfiguration,
++        );
++        let unordered = [targets[1], targets[0]];
++        assert_eq!(
++            validate_exact_repair_targets(&unordered).unwrap_err(),
++            SipEffectStoreError::InvalidConfiguration,
++        );
++        assert!(
++            CLAIM_UNKNOWN_EXACT_TARGETS_SELECT_SQL
++                .contains("effect.protocol_effect_id = target.target_effect_id")
++        );
++        assert!(CLAIM_UNKNOWN_EXACT_TARGETS_SELECT_SQL.contains("effect.tenant_id = $1"));
++        assert!(CLAIM_UNKNOWN_EXACT_TARGETS_SELECT_SQL.contains("effect.protocol_session_id = $5"));
++        assert!(
++            CLAIM_UNKNOWN_EXACT_TARGETS_SELECT_SQL
++                .contains("effect.protocol_session_generation = $6")
++        );
++        assert!(
++            CLAIM_UNKNOWN_EXACT_TARGETS_SELECT_SQL
++                .contains("effect.revision = target.target_expected_revision::numeric")
++        );
++        assert!(
++            CLAIM_UNKNOWN_EXACT_TARGETS_SELECT_SQL
++                .contains("effect.effect_identity_hash = target.target_identity_hash")
++        );
++        assert!(CLAIM_UNKNOWN_EXACT_TARGETS_SELECT_SQL.contains("effect.state = 'unknown'"));
++        assert!(
++            CLAIM_UNKNOWN_EXACT_TARGETS_SELECT_SQL
++                .contains("effect.repair_due_at <= statement_timestamp()")
++        );
++        assert!(
++            CLAIM_UNKNOWN_EXACT_TARGETS_SELECT_SQL
++                .contains("effect.repair_epoch_high_watermark < $7::numeric")
++        );
++        assert!(
++            CLAIM_UNKNOWN_EXACT_TARGETS_SELECT_SQL.contains("FOR UPDATE OF effect SKIP LOCKED")
++        );
++        assert!(CLAIM_UNKNOWN_EXACT_TARGETS_SELECT_SQL.contains("WITH ORDINALITY"));
++        assert!(
++            CLAIM_UNKNOWN_EXACT_TARGETS_SELECT_SQL.contains("ORDER BY target.target_ordinality")
++        );
++        assert!(!CLAIM_UNKNOWN_EXACT_TARGETS_SELECT_SQL.contains("LIMIT"));
++        assert!(!CLAIM_UNKNOWN_EXACT_TARGETS_SELECT_SQL.contains("ORDER BY repair_due_at"));
++    }
++
+     #[test]
+     fn postgres_stale_nonterminal_recovery_is_bounded_and_fenced() {
+         assert_eq!(
+diff --git a/src/call/adapters/sip_effect_reconciler_supervisor.rs b/src/call/adapters/sip_effect_reconciler_supervisor.rs
+new file mode 100644
+index 0000000..cb87860
+--- /dev/null
++++ b/src/call/adapters/sip_effect_reconciler_supervisor.rs
+@@ -0,0 +1,1887 @@
++use super::postgres_sip_effect::{
++    PostgresSipEffectStore, SipEffectExactRepairBatch, SipEffectRepairGrantClaim,
++    SipEffectRepairTargetClaim, SipEffectStoreError,
++};
++use crate::call::domain::sip_effect::{
++    SIP_EFFECT_REPAIR_ATTEMPT_CEILING, SipEffectApplyOutcome, SipEffectError,
++    SipEffectReconcileOutcome, SipEffectRecord, SipEffectRepairFence, SipEffectState,
++    protocol_effect_identity_hash, sip_effect_stage_token, validate_sip_effect_identifier,
++};
++use async_trait::async_trait;
++use futures::FutureExt;
++use std::collections::HashMap;
++use std::panic::AssertUnwindSafe;
++use std::sync::Arc;
++use std::sync::atomic::{AtomicUsize, Ordering};
++use std::time::Duration;
++use tokio::sync::{Mutex as AsyncMutex, mpsc};
++use tokio::task::JoinHandle;
++use tokio::time::Instant;
++use tokio_util::sync::CancellationToken;
++use tracing::{error, warn};
++
++const MAX_RECONCILER_WORKERS: usize = 64;
++const MAX_RECONCILER_QUEUE_CAPACITY: usize = 4_096;
++const MAX_RECONCILER_BATCH_SIZE: usize = 100;
++const MAX_RECONCILER_GRANT_TIMEOUT: Duration = Duration::from_secs(29);
++const MAX_REPAIR_LEASE: Duration = Duration::from_secs(30);
++const REPAIR_LEASE_SAFETY_MARGIN: Duration = Duration::from_millis(500);
++const MAX_GRANT_ID_BYTES: usize = 128;
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
++pub(crate) enum SipEffectReconcilerError {
++    #[error("SIP effect reconciler is disabled")]
++    Disabled,
++    #[error("SIP effect reconciler configuration is invalid")]
++    InvalidConfiguration,
++    #[error("SIP effect repair grant is invalid")]
++    InvalidGrant,
++    #[error("SIP effect repair grant lease does not cover the shared deadline")]
++    LeaseWindowTooShort,
++    #[error("SIP effect repair grant exceeds the fixed worker batch")]
++    TargetBatchTooLarge,
++    #[error("SIP effect repair grant queue is full")]
++    QueueFull,
++    #[error("SIP effect reconciler has stopped")]
++    Stopped,
++    #[error("SIP effect reconciler worker join failed")]
++    JoinFailed,
++}
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
++pub(crate) enum SipEffectReconcileOracleError {
++    #[error("authoritative SIP effect observation is temporarily unavailable")]
++    Unavailable,
++    #[error("authoritative SIP effect observation failed permanently")]
++    Permanent,
++}
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub(crate) struct SipEffectReconcilerOptions {
++    pub enabled: bool,
++    pub worker_count: usize,
++    pub queue_capacity: usize,
++    pub batch_size: usize,
++    pub grant_timeout: Duration,
++}
++
++impl Default for SipEffectReconcilerOptions {
++    fn default() -> Self {
++        Self {
++            enabled: false,
++            worker_count: 4,
++            queue_capacity: 64,
++            batch_size: 32,
++            grant_timeout: Duration::from_secs(5),
++        }
++    }
++}
++
++impl SipEffectReconcilerOptions {
++    fn validate(self) -> Result<Self, SipEffectReconcilerError> {
++        let minimum_grant_lease = self
++            .grant_timeout
++            .checked_add(REPAIR_LEASE_SAFETY_MARGIN)
++            .ok_or(SipEffectReconcilerError::InvalidConfiguration)?;
++        if self.worker_count == 0
++            || self.worker_count > MAX_RECONCILER_WORKERS
++            || self.queue_capacity == 0
++            || self.queue_capacity > MAX_RECONCILER_QUEUE_CAPACITY
++            || self.batch_size == 0
++            || self.batch_size > MAX_RECONCILER_BATCH_SIZE
++            || self.grant_timeout.is_zero()
++            || self.grant_timeout > MAX_RECONCILER_GRANT_TIMEOUT
++            || minimum_grant_lease >= MAX_REPAIR_LEASE
++        {
++            return Err(SipEffectReconcilerError::InvalidConfiguration);
++        }
++        Ok(self)
++    }
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++struct SipEffectRepairTarget {
++    protocol_effect_id: String,
++    expected_revision: u64,
++    expected_effect_identity_hash: String,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++struct SipEffectRepairGrantSpec {
++    grant_id: String,
++    tenant_id: String,
++    protocol_session_id: String,
++    protocol_session_generation: String,
++    repair_owner_id: String,
++    repair_owner_epoch: u64,
++    lease_duration: Duration,
++    targets: Vec<SipEffectRepairTarget>,
++}
++
++/// A one-shot capability issued by the external Call authority. It is
++/// deliberately not `Clone`; submission transfers the grant to one fixed
++/// reconciler worker. The worker never creates or increments owner epochs.
++#[derive(Debug, Eq, PartialEq)]
++pub(crate) struct SipEffectRepairGrant {
++    grant_id: String,
++    tenant_id: String,
++    protocol_session_id: String,
++    protocol_session_generation: String,
++    repair_owner_id: String,
++    repair_owner_epoch: u64,
++    expires_at: Instant,
++    targets: Vec<SipEffectRepairTarget>,
++}
++
++impl TryFrom<SipEffectRepairGrantSpec> for SipEffectRepairGrant {
++    type Error = SipEffectReconcilerError;
++
++    fn try_from(spec: SipEffectRepairGrantSpec) -> Result<Self, Self::Error> {
++        for identifier in [
++            &spec.tenant_id,
++            &spec.protocol_session_id,
++            &spec.repair_owner_id,
++        ] {
++            validate_sip_effect_identifier(identifier)
++                .map_err(|_| SipEffectReconcilerError::InvalidGrant)?;
++        }
++        let generation = spec
++            .protocol_session_generation
++            .parse::<u64>()
++            .map_err(|_| SipEffectReconcilerError::InvalidGrant)?;
++        let lease_millis = u64::try_from(spec.lease_duration.as_millis())
++            .map_err(|_| SipEffectReconcilerError::InvalidGrant)?;
++        if spec.targets.is_empty() || spec.targets.len() > MAX_RECONCILER_BATCH_SIZE {
++            return Err(SipEffectReconcilerError::InvalidGrant);
++        }
++        let mut previous_effect_id = None;
++        for target in &spec.targets {
++            validate_sip_effect_identifier(&target.protocol_effect_id)
++                .map_err(|_| SipEffectReconcilerError::InvalidGrant)?;
++            if target.expected_revision == 0
++                || !is_sha256_lower_hex(&target.expected_effect_identity_hash)
++                || previous_effect_id
++                    .is_some_and(|previous| previous >= target.protocol_effect_id.as_str())
++            {
++                return Err(SipEffectReconcilerError::InvalidGrant);
++            }
++            previous_effect_id = Some(target.protocol_effect_id.as_str());
++        }
++        if spec.grant_id.is_empty()
++            || spec.grant_id.len() > MAX_GRANT_ID_BYTES
++            || !spec
++                .grant_id
++                .bytes()
++                .all(|byte| (b'!'..=b'~').contains(&byte))
++            || generation == 0
++            || generation.to_string() != spec.protocol_session_generation
++            || spec.repair_owner_epoch == 0
++            || spec.lease_duration.is_zero()
++            || spec.lease_duration > MAX_REPAIR_LEASE
++            || Duration::from_millis(lease_millis) != spec.lease_duration
++        {
++            return Err(SipEffectReconcilerError::InvalidGrant);
++        }
++        let expires_at = Instant::now()
++            .checked_add(spec.lease_duration)
++            .ok_or(SipEffectReconcilerError::InvalidGrant)?;
++        Ok(Self {
++            grant_id: spec.grant_id,
++            tenant_id: spec.tenant_id,
++            protocol_session_id: spec.protocol_session_id,
++            protocol_session_generation: spec.protocol_session_generation,
++            repair_owner_id: spec.repair_owner_id,
++            repair_owner_epoch: spec.repair_owner_epoch,
++            expires_at,
++            targets: spec.targets,
++        })
++    }
++}
++
++impl SipEffectRepairGrant {
++    pub(crate) fn grant_id(&self) -> &str {
++        &self.grant_id
++    }
++
++    pub(crate) fn tenant_id(&self) -> &str {
++        &self.tenant_id
++    }
++
++    pub(crate) fn protocol_session_id(&self) -> &str {
++        &self.protocol_session_id
++    }
++
++    pub(crate) fn protocol_session_generation(&self) -> &str {
++        &self.protocol_session_generation
++    }
++
++    pub(crate) fn repair_owner_id(&self) -> &str {
++        &self.repair_owner_id
++    }
++
++    pub(crate) fn repair_owner_epoch(&self) -> u64 {
++        self.repair_owner_epoch
++    }
++
++    fn remaining_lease(&self) -> Option<Duration> {
++        self.expires_at.checked_duration_since(Instant::now())
++    }
++
++    fn freeze_execution_lease(&self, minimum: Duration) -> Option<Duration> {
++        let milliseconds = u64::try_from(self.remaining_lease()?.as_millis()).ok()?;
++        let execution_lease = Duration::from_millis(milliseconds);
++        (execution_lease > minimum).then_some(execution_lease)
++    }
++
++    fn targets(&self) -> &[SipEffectRepairTarget] {
++        &self.targets
++    }
++}
++
++fn is_sha256_lower_hex(value: &str) -> bool {
++    value.len() == 64
++        && value
++            .bytes()
++            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
++}
++
++#[async_trait]
++pub(crate) trait SipEffectReconcileStorePort: Send + Sync {
++    async fn claim_targets(
++        &self,
++        grant: &SipEffectRepairGrant,
++        execution_lease: Duration,
++    ) -> Result<SipEffectExactRepairBatch, SipEffectStoreError>;
++
++    async fn reconcile(
++        &self,
++        effect: &SipEffectRecord,
++        repair_fence: &SipEffectRepairFence,
++        receipt_id: &str,
++        outcome: SipEffectReconcileOutcome,
++    ) -> Result<SipEffectApplyOutcome, SipEffectStoreError>;
++}
++
++#[async_trait]
++impl SipEffectReconcileStorePort for PostgresSipEffectStore {
++    async fn claim_targets(
++        &self,
++        grant: &SipEffectRepairGrant,
++        execution_lease: Duration,
++    ) -> Result<SipEffectExactRepairBatch, SipEffectStoreError> {
++        let targets = grant
++            .targets()
++            .iter()
++            .map(|target| SipEffectRepairTargetClaim {
++                protocol_effect_id: &target.protocol_effect_id,
++                expected_revision: target.expected_revision,
++                expected_effect_identity_hash: &target.expected_effect_identity_hash,
++            })
++            .collect::<Vec<_>>();
++        self.claim_unknown_targets(SipEffectRepairGrantClaim {
++            tenant_id: grant.tenant_id(),
++            protocol_session_id: grant.protocol_session_id(),
++            protocol_session_generation: grant.protocol_session_generation(),
++            repair_owner_id: grant.repair_owner_id(),
++            repair_owner_epoch: grant.repair_owner_epoch(),
++            claim_token_prefix: grant.grant_id(),
++            lease_duration: execution_lease,
++            targets: &targets,
++        })
++        .await
++    }
++
++    async fn reconcile(
++        &self,
++        effect: &SipEffectRecord,
++        repair_fence: &SipEffectRepairFence,
++        receipt_id: &str,
++        outcome: SipEffectReconcileOutcome,
++    ) -> Result<SipEffectApplyOutcome, SipEffectStoreError> {
++        PostgresSipEffectStore::reconcile(self, &effect.identity, repair_fence, receipt_id, outcome)
++            .await
++    }
++}
++
++#[async_trait]
++pub(crate) trait SipEffectReconcileOracle: Send + Sync {
++    async fn query_authoritative_outcome(
++        &self,
++        effect: &SipEffectRecord,
++    ) -> Result<SipEffectReconcileOutcome, SipEffectReconcileOracleError>;
++}
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub(crate) struct SipEffectReconcilerSnapshot {
++    pub configured_workers: usize,
++    pub running_workers: usize,
++    pub queued_grants: usize,
++    pub active_grants: usize,
++    pub completed_grants: usize,
++    pub reconciled_effects: usize,
++    pub exhausted_effects: usize,
++    pub timed_out_grants: usize,
++    pub panic_failures: usize,
++    pub transient_failures: usize,
++    pub permanent_failures: usize,
++    pub cancelled_grants: usize,
++    pub quarantined_workers: usize,
++    pub superseded_grants: usize,
++}
++
++struct SipEffectReconcilerMetrics {
++    configured_workers: usize,
++    running_workers: AtomicUsize,
++    queued_grants: AtomicUsize,
++    active_grants: AtomicUsize,
++    completed_grants: AtomicUsize,
++    reconciled_effects: AtomicUsize,
++    exhausted_effects: AtomicUsize,
++    timed_out_grants: AtomicUsize,
++    panic_failures: AtomicUsize,
++    transient_failures: AtomicUsize,
++    permanent_failures: AtomicUsize,
++    cancelled_grants: AtomicUsize,
++    quarantined_workers: AtomicUsize,
++    superseded_grants: AtomicUsize,
++}
++
++impl SipEffectReconcilerMetrics {
++    fn new(configured_workers: usize) -> Self {
++        Self {
++            configured_workers,
++            running_workers: AtomicUsize::new(0),
++            queued_grants: AtomicUsize::new(0),
++            active_grants: AtomicUsize::new(0),
++            completed_grants: AtomicUsize::new(0),
++            reconciled_effects: AtomicUsize::new(0),
++            exhausted_effects: AtomicUsize::new(0),
++            timed_out_grants: AtomicUsize::new(0),
++            panic_failures: AtomicUsize::new(0),
++            transient_failures: AtomicUsize::new(0),
++            permanent_failures: AtomicUsize::new(0),
++            cancelled_grants: AtomicUsize::new(0),
++            quarantined_workers: AtomicUsize::new(0),
++            superseded_grants: AtomicUsize::new(0),
++        }
++    }
++
++    fn snapshot(&self) -> SipEffectReconcilerSnapshot {
++        SipEffectReconcilerSnapshot {
++            configured_workers: self.configured_workers,
++            running_workers: self.running_workers.load(Ordering::Acquire),
++            queued_grants: self.queued_grants.load(Ordering::Acquire),
++            active_grants: self.active_grants.load(Ordering::Acquire),
++            completed_grants: self.completed_grants.load(Ordering::Acquire),
++            reconciled_effects: self.reconciled_effects.load(Ordering::Acquire),
++            exhausted_effects: self.exhausted_effects.load(Ordering::Acquire),
++            timed_out_grants: self.timed_out_grants.load(Ordering::Acquire),
++            panic_failures: self.panic_failures.load(Ordering::Acquire),
++            transient_failures: self.transient_failures.load(Ordering::Acquire),
++            permanent_failures: self.permanent_failures.load(Ordering::Acquire),
++            cancelled_grants: self.cancelled_grants.load(Ordering::Acquire),
++            quarantined_workers: self.quarantined_workers.load(Ordering::Acquire),
++            superseded_grants: self.superseded_grants.load(Ordering::Acquire),
++        }
++    }
++}
++
++pub(crate) struct SipEffectReconcilerSupervisor {
++    cancel: CancellationToken,
++    sender: Option<mpsc::Sender<SipEffectRepairGrant>>,
++    workers: Vec<JoinHandle<()>>,
++    metrics: Arc<SipEffectReconcilerMetrics>,
++    minimum_grant_lease: Duration,
++    maximum_grant_targets: usize,
++}
++
++impl SipEffectReconcilerSupervisor {
++    pub(crate) fn start(
++        store: Arc<dyn SipEffectReconcileStorePort>,
++        oracle: Arc<dyn SipEffectReconcileOracle>,
++        parent_cancel: CancellationToken,
++        options: SipEffectReconcilerOptions,
++    ) -> Result<Self, SipEffectReconcilerError> {
++        let options = options.validate()?;
++        if !options.enabled {
++            return Err(SipEffectReconcilerError::Disabled);
++        }
++        if tokio::runtime::Handle::try_current().is_err() {
++            return Err(SipEffectReconcilerError::InvalidConfiguration);
++        }
++
++        let cancel = parent_cancel.child_token();
++        let minimum_grant_lease = options
++            .grant_timeout
++            .checked_add(REPAIR_LEASE_SAFETY_MARGIN)
++            .ok_or(SipEffectReconcilerError::InvalidConfiguration)?;
++        let metrics = Arc::new(SipEffectReconcilerMetrics::new(options.worker_count));
++        let (sender, receiver) = mpsc::channel(options.queue_capacity);
++        let receiver = Arc::new(AsyncMutex::new(receiver));
++        let mut workers = Vec::with_capacity(options.worker_count);
++        for worker_index in 0..options.worker_count {
++            workers.push(crate::utils::spawn(run_worker(
++                worker_index,
++                store.clone(),
++                oracle.clone(),
++                receiver.clone(),
++                cancel.clone(),
++                options,
++                metrics.clone(),
++            )));
++        }
++        Ok(Self {
++            cancel,
++            sender: Some(sender),
++            workers,
++            metrics,
++            minimum_grant_lease,
++            maximum_grant_targets: options.batch_size,
++        })
++    }
++
++    pub(crate) fn try_submit(
++        &self,
++        grant: SipEffectRepairGrant,
++    ) -> Result<(), SipEffectReconcilerError> {
++        if self.cancel.is_cancelled() {
++            return Err(SipEffectReconcilerError::Stopped);
++        }
++        if grant
++            .freeze_execution_lease(self.minimum_grant_lease)
++            .is_none()
++        {
++            return Err(SipEffectReconcilerError::LeaseWindowTooShort);
++        }
++        if grant.targets().len() > self.maximum_grant_targets {
++            return Err(SipEffectReconcilerError::TargetBatchTooLarge);
++        }
++        let sender = self
++            .sender
++            .as_ref()
++            .ok_or(SipEffectReconcilerError::Stopped)?;
++        self.metrics.queued_grants.fetch_add(1, Ordering::AcqRel);
++        match sender.try_send(grant) {
++            Ok(()) => Ok(()),
++            Err(mpsc::error::TrySendError::Full(_)) => {
++                self.metrics.queued_grants.fetch_sub(1, Ordering::AcqRel);
++                Err(SipEffectReconcilerError::QueueFull)
++            }
++            Err(mpsc::error::TrySendError::Closed(_)) => {
++                self.metrics.queued_grants.fetch_sub(1, Ordering::AcqRel);
++                Err(SipEffectReconcilerError::Stopped)
++            }
++        }
++    }
++
++    pub(crate) fn snapshot(&self) -> SipEffectReconcilerSnapshot {
++        self.metrics.snapshot()
++    }
++
++    pub(crate) async fn shutdown(
++        mut self,
++    ) -> Result<SipEffectReconcilerSnapshot, SipEffectReconcilerError> {
++        self.cancel.cancel();
++        self.sender.take();
++        let mut join_failed = false;
++        for worker in self.workers.drain(..) {
++            if worker.await.is_err() {
++                join_failed = true;
++            }
++        }
++        let queued = self.metrics.queued_grants.swap(0, Ordering::AcqRel);
++        self.metrics
++            .cancelled_grants
++            .fetch_add(queued, Ordering::Relaxed);
++        if join_failed {
++            Err(SipEffectReconcilerError::JoinFailed)
++        } else {
++            Ok(self.metrics.snapshot())
++        }
++    }
++}
++
++impl Drop for SipEffectReconcilerSupervisor {
++    fn drop(&mut self) {
++        self.cancel.cancel();
++    }
++}
++
++struct RunningWorkerGuard<'a>(&'a AtomicUsize);
++
++impl Drop for RunningWorkerGuard<'_> {
++    fn drop(&mut self) {
++        let previous = self.0.fetch_sub(1, Ordering::AcqRel);
++        debug_assert!(previous > 0);
++    }
++}
++
++struct ActiveGrantGuard<'a>(&'a AtomicUsize);
++
++impl Drop for ActiveGrantGuard<'_> {
++    fn drop(&mut self) {
++        let previous = self.0.fetch_sub(1, Ordering::AcqRel);
++        debug_assert!(previous > 0);
++    }
++}
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++enum GrantFailure {
++    Transient,
++    Superseded,
++    Permanent,
++}
++
++async fn run_worker(
++    worker_index: usize,
++    store: Arc<dyn SipEffectReconcileStorePort>,
++    oracle: Arc<dyn SipEffectReconcileOracle>,
++    receiver: Arc<AsyncMutex<mpsc::Receiver<SipEffectRepairGrant>>>,
++    cancel: CancellationToken,
++    options: SipEffectReconcilerOptions,
++    metrics: Arc<SipEffectReconcilerMetrics>,
++) {
++    metrics.running_workers.fetch_add(1, Ordering::AcqRel);
++    let _running = RunningWorkerGuard(&metrics.running_workers);
++    loop {
++        let grant = tokio::select! {
++            biased;
++            _ = cancel.cancelled() => return,
++            grant = receive_grant(&receiver) => grant,
++        };
++        let Some(grant) = grant else {
++            return;
++        };
++        let previous = metrics.queued_grants.fetch_sub(1, Ordering::AcqRel);
++        debug_assert!(previous > 0);
++        let minimum_remaining = options
++            .grant_timeout
++            .checked_add(REPAIR_LEASE_SAFETY_MARGIN)
++            .expect("validated reconciler deadline");
++        let Some(execution_lease) = grant.freeze_execution_lease(minimum_remaining) else {
++            metrics.timed_out_grants.fetch_add(1, Ordering::Relaxed);
++            warn!(
++                worker_index,
++                grant_id = grant.grant_id(),
++                "SIP effect repair grant expired before store claim"
++            );
++            continue;
++        };
++        metrics.active_grants.fetch_add(1, Ordering::AcqRel);
++        let _active = ActiveGrantGuard(&metrics.active_grants);
++        let grant_id = grant.grant_id().to_string();
++        let operation = AssertUnwindSafe(process_grant(
++            store.as_ref(),
++            oracle.as_ref(),
++            &grant,
++            execution_lease,
++            metrics.as_ref(),
++        ))
++        .catch_unwind();
++        let result = tokio::select! {
++            biased;
++            result = tokio::time::timeout(options.grant_timeout, operation) => result,
++            _ = cancel.cancelled() => {
++                metrics.cancelled_grants.fetch_add(1, Ordering::Relaxed);
++                return;
++            }
++        };
++
++        match result {
++            Ok(Ok(Ok(()))) => {
++                metrics.completed_grants.fetch_add(1, Ordering::Relaxed);
++            }
++            Ok(Ok(Err(GrantFailure::Transient))) => {
++                metrics.transient_failures.fetch_add(1, Ordering::Relaxed);
++                warn!(
++                    worker_index,
++                    grant_id, "SIP effect repair grant failed transiently"
++                );
++            }
++            Ok(Ok(Err(GrantFailure::Superseded))) => {
++                metrics.superseded_grants.fetch_add(1, Ordering::Relaxed);
++                warn!(
++                    worker_index,
++                    grant_id, "SIP effect repair grant was superseded"
++                );
++            }
++            Ok(Ok(Err(GrantFailure::Permanent))) => {
++                metrics.permanent_failures.fetch_add(1, Ordering::Relaxed);
++                metrics.quarantined_workers.fetch_add(1, Ordering::Relaxed);
++                error!(
++                    worker_index,
++                    grant_id, "SIP effect repair worker quarantined"
++                );
++                return;
++            }
++            Ok(Err(_)) => {
++                metrics.panic_failures.fetch_add(1, Ordering::Relaxed);
++                metrics.permanent_failures.fetch_add(1, Ordering::Relaxed);
++                metrics.quarantined_workers.fetch_add(1, Ordering::Relaxed);
++                cancel.cancel();
++                error!(
++                    worker_index,
++                    grant_id, "SIP effect repair worker panicked and was quarantined"
++                );
++                return;
++            }
++            Err(_) => {
++                metrics.timed_out_grants.fetch_add(1, Ordering::Relaxed);
++                warn!(
++                    worker_index,
++                    grant_id, "SIP effect repair grant timed out fail-closed"
++                );
++            }
++        }
++    }
++}
++
++async fn receive_grant(
++    receiver: &AsyncMutex<mpsc::Receiver<SipEffectRepairGrant>>,
++) -> Option<SipEffectRepairGrant> {
++    receiver.lock().await.recv().await
++}
++
++async fn process_grant(
++    store: &dyn SipEffectReconcileStorePort,
++    oracle: &dyn SipEffectReconcileOracle,
++    grant: &SipEffectRepairGrant,
++    execution_lease: Duration,
++    metrics: &SipEffectReconcilerMetrics,
++) -> Result<(), GrantFailure> {
++    let batch = store
++        .claim_targets(grant, execution_lease)
++        .await
++        .map_err(classify_store_error)?;
++    let mut targets = grant
++        .targets()
++        .iter()
++        .map(|target| (target.protocol_effect_id.as_str(), target))
++        .collect::<HashMap<_, _>>();
++    for effect in &batch.effects {
++        let target = targets
++            .remove(effect.identity.protocol_effect_id.as_str())
++            .ok_or(GrantFailure::Permanent)?;
++        validate_claimed_effect(grant, target, effect)?;
++    }
++    for exhausted_effect_id in &batch.exhausted_effect_ids {
++        if targets.remove(exhausted_effect_id.as_str()).is_none() {
++            return Err(GrantFailure::Permanent);
++        }
++    }
++    if !targets.is_empty() {
++        return Err(GrantFailure::Permanent);
++    }
++    metrics
++        .exhausted_effects
++        .fetch_add(batch.exhausted_effect_ids.len(), Ordering::Relaxed);
++
++    for effect in &batch.effects {
++        let outcome = oracle
++            .query_authoritative_outcome(effect)
++            .await
++            .map_err(classify_oracle_error)?;
++        let repair_fence = effect
++            .repair_claim
++            .as_ref()
++            .ok_or(GrantFailure::Permanent)?;
++        let stage = format!(
++            "repair-{}-{}-{}",
++            grant.grant_id(),
++            grant.repair_owner_epoch(),
++            repair_fence.repair_claim_revision,
++        );
++        let receipt_id =
++            sip_effect_stage_token("receipt", &effect.identity.protocol_effect_id, &stage);
++        store
++            .reconcile(effect, repair_fence, &receipt_id, outcome)
++            .await
++            .map_err(classify_store_error)?;
++        metrics.reconciled_effects.fetch_add(1, Ordering::Relaxed);
++    }
++    Ok(())
++}
++
++fn validate_claimed_effect(
++    grant: &SipEffectRepairGrant,
++    target: &SipEffectRepairTarget,
++    effect: &SipEffectRecord,
++) -> Result<(), GrantFailure> {
++    effect
++        .identity
++        .validate()
++        .map_err(|_| GrantFailure::Permanent)?;
++    let repair_fence = effect
++        .repair_claim
++        .as_ref()
++        .ok_or(GrantFailure::Permanent)?;
++    repair_fence
++        .validate()
++        .map_err(|_| GrantFailure::Permanent)?;
++    let expected_claim_token = format!(
++        "{}:{}:{}:{}",
++        grant.grant_id(),
++        effect.identity.protocol_effect_id,
++        grant.repair_owner_epoch(),
++        repair_fence.repair_claim_revision,
++    );
++    let expected_revision = target
++        .expected_revision
++        .checked_add(1)
++        .ok_or(GrantFailure::Permanent)?;
++    if effect.identity.tenant_id != grant.tenant_id()
++        || effect.identity.protocol_session_id != grant.protocol_session_id()
++        || effect.identity.protocol_session_generation != grant.protocol_session_generation()
++        || effect.identity.protocol_effect_id != target.protocol_effect_id
++        || effect.revision != expected_revision
++        || protocol_effect_identity_hash(&effect.identity).map_err(|_| GrantFailure::Permanent)?
++            != target.expected_effect_identity_hash
++        || effect.state != SipEffectState::Unknown
++        || effect.revision != repair_fence.repair_claim_revision
++        || effect.repair_epoch_high_watermark != grant.repair_owner_epoch()
++        || effect.repair_attempts == 0
++        || effect.repair_attempts > SIP_EFFECT_REPAIR_ATTEMPT_CEILING
++        || effect.operator_attention_required
++        || repair_fence.repair_owner_id != grant.repair_owner_id()
++        || repair_fence.repair_owner_epoch != grant.repair_owner_epoch()
++        || repair_fence.repair_claim_token != expected_claim_token
++    {
++        return Err(GrantFailure::Permanent);
++    }
++    Ok(())
++}
++
++fn classify_store_error(error: SipEffectStoreError) -> GrantFailure {
++    match error {
++        SipEffectStoreError::PoolExhausted
++        | SipEffectStoreError::PoolTimeout
++        | SipEffectStoreError::StoreUnavailable => GrantFailure::Transient,
++        SipEffectStoreError::Domain(SipEffectError::FenceLost | SipEffectError::Terminal) => {
++            GrantFailure::Superseded
++        }
++        SipEffectStoreError::InvalidConfiguration
++        | SipEffectStoreError::SchemaIncompatible
++        | SipEffectStoreError::Domain(_) => GrantFailure::Permanent,
++    }
++}
++
++fn classify_oracle_error(error: SipEffectReconcileOracleError) -> GrantFailure {
++    match error {
++        SipEffectReconcileOracleError::Unavailable => GrantFailure::Transient,
++        SipEffectReconcileOracleError::Permanent => GrantFailure::Permanent,
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::{
++        SipEffectReconcileOracle, SipEffectReconcileOracleError, SipEffectReconcileStorePort,
++        SipEffectReconcilerError, SipEffectReconcilerOptions, SipEffectReconcilerSupervisor,
++        SipEffectRepairGrant, SipEffectRepairGrantSpec, SipEffectRepairTarget,
++    };
++    use crate::call::adapters::postgres_sip_effect::{
++        SipEffectExactRepairBatch, SipEffectStoreError,
++    };
++    use crate::call::domain::sip_effect::{
++        SipEffectApplyOutcome, SipEffectError, SipEffectIdentity, SipEffectReceiptSemantic,
++        SipEffectReconcileOutcome, SipEffectRecord, SipEffectRepairFence, SipEffectState,
++        protocol_effect_identity_hash,
++    };
++    use async_trait::async_trait;
++    use chrono::Utc;
++    use serde_json::json;
++    use std::collections::VecDeque;
++    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
++    use std::sync::{Arc, Mutex};
++    use std::time::Duration;
++    use tokio::sync::Notify;
++    use tokio_util::sync::CancellationToken;
++
++    #[derive(Clone, Debug, Eq, PartialEq)]
++    struct ClaimCall {
++        grant_id: String,
++        tenant_id: String,
++        protocol_session_id: String,
++        protocol_session_generation: String,
++        repair_owner_id: String,
++        repair_owner_epoch: u64,
++        targets: Vec<(String, u64, String)>,
++    }
++
++    struct TestStore {
++        effect_count: AtomicUsize,
++        claim_calls: Mutex<Vec<ClaimCall>>,
++        claim_leases: Mutex<Vec<Duration>>,
++        exhausted_effect_ids: Mutex<Vec<String>>,
++        reconcile_calls: Mutex<Vec<(String, u64, SipEffectReconcileOutcome)>>,
++        claim_error: Mutex<Option<SipEffectStoreError>>,
++        reconcile_results: Mutex<VecDeque<Result<(), SipEffectStoreError>>>,
++        reconcile_attempts: AtomicUsize,
++        block_reconcile_at: AtomicUsize,
++        panic_reconcile_at: AtomicUsize,
++        reconcile_release: Notify,
++        block_claim: AtomicBool,
++        panic_claim_once: AtomicBool,
++        claim_started: Notify,
++        claim_release: Notify,
++    }
++
++    impl TestStore {
++        fn new(effect_count: usize) -> Self {
++            Self {
++                effect_count: AtomicUsize::new(effect_count),
++                claim_calls: Mutex::new(Vec::new()),
++                claim_leases: Mutex::new(Vec::new()),
++                exhausted_effect_ids: Mutex::new(Vec::new()),
++                reconcile_calls: Mutex::new(Vec::new()),
++                claim_error: Mutex::new(None),
++                reconcile_results: Mutex::new(VecDeque::new()),
++                reconcile_attempts: AtomicUsize::new(0),
++                block_reconcile_at: AtomicUsize::new(0),
++                panic_reconcile_at: AtomicUsize::new(0),
++                reconcile_release: Notify::new(),
++                block_claim: AtomicBool::new(false),
++                panic_claim_once: AtomicBool::new(false),
++                claim_started: Notify::new(),
++                claim_release: Notify::new(),
++            }
++        }
++
++        fn with_claim_error(error: SipEffectStoreError) -> Self {
++            let store = Self::new(0);
++            *store.claim_error.lock().unwrap() = Some(error);
++            store
++        }
++    }
++
++    #[async_trait]
++    impl SipEffectReconcileStorePort for TestStore {
++        async fn claim_targets(
++            &self,
++            grant: &SipEffectRepairGrant,
++            execution_lease: Duration,
++        ) -> Result<SipEffectExactRepairBatch, SipEffectStoreError> {
++            self.claim_leases.lock().unwrap().push(execution_lease);
++            self.claim_calls.lock().unwrap().push(ClaimCall {
++                grant_id: grant.grant_id().to_string(),
++                tenant_id: grant.tenant_id().to_string(),
++                protocol_session_id: grant.protocol_session_id().to_string(),
++                protocol_session_generation: grant.protocol_session_generation().to_string(),
++                repair_owner_id: grant.repair_owner_id().to_string(),
++                repair_owner_epoch: grant.repair_owner_epoch(),
++                targets: grant
++                    .targets()
++                    .iter()
++                    .map(|target| {
++                        (
++                            target.protocol_effect_id.clone(),
++                            target.expected_revision,
++                            target.expected_effect_identity_hash.clone(),
++                        )
++                    })
++                    .collect(),
++            });
++            self.claim_started.notify_one();
++            if self.panic_claim_once.swap(false, Ordering::SeqCst) {
++                panic!("injected claim panic");
++            }
++            if self.block_claim.load(Ordering::SeqCst) {
++                self.claim_release.notified().await;
++            }
++            if let Some(error) = self.claim_error.lock().unwrap().take() {
++                return Err(error);
++            }
++            let effect_count = self.effect_count.load(Ordering::SeqCst);
++            let effects = (0..effect_count.min(grant.targets().len()))
++                .map(|index| claimed_record(grant, index))
++                .collect();
++            Ok(SipEffectExactRepairBatch {
++                effects,
++                exhausted_effect_ids: self.exhausted_effect_ids.lock().unwrap().clone(),
++            })
++        }
++
++        async fn reconcile(
++            &self,
++            effect: &SipEffectRecord,
++            repair_fence: &SipEffectRepairFence,
++            _receipt_id: &str,
++            outcome: SipEffectReconcileOutcome,
++        ) -> Result<SipEffectApplyOutcome, SipEffectStoreError> {
++            self.reconcile_calls.lock().unwrap().push((
++                effect.identity.protocol_effect_id.clone(),
++                repair_fence.repair_owner_epoch,
++                outcome,
++            ));
++            let attempt = self.reconcile_attempts.fetch_add(1, Ordering::SeqCst) + 1;
++            if self.panic_reconcile_at.load(Ordering::SeqCst) == attempt {
++                panic!("injected reconcile panic");
++            }
++            if self.block_reconcile_at.load(Ordering::SeqCst) == attempt {
++                self.reconcile_release.notified().await;
++            }
++            if let Some(result) = self.reconcile_results.lock().unwrap().pop_front() {
++                result?;
++            }
++            let mut record = effect.clone();
++            record.repair_claim = None;
++            record.state = match outcome {
++                SipEffectReconcileOutcome::ProtocolObserved => SipEffectState::ProtocolObserved,
++                SipEffectReconcileOutcome::Failed => SipEffectState::Failed,
++                SipEffectReconcileOutcome::Unknown { .. } => SipEffectState::Unknown,
++            };
++            Ok(SipEffectApplyOutcome {
++                record,
++                semantic: SipEffectReceiptSemantic::StateObserved,
++                replayed: false,
++            })
++        }
++    }
++
++    struct TestOracle {
++        outcome: SipEffectReconcileOutcome,
++        active: AtomicUsize,
++        max_active: AtomicUsize,
++        calls: AtomicUsize,
++        block: AtomicBool,
++        panic_once: AtomicBool,
++        permanent_error_once: AtomicBool,
++        query_started: Notify,
++        query_release: Notify,
++    }
++
++    impl TestOracle {
++        fn new(outcome: SipEffectReconcileOutcome) -> Self {
++            Self {
++                outcome,
++                active: AtomicUsize::new(0),
++                max_active: AtomicUsize::new(0),
++                calls: AtomicUsize::new(0),
++                block: AtomicBool::new(false),
++                panic_once: AtomicBool::new(false),
++                permanent_error_once: AtomicBool::new(false),
++                query_started: Notify::new(),
++                query_release: Notify::new(),
++            }
++        }
++    }
++
++    struct ActiveQueryGuard<'a>(&'a AtomicUsize);
++
++    impl Drop for ActiveQueryGuard<'_> {
++        fn drop(&mut self) {
++            self.0.fetch_sub(1, Ordering::SeqCst);
++        }
++    }
++
++    #[async_trait]
++    impl SipEffectReconcileOracle for TestOracle {
++        async fn query_authoritative_outcome(
++            &self,
++            _effect: &SipEffectRecord,
++        ) -> Result<SipEffectReconcileOutcome, SipEffectReconcileOracleError> {
++            self.calls.fetch_add(1, Ordering::SeqCst);
++            let active = self.active.fetch_add(1, Ordering::SeqCst) + 1;
++            self.max_active.fetch_max(active, Ordering::SeqCst);
++            let _guard = ActiveQueryGuard(&self.active);
++            self.query_started.notify_one();
++            if self.panic_once.swap(false, Ordering::SeqCst) {
++                panic!("injected oracle panic");
++            }
++            if self.permanent_error_once.swap(false, Ordering::SeqCst) {
++                return Err(SipEffectReconcileOracleError::Permanent);
++            }
++            if self.block.load(Ordering::SeqCst) {
++                self.query_release.notified().await;
++            } else {
++                tokio::task::yield_now().await;
++            }
++            Ok(self.outcome)
++        }
++    }
++
++    fn effect_identity(index: usize) -> SipEffectIdentity {
++        SipEffectIdentity {
++            tenant_id: "tenant-a".to_string(),
++            protocol_effect_id: format!("effect-{index}"),
++            protocol_session_id: "session-a".to_string(),
++            protocol_session_generation: "7".to_string(),
++            decision_id: format!("decision-{index}"),
++            idempotency_key: format!("idempotency-{index}"),
++            request_hash: "a".repeat(64),
++            command_id: format!("command-{index}"),
++            adapter_identity_hash: "b".repeat(64),
++            wire_bytes_hash: "c".repeat(64),
++            wire_length_bytes: 1,
++            route_binding_hash: "d".repeat(64),
++            wire_attempt_facts_hash: "e".repeat(64),
++            wire_freeze_sha256: "f".repeat(64),
++            owner_epoch: 1,
++            command_sequence: 1,
++        }
++    }
++
++    fn repair_target(index: usize) -> SipEffectRepairTarget {
++        let identity = effect_identity(index);
++        SipEffectRepairTarget {
++            protocol_effect_id: identity.protocol_effect_id.clone(),
++            expected_revision: 1,
++            expected_effect_identity_hash: protocol_effect_identity_hash(&identity).unwrap(),
++        }
++    }
++
++    fn grant_spec_with_targets(
++        grant_id: &str,
++        epoch: u64,
++        target_count: usize,
++    ) -> SipEffectRepairGrantSpec {
++        SipEffectRepairGrantSpec {
++            grant_id: grant_id.to_string(),
++            tenant_id: "tenant-a".to_string(),
++            protocol_session_id: "session-a".to_string(),
++            protocol_session_generation: "7".to_string(),
++            repair_owner_id: "repair-owner-a".to_string(),
++            repair_owner_epoch: epoch,
++            lease_duration: Duration::from_secs(10),
++            targets: (0..target_count).map(repair_target).collect(),
++        }
++    }
++
++    fn grant_spec(grant_id: &str, epoch: u64) -> SipEffectRepairGrantSpec {
++        grant_spec_with_targets(grant_id, epoch, 1)
++    }
++
++    fn grant(grant_id: &str, epoch: u64) -> SipEffectRepairGrant {
++        SipEffectRepairGrant::try_from(grant_spec(grant_id, epoch)).unwrap()
++    }
++
++    fn grant_with_targets(grant_id: &str, epoch: u64, target_count: usize) -> SipEffectRepairGrant {
++        SipEffectRepairGrant::try_from(grant_spec_with_targets(grant_id, epoch, target_count))
++            .unwrap()
++    }
++
++    fn claimed_record(grant: &SipEffectRepairGrant, index: usize) -> SipEffectRecord {
++        let target = &grant.targets()[index];
++        let effect_id = target.protocol_effect_id.clone();
++        let repair_claim = SipEffectRepairFence {
++            repair_owner_id: grant.repair_owner_id().to_string(),
++            repair_owner_epoch: grant.repair_owner_epoch(),
++            repair_claim_token: format!(
++                "{}:{effect_id}:{}:2",
++                grant.grant_id(),
++                grant.repair_owner_epoch()
++            ),
++            repair_claim_revision: 2,
++        };
++        SipEffectRecord {
++            identity: effect_identity(index),
++            canonical_wire_bytes: vec![1],
++            adapter_identity: json!({}),
++            route_binding: json!({}),
++            wire_attempt_facts: json!({}),
++            state: SipEffectState::Unknown,
++            revision: 2,
++            unknown_count: 1,
++            last_receipt_id: None,
++            last_receipt_hash: None,
++            failure_code: String::new(),
++            repair_delay_ms: Some(0),
++            repair_epoch_high_watermark: grant.repair_owner_epoch(),
++            repair_claim: Some(repair_claim),
++            repair_attempts: 1,
++            repair_exhausted_at: None,
++            repair_exhaustion_receipt_hash: None,
++            operator_attention_required: false,
++            prepared_at: Utc::now(),
++            audit_until: Utc::now() + chrono::Duration::days(1),
++        }
++    }
++
++    fn enabled_options() -> SipEffectReconcilerOptions {
++        SipEffectReconcilerOptions {
++            enabled: true,
++            worker_count: 1,
++            queue_capacity: 2,
++            batch_size: 3,
++            grant_timeout: Duration::from_millis(100),
++        }
++    }
++
++    async fn wait_until(mut predicate: impl FnMut() -> bool) {
++        tokio::time::timeout(Duration::from_secs(1), async {
++            while !predicate() {
++                tokio::time::sleep(Duration::from_millis(1)).await;
++            }
++        })
++        .await
++        .expect("condition did not become true");
++    }
++
++    #[test]
++    fn grant_and_supervisor_options_are_strictly_bounded() {
++        let mut invalid = grant_spec("grant-a", 1);
++        invalid.protocol_session_generation = "01".to_string();
++        assert_eq!(
++            SipEffectRepairGrant::try_from(invalid).unwrap_err(),
++            SipEffectReconcilerError::InvalidGrant,
++        );
++        let mut invalid = grant_spec("grant-a", 0);
++        invalid.repair_owner_epoch = 0;
++        assert_eq!(
++            SipEffectRepairGrant::try_from(invalid).unwrap_err(),
++            SipEffectReconcilerError::InvalidGrant,
++        );
++        let mut invalid = grant_spec_with_targets("grant-a", 1, 2);
++        invalid.targets.swap(0, 1);
++        assert_eq!(
++            SipEffectRepairGrant::try_from(invalid).unwrap_err(),
++            SipEffectReconcilerError::InvalidGrant,
++        );
++        let mut invalid = grant_spec("grant-a", 1);
++        invalid.lease_duration = Duration::from_secs(31);
++        assert_eq!(
++            SipEffectRepairGrant::try_from(invalid).unwrap_err(),
++            SipEffectReconcilerError::InvalidGrant,
++        );
++        let invalid = grant_spec_with_targets("grant-a", 1, 0);
++        assert_eq!(
++            SipEffectRepairGrant::try_from(invalid).unwrap_err(),
++            SipEffectReconcilerError::InvalidGrant,
++        );
++        let invalid = grant_spec_with_targets("grant-a", 1, 101);
++        assert_eq!(
++            SipEffectRepairGrant::try_from(invalid).unwrap_err(),
++            SipEffectReconcilerError::InvalidGrant,
++        );
++        let mut invalid = grant_spec_with_targets("grant-a", 1, 2);
++        invalid.targets[1] = invalid.targets[0].clone();
++        assert_eq!(
++            SipEffectRepairGrant::try_from(invalid).unwrap_err(),
++            SipEffectReconcilerError::InvalidGrant,
++        );
++        let mut invalid = grant_spec("grant-a", 1);
++        invalid.targets[0].expected_revision = 0;
++        assert_eq!(
++            SipEffectRepairGrant::try_from(invalid).unwrap_err(),
++            SipEffectReconcilerError::InvalidGrant,
++        );
++        let mut invalid = grant_spec("grant-a", 1);
++        invalid.targets[0].expected_effect_identity_hash = "A".repeat(64);
++        assert_eq!(
++            SipEffectRepairGrant::try_from(invalid).unwrap_err(),
++            SipEffectReconcilerError::InvalidGrant,
++        );
++
++        for options in [
++            SipEffectReconcilerOptions {
++                worker_count: 0,
++                ..enabled_options()
++            },
++            SipEffectReconcilerOptions {
++                queue_capacity: 0,
++                ..enabled_options()
++            },
++            SipEffectReconcilerOptions {
++                batch_size: 101,
++                ..enabled_options()
++            },
++            SipEffectReconcilerOptions {
++                grant_timeout: Duration::ZERO,
++                ..enabled_options()
++            },
++            SipEffectReconcilerOptions {
++                grant_timeout: Duration::from_millis(29_001),
++                ..enabled_options()
++            },
++            SipEffectReconcilerOptions {
++                grant_timeout: Duration::from_millis(29_500),
++                ..enabled_options()
++            },
++        ] {
++            assert_eq!(
++                options.validate().unwrap_err(),
++                SipEffectReconcilerError::InvalidConfiguration,
++            );
++        }
++        assert!(
++            SipEffectReconcilerOptions {
++                grant_timeout: Duration::from_secs(29),
++                ..enabled_options()
++            }
++            .validate()
++            .is_ok()
++        );
++    }
++
++    #[tokio::test]
++    async fn grant_lease_must_exceed_the_shared_deadline_by_the_safety_margin() {
++        let store = Arc::new(TestStore::new(0));
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        let mut options = enabled_options();
++        options.grant_timeout = Duration::from_secs(5);
++        let supervisor =
++            SipEffectReconcilerSupervisor::start(store, oracle, CancellationToken::new(), options)
++                .unwrap();
++        let mut short = grant_spec("grant-short-lease", 1);
++        short.lease_duration = Duration::from_millis(5_500);
++        assert_eq!(
++            supervisor
++                .try_submit(SipEffectRepairGrant::try_from(short).unwrap())
++                .unwrap_err(),
++            SipEffectReconcilerError::LeaseWindowTooShort,
++        );
++        assert_eq!(supervisor.snapshot().queued_grants, 0);
++        supervisor.shutdown().await.unwrap();
++    }
++
++    #[tokio::test(start_paused = true)]
++    async fn queue_dwell_reduces_the_monotonic_grant_window_before_submit() {
++        let store = Arc::new(TestStore::new(0));
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        let mut options = enabled_options();
++        options.grant_timeout = Duration::from_secs(5);
++        let supervisor = SipEffectReconcilerSupervisor::start(
++            store.clone(),
++            oracle,
++            CancellationToken::new(),
++            options,
++        )
++        .unwrap();
++        let mut expiring = grant_spec("grant-expiring", 1);
++        expiring.lease_duration = Duration::from_secs(6);
++        let expiring = SipEffectRepairGrant::try_from(expiring).unwrap();
++        tokio::time::advance(Duration::from_millis(501)).await;
++
++        assert_eq!(
++            supervisor.try_submit(expiring).unwrap_err(),
++            SipEffectReconcilerError::LeaseWindowTooShort,
++        );
++        assert_eq!(supervisor.snapshot().queued_grants, 0);
++        assert!(store.claim_calls.lock().unwrap().is_empty());
++        supervisor.shutdown().await.unwrap();
++    }
++
++    #[tokio::test(start_paused = true)]
++    async fn sub_millisecond_dwell_freezes_one_whole_millisecond_execution_lease() {
++        let store = Arc::new(TestStore::new(1));
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        let mut options = enabled_options();
++        options.grant_timeout = Duration::from_secs(5);
++        let supervisor = SipEffectReconcilerSupervisor::start(
++            store.clone(),
++            oracle,
++            CancellationToken::new(),
++            options,
++        )
++        .unwrap();
++        let mut spec = grant_spec("grant-sub-ms", 1);
++        spec.lease_duration = Duration::from_secs(6);
++        let grant = SipEffectRepairGrant::try_from(spec).unwrap();
++        tokio::time::advance(Duration::from_micros(499)).await;
++        supervisor.try_submit(grant).unwrap();
++        wait_until(|| supervisor.snapshot().completed_grants == 1).await;
++
++        let leases = store.claim_leases.lock().unwrap();
++        assert_eq!(leases.as_slice(), &[Duration::from_millis(5_999)]);
++        assert!(leases[0] > Duration::from_millis(5_500));
++        supervisor.shutdown().await.unwrap();
++    }
++
++    #[tokio::test(start_paused = true)]
++    async fn grant_that_expires_in_the_queue_is_rejected_before_the_store_claim() {
++        let store = Arc::new(TestStore::new(1));
++        store.block_claim.store(true, Ordering::SeqCst);
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        let mut options = enabled_options();
++        options.grant_timeout = Duration::from_secs(5);
++        let supervisor = SipEffectReconcilerSupervisor::start(
++            store.clone(),
++            oracle,
++            CancellationToken::new(),
++            options,
++        )
++        .unwrap();
++        supervisor.try_submit(grant("grant-active", 1)).unwrap();
++        store.claim_started.notified().await;
++        let mut queued = grant_spec("grant-queued-expiring", 2);
++        queued.lease_duration = Duration::from_secs(6);
++        supervisor
++            .try_submit(SipEffectRepairGrant::try_from(queued).unwrap())
++            .unwrap();
++        tokio::time::advance(Duration::from_millis(501)).await;
++        store.block_claim.store(false, Ordering::SeqCst);
++        store.claim_release.notify_one();
++
++        wait_until(|| supervisor.snapshot().completed_grants >= 1).await;
++        wait_until(|| supervisor.snapshot().timed_out_grants == 1).await;
++        assert_eq!(store.claim_calls.lock().unwrap().len(), 1);
++        supervisor.shutdown().await.unwrap();
++    }
++
++    #[tokio::test]
++    async fn grant_targets_must_fit_the_fixed_supervisor_batch() {
++        let store = Arc::new(TestStore::new(4));
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        let supervisor = SipEffectReconcilerSupervisor::start(
++            store,
++            oracle,
++            CancellationToken::new(),
++            enabled_options(),
++        )
++        .unwrap();
++        assert_eq!(
++            supervisor
++                .try_submit(grant_with_targets("grant-too-large", 1, 4))
++                .unwrap_err(),
++            SipEffectReconcilerError::TargetBatchTooLarge,
++        );
++        assert_eq!(supervisor.snapshot().queued_grants, 0);
++        supervisor.shutdown().await.unwrap();
++    }
++
++    #[tokio::test]
++    async fn reconciler_is_default_disabled() {
++        let store = Arc::new(TestStore::new(0));
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        let result = SipEffectReconcilerSupervisor::start(
++            store,
++            oracle,
++            CancellationToken::new(),
++            SipEffectReconcilerOptions::default(),
++        );
++        assert!(matches!(result, Err(SipEffectReconcilerError::Disabled)));
++    }
++
++    #[tokio::test]
++    async fn fixed_worker_consumes_one_exact_grant_and_one_bounded_batch_sequentially() {
++        let store = Arc::new(TestStore::new(3));
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        let supervisor = SipEffectReconcilerSupervisor::start(
++            store.clone(),
++            oracle.clone(),
++            CancellationToken::new(),
++            enabled_options(),
++        )
++        .unwrap();
++        supervisor
++            .try_submit(grant_with_targets("grant-exact", 41, 3))
++            .unwrap();
++        wait_until(|| supervisor.snapshot().completed_grants == 1).await;
++
++        assert_eq!(
++            store.claim_calls.lock().unwrap().as_slice(),
++            &[ClaimCall {
++                grant_id: "grant-exact".to_string(),
++                tenant_id: "tenant-a".to_string(),
++                protocol_session_id: "session-a".to_string(),
++                protocol_session_generation: "7".to_string(),
++                repair_owner_id: "repair-owner-a".to_string(),
++                repair_owner_epoch: 41,
++                targets: (0..3)
++                    .map(repair_target)
++                    .map(|target| {
++                        (
++                            target.protocol_effect_id,
++                            target.expected_revision,
++                            target.expected_effect_identity_hash,
++                        )
++                    })
++                    .collect(),
++            }],
++        );
++        assert_eq!(store.reconcile_calls.lock().unwrap().len(), 3);
++        assert!(
++            store
++                .reconcile_calls
++                .lock()
++                .unwrap()
++                .iter()
++                .all(|(_, epoch, _)| *epoch == 41)
++        );
++        assert_eq!(oracle.max_active.load(Ordering::SeqCst), 1);
++        assert_eq!(supervisor.snapshot().configured_workers, 1);
++        assert_eq!(supervisor.snapshot().reconciled_effects, 3);
++        supervisor.shutdown().await.unwrap();
++    }
++
++    #[tokio::test]
++    async fn queue_is_bounded_while_the_fixed_worker_is_busy() {
++        let store = Arc::new(TestStore::new(0));
++        store.block_claim.store(true, Ordering::SeqCst);
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        let mut options = enabled_options();
++        options.queue_capacity = 1;
++        let supervisor = SipEffectReconcilerSupervisor::start(
++            store.clone(),
++            oracle,
++            CancellationToken::new(),
++            options,
++        )
++        .unwrap();
++        supervisor.try_submit(grant("grant-active", 1)).unwrap();
++        store.claim_started.notified().await;
++        supervisor.try_submit(grant("grant-queued", 2)).unwrap();
++        assert_eq!(
++            supervisor
++                .try_submit(grant("grant-rejected", 3))
++                .unwrap_err(),
++            SipEffectReconcilerError::QueueFull,
++        );
++        assert_eq!(supervisor.snapshot().running_workers, 1);
++        assert_eq!(supervisor.snapshot().queued_grants, 1);
++        supervisor.shutdown().await.unwrap();
++    }
++
++    #[tokio::test]
++    async fn timeout_does_not_retry_or_reconcile_the_ambiguous_grant() {
++        let store = Arc::new(TestStore::new(1));
++        store.block_claim.store(true, Ordering::SeqCst);
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        let mut options = enabled_options();
++        options.grant_timeout = Duration::from_millis(10);
++        let supervisor = SipEffectReconcilerSupervisor::start(
++            store.clone(),
++            oracle,
++            CancellationToken::new(),
++            options,
++        )
++        .unwrap();
++        supervisor.try_submit(grant("grant-timeout", 1)).unwrap();
++        wait_until(|| supervisor.snapshot().timed_out_grants == 1).await;
++        tokio::time::sleep(Duration::from_millis(25)).await;
++        assert_eq!(store.claim_calls.lock().unwrap().len(), 1);
++        assert!(store.reconcile_calls.lock().unwrap().is_empty());
++        supervisor.shutdown().await.unwrap();
++    }
++
++    #[tokio::test]
++    async fn store_panic_quarantines_the_worker_and_never_reuses_its_dependencies() {
++        let store = Arc::new(TestStore::new(1));
++        store.panic_claim_once.store(true, Ordering::SeqCst);
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        let supervisor = SipEffectReconcilerSupervisor::start(
++            store.clone(),
++            oracle,
++            CancellationToken::new(),
++            enabled_options(),
++        )
++        .unwrap();
++        supervisor.try_submit(grant("grant-panics", 1)).unwrap();
++        wait_until(|| {
++            let snapshot = supervisor.snapshot();
++            snapshot.panic_failures == 1
++                && snapshot.permanent_failures == 1
++                && snapshot.quarantined_workers == 1
++                && snapshot.running_workers == 0
++        })
++        .await;
++        assert_eq!(
++            supervisor.try_submit(grant("grant-new", 2)).unwrap_err(),
++            SipEffectReconcilerError::Stopped,
++        );
++        assert_eq!(store.claim_calls.lock().unwrap().len(), 1);
++        supervisor.shutdown().await.unwrap();
++    }
++
++    #[tokio::test]
++    async fn oracle_panic_cancels_the_entire_reconciler_child() {
++        let store = Arc::new(TestStore::new(1));
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        oracle.panic_once.store(true, Ordering::SeqCst);
++        let mut options = enabled_options();
++        options.worker_count = 2;
++        let parent_cancel = CancellationToken::new();
++        let supervisor = SipEffectReconcilerSupervisor::start(
++            store.clone(),
++            oracle,
++            parent_cancel.clone(),
++            options,
++        )
++        .unwrap();
++        supervisor
++            .try_submit(grant("grant-oracle-panics", 1))
++            .unwrap();
++        wait_until(|| {
++            let snapshot = supervisor.snapshot();
++            snapshot.quarantined_workers == 1 && snapshot.running_workers == 0
++        })
++        .await;
++        assert_eq!(supervisor.snapshot().panic_failures, 1);
++        assert_eq!(supervisor.snapshot().permanent_failures, 1);
++        assert_eq!(
++            supervisor
++                .try_submit(grant("grant-after-oracle-panic", 2))
++                .unwrap_err(),
++            SipEffectReconcilerError::Stopped,
++        );
++        assert_eq!(store.claim_calls.lock().unwrap().len(), 1);
++        assert!(store.reconcile_calls.lock().unwrap().is_empty());
++        assert!(!parent_cancel.is_cancelled());
++        supervisor.shutdown().await.unwrap();
++        assert!(!parent_cancel.is_cancelled());
++    }
++
++    #[tokio::test]
++    async fn store_panic_cancels_the_entire_reconciler_child() {
++        let store = Arc::new(TestStore::new(1));
++        store.panic_claim_once.store(true, Ordering::SeqCst);
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        let mut options = enabled_options();
++        options.worker_count = 2;
++        let parent_cancel = CancellationToken::new();
++        let supervisor = SipEffectReconcilerSupervisor::start(
++            store.clone(),
++            oracle,
++            parent_cancel.clone(),
++            options,
++        )
++        .unwrap();
++        supervisor.try_submit(grant("grant-panics", 1)).unwrap();
++        wait_until(|| {
++            let snapshot = supervisor.snapshot();
++            snapshot.quarantined_workers == 1 && snapshot.running_workers == 0
++        })
++        .await;
++        assert_eq!(
++            supervisor
++                .try_submit(grant("grant-after-store-panic", 2))
++                .unwrap_err(),
++            SipEffectReconcilerError::Stopped,
++        );
++        assert_eq!(store.claim_calls.lock().unwrap().len(), 1);
++        assert!(!parent_cancel.is_cancelled());
++        supervisor.shutdown().await.unwrap();
++        assert!(!parent_cancel.is_cancelled());
++    }
++
++    #[tokio::test]
++    async fn concurrent_or_stale_target_is_superseded_without_quarantining_the_worker() {
++        let store = Arc::new(TestStore::with_claim_error(SipEffectStoreError::Domain(
++            SipEffectError::FenceLost,
++        )));
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        let supervisor = SipEffectReconcilerSupervisor::start(
++            store.clone(),
++            oracle,
++            CancellationToken::new(),
++            enabled_options(),
++        )
++        .unwrap();
++        supervisor.try_submit(grant("grant-stale", 1)).unwrap();
++        wait_until(|| supervisor.snapshot().superseded_grants == 1).await;
++
++        store.effect_count.store(1, Ordering::SeqCst);
++        supervisor.try_submit(grant("grant-new", 2)).unwrap();
++        wait_until(|| supervisor.snapshot().completed_grants == 1).await;
++        assert_eq!(store.claim_calls.lock().unwrap().len(), 2);
++        assert_eq!(supervisor.snapshot().running_workers, 1);
++        assert_eq!(supervisor.snapshot().quarantined_workers, 0);
++        supervisor.shutdown().await.unwrap();
++    }
++
++    #[tokio::test]
++    async fn terminal_race_during_reconcile_is_superseded_without_reusing_the_epoch() {
++        let store = Arc::new(TestStore::new(1));
++        store
++            .reconcile_results
++            .lock()
++            .unwrap()
++            .push_back(Err(SipEffectStoreError::Domain(SipEffectError::Terminal)));
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        let supervisor = SipEffectReconcilerSupervisor::start(
++            store.clone(),
++            oracle,
++            CancellationToken::new(),
++            enabled_options(),
++        )
++        .unwrap();
++        supervisor.try_submit(grant("grant-terminal", 1)).unwrap();
++        wait_until(|| supervisor.snapshot().superseded_grants == 1).await;
++
++        supervisor.try_submit(grant("grant-successor", 2)).unwrap();
++        wait_until(|| supervisor.snapshot().completed_grants == 1).await;
++        assert_eq!(store.claim_calls.lock().unwrap().len(), 2);
++        assert_eq!(supervisor.snapshot().running_workers, 1);
++        assert_eq!(supervisor.snapshot().quarantined_workers, 0);
++        supervisor.shutdown().await.unwrap();
++    }
++
++    #[tokio::test]
++    async fn exact_result_rejects_a_duplicate_exhausted_id_instead_of_trusting_its_count() {
++        let store = Arc::new(TestStore::new(1));
++        store
++            .exhausted_effect_ids
++            .lock()
++            .unwrap()
++            .push("effect-0".to_string());
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        let supervisor = SipEffectReconcilerSupervisor::start(
++            store.clone(),
++            oracle.clone(),
++            CancellationToken::new(),
++            enabled_options(),
++        )
++        .unwrap();
++        supervisor
++            .try_submit(grant_with_targets("grant-invalid-set", 1, 2))
++            .unwrap();
++        wait_until(|| supervisor.snapshot().permanent_failures == 1).await;
++        assert_eq!(supervisor.snapshot().quarantined_workers, 1);
++        assert_eq!(oracle.calls.load(Ordering::SeqCst), 0);
++        assert!(store.reconcile_calls.lock().unwrap().is_empty());
++        supervisor.shutdown().await.unwrap();
++    }
++
++    #[tokio::test]
++    async fn mid_batch_transient_preserves_prior_reconcile_and_claim_exhaustion_progress() {
++        let store = Arc::new(TestStore::new(2));
++        store
++            .exhausted_effect_ids
++            .lock()
++            .unwrap()
++            .push("effect-2".to_string());
++        store
++            .reconcile_results
++            .lock()
++            .unwrap()
++            .extend([Ok(()), Err(SipEffectStoreError::PoolTimeout)]);
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        let supervisor = SipEffectReconcilerSupervisor::start(
++            store,
++            oracle,
++            CancellationToken::new(),
++            enabled_options(),
++        )
++        .unwrap();
++        supervisor
++            .try_submit(grant_with_targets("grant-mid-transient", 1, 3))
++            .unwrap();
++        wait_until(|| supervisor.snapshot().transient_failures == 1).await;
++        assert_eq!(supervisor.snapshot().reconciled_effects, 1);
++        assert_eq!(supervisor.snapshot().exhausted_effects, 1);
++        assert_eq!(supervisor.snapshot().completed_grants, 0);
++        supervisor.shutdown().await.unwrap();
++    }
++
++    #[tokio::test]
++    async fn mid_batch_permanent_failure_preserves_prior_reconcile_progress() {
++        let store = Arc::new(TestStore::new(2));
++        store
++            .reconcile_results
++            .lock()
++            .unwrap()
++            .extend([Ok(()), Err(SipEffectStoreError::SchemaIncompatible)]);
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        let supervisor = SipEffectReconcilerSupervisor::start(
++            store,
++            oracle,
++            CancellationToken::new(),
++            enabled_options(),
++        )
++        .unwrap();
++        supervisor
++            .try_submit(grant_with_targets("grant-mid-permanent", 1, 2))
++            .unwrap();
++        wait_until(|| supervisor.snapshot().quarantined_workers == 1).await;
++        assert_eq!(supervisor.snapshot().reconciled_effects, 1);
++        assert_eq!(supervisor.snapshot().completed_grants, 0);
++        supervisor.shutdown().await.unwrap();
++    }
++
++    #[tokio::test]
++    async fn mid_batch_terminal_race_preserves_prior_reconcile_progress() {
++        let store = Arc::new(TestStore::new(2));
++        store.reconcile_results.lock().unwrap().extend([
++            Ok(()),
++            Err(SipEffectStoreError::Domain(SipEffectError::Terminal)),
++        ]);
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        let supervisor = SipEffectReconcilerSupervisor::start(
++            store,
++            oracle,
++            CancellationToken::new(),
++            enabled_options(),
++        )
++        .unwrap();
++        supervisor
++            .try_submit(grant_with_targets("grant-mid-terminal", 1, 2))
++            .unwrap();
++        wait_until(|| supervisor.snapshot().superseded_grants == 1).await;
++        assert_eq!(supervisor.snapshot().reconciled_effects, 1);
++        assert_eq!(supervisor.snapshot().completed_grants, 0);
++        supervisor.shutdown().await.unwrap();
++    }
++
++    #[tokio::test]
++    async fn mid_batch_panic_preserves_prior_reconcile_progress() {
++        let store = Arc::new(TestStore::new(2));
++        store.panic_reconcile_at.store(2, Ordering::SeqCst);
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        let supervisor = SipEffectReconcilerSupervisor::start(
++            store,
++            oracle,
++            CancellationToken::new(),
++            enabled_options(),
++        )
++        .unwrap();
++        supervisor
++            .try_submit(grant_with_targets("grant-mid-panic", 1, 2))
++            .unwrap();
++        wait_until(|| supervisor.snapshot().panic_failures == 1).await;
++        assert_eq!(supervisor.snapshot().reconciled_effects, 1);
++        assert_eq!(supervisor.snapshot().completed_grants, 0);
++        supervisor.shutdown().await.unwrap();
++    }
++
++    #[tokio::test]
++    async fn mid_batch_timeout_preserves_prior_reconcile_progress() {
++        let store = Arc::new(TestStore::new(2));
++        store.block_reconcile_at.store(2, Ordering::SeqCst);
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        let mut options = enabled_options();
++        options.grant_timeout = Duration::from_millis(10);
++        let supervisor =
++            SipEffectReconcilerSupervisor::start(store, oracle, CancellationToken::new(), options)
++                .unwrap();
++        supervisor
++            .try_submit(grant_with_targets("grant-mid-timeout", 1, 2))
++            .unwrap();
++        wait_until(|| supervisor.snapshot().timed_out_grants == 1).await;
++        assert_eq!(supervisor.snapshot().reconciled_effects, 1);
++        assert_eq!(supervisor.snapshot().completed_grants, 0);
++        supervisor.shutdown().await.unwrap();
++    }
++
++    #[tokio::test]
++    async fn mid_batch_cancellation_preserves_prior_reconcile_progress() {
++        let store = Arc::new(TestStore::new(2));
++        store.block_reconcile_at.store(2, Ordering::SeqCst);
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        let parent_cancel = CancellationToken::new();
++        let supervisor = SipEffectReconcilerSupervisor::start(
++            store.clone(),
++            oracle,
++            parent_cancel.clone(),
++            enabled_options(),
++        )
++        .unwrap();
++        supervisor
++            .try_submit(grant_with_targets("grant-mid-cancel", 1, 2))
++            .unwrap();
++        wait_until(|| store.reconcile_calls.lock().unwrap().len() == 2).await;
++        parent_cancel.cancel();
++        wait_until(|| supervisor.snapshot().running_workers == 0).await;
++        let snapshot = supervisor.shutdown().await.unwrap();
++        assert_eq!(snapshot.reconciled_effects, 1);
++        assert_eq!(snapshot.cancelled_grants, 1);
++        assert_eq!(snapshot.completed_grants, 0);
++    }
++
++    #[test]
++    fn unavailable_oracle_outcome_is_transient() {
++        assert_eq!(
++            super::classify_oracle_error(SipEffectReconcileOracleError::Unavailable),
++            super::GrantFailure::Transient,
++        );
++    }
++
++    #[tokio::test]
++    async fn permanent_store_error_quarantines_the_worker_fail_closed() {
++        let store = Arc::new(TestStore::with_claim_error(
++            SipEffectStoreError::SchemaIncompatible,
++        ));
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        let supervisor = SipEffectReconcilerSupervisor::start(
++            store.clone(),
++            oracle,
++            CancellationToken::new(),
++            enabled_options(),
++        )
++        .unwrap();
++        supervisor.try_submit(grant("grant-permanent", 1)).unwrap();
++        wait_until(|| {
++            let snapshot = supervisor.snapshot();
++            snapshot.quarantined_workers == 1 && snapshot.running_workers == 0
++        })
++        .await;
++        assert_eq!(store.claim_calls.lock().unwrap().len(), 1);
++        assert!(store.reconcile_calls.lock().unwrap().is_empty());
++        assert_eq!(
++            supervisor
++                .try_submit(grant("grant-after-quarantine", 2))
++                .unwrap_err(),
++            SipEffectReconcilerError::Stopped,
++        );
++        supervisor.shutdown().await.unwrap();
++    }
++
++    #[tokio::test]
++    async fn cancellation_aborts_active_query_without_reconciliation_and_drops_queued_grants() {
++        let store = Arc::new(TestStore::new(1));
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        oracle.block.store(true, Ordering::SeqCst);
++        let supervisor = SipEffectReconcilerSupervisor::start(
++            store.clone(),
++            oracle.clone(),
++            CancellationToken::new(),
++            enabled_options(),
++        )
++        .unwrap();
++        supervisor.try_submit(grant("grant-active", 1)).unwrap();
++        oracle.query_started.notified().await;
++        supervisor.try_submit(grant("grant-queued", 2)).unwrap();
++        let snapshot = supervisor.shutdown().await.unwrap();
++        assert_eq!(snapshot.cancelled_grants, 2);
++        assert!(store.reconcile_calls.lock().unwrap().is_empty());
++    }
++
++    #[tokio::test]
++    async fn submit_after_parent_cancellation_is_stopped_without_queue_metric_churn() {
++        let store = Arc::new(TestStore::new(1));
++        let oracle = Arc::new(TestOracle::new(SipEffectReconcileOutcome::ProtocolObserved));
++        let parent_cancel = CancellationToken::new();
++        let supervisor = SipEffectReconcilerSupervisor::start(
++            store.clone(),
++            oracle,
++            parent_cancel.clone(),
++            enabled_options(),
++        )
++        .unwrap();
++        parent_cancel.cancel();
++        assert_eq!(
++            supervisor
++                .try_submit(grant("grant-after-cancel", 1))
++                .unwrap_err(),
++            SipEffectReconcilerError::Stopped,
++        );
++        assert_eq!(supervisor.snapshot().queued_grants, 0);
++        assert!(store.claim_calls.lock().unwrap().is_empty());
++        supervisor.shutdown().await.unwrap();
++    }
++
++    #[test]
++    fn reconciler_surface_has_no_rsipstack_or_sip_send_capability() {
++        let source = include_str!("sip_effect_reconciler_supervisor.rs");
++        for forbidden in [
++            concat!("rsi", "pstack::"),
++            concat!("Sip", "Message"),
++            concat!("Egress", "EffectGate"),
++            concat!("send", "_sip"),
++            concat!("resend", "_sip"),
++        ] {
++            assert!(
++                !source.contains(forbidden),
++                "forbidden surface: {forbidden}"
++            );
++        }
++    }
++
++    #[test]
++    fn reconciler_minting_surface_is_crate_private_and_sealed() {
++        let module = include_str!("mod.rs");
++        let source = include_str!("sip_effect_reconciler_supervisor.rs");
++        assert!(module.contains("pub(crate) mod sip_effect_reconciler_supervisor;"));
++        assert!(!source.contains(concat!("pub struct ", "SipEffectRepairGrantSpec")));
++        assert!(!source.contains(concat!("pub struct ", "SipEffectRepairTarget")));
++    }
++}
+diff --git a/src/call/domain/sip_effect.rs b/src/call/domain/sip_effect.rs
+index 39cbbed..8572bf3 100644
+--- a/src/call/domain/sip_effect.rs
++++ b/src/call/domain/sip_effect.rs
+@@ -668,11 +668,6 @@ impl InMemorySipEffectLedger {
+         repair_claim_token: &str,
+     ) -> Result<SipEffectRepairFence, SipEffectError> {
+         identity.validate()?;
+-        checked_identifier(repair_owner_id)?;
+-        checked_identifier(repair_claim_token)?;
+-        if repair_owner_epoch == 0 {
+-            return Err(SipEffectError::InvalidInput);
+-        }
+         let key = (
+             identity.tenant_id.clone(),
+             identity.protocol_effect_id.clone(),
+@@ -704,6 +699,7 @@ impl InMemorySipEffectLedger {
+             repair_claim_token: repair_claim_token.to_string(),
+             repair_claim_revision: claim_revision,
+         };
++        fence.validate()?;
+         effect.record.revision = claim_revision;
+         effect.record.repair_epoch_high_watermark = repair_owner_epoch;
+         effect.record.repair_attempts += 1;
+@@ -1707,6 +1703,65 @@ mod tests {
+         assert_eq!(observed.record.state, SipEffectState::ProtocolObserved);
+     }
+ 
++    #[test]
++    fn claim_unknown_validates_the_full_repair_fence_token_boundary() {
++        let mut ledger = InMemorySipEffectLedger::new(1).unwrap();
++        let opened = ledger.prepare(prepared()).unwrap().record;
++        let decided = ledger
++            .apply(receipt(
++                &opened,
++                "receipt-boundary-decision",
++                SipEffectReceiptLevel::DurableDecision,
++            ))
++            .unwrap()
++            .record;
++        let attempted = ledger
++            .apply(receipt(
++                &decided,
++                "receipt-boundary-attempt",
++                SipEffectReceiptLevel::SendAttempted,
++            ))
++            .unwrap()
++            .record;
++        let unknown = ledger
++            .apply(
++                SipEffectReceipt::new(
++                    attempted.fence(),
++                    "receipt-boundary-unknown",
++                    SipEffectReceiptLevel::Unknown,
++                    "",
++                    Some(250),
++                )
++                .unwrap(),
++            )
++            .unwrap()
++            .record;
++
++        assert_eq!(
++            ledger
++                .claim_unknown(
++                    &unknown.identity,
++                    "repair-worker",
++                    1,
++                    &"x".repeat(REPAIR_CLAIM_TOKEN_HARD_CEILING + 1),
++                )
++                .unwrap_err(),
++            SipEffectError::InvalidInput,
++        );
++        let maximum_fence = ledger
++            .claim_unknown(
++                &unknown.identity,
++                "repair-worker",
++                1,
++                &"x".repeat(REPAIR_CLAIM_TOKEN_HARD_CEILING),
++            )
++            .unwrap();
++        assert_eq!(
++            maximum_fence.repair_claim_token.len(),
++            REPAIR_CLAIM_TOKEN_HARD_CEILING,
++        );
++    }
++
+     #[test]
+     fn bounded_ledger_and_retry_after_fail_closed() {
+         let mut ledger = InMemorySipEffectLedger::new(1).unwrap();

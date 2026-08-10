@@ -18,9 +18,9 @@ claims and this audit does not mark G02 complete or production eligible.
 | --- | --- | --- | --- |
 | Product Call model | `src/agent-runtime/converact/voice/types.ts`; `state-machine.ts`; `call-service.ts` | `VoiceCall` is a durable Call intent/rebuildable control-plane projection with legacy string IDs | preserve product behavior, but never treat it or `provider_call_id` as native Call/Leg authority |
 | SipFoundation seam | `src/agent-runtime/converact/voice/sip-foundation/*` | Exported Converact-owned types, bounded Protocol Session model, capability selection, route/wire binding and rsipstack-named conformance Adapter exist | retain as conformance/migration harness; native SIP authority stays inside RustPBX |
-| Durable effect ledger | `effect-oracle.ts`; `postgres-effect-store.ts`; migrations `107`, `113`, `114` and `115`; native `.59` protocol-observation through `.71` fixed observer supervision | Reference and native implementations use closed v1/v2 wire-attempt facts, separate transport and peer terminal meanings, atomic observation transactions, repair fences and bounded shards. `.66` adds successor-fenced stale-nonterminal recovery; `.71` gives each observation shard one fixed task, retries the same armed work with bounded backoff, restarts after an unwind panic and preserves permanent quarantine. The adapter, recovery entrypoint and supervisor remain default-disabled | `.71` focused observer tests pass `38/38`; its controlled exact-source Linux suite passes RustPBX `2,022/0/9`, dialog-shadow `20/20`, rsipstack `311/311` and doctests `67/67`; controlled `.70` PostgreSQL pool-recreation recovery passes `2/2`. Live successor-owner wiring, reconciler supervision, real process-crash recovery, Call Core capability registration and native Endpoint activation remain `not_run` |
+| Durable effect ledger | `effect-oracle.ts`; `postgres-effect-store.ts`; migrations `107`, `113`, `114` and `115`; native `.59` protocol-observation through `.72` exact-target reconciler supervision | Reference and native implementations use closed v1/v2 wire-attempt facts, separate transport and peer terminal meanings, atomic observation transactions, repair fences and bounded shards. `.66` adds successor-fenced stale-nonterminal recovery; `.71` gives each observation shard one fixed task. `.72` adds a separately default-disabled fixed-worker reconciler that accepts only an opaque, sealed, crate-private grant for one exact tenant/session/generation, one successor repair epoch and 1..100 exact ordered targets. The live durable Authority issuer remains `not_run`. The reconciler uses the existing composite primary key for bounded exact lookup and cannot scan, enumerate, mint/reuse an epoch or send SIP. Both in-memory and PostgreSQL claim paths validate the same maximum 512-byte `SipEffectRepairFence` | `.72` isolated exact-source component tests pass `28/28`, the affected SipEffect suite passes `87 passed / 0 failed / 8 ignored`, and locked library check plus Rust formatting pass. Two sibling-module UI probes prove the sealed minting boundary with expected `E0603` and `E0451` compile failures. These local results do not promote an evidence entry. Physical PostgreSQL exact-target claim, 10K/100K distractor query plans, authoritative issuer, durable completion sink, live Endpoint, process-crash/two-node, Linux full, fault/performance and production remain `not_run` |
 | Recovery | `sip-foundation/recovery.ts`; reciprocal dialog shadow/takeover sources; `.65` Native Call recovery identity patch; `.66` stale SipEffect recovery patch; `.67` immutable-ledger fixture correction; `.68` role-scoped fixture correction; `.69` database-clock fixture; `.70` recovery SQL alias | The closed v2 capsule authenticates one canonical Native Call binding across both legs and advances owner/generation/revision fences exactly once. The stale-effect primitive uses a rolling partial index and one atomic bounded batch to preserve uncertainty as `unknown`; the physical case waits the real database stale window without mutating effect time or identity, and `.70` separates the unnest candidate id from the target table id before `RETURNING`; legacy v1 remains readable but cannot resume live authority | controlled `.70` stale-nonterminal pool-recreation recovery is under `evidence/raw/stale-nonterminal-recovery-6abf714-11/`; live owner fencing, real process-crash/two-node takeover, early-dialog and cross-Adapter recovery remain `not_run` |
-| RustPBX/rsipstack runtime | `infra/converact/rustpbx/build.sh` and patch queue | RustPBX `6c49ee76…`, rsipstack `8318e97b…`, rustrtc `166c6d22…`, patchset `.71` is pinned; `.70` repairs the recovery SQL alias and `.71` adds the fixed observer supervisor without touching product configuration, `SipServerBuilder` or live Endpoint composition | `.71` exact patch gates pass `189/189`, focused Rust observer/gate tests `38/38`, G03 contract `9/9`, and typecheck. Controlled `.71` Linux passes RustPBX `2,022/0/9`, three focused regressions, dialog-shadow `20/20`, rsipstack `311/311` and doctests `67/67`; the committed non-deny Clippy gate passes with 216 warnings. Exact-image wire/latency/peer/long-call/capacity requalification and production activation remain `not_run` |
+| RustPBX/rsipstack runtime | `infra/converact/rustpbx/build.sh` and patch queue | RustPBX `6c49ee76…`, rsipstack `8318e97b…`, rustrtc `166c6d22…`, patchset `.72` is pinned; `.71` adds the fixed observer supervisor and `.72` adds the exact-target reconciler component without touching product configuration, `SipServerBuilder` or live Endpoint composition | `.72` isolated exact-source reconciler tests pass `28/28`, the affected SipEffect suite passes `87 passed / 0 failed / 8 ignored`, the two privacy UI probes fail with their exact expected compiler codes, and locked library check plus Rust formatting pass. The controlled Linux full-suite result remains bound to `.71`; `.72` Linux full, exact-image traffic/performance requalification and production activation remain `not_run` |
 | Initial 100 Trying | `rsipstack-ivekit-single-trying.patch`; SIPp campaign sources | Exact `.53` image emitted exactly 100 Trying responses for 100 INVITEs; p99/max were 1/1 ms, with zero response retransmissions | `G03-E06` controlled evidence; no inherited `.42` promotion |
 | SIP wire tests | frozen 22-case corpus and exact dual-binary replay | `.53` matches all 18 accepted semantics and applies four versioned malformed-input tightenings with zero unexplained differences | `G03-E07` controlled evidence; future rvoip differential remains `not_run` |
 | rvoip runtime | no G03 runtime source dependency found | Not a parser, transaction, Dialog or transport production path | `not_run`; reserved for G06 layer-by-layer gates |
@@ -87,14 +87,40 @@ component campaign passes RustPBX `2,022/0/9`, three focused regressions,
 dialog-shadow `20/20`, rsipstack `311/311` and doctests `67/67`; raw logs,
 including the first cache miss and the redundant network-component attempt,
 are retained under `evidence/raw/full-linux-suites-1ebbd76-13/`. This is host
-component requalification only and makes no live or process-crash claim. The
-following remain `not_run`:
+component requalification only and makes no live or process-crash claim.
+Incremental `.72` adds a separately default-disabled exact-target reconciler.
+Its fixed configured worker count and bounded queue accept an opaque, sealed,
+crate-private one-shot grant scoped to one tenant, Protocol Session, generation
+and successor repair epoch with 1..100 strictly ordered unique effect targets.
+Each target binds its expected revision and identity hash; the claim returns
+exact claimed and exhausted IDs. The existing
+`(tenant_id, protocol_effect_id)` primary key provides bounded exact lookup
+without tenant/session/global scans. Minting freezes a true monotonic expiry;
+queue dwell consumes that window, and dequeue freezes one whole-millisecond
+execution lease for the claim. Configured timeout is capped at a usable 29 s
+and execution requires remaining lease strictly greater than timeout plus
+500 ms. Submission after parent cancellation is rejected. A caught store or
+oracle panic cancels the reconciler child supervision domain, stops all repair
+workers and rejects future grants, so no worker reuses the shared dependencies;
+the parent process and established Human Communication remain outside that
+child cancellation. Process-local progress counts
+advance after each confirmed durable reconcile or exhaustion and retain that
+truth if later batch work fails transiently, terminally, permanently, by panic,
+timeout or cancellation. Ordinary `FenceLost` or `Terminal` races consume the
+superseded grant and keep the healthy reconciler workers available. Isolated exact-source
+`.72` tests pass `28/28`, the affected SipEffect suite passes
+`87 passed / 0 failed / 8 ignored`, and locked library check plus Rust
+formatting pass. No evidence entry is promoted
+by these local results. The following remain `not_run`:
 
 - native Call/Leg and effect-writer activation;
 - live Call Core capability registration, live matched-CANCEL/UAS-2xx response
   composition and restart/reconcile resumption; the `.64` component paths alone
   do not activate them;
 - process-crash recovery of an in-flight UAS 2xx owner;
+- physical PostgreSQL `.72` exact-target claim/rollback and 10K/100K distractor
+  query-plan proof;
+- authoritative repair-grant issuer and durable per-target completion sink;
 - real process-crash/two-node Native Call takeover using the v2 capsule;
 - parent-Unknown reconciliation and derived-ACK live endpoint composition;
 - live proof of indexed stale `send_attempted`/`transport_accepted` recovery
@@ -127,12 +153,16 @@ following remain `not_run`:
 8. Wire only direction-specific protocol observations: inbound 2xx waits for a
    remote ACK, outbound 2xx creates a local ACK effect, and inbound Legs can
    never enter outbound fork selection.
-9. Wire the current `.71` matched-CANCEL capability holder and UAS-2xx owner through the
+9. Wire the current `.72` matched-CANCEL capability holder and UAS-2xx owner through the
    live Endpoint path and reconciliation resume; close parent-Unknown and
-   stale-nonterminal/UAS-owner crash recovery before the default-disabled `.71`
+   stale-nonterminal/UAS-owner crash recovery before the default-disabled `.72`
    gate can enter live endpoint composition. The v2 recovery capsule must remain
    the only path that restores the existing canonical Native Call identity;
    legacy v1 capsules fail closed for live resume.
+10. Bind the `.72` reconciler to the durable Call/session Authority only after
+    an exact grant issuer and durable per-target completion sink exist. Prove
+    physical PostgreSQL all-or-nothing claims and 10K/100K distractor query
+    plans before activation; local component tests cannot close those Gates.
 
 ## 5. Deletion and Migration Boundary
 

@@ -15,7 +15,7 @@ RUSTPBX_COMMIT="6c49ee76baa54fdbf8f98020cc9bee158c7c15de"
 RSIPSTACK_COMMIT="8318e97b1170de4e5245b120afec1cdf53e3d716"
 RUSTRTC_COMMIT="166c6d22984429eb6b509920c14fcd69f974f0b3"
 RUST_BUILDER_IMAGE="rust:1.94-bookworm@sha256:6ae102bdbf528294bc79ad6e1fae682f6f7c2a6e6621506ba959f9685b308a55"
-PATCHSET="ivekit.71"
+PATCHSET="ivekit.72"
 IMAGE="${CONVERACT_FABRIC_RUSTPBX_IMAGE:-converact/rustpbx:0.4.11-${PATCHSET}-6c49ee76}"
 
 if command -v sha256sum >/dev/null; then
@@ -324,6 +324,8 @@ git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-converact-stale-n
 git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-converact-stale-nonterminal-recovery-returning-alias.patch"
 git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-converact-sip-effect-observer-supervisor.patch"
 git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-converact-sip-effect-observer-supervisor.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-converact-sip-effect-reconciler-supervisor.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-converact-sip-effect-reconciler-supervisor.patch"
 
 mkdir -p "$BUILD_ROOT/rustpbx/vendor/converact-component-hook"
 cp -R "$HOOK_DIR/." \
@@ -389,7 +391,8 @@ if [[ "${CONVERACT_FABRIC_RUSTPBX_VERIFY_ONLY:-0}" == "1" ]]; then
       "$PATCH_DIR/rustpbx-converact-stale-nonterminal-recovery-role-scoped-fixture.patch" \
       "$PATCH_DIR/rustpbx-converact-stale-nonterminal-recovery-db-clock-fixture.patch" \
       "$PATCH_DIR/rustpbx-converact-stale-nonterminal-recovery-returning-alias.patch" \
-      "$PATCH_DIR/rustpbx-converact-sip-effect-observer-supervisor.patch" |
+      "$PATCH_DIR/rustpbx-converact-sip-effect-observer-supervisor.patch" \
+      "$PATCH_DIR/rustpbx-converact-sip-effect-reconciler-supervisor.patch" |
       awk '$3 ~ /\.rs$/ { print $3 }'
   )
   ((${#RUSTPBX_FORMAT_FILES[@]} > 0)) || {
@@ -438,6 +441,52 @@ if [[ "${CONVERACT_FABRIC_RUSTPBX_VERIFY_ONLY:-0}" == "1" ]]; then
       rustfmt --edition 2021 --check --config skip_children=true "$@"
       cargo fmt --manifest-path vendor/converact-component-hook/Cargo.toml -- --check
       cargo check --locked --features cross --bin rustpbx --bin sipflow
+      privacy_spec_log="$(mktemp)"
+      if cargo rustc --locked --lib --features cross -- \
+        --cfg sip_effect_reconciler_privacy_ui \
+        --check-cfg "cfg(sip_effect_reconciler_privacy_ui)" \
+        >"$privacy_spec_log" 2>&1; then
+        echo "SIP effect repair target/spec privacy probe unexpectedly compiled" >&2
+        exit 1
+      fi
+      privacy_spec_code_count="$(
+        awk "/^error\\[E0603\\]/{ count++ } END { print count + 0 }" \
+          "$privacy_spec_log"
+      )"
+      privacy_spec_other_code_count="$(
+        awk "/^error\\[E[0-9]+\\]/{ if (index(\$0, \"E0603\") == 0) count++ } \
+          END { print count + 0 }" "$privacy_spec_log"
+      )"
+      [[ "$privacy_spec_code_count" == "2" ]]
+      [[ "$privacy_spec_other_code_count" == "0" ]]
+      grep -Eq "^error\\[E0603\\]: struct .SipEffectRepairTarget. is private$" \
+        "$privacy_spec_log"
+      grep -Eq "^error\\[E0603\\]: struct .SipEffectRepairGrantSpec. is private$" \
+        "$privacy_spec_log"
+      sed -n "1,160p" "$privacy_spec_log"
+
+      privacy_direct_log="$(mktemp)"
+      if cargo rustc --locked --lib --features cross -- \
+        --cfg sip_effect_reconciler_privacy_direct_ui \
+        --check-cfg "cfg(sip_effect_reconciler_privacy_direct_ui)" \
+        >"$privacy_direct_log" 2>&1; then
+        echo "SIP effect repair grant direct-construction probe unexpectedly compiled" >&2
+        exit 1
+      fi
+      privacy_direct_code_count="$(
+        awk "/^error\\[E0451\\]/{ count++ } END { print count + 0 }" \
+          "$privacy_direct_log"
+      )"
+      privacy_direct_other_code_count="$(
+        awk "/^error\\[E[0-9]+\\]/{ if (index(\$0, \"E0451\") == 0) count++ } \
+          END { print count + 0 }" "$privacy_direct_log"
+      )"
+      [[ "$privacy_direct_code_count" == "1" ]]
+      [[ "$privacy_direct_other_code_count" == "0" ]]
+      grep -Eq "^error\\[E0451\\]: fields .* of struct .SipEffectRepairGrant. are private$" \
+        "$privacy_direct_log"
+      sed -n "1,160p" "$privacy_direct_log"
+
       cargo clippy --locked --lib --features cross --no-deps
       cargo test --locked --lib
       cargo test --locked --lib test_recording_double_start_fails

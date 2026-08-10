@@ -111,7 +111,7 @@ Run serially:
 2. New Call/Leg tests.
 3. SipFoundation, effect and recovery tests.
 4. Exact rsipstack/RustPBX patch contract tests.
-5. Native Call/Leg/effect binding tests; the current `.71` RustPBX port includes a
+5. Native Call/Leg/effect binding tests; the current `.72` RustPBX port includes a
    direction-keyed UAS/UAC state model, closed v2 wire-attempt facts and
    separate transport/protocol receipts plus one parent-bound non-2xx ACK
    derivation. Network peer observations additionally require the private,
@@ -130,13 +130,33 @@ Run serially:
    wiring and real process-crash proof remain `not_run`. One fixed supervisor
    task now owns each observation shard, retries the same armed work with
    bounded backoff, restarts after an unwind panic, and preserves quarantine or
-   armed work across permanent failure/cancellation. Reconciler supervision is
-   still open. The gate
+   armed work across permanent failure/cancellation. A separately
+   default-disabled reconciler now accepts only an opaque/sealed crate-private
+   one-shot grant whose minting surface is reserved for the durable Authority,
+   binding one exact tenant/session/generation, one successor repair epoch and
+   1..100 strictly ordered unique targets. It uses the existing composite primary key
+   for bounded exact lookup/no scans, a fixed worker count and bounded queue, a
+   true monotonic expiry that includes queue dwell, one whole-millisecond
+   execution lease frozen at dequeue, a usable maximum timeout of 29 s and
+   remaining database-relative lease strictly greater than timeout + 500 ms.
+   It verifies exact claimed and exhausted IDs. Submission after parent
+   cancellation is rejected; a caught store/oracle panic cancels the whole
+   reconciler child domain, stops every repair worker and rejects new grants so
+   the shared dependencies are never reused. Process-local counters advance for each confirmed durable reconcile or
+   exhaustion and retain that progress if later batch work fails transiently,
+   with `Terminal`, permanently, by panic, timeout or cancellation. Ordinary
+   `FenceLost`/`Terminal` races are superseded without quarantining the worker.
+   Isolated local tests pass `28/28`, the affected SipEffect suite passes
+   `87 passed / 0 failed / 8 ignored`, both sibling privacy UI probes fail with
+   their exact expected `E0603`/`E0451`, and locked library check plus Rust
+   formatting pass. The gate
    remains default-disabled; retain activation `not_run` until
    its real Call Core holder, live Endpoint composition and reconciliation
    resume are wired, and until parent-Unknown, stale-nonterminal and in-flight
-   UAS-owner crash recovery and fixed observer/reconciler supervision are
-   closed.
+   UAS-owner crash recovery are closed. The authoritative issuer, durable
+   completion sink, physical PostgreSQL exact-target claim, 10K/100K
+   distractor query plans, process-crash/two-node and Linux full suites also
+   remain `not_run`.
 6. repository typecheck.
 7. Generate raw output, command/source manifest and SHA-256 evidence with no
    secrets.
@@ -166,6 +186,15 @@ requalification for `G03-E04-EFFECT` only. Reconciler supervision, live
 Endpoint composition, real process crash and all performance/fault gates
 remain open. Neither controlled component result qualifies the remaining
 campaigns:
+
+The `.72` exact-target reconciler currently has isolated local component proof
+only: `28/28`, affected SipEffect `87 passed / 0 failed / 8 ignored`, the two
+expected-code privacy UI probes, locked
+check and Rust formatting. It does not inherit `.71` Linux evidence or promote any evidence
+entry. Its physical PostgreSQL exact-target/rollback and 10K/100K query-plan
+campaigns, authoritative issuer, durable completion sink, live Endpoint,
+process-crash/two-node, Linux full, fault/performance and production gates stay
+`not_run`.
 
 - PostgreSQL role/RLS, physical restart, receipt replay, atomic v2 transition,
   repair exhaustion and database-clock skew (completed controlled slices;

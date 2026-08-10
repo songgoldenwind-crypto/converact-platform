@@ -170,6 +170,29 @@ recorded as `not_run`, not described as completed wiring.
    distinct from later state observation after an unknown result.
 5. `query_effect` is read-only. `reconcile_effect` requires a repair lease and
    fence; unknown never causes a blind new identity.
+   The current `.72` component accepts only an opaque/sealed crate-private,
+   non-cloneable grant intended for the durable Call/session Authority; the live
+   issuer remains `not_run`. It binds one exact tenant, Protocol Session,
+   generation, successor repair epoch and 1..100 strictly ordered unique
+   targets. Every target binds its effect ID, expected revision and effect
+   identity hash. The fixed-worker/bounded-queue reconciler cannot enumerate
+   or scan effects, mint/reuse an epoch or send SIP. Its PostgreSQL claim uses
+   the existing `(tenant_id, protocol_effect_id)` primary key for bounded exact
+   lookup, returns exact claimed/exhausted IDs and rolls the whole claim back
+   as `FenceLost` if any target is missing, stale or concurrently locked. A
+   monotonic expiry is frozen when the grant is minted, so queue dwell reduces
+   its window. Dequeue freezes one whole-millisecond execution lease used for
+   the claim. Configured timeout has a usable maximum of 29 s and remaining
+   lease must be strictly greater than timeout + 500 ms. Submission after
+   parent cancellation fails stopped; a caught store/oracle panic cancels the
+   reconciler child domain, stops every repair worker and rejects new grants so
+   no worker reuses shared dependencies. The parent Call process and established
+   Human Communication remain outside that child cancellation. Process-local progress counters advance after each
+   confirmed durable reconcile or exhaustion and retain that fact if later
+   batch work fails transiently, with `Terminal`, permanently, by panic,
+   timeout or cancellation. Normal `FenceLost`/`Terminal` races are superseded
+   and keep healthy workers available. In-memory and PostgreSQL claim paths use
+   the same maximum 512-byte `SipEffectRepairFence` validator.
 6. Transaction retransmission replays the exact committed bytes/hash.
 7. `snapshot` carries protocol state only. `restore` accepts only a confirmed,
    transaction-quiescent, same-Adapter/runtime snapshot after outer Call-owner
@@ -248,7 +271,7 @@ observation distinguishable even though both converge the effect record to
 | State | Meaning |
 | --- | --- |
 | current | RustPBX/rsipstack is the native runtime; TypeScript contains bounded conformance/reference models and a physical PostgreSQL reference ledger, but these are not a second live SIP/Call authority |
-| target | The complete interface and corpus are frozen; `.71` contains bounded protocol/control mailboxes, the direction-keyed native Call/Leg model, bounded PostgreSQL SipEffect primitives, a default-disabled exact-wire rsipstack gate and one fixed task per observation shard. Its controlled Linux component requalification passes, but exact-image wire, raw latency, SIPp/Asterisk interop and a 2-vCPU capacity regression remain scoped to controlled `.53` evidence; `.71` live endpoint/all-direction activation, reconciler supervision and Native Authority remain `not_run` |
+| target | The complete interface and corpus are frozen; `.72` contains bounded protocol/control mailboxes, the direction-keyed native Call/Leg model, bounded PostgreSQL SipEffect primitives, a default-disabled exact-wire rsipstack gate, one fixed task per observation shard and a separately default-disabled exact-target reconciler. Isolated `.72` component tests pass `28/28`, affected SipEffect tests pass `87 passed / 0 failed / 8 ignored`, the sibling privacy probes fail with exact expected compiler codes, and locked check/Rust formatting pass, but they do not inherit controlled `.71` Linux evidence or promote an evidence entry. Physical PostgreSQL exact-target claim, 10K/100K query plans, live Authority issuer/durable sink, live Endpoint, process-crash/two-node, Linux full, fault/performance and Native Authority remain `not_run` |
 | production eligible | `false` until long-run, fault/OOM, Native Authority, allocation and multi-core scaling evidence pass independent review |
 
 No rvoip benchmark, old server result or historical Wave result is inherited.

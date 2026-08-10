@@ -173,7 +173,7 @@ test("attempt eight becomes a durable operator-attention fact", () => {
 
 test("exact build retains bounded repair batches in ivekit.57", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.71"/);
+  assert.match(build, /PATCHSET="ivekit\.72"/);
   assert.match(
     build,
     /rustpbx-converact-postgres-sip-effect-reconciliation\.patch"[\s\S]*rustpbx-converact-postgres-sip-effect-repair-batch\.patch"/,
