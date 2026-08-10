@@ -16,11 +16,12 @@ test('ivekit.65 carries one fenced Native Call identity through HA recovery', ()
   assert.equal(
     parsed.stdout,
     '185\t0\tsrc/call/domain/foundation_identity.rs\n' +
-      '235\t5\tsrc/ivekit_dialog_shadow.rs\n'
+      '235\t5\tsrc/ivekit_dialog_shadow.rs\n' +
+      '18\t1\ttests/ivekit_dialog_shadow_contract_test.rs\n'
   );
   assert.equal(
     createHash('sha256').update(patch).digest('hex'),
-    '8cf81c5ff64a4c40a5bacfef9b1b1e9ed8b6fbe5da5167a7e3b092be7af3487c'
+    '41b9641ad9994ed14432fb0e7a691e69d76c564e84309b1442e96f082ed956ac'
   );
 
   assert.match(patch, /pub struct NativeCallRecoveryBinding/);
@@ -35,6 +36,8 @@ test('ivekit.65 carries one fenced Native Call identity through HA recovery', ()
     patch,
     /capsule_v1_rejects_an_explicit_null_native_call_binding/
   );
+  assert.match(patch, /tests\/ivekit_dialog_shadow_contract_test\.rs/);
+  assert.match(patch, /native_call_binding: Some\(native_call_binding\(\)\)/);
   assert.match(
     patch,
     /native_call_recovery_binding_hash_matches_typescript_golden_vector/

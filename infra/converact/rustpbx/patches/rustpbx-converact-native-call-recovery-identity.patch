@@ -620,3 +620,51 @@ index 308bd0f..4559071 100644
      #[test]
      fn recovered_update_builds_one_pair_with_shared_takeover_identity() {
          let codec = DialogRecoveryCapsuleCodec::new(
+--- a/tests/ivekit_dialog_shadow_contract_test.rs
++++ b/tests/ivekit_dialog_shadow_contract_test.rs
+@@ -1,5 +1,6 @@
+ use async_trait::async_trait;
+ use rsipstack::transaction::key::TransactionRole;
++use rustpbx::call::domain::foundation_identity::{NativeCallIdentity, NativeCallRecoveryBinding};
+ use rustpbx::ivekit_dialog_shadow::{
+     DialogOwnerAuthorityRequest, DialogOwnerNodeIdentity, DialogOwnerTakeoverClaimRequest,
+     DialogOwnerTakeoverConsumeRequest, DialogRecoveryCapsuleBinding, DialogRecoveryCapsuleCodec,
+@@ -95,6 +98,20 @@
+     .unwrap()
+ }
+ 
++fn native_call_binding() -> NativeCallRecoveryBinding {
++    NativeCallIdentity::adopt_projection(
++        "tenant-a",
++        "vcall_abc",
++        "vcall_abc",
++        "call-session-a",
++        7,
++        11,
++        13,
++    )
++    .unwrap()
++    .recovery_binding()
++}
++
+ #[test]
+ fn typescript_recovery_capsule_fixture_opens_and_authenticates_all_binding_fields() {
+     let codec = DialogRecoveryCapsuleCodec::new(
+@@ -123,6 +140,7 @@
+         payload,
+         DialogRecoveryCapsulePayload {
+             schema_version: 1,
++            native_call_binding: None,
+             call_session_ref: "call-session-a".into(),
+             interaction_id: "interaction-a".into(),
+             dialog_id: "dialog-caller".into(),
+@@ -264,7 +282,8 @@
+ 
+ fn recovery_payload() -> DialogRecoveryCapsulePayload {
+     DialogRecoveryCapsulePayload {
+-        schema_version: 1,
++        schema_version: 2,
++        native_call_binding: Some(native_call_binding()),
+         call_session_ref: "call-session-a".into(),
+         interaction_id: "interaction-a".into(),
+         dialog_id: "dialog-a".into(),
