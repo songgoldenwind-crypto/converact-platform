@@ -25,7 +25,7 @@ test('the rejection-header patch follows prepared INVITE and is recorded', () =>
     build,
     /rsipstack-ivekit-prepared-invite\.patch"[\s\S]*rsipstack-ivekit-rejection-headers\.patch"/
   );
-  assert.match(build, /PATCHSET="ivekit\.70"/);
+  assert.match(build, /PATCHSET="ivekit\.71"/);
 
   const manifest = JSON.parse(
     readFileSync('docs/capacity/forks/ivekit-forks-v1.json', 'utf8')

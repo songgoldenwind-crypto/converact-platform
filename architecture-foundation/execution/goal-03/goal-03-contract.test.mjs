@@ -127,7 +127,7 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
     rustpbx_commit: '6c49ee76baa54fdbf8f98020cc9bee158c7c15de',
     rsipstack_commit: '8318e97b1170de4e5245b120afec1cdf53e3d716',
     rustrtc_commit: '166c6d22984429eb6b509920c14fcd69f974f0b3',
-    patchset: 'ivekit.70',
+    patchset: 'ivekit.71',
     current_adapter: 'rsipstack',
     target_adapter: 'rvoip_low_level_slices_after_separate_gates',
     native_runtime_authority: 'Unified RustPBX process',
@@ -192,7 +192,7 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
   assert.match(build, /RUSTPBX_COMMIT="6c49ee76baa54fdbf8f98020cc9bee158c7c15de"/u);
   assert.match(build, /RSIPSTACK_COMMIT="8318e97b1170de4e5245b120afec1cdf53e3d716"/u);
   assert.match(build, /RUSTRTC_COMMIT="166c6d22984429eb6b509920c14fcd69f974f0b3"/u);
-  assert.match(build, /PATCHSET="ivekit\.70"/u);
+  assert.match(build, /PATCHSET="ivekit\.71"/u);
   assert.match(
     build,
     /rustpbx-converact-postgres-sip-effect-repair-batch\.patch/u,
@@ -240,6 +240,10 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
   assert.match(
     build,
     /rustpbx-converact-derived-non-2xx-ack\.patch[\s\S]*rustpbx-converact-peer-derived-cancel-response\.patch/u,
+  );
+  assert.match(
+    build,
+    /rustpbx-converact-stale-nonterminal-recovery-returning-alias\.patch[\s\S]*rustpbx-converact-sip-effect-observer-supervisor\.patch/u,
   );
 });
 
@@ -453,6 +457,16 @@ test('Call/Leg and effect contracts distinguish identities, races and receipt me
   assert.ok(effect.completion_scope_invariants.includes(
     'transport_completed_never_aliases_protocol_observed',
   ));
+  assert.deepEqual(effect.observation_supervision, {
+    implementation_status: 'component_implemented_default_disabled',
+    worker_model: 'one_fixed_task_per_configured_observation_shard',
+    per_effect_task: 'forbidden',
+    retryable_failure: 'same_armed_work_bounded_exponential_backoff',
+    persist_future_panic: 'release_old_lease_then_atomic_restart',
+    permanent_failure: 'quarantine_shard_and_fail_closed',
+    cancellation: 'armed_work_retained_for_explicit_restart',
+    live_endpoint_activation: 'not_run',
+  });
   assert.equal(
     effect.network_claim,
     'idempotent_effect_plus_observation_not_exactly_once',

@@ -38,11 +38,11 @@ unchanged container IDs are retained instead.
 Neither accepted review proves that the TypeScript `VoiceCall`, Call/Leg model,
 `RsipstackFoundationAdapter` or PostgreSQL reference ledger is a live native
 authority. Unified RustPBX remains the sole active Call/Leg authority;
-`G03-E16-NATIVE-AUTHORITY` and the `.70` current patchset, including its
+`G03-E16-NATIVE-AUTHORITY` and the `.71` current patchset, including its
 default-disabled native durable egress adapter, are outside those old reviewed
 diffs and remain pending exact-source review.
 
-## Current `.70` interim review boundary
+## Current `.71` interim review boundary
 
 The `.59` protocol-observation slice received iterative code review while it
 was developed. Findings around cancellation ownership, queue loss, receipt
@@ -133,6 +133,17 @@ server. The full-suite bundle is
 component-suite execution gap only. It is not an independent acceptance and
 does not prove live Native Authority, a real process crash, a two-node
 takeover, fault/OOM isolation, performance or production eligibility.
+
+The incremental `.71` slice adds only the fixed observation supervisor and its
+tests. Exactly one task owns each configured shard; transient persistence
+failure retains the same armed work under bounded exponential backoff, an
+unwind panic releases the old lease before atomic restart, permanent failure
+stays quarantined, and cancellation leaves work for explicit restart. Focused
+Rust tests pass `38/38`, patch gates `189/189`, the machine contract `9/9`, and
+typecheck. It does not touch product configuration, `SipServerBuilder` or live
+Endpoint composition. This is not final independent review or host evidence;
+reconciler supervision, live intent registration and every production gate
+remain `not_run`.
 
 ## Rejection history and remaining gate
 

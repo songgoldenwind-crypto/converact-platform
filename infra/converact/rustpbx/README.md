@@ -732,6 +732,19 @@ The controlled bundle is
 It does not promote the unrun full Linux suite, real process crash, live owner
 wiring, performance or production paths.
 
+ivekit.71 adds the default-disabled durable observation supervisor. It owns
+exactly one fixed task for every configured observation shard, keeps retryable
+database failures on the same armed work with bounded exponential backoff,
+and atomically restarts a shard after an unwind panic. A permanent persistence
+error keeps the shard quarantined and fail closed; cancellation leaves the
+armed work available for an explicit restart. The supervisor never creates a
+task per SIP Effect and this patch does not modify `SipServerBuilder`, product
+configuration or the live Endpoint. Focused Rust tests pass `38/38`, exact
+patch gates pass `189/189`, the G03 machine contract passes `9/9`, and the
+repository typecheck passes. Live Call Core intent registration, Endpoint
+composition, reconciler supervision, crash/OOM campaigns and production
+eligibility remain `not_run`.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

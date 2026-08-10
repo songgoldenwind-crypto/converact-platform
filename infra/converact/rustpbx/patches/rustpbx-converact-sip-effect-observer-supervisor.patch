@@ -1,0 +1,724 @@
+diff --git a/src/call/adapters/mod.rs b/src/call/adapters/mod.rs
+index 46c8d35..083be06 100644
+--- a/src/call/adapters/mod.rs
++++ b/src/call/adapters/mod.rs
+@@ -12,6 +12,7 @@
+ #[cfg(feature = "console")]
+ mod console_adapter;
+ pub mod postgres_sip_effect;
++pub mod sip_effect_observer_supervisor;
+ pub mod rsipstack_sip_effect_gate;
+ mod rwi_adapter;
+ mod session_action_bridge;
+diff --git a/src/call/adapters/rsipstack_sip_effect_gate.rs b/src/call/adapters/rsipstack_sip_effect_gate.rs
+index cfe378c..66734d8 100644
+--- a/src/call/adapters/rsipstack_sip_effect_gate.rs
++++ b/src/call/adapters/rsipstack_sip_effect_gate.rs
+@@ -3,11 +3,13 @@ use crate::call::adapters::postgres_sip_effect::{
+     SipEffectStoreError,
+ };
+ use crate::call::domain::sip_effect::{
+-    PreparedSipEffect, SipEffectIdentity, SipEffectReceipt, SipEffectReceiptLevel, SipEffectRecord,
+-    SipEffectState, canonical_json_sha256, protocol_effect_identity_hash, sha256_lower_hex,
+-    sip_effect_stage_token, sip_wire_freeze_sha256, validate_sip_effect_identifier,
++    PreparedSipEffect, SipEffectIdentity, SipEffectRecord, SipEffectState, canonical_json_sha256,
++    protocol_effect_identity_hash, sha256_lower_hex, sip_effect_stage_token,
++    sip_wire_freeze_sha256, validate_sip_effect_identifier,
+     validate_unbound_sip_wire_attempt_facts,
+ };
++#[cfg(test)]
++use crate::call::domain::sip_effect::{SipEffectReceipt, SipEffectReceiptLevel};
+ use async_trait::async_trait;
+ use chrono::{DateTime, Utc};
+ use dashmap::DashMap;
+@@ -986,6 +988,7 @@ impl DurableRsipstackEgressGate {
+             observers.push(SipEffectTransportObserver {
+                 store: store.clone(),
+                 shard: observation_shard,
++                shard_index: shard,
+                 lease: 1,
+                 unknown_repair_after_ms: options.unknown_repair_after_ms,
+                 metrics: metrics.clone(),
+@@ -1006,6 +1009,10 @@ impl DurableRsipstackEgressGate {
+         Ok((gate, observers))
+     }
+ 
++    pub(crate) fn observation_worker_shards(&self) -> usize {
++        self.observation_shards.len()
++    }
++
+     pub fn snapshot(&self) -> SipEffectGateSnapshot {
+         let pending_transport_observations = self
+             .metrics
+@@ -1049,11 +1056,12 @@ impl DurableRsipstackEgressGate {
+         if shard.lifecycle.load(Ordering::Acquire) == OBSERVATION_SHARD_QUARANTINED {
+             return Err(SipEffectGateError::ObservationQuarantined);
+         }
+-        self.claim_observer(shard)
++        self.claim_observer(shard_index, shard)
+     }
+ 
+     fn claim_observer(
+         &self,
++        shard_index: usize,
+         shard: &Arc<SipEffectObservationShard>,
+     ) -> Result<SipEffectTransportObserver, SipEffectGateError> {
+         let lease = shard
+@@ -1077,6 +1085,7 @@ impl DurableRsipstackEgressGate {
+         Ok(SipEffectTransportObserver {
+             store: self.store.clone(),
+             shard: shard.clone(),
++            shard_index,
+             lease,
+             unknown_repair_after_ms: self.unknown_repair_after_ms,
+             metrics: self.metrics.clone(),
+@@ -1541,6 +1550,7 @@ impl EgressEffectGate for DurableRsipstackEgressGate {
+ pub struct SipEffectTransportObserver {
+     store: Arc<dyn SipEffectStorePort>,
+     shard: Arc<SipEffectObservationShard>,
++    shard_index: usize,
+     lease: u64,
+     unknown_repair_after_ms: u32,
+     metrics: Arc<SipEffectGateMetrics>,
+@@ -1553,6 +1563,10 @@ enum ObservationPersistFailure {
+ }
+ 
+ impl SipEffectTransportObserver {
++    pub(crate) fn shard_index(&self) -> usize {
++        self.shard_index
++    }
++
+     pub async fn persist_next(&mut self) -> Result<bool, SipEffectGateError> {
+         if self.shard.lifecycle.load(Ordering::Acquire) == OBSERVATION_SHARD_QUARANTINED {
+             return Err(SipEffectGateError::ObservationQuarantined);
+@@ -2228,6 +2242,9 @@ mod tests {
+         SipEffectStorePort, materialize_derived_effect, materialize_peer_derived_effect,
+     };
+     use crate::call::adapters::postgres_sip_effect::SipEffectStoreError;
++    use crate::call::adapters::sip_effect_observer_supervisor::{
++        SipEffectObservationSupervisor, SipEffectObservationSupervisorOptions,
++    };
+     use crate::call::domain::sip_effect::{
+         InMemorySipEffectLedger, PreparedSipEffect, SipEffectError, SipEffectReceiptLevel,
+         SipEffectState, protocol_effect_identity_hash, sha256_lower_hex,
+@@ -2250,6 +2267,7 @@ mod tests {
+     use std::time::Duration;
+     use tokio::sync::Notify;
+     use tokio::time::timeout;
++    use tokio_util::sync::CancellationToken;
+ 
+     struct InMemoryWriter {
+         ledger: tokio::sync::Mutex<InMemorySipEffectLedger>,
+@@ -2258,6 +2276,7 @@ mod tests {
+         fail_send_attempt_after_commit: AtomicBool,
+         fail_transport_observation_after_commit: AtomicBool,
+         fail_transport_completion_after_commit: AtomicBool,
++        panic_transport_observation_once: AtomicBool,
+         cancel_transport_observation_once: AtomicBool,
+         transport_observation_started: Notify,
+         fail_protocol_query_permanently: AtomicBool,
+@@ -2273,6 +2292,7 @@ mod tests {
+                 fail_send_attempt_after_commit: AtomicBool::new(false),
+                 fail_transport_observation_after_commit: AtomicBool::new(false),
+                 fail_transport_completion_after_commit: AtomicBool::new(false),
++                panic_transport_observation_once: AtomicBool::new(false),
+                 cancel_transport_observation_once: AtomicBool::new(false),
+                 transport_observation_started: Notify::new(),
+                 fail_protocol_query_permanently: AtomicBool::new(false),
+@@ -2403,6 +2423,13 @@ mod tests {
+             unknown_repair_after_ms: u32,
+         ) -> Result<(), SipEffectStoreError> {
+             self.apply_calls.fetch_add(1, Ordering::SeqCst);
++            if observation == SipEffectDurableObservation::TransportAccepted
++                && self
++                    .panic_transport_observation_once
++                    .swap(false, Ordering::SeqCst)
++            {
++                panic!("injected transport observation panic");
++            }
+             let protocol_observation = matches!(
+                 observation,
+                 SipEffectDurableObservation::ProtocolObserved
+@@ -2761,6 +2788,41 @@ Content-Length: 0\r\n\r\n"
+         (gate, observers.pop().unwrap())
+     }
+ 
++    fn supervised_runtime(
++        registry: Arc<SipEffectIntentRegistry>,
++        writer: Arc<InMemoryWriter>,
++    ) -> (
++        Arc<DurableRsipstackEgressGate>,
++        Vec<super::SipEffectTransportObserver>,
++    ) {
++        DurableRsipstackEgressGate::new_with_store(
++            registry,
++            writer,
++            SipEffectGateOptions {
++                observation_worker_shards: 1,
++                ..SipEffectGateOptions::default()
++            },
++        )
++        .unwrap()
++    }
++
++    fn supervisor_options() -> SipEffectObservationSupervisorOptions {
++        SipEffectObservationSupervisorOptions {
++            initial_retry_backoff: Duration::from_millis(1),
++            max_retry_backoff: Duration::from_millis(4),
++        }
++    }
++
++    async fn wait_until(mut predicate: impl FnMut() -> bool) {
++        timeout(Duration::from_secs(1), async {
++            while !predicate() {
++                tokio::task::yield_now().await;
++            }
++        })
++        .await
++        .expect("condition reached before timeout");
++    }
++
+     #[tokio::test]
+     async fn exact_registered_wire_is_durable_before_permit_and_observed_after_send() {
+         let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
+@@ -3909,6 +3971,225 @@ Content-Length: 0\r\n\r\n"
+         );
+     }
+ 
++    #[tokio::test]
++    async fn fixed_supervisor_retries_the_same_armed_work_after_transient_store_failure() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, observers) = supervised_runtime(registry.clone(), writer.clone());
++        let (key, message) = invite(
++            "call-supervisor-retry@example.test",
++            "z9hG4bK-supervisor-retry",
++        );
++        let _lease = registry
++            .register(
++                &key,
++                &message,
++                intent("effect-supervisor-retry", "session-supervisor-retry"),
++            )
++            .unwrap();
++        let permit = gate
++            .prepare(&key, &message, None, &message.to_bytes())
++            .await
++            .unwrap();
++        let prepared = writer.prepared.lock().unwrap()[0].clone();
++        writer
++            .fail_transport_observation_after_commit
++            .store(true, Ordering::SeqCst);
++        gate.observe_transport(permit.clone(), EgressEffectOutcome::TransportAccepted);
++        gate.observe_protocol(permit, EgressEffectProtocolObservation::Completed);
++
++        let supervisor = SipEffectObservationSupervisor::start(
++            gate.clone(),
++            observers,
++            CancellationToken::new(),
++            supervisor_options(),
++        )
++        .unwrap();
++        wait_until(|| gate.snapshot().pending_observations == 0).await;
++
++        assert_eq!(
++            writer.state(&prepared).await,
++            SipEffectState::ProtocolObserved
++        );
++        assert_eq!(supervisor.snapshot().configured_shards, 1);
++        assert_eq!(supervisor.snapshot().retryable_failures, 1);
++        assert_eq!(supervisor.snapshot().panic_restarts, 0);
++        supervisor.shutdown().await.unwrap();
++    }
++
++    #[tokio::test]
++    async fn fixed_supervisor_restarts_the_shard_after_a_persist_future_panics() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, observers) = supervised_runtime(registry.clone(), writer.clone());
++        let (key, message) = invite(
++            "call-supervisor-panic@example.test",
++            "z9hG4bK-supervisor-panic",
++        );
++        let _lease = registry
++            .register(
++                &key,
++                &message,
++                intent("effect-supervisor-panic", "session-supervisor-panic"),
++            )
++            .unwrap();
++        let permit = gate
++            .prepare(&key, &message, None, &message.to_bytes())
++            .await
++            .unwrap();
++        let prepared = writer.prepared.lock().unwrap()[0].clone();
++        writer
++            .panic_transport_observation_once
++            .store(true, Ordering::SeqCst);
++        gate.observe_transport(permit.clone(), EgressEffectOutcome::TransportAccepted);
++        gate.observe_protocol(permit, EgressEffectProtocolObservation::Completed);
++
++        let supervisor = SipEffectObservationSupervisor::start(
++            gate.clone(),
++            observers,
++            CancellationToken::new(),
++            supervisor_options(),
++        )
++        .unwrap();
++        wait_until(|| gate.snapshot().pending_observations == 0).await;
++
++        assert_eq!(
++            writer.state(&prepared).await,
++            SipEffectState::ProtocolObserved
++        );
++        assert_eq!(supervisor.snapshot().panic_restarts, 1);
++        assert_eq!(supervisor.snapshot().restart_failures, 0);
++        supervisor.shutdown().await.unwrap();
++    }
++
++    #[tokio::test]
++    async fn fixed_supervisor_preserves_permanent_quarantine_and_fail_closed_health() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, observers) = supervised_runtime(registry.clone(), writer.clone());
++        let (key, message) = invite(
++            "call-supervisor-quarantine@example.test",
++            "z9hG4bK-supervisor-quarantine",
++        );
++        let _lease = registry
++            .register(
++                &key,
++                &message,
++                intent(
++                    "effect-supervisor-quarantine",
++                    "session-supervisor-quarantine",
++                ),
++            )
++            .unwrap();
++        let permit = gate
++            .prepare(&key, &message, None, &message.to_bytes())
++            .await
++            .unwrap();
++        writer
++            .fail_protocol_query_permanently
++            .store(true, Ordering::SeqCst);
++        gate.observe_transport(permit.clone(), EgressEffectOutcome::TransportAccepted);
++        gate.observe_protocol(permit, EgressEffectProtocolObservation::Completed);
++
++        let supervisor = SipEffectObservationSupervisor::start(
++            gate.clone(),
++            observers,
++            CancellationToken::new(),
++            supervisor_options(),
++        )
++        .unwrap();
++        wait_until(|| supervisor.snapshot().quarantined_shards == 1).await;
++
++        assert!(matches!(
++            gate.restart_observer(0),
++            Err(SipEffectGateError::ObservationQuarantined)
++        ));
++        assert_eq!(gate.snapshot().observation_work_outstanding, 1);
++        supervisor.shutdown().await.unwrap();
++    }
++
++    #[tokio::test]
++    async fn fixed_supervisor_cancellation_leaves_armed_work_for_explicit_restart() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, observers) = supervised_runtime(registry.clone(), writer.clone());
++        let (key, message) = invite(
++            "call-supervisor-stop@example.test",
++            "z9hG4bK-supervisor-stop",
++        );
++        let _lease = registry
++            .register(
++                &key,
++                &message,
++                intent("effect-supervisor-stop", "session-supervisor-stop"),
++            )
++            .unwrap();
++        let permit = gate
++            .prepare(&key, &message, None, &message.to_bytes())
++            .await
++            .unwrap();
++        let prepared = writer.prepared.lock().unwrap()[0].clone();
++        writer
++            .cancel_transport_observation_once
++            .store(true, Ordering::SeqCst);
++        gate.observe_transport(permit.clone(), EgressEffectOutcome::TransportAccepted);
++        gate.observe_protocol(permit, EgressEffectProtocolObservation::Completed);
++
++        let supervisor = SipEffectObservationSupervisor::start(
++            gate.clone(),
++            observers,
++            CancellationToken::new(),
++            supervisor_options(),
++        )
++        .unwrap();
++        wait_until(|| writer.apply_calls.load(Ordering::SeqCst) >= 1).await;
++        supervisor.shutdown().await.unwrap();
++
++        assert_eq!(writer.state(&prepared).await, SipEffectState::SendAttempted);
++        assert_eq!(gate.snapshot().observation_work_outstanding, 2);
++        let mut restarted = gate.restart_observer(0).unwrap();
++        assert!(restarted.persist_next().await.unwrap());
++        assert!(restarted.persist_next().await.unwrap());
++        assert_eq!(
++            writer.state(&prepared).await,
++            SipEffectState::ProtocolObserved
++        );
++        assert_eq!(gate.snapshot().pending_observations, 0);
++    }
++
++    #[tokio::test]
++    async fn fixed_supervisor_owns_exactly_one_worker_for_every_configured_shard() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, observers) = DurableRsipstackEgressGate::new_with_store(
++            registry,
++            writer,
++            SipEffectGateOptions {
++                observation_worker_shards: 4,
++                ..SipEffectGateOptions::default()
++            },
++        )
++        .unwrap();
++        let supervisor = SipEffectObservationSupervisor::start(
++            gate.clone(),
++            observers,
++            CancellationToken::new(),
++            supervisor_options(),
++        )
++        .unwrap();
++        wait_until(|| supervisor.snapshot().running_shards == 4).await;
++
++        let snapshot = supervisor.snapshot();
++        assert_eq!(snapshot.configured_shards, 4);
++        assert_eq!(snapshot.running_shards, 4);
++        assert_eq!(snapshot.unexpected_stops, 0);
++        supervisor.shutdown().await.unwrap();
++
++        for shard_index in 0..4 {
++            drop(gate.restart_observer(shard_index).unwrap());
++        }
++    }
++
+     #[test]
+     fn observer_restart_uses_one_atomic_lifecycle_claim() {
+         let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
+diff --git a/src/call/adapters/sip_effect_observer_supervisor.rs b/src/call/adapters/sip_effect_observer_supervisor.rs
+new file mode 100644
+index 0000000..1ec3572
+--- /dev/null
++++ b/src/call/adapters/sip_effect_observer_supervisor.rs
+@@ -0,0 +1,309 @@
++use super::rsipstack_sip_effect_gate::{
++    DurableRsipstackEgressGate, SipEffectGateError, SipEffectTransportObserver,
++};
++use futures::FutureExt;
++use std::panic::AssertUnwindSafe;
++use std::sync::Arc;
++use std::sync::atomic::{AtomicUsize, Ordering};
++use std::time::Duration;
++use tokio::task::JoinHandle;
++use tokio::time::sleep;
++use tokio_util::sync::CancellationToken;
++use tracing::{error, warn};
++
++const MAX_RETRY_BACKOFF: Duration = Duration::from_secs(60);
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub struct SipEffectObservationSupervisorOptions {
++    pub initial_retry_backoff: Duration,
++    pub max_retry_backoff: Duration,
++}
++
++impl Default for SipEffectObservationSupervisorOptions {
++    fn default() -> Self {
++        Self {
++            initial_retry_backoff: Duration::from_millis(10),
++            max_retry_backoff: Duration::from_secs(1),
++        }
++    }
++}
++
++impl SipEffectObservationSupervisorOptions {
++    fn validate(self) -> Result<Self, SipEffectGateError> {
++        if self.initial_retry_backoff.is_zero()
++            || self.initial_retry_backoff > self.max_retry_backoff
++            || self.max_retry_backoff > MAX_RETRY_BACKOFF
++        {
++            return Err(SipEffectGateError::InvalidConfiguration);
++        }
++        Ok(self)
++    }
++}
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub struct SipEffectObservationSupervisorSnapshot {
++    pub configured_shards: usize,
++    pub running_shards: usize,
++    pub retryable_failures: usize,
++    pub panic_restarts: usize,
++    pub restart_failures: usize,
++    pub quarantined_shards: usize,
++    pub unexpected_stops: usize,
++}
++
++struct SipEffectObservationSupervisorMetrics {
++    configured_shards: usize,
++    running_shards: AtomicUsize,
++    retryable_failures: AtomicUsize,
++    panic_restarts: AtomicUsize,
++    restart_failures: AtomicUsize,
++    quarantined_shards: AtomicUsize,
++    unexpected_stops: AtomicUsize,
++}
++
++impl SipEffectObservationSupervisorMetrics {
++    fn snapshot(&self) -> SipEffectObservationSupervisorSnapshot {
++        SipEffectObservationSupervisorSnapshot {
++            configured_shards: self.configured_shards,
++            running_shards: self.running_shards.load(Ordering::Acquire),
++            retryable_failures: self.retryable_failures.load(Ordering::Acquire),
++            panic_restarts: self.panic_restarts.load(Ordering::Acquire),
++            restart_failures: self.restart_failures.load(Ordering::Acquire),
++            quarantined_shards: self.quarantined_shards.load(Ordering::Acquire),
++            unexpected_stops: self.unexpected_stops.load(Ordering::Acquire),
++        }
++    }
++}
++
++pub struct SipEffectObservationSupervisor {
++    cancel: CancellationToken,
++    workers: Vec<JoinHandle<()>>,
++    metrics: Arc<SipEffectObservationSupervisorMetrics>,
++}
++
++impl SipEffectObservationSupervisor {
++    pub fn start(
++        gate: Arc<DurableRsipstackEgressGate>,
++        observers: Vec<SipEffectTransportObserver>,
++        parent_cancel: CancellationToken,
++        options: SipEffectObservationSupervisorOptions,
++    ) -> Result<Self, SipEffectGateError> {
++        let options = options.validate()?;
++        let configured_shards = gate.observation_worker_shards();
++        if observers.len() != configured_shards || tokio::runtime::Handle::try_current().is_err() {
++            return Err(SipEffectGateError::InvalidConfiguration);
++        }
++        let mut claimed = vec![false; configured_shards];
++        for observer in &observers {
++            let shard_index = observer.shard_index();
++            if shard_index >= configured_shards || claimed[shard_index] {
++                return Err(SipEffectGateError::InvalidConfiguration);
++            }
++            claimed[shard_index] = true;
++        }
++
++        let cancel = parent_cancel.child_token();
++        let metrics = Arc::new(SipEffectObservationSupervisorMetrics {
++            configured_shards,
++            running_shards: AtomicUsize::new(0),
++            retryable_failures: AtomicUsize::new(0),
++            panic_restarts: AtomicUsize::new(0),
++            restart_failures: AtomicUsize::new(0),
++            quarantined_shards: AtomicUsize::new(0),
++            unexpected_stops: AtomicUsize::new(0),
++        });
++        let mut workers = Vec::with_capacity(configured_shards);
++        for observer in observers {
++            workers.push(crate::utils::spawn(supervise_shard(
++                gate.clone(),
++                observer,
++                cancel.clone(),
++                options,
++                metrics.clone(),
++            )));
++        }
++        Ok(Self {
++            cancel,
++            workers,
++            metrics,
++        })
++    }
++
++    pub fn snapshot(&self) -> SipEffectObservationSupervisorSnapshot {
++        self.metrics.snapshot()
++    }
++
++    pub async fn shutdown(mut self) -> Result<(), SipEffectGateError> {
++        self.cancel.cancel();
++        let mut join_failed = false;
++        for worker in self.workers.drain(..) {
++            if worker.await.is_err() {
++                join_failed = true;
++            }
++        }
++        if join_failed {
++            Err(SipEffectGateError::StoreUnavailable)
++        } else {
++            Ok(())
++        }
++    }
++}
++
++impl Drop for SipEffectObservationSupervisor {
++    fn drop(&mut self) {
++        self.cancel.cancel();
++    }
++}
++
++struct RunningShardGuard<'a>(&'a AtomicUsize);
++
++impl Drop for RunningShardGuard<'_> {
++    fn drop(&mut self) {
++        let previous = self.0.fetch_sub(1, Ordering::AcqRel);
++        debug_assert!(previous > 0);
++    }
++}
++
++async fn supervise_shard(
++    gate: Arc<DurableRsipstackEgressGate>,
++    mut observer: SipEffectTransportObserver,
++    cancel: CancellationToken,
++    options: SipEffectObservationSupervisorOptions,
++    metrics: Arc<SipEffectObservationSupervisorMetrics>,
++) {
++    let shard_index = observer.shard_index();
++    metrics.running_shards.fetch_add(1, Ordering::AcqRel);
++    let _running = RunningShardGuard(&metrics.running_shards);
++    let mut retry_backoff = options.initial_retry_backoff;
++
++    loop {
++        let persist = AssertUnwindSafe(observer.persist_next()).catch_unwind();
++        let result = tokio::select! {
++            biased;
++            _ = cancel.cancelled() => return,
++            result = persist => result,
++        };
++        match result {
++            Ok(Ok(true)) => retry_backoff = options.initial_retry_backoff,
++            Ok(Ok(false)) => {
++                metrics.unexpected_stops.fetch_add(1, Ordering::Relaxed);
++                error!(
++                    shard_index,
++                    "durable SIP observation channel closed unexpectedly"
++                );
++                return;
++            }
++            Ok(Err(SipEffectGateError::StoreUnavailable)) => {
++                metrics.retryable_failures.fetch_add(1, Ordering::Relaxed);
++                warn!(
++                    shard_index,
++                    ?retry_backoff,
++                    "retrying durable SIP observation"
++                );
++                if wait_or_cancel(&cancel, retry_backoff).await {
++                    return;
++                }
++                retry_backoff = retry_backoff
++                    .saturating_mul(2)
++                    .min(options.max_retry_backoff);
++            }
++            Ok(Err(SipEffectGateError::ObservationQuarantined)) => {
++                metrics.quarantined_shards.fetch_add(1, Ordering::Relaxed);
++                error!(shard_index, "durable SIP observation shard quarantined");
++                return;
++            }
++            Ok(Err(error)) => {
++                metrics.unexpected_stops.fetch_add(1, Ordering::Relaxed);
++                error!(
++                    shard_index,
++                    ?error,
++                    "durable SIP observation shard stopped fail-closed"
++                );
++                return;
++            }
++            Err(_) => {
++                error!(
++                    shard_index,
++                    "durable SIP observation persist future panicked"
++                );
++                drop(observer);
++                if wait_or_cancel(&cancel, retry_backoff).await {
++                    return;
++                }
++                loop {
++                    match gate.restart_observer(shard_index) {
++                        Ok(restarted) => {
++                            observer = restarted;
++                            metrics.panic_restarts.fetch_add(1, Ordering::Relaxed);
++                            retry_backoff = options.initial_retry_backoff;
++                            break;
++                        }
++                        Err(SipEffectGateError::ObservationQuarantined) => {
++                            metrics.quarantined_shards.fetch_add(1, Ordering::Relaxed);
++                            return;
++                        }
++                        Err(error) => {
++                            metrics.restart_failures.fetch_add(1, Ordering::Relaxed);
++                            warn!(
++                                shard_index,
++                                ?error,
++                                ?retry_backoff,
++                                "retrying durable SIP observer restart"
++                            );
++                            if wait_or_cancel(&cancel, retry_backoff).await {
++                                return;
++                            }
++                            retry_backoff = retry_backoff
++                                .saturating_mul(2)
++                                .min(options.max_retry_backoff);
++                        }
++                    }
++                }
++            }
++        }
++    }
++}
++
++async fn wait_or_cancel(cancel: &CancellationToken, duration: Duration) -> bool {
++    tokio::select! {
++        biased;
++        _ = cancel.cancelled() => true,
++        _ = sleep(duration) => false,
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::SipEffectObservationSupervisorOptions;
++    use crate::call::adapters::rsipstack_sip_effect_gate::SipEffectGateError;
++    use std::time::Duration;
++
++    #[test]
++    fn retry_backoff_must_be_nonzero_ordered_and_bounded() {
++        for options in [
++            SipEffectObservationSupervisorOptions {
++                initial_retry_backoff: Duration::ZERO,
++                max_retry_backoff: Duration::from_secs(1),
++            },
++            SipEffectObservationSupervisorOptions {
++                initial_retry_backoff: Duration::from_secs(2),
++                max_retry_backoff: Duration::from_secs(1),
++            },
++            SipEffectObservationSupervisorOptions {
++                initial_retry_backoff: Duration::from_secs(1),
++                max_retry_backoff: Duration::from_secs(61),
++            },
++        ] {
++            assert_eq!(
++                options.validate(),
++                Err(SipEffectGateError::InvalidConfiguration)
++            );
++        }
++        assert_eq!(
++            SipEffectObservationSupervisorOptions::default()
++                .validate()
++                .unwrap(),
++            SipEffectObservationSupervisorOptions::default()
++        );
++    }
++}

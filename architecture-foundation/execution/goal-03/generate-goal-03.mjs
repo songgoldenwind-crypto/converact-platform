@@ -26,7 +26,7 @@ const sourceIdentity = Object.freeze({
   rustpbx_commit: '6c49ee76baa54fdbf8f98020cc9bee158c7c15de',
   rsipstack_commit: '8318e97b1170de4e5245b120afec1cdf53e3d716',
   rustrtc_commit: '166c6d22984429eb6b509920c14fcd69f974f0b3',
-  patchset: 'ivekit.70',
+  patchset: 'ivekit.71',
   current_adapter: 'rsipstack',
   target_adapter: 'rvoip_low_level_slices_after_separate_gates',
   native_runtime_authority: 'Unified RustPBX process',
@@ -1291,6 +1291,16 @@ function effectReceiptContract() {
       'uas_core_deferred_never_terminalizes_in_transaction_layer',
       'restart_and_drain_count_queued_inflight_retry_and_quarantined_observations',
     ],
+    observation_supervision: {
+      implementation_status: 'component_implemented_default_disabled',
+      worker_model: 'one_fixed_task_per_configured_observation_shard',
+      per_effect_task: 'forbidden',
+      retryable_failure: 'same_armed_work_bounded_exponential_backoff',
+      persist_future_panic: 'release_old_lease_then_atomic_restart',
+      permanent_failure: 'quarantine_shard_and_fail_closed',
+      cancellation: 'armed_work_retained_for_explicit_restart',
+      live_endpoint_activation: 'not_run',
+    },
     identity_fields: [
       'tenant_id', 'protocol_effect_id', 'protocol_session_id',
       'protocol_session_generation', 'decision_id', 'idempotency_key',
@@ -1837,6 +1847,7 @@ const sourceMaps = Object.freeze({
       'infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-role-scoped-fixture.patch',
       'infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-db-clock-fixture.patch',
       'infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-returning-alias.patch',
+      'infra/converact/rustpbx/patches/rustpbx-converact-sip-effect-observer-supervisor.patch',
     ],
     test_paths: [
       'test/converact-sip-receipt-drain.test.ts',
@@ -1845,6 +1856,7 @@ const sourceMaps = Object.freeze({
       'test/converact-rustpbx-dialog-recovery-patch.test.ts',
       'test/converact-rustpbx-bounded-control-mailboxes-patch.test.ts',
       'test/converact-rustpbx-stale-nonterminal-recovery-patch.test.ts',
+      'test/converact-rustpbx-sip-effect-observer-supervisor-patch.test.ts',
     ],
   },
   legacy_assessment: {

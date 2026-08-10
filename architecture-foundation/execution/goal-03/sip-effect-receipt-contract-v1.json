@@ -112,6 +112,16 @@
     "uas_core_deferred_never_terminalizes_in_transaction_layer",
     "restart_and_drain_count_queued_inflight_retry_and_quarantined_observations"
   ],
+  "observation_supervision": {
+    "implementation_status": "component_implemented_default_disabled",
+    "worker_model": "one_fixed_task_per_configured_observation_shard",
+    "per_effect_task": "forbidden",
+    "retryable_failure": "same_armed_work_bounded_exponential_backoff",
+    "persist_future_panic": "release_old_lease_then_atomic_restart",
+    "permanent_failure": "quarantine_shard_and_fail_closed",
+    "cancellation": "armed_work_retained_for_explicit_restart",
+    "live_endpoint_activation": "not_run"
+  },
   "identity_fields": [
     "tenant_id",
     "protocol_effect_id",

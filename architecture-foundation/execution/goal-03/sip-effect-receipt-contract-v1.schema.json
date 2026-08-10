@@ -19,6 +19,7 @@
     "semantic_receipt_classes",
     "completion_scopes",
     "completion_scope_invariants",
+    "observation_supervision",
     "identity_fields",
     "transitions",
     "atomic_boundaries",
@@ -466,6 +467,46 @@
         }
       ],
       "items": false
+    },
+    "observation_supervision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "implementation_status",
+        "worker_model",
+        "per_effect_task",
+        "retryable_failure",
+        "persist_future_panic",
+        "permanent_failure",
+        "cancellation",
+        "live_endpoint_activation"
+      ],
+      "properties": {
+        "implementation_status": {
+          "const": "component_implemented_default_disabled"
+        },
+        "worker_model": {
+          "const": "one_fixed_task_per_configured_observation_shard"
+        },
+        "per_effect_task": {
+          "const": "forbidden"
+        },
+        "retryable_failure": {
+          "const": "same_armed_work_bounded_exponential_backoff"
+        },
+        "persist_future_panic": {
+          "const": "release_old_lease_then_atomic_restart"
+        },
+        "permanent_failure": {
+          "const": "quarantine_shard_and_fail_closed"
+        },
+        "cancellation": {
+          "const": "armed_work_retained_for_explicit_restart"
+        },
+        "live_endpoint_activation": {
+          "const": "not_run"
+        }
+      }
     },
     "identity_fields": {
       "type": "array",

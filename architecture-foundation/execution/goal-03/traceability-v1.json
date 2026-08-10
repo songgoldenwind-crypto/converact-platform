@@ -1148,7 +1148,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-test-fixture.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-role-scoped-fixture.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-db-clock-fixture.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-returning-alias.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-returning-alias.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-sip-effect-observer-supervisor.patch"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
@@ -1156,7 +1157,8 @@
         "test/converact-rsipstack-server-invite-lifecycle-patch.test.ts",
         "test/converact-rustpbx-dialog-recovery-patch.test.ts",
         "test/converact-rustpbx-bounded-control-mailboxes-patch.test.ts",
-        "test/converact-rustpbx-stale-nonterminal-recovery-patch.test.ts"
+        "test/converact-rustpbx-stale-nonterminal-recovery-patch.test.ts",
+        "test/converact-rustpbx-sip-effect-observer-supervisor-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3331,7 +3333,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-test-fixture.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-role-scoped-fixture.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-db-clock-fixture.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-returning-alias.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-returning-alias.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-sip-effect-observer-supervisor.patch"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
@@ -3339,7 +3342,8 @@
         "test/converact-rsipstack-server-invite-lifecycle-patch.test.ts",
         "test/converact-rustpbx-dialog-recovery-patch.test.ts",
         "test/converact-rustpbx-bounded-control-mailboxes-patch.test.ts",
-        "test/converact-rustpbx-stale-nonterminal-recovery-patch.test.ts"
+        "test/converact-rustpbx-stale-nonterminal-recovery-patch.test.ts",
+        "test/converact-rustpbx-sip-effect-observer-supervisor-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],

@@ -111,7 +111,7 @@ Run serially:
 2. New Call/Leg tests.
 3. SipFoundation, effect and recovery tests.
 4. Exact rsipstack/RustPBX patch contract tests.
-5. Native Call/Leg/effect binding tests; the current `.70` RustPBX port includes a
+5. Native Call/Leg/effect binding tests; the current `.71` RustPBX port includes a
    direction-keyed UAS/UAC state model, closed v2 wire-attempt facts and
    separate transport/protocol receipts plus one parent-bound non-2xx ACK
    derivation. Network peer observations additionally require the private,
@@ -127,7 +127,11 @@ Run serially:
    additionally selects only one exact tenant/session/generation under a higher
    successor epoch, moves at most 100 expired nonterminal effects to honest
    `unknown` atomically, and relies on the rolling partial index; live owner
-   wiring and physical PostgreSQL restart proof remain `not_run`. The gate
+   wiring and real process-crash proof remain `not_run`. One fixed supervisor
+   task now owns each observation shard, retries the same armed work with
+   bounded backoff, restarts after an unwind panic, and preserves quarantine or
+   armed work across permanent failure/cancellation. Reconciler supervision is
+   still open. The gate
    remains default-disabled; retain activation `not_run` until
    its real Call Core holder, live Endpoint composition and reconciliation
    resume are wired, and until parent-Unknown, stale-nonterminal and in-flight
