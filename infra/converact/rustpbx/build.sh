@@ -15,7 +15,7 @@ RUSTPBX_COMMIT="6c49ee76baa54fdbf8f98020cc9bee158c7c15de"
 RSIPSTACK_COMMIT="8318e97b1170de4e5245b120afec1cdf53e3d716"
 RUSTRTC_COMMIT="166c6d22984429eb6b509920c14fcd69f974f0b3"
 RUST_BUILDER_IMAGE="rust:1.94-bookworm@sha256:6ae102bdbf528294bc79ad6e1fae682f6f7c2a6e6621506ba959f9685b308a55"
-PATCHSET="ivekit.67"
+PATCHSET="ivekit.68"
 IMAGE="${CONVERACT_FABRIC_RUSTPBX_IMAGE:-converact/rustpbx:0.4.11-${PATCHSET}-6c49ee76}"
 
 if command -v sha256sum >/dev/null; then
@@ -316,6 +316,8 @@ git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-converact-stale-n
 git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-converact-stale-nonterminal-recovery.patch"
 git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-converact-stale-nonterminal-recovery-test-fixture.patch"
 git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-converact-stale-nonterminal-recovery-test-fixture.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-converact-stale-nonterminal-recovery-role-scoped-fixture.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-converact-stale-nonterminal-recovery-role-scoped-fixture.patch"
 
 mkdir -p "$BUILD_ROOT/rustpbx/vendor/converact-component-hook"
 cp -R "$HOOK_DIR/." \
@@ -377,7 +379,8 @@ if [[ "${CONVERACT_FABRIC_RUSTPBX_VERIFY_ONLY:-0}" == "1" ]]; then
       "$PATCH_DIR/rustpbx-converact-uas-2xx-owner-retention.patch" \
       "$PATCH_DIR/rustpbx-converact-native-call-recovery-identity.patch" \
       "$PATCH_DIR/rustpbx-converact-stale-nonterminal-recovery.patch" \
-      "$PATCH_DIR/rustpbx-converact-stale-nonterminal-recovery-test-fixture.patch" |
+      "$PATCH_DIR/rustpbx-converact-stale-nonterminal-recovery-test-fixture.patch" \
+      "$PATCH_DIR/rustpbx-converact-stale-nonterminal-recovery-role-scoped-fixture.patch" |
       awk '$3 ~ /\.rs$/ { print $3 }'
   )
   ((${#RUSTPBX_FORMAT_FILES[@]} > 0)) || {

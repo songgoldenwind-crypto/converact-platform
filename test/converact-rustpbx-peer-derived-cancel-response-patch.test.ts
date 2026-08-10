@@ -31,7 +31,7 @@ test("ivekit.62 applies the bounded capability after derived ACK support", () =>
   assert.equal(parsed.status, 0, parsed.stderr);
 
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.67"/);
+  assert.match(build, /PATCHSET="ivekit\.68"/);
   assert.match(
     build,
     /rustpbx-converact-derived-non-2xx-ack\.patch"[\s\S]*rustpbx-converact-peer-derived-cancel-response\.patch"/,

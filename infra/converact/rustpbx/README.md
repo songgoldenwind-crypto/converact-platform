@@ -703,10 +703,17 @@ ivekit.66. The test connects as `opc_runtime` and continues to enter the
 Linux physical-PostgreSQL evidence remains `not_run` until that corrected
 fixture completes on the controlled server.
 
-Local `.67` exact-patch gates pass `186/186`, the affected database and
+ivekit.68 removes the remaining administrator connection from that ignored
+fixture. Clock aging now reuses the production `opc_runtime` pool and the same
+tenant-scoped transaction initializer that sets and verifies the `NOLOGIN`
+executor role and writer identity. It neither grants a new privilege nor adds
+a production path. Exact `.68` Linux physical-PostgreSQL evidence remains
+`not_run` until this role-scoped fixture completes on the controlled server.
+
+Local `.68` exact-patch gates pass `186/186`, the affected database and
 delivery gates pass `121/121`, the G03 machine contract passes `9/9`, and the
 repository typecheck passes. These are source/component results only and do not
-promote the still-unrun exact `.67` Linux physical case.
+promote the still-unrun exact `.68` Linux physical case.
 
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out

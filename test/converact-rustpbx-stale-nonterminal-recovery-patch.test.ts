@@ -8,6 +8,8 @@ const PATCH =
   "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery.patch";
 const FIXTURE_PATCH =
   "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-test-fixture.patch";
+const ROLE_SCOPED_FIXTURE_PATCH =
+  "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-role-scoped-fixture.patch";
 const MIGRATION =
   "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql";
 const BUILD = "infra/converact/rustpbx/build.sh";
@@ -79,12 +81,12 @@ test("stale nonterminal selection has a rolling partial index", () => {
   assert.match(runner, /expectedPredicate/);
 });
 
-test("ivekit.67 applies the immutable-ledger fixture fix after stale recovery", () => {
+test("ivekit.68 applies both immutable-ledger fixture guards after stale recovery", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.67"/);
+  assert.match(build, /PATCHSET="ivekit\.68"/);
   assert.match(
     build,
-    /rustpbx-converact-stale-nonterminal-recovery\.patch"[\s\S]*rustpbx-converact-stale-nonterminal-recovery-test-fixture\.patch"/,
+    /rustpbx-converact-stale-nonterminal-recovery\.patch"[\s\S]*rustpbx-converact-stale-nonterminal-recovery-test-fixture\.patch"[\s\S]*rustpbx-converact-stale-nonterminal-recovery-role-scoped-fixture\.patch"/,
   );
   assert.match(
     build,
@@ -105,6 +107,21 @@ test("ivekit.67 applies the immutable-ledger fixture fix after stale recovery", 
     fixturePatch,
     /\+\s+SET updated_at = statement_timestamp\(\) - INTERVAL '60 seconds'/,
   );
+  const roleScopedFixturePatch = readFileSync(ROLE_SCOPED_FIXTURE_PATCH, "utf8");
+  assert.equal(
+    createHash("sha256").update(roleScopedFixturePatch).digest("hex"),
+    "d285ea5643eb07e419b833e786f4f4d87d7c447e4243de81f5e2fafc744bd50f",
+  );
+  const parsedRoleScopedFixture = spawnSync(
+    "git",
+    ["apply", "--numstat", ROLE_SCOPED_FIXTURE_PATCH],
+    { encoding: "utf8" },
+  );
+  assert.equal(parsedRoleScopedFixture.status, 0, parsedRoleScopedFixture.stderr);
+  const roleScopedAdditions = additions(roleScopedFixturePatch);
+  assert.match(roleScopedAdditions, /begin_tenant_transaction/);
+  assert.match(roleScopedAdditions, /execute\(&mut \*transaction\)/);
+  assert.doesNotMatch(roleScopedAdditions, /admin_database_url|admin_pool/);
 });
 
 test("stale recovery remains default-disabled until live owner fencing is proved", () => {
@@ -112,7 +129,7 @@ test("stale recovery remains default-disabled until live owner fencing is proved
   const evidence = JSON.parse(readFileSync(EVIDENCE, "utf8")) as {
     entries: Array<{ evidence_id: string; status: string }>;
   };
-  assert.match(readme, /ivekit\.67/);
+  assert.match(readme, /ivekit\.68/);
   assert.match(readme, /stale\s+`send_attempted` and `transport_accepted`/i);
   assert.match(readme, /live successor-owner wiring[\s\S]*`not_run`/i);
   assert.equal(

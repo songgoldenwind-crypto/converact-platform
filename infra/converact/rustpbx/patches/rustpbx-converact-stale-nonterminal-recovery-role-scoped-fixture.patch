@@ -1,0 +1,47 @@
+diff --git a/src/call/adapters/postgres_sip_effect.rs b/src/call/adapters/postgres_sip_effect.rs
+index 23949d1..feda8ef 100644
+--- a/src/call/adapters/postgres_sip_effect.rs
++++ b/src/call/adapters/postgres_sip_effect.rs
+@@ -2817,8 +2817,6 @@ mod tests {
+     async fn postgres_stale_nonterminal_recovery_survives_pool_recreation() {
+         let database_url = std::env::var("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL")
+             .expect("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL must be set");
+-        let admin_database_url = std::env::var("CONVERACT_SIP_EFFECT_TEST_ADMIN_DATABASE_URL")
+-            .expect("CONVERACT_SIP_EFFECT_TEST_ADMIN_DATABASE_URL must be set");
+         let run_id = std::env::var("CONVERACT_SIP_EFFECT_TEST_RUN_ID")
+             .expect("CONVERACT_SIP_EFFECT_TEST_RUN_ID must be set");
+         let send_attempted = postgres_effect_fixture(&format!("{run_id}-stale-send"));
+@@ -2859,12 +2857,14 @@ mod tests {
+         assert_eq!(second.state, SipEffectState::TransportAccepted);
+         store.pool.close().await;
+ 
+-        let admin_pool = PgPoolOptions::new()
+-            .max_connections(1)
+-            .connect(&admin_database_url)
++        let fixture_store = PostgresSipEffectStore::connect(&database_url, options)
+             .await
+             .unwrap();
+         for effect in [&send_attempted, &transport_accepted] {
++            let (_admission, mut transaction) = fixture_store
++                .begin_tenant_transaction(&effect.identity.tenant_id)
++                .await
++                .unwrap();
+             let result = sqlx::query(
+                 "UPDATE ivekit_sip_protocol_effects \
+                  SET revision = revision + 1, \
+@@ -2873,12 +2873,13 @@ mod tests {
+             )
+             .bind(&effect.identity.tenant_id)
+             .bind(&effect.identity.protocol_effect_id)
+-            .execute(&admin_pool)
++            .execute(&mut *transaction)
+             .await
+             .unwrap();
+             assert_eq!(result.rows_affected(), 1);
++            transaction.commit().await.unwrap();
+         }
+-        admin_pool.close().await;
++        fixture_store.pool.close().await;
+ 
+         let recovered_store = PostgresSipEffectStore::connect(&database_url, options)
+             .await
