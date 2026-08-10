@@ -110,6 +110,17 @@ candidate therefore remains default-disabled and `G03-E15-REVIEW`,
 `G03-E16-NATIVE-AUTHORITY` and production eligibility remain
 `not_run`/false.
 
+The incremental `.65` candidate closes one prerequisite to that crash work:
+HA dialog recovery no longer reconstructs a standalone or second Native Call.
+Both dialog legs carry one authenticated closed binding for the stable tenant,
+canonical `CallId`, canonical `InteractionId` and provider reference; takeover
+increments the owner epoch, generation and revision exactly once. Rust and
+TypeScript share a 16 KiB ceiling and one fixed binding hash. Local static gates
+pass `191/191`, TypeScript capsule tests pass `9/9`, and RustPBX passes
+`2,014/0/8`. Authorized-server replay, real crash/two-node takeover and final
+independent acceptance remain `not_run`; this paragraph does not promote
+`G03-E15` or `G03-E16`.
+
 ## Rejection history and remaining gate
 
 The earlier `6cbe1a3` evidence review was rejected with

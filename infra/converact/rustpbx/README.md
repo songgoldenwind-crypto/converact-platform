@@ -650,6 +650,26 @@ owner, exact release image, real-peer, long-call, fault/OOM and capacity
 qualification remain `not_run`. No result is inherited from `.62`, `.53` or
 the failed `.63` RustPBX build; production eligibility remains false.
 
+ivekit.65 prevents HA dialog takeover from creating a second Native Call
+identity. A closed recovery binding now carries the stable tenant, canonical
+`CallId`, canonical `InteractionId` and provider call reference together with
+the previous owner epoch, generation and revision. Those counters are encoded
+as canonical positive decimal strings so Rust and TypeScript do not lose u64
+precision. The binding is authenticated inside the existing recovery capsule,
+must agree with the capsule tenant/owner authority and with both dialog legs,
+and advances the owner epoch, generation and revision exactly once during a
+fenced takeover. Legacy v1 capsules remain readable for audit/finalization but
+cannot grant live Native Call authority or resume a Call; all new recoverable
+snapshots must carry the v2 binding.
+
+The Rust and TypeScript codecs share a 16 KiB plaintext ceiling and the fixed
+binding hash vector
+`aa731eba74f64cc5b2eb67d10ea8da044e87cb87b30e5b0550b8a7dfaf759871`.
+This slice adds no task, queue, database query, global scan or media-path work.
+Local exact-source tests pass; authorized-server evidence, exact release image,
+real process-crash takeover, multi-node fencing, long-call and capacity
+qualification remain `not_run`, so production eligibility remains false.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

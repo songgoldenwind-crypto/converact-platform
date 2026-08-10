@@ -15,6 +15,7 @@
     "authority",
     "source_identity",
     "anti_corruption_boundary",
+    "native_call_recovery",
     "ingress_events",
     "control_interface",
     "egress_events",
@@ -185,7 +186,7 @@
           "const": "166c6d22984429eb6b509920c14fcd69f974f0b3"
         },
         "patchset": {
-          "const": "ivekit.64"
+          "const": "ivekit.65"
         },
         "current_adapter": {
           "const": "rsipstack"
@@ -253,6 +254,135 @@
         },
         "provider_call_id": {
           "const": "opaque_native_runtime_reference_never_CallId"
+        }
+      }
+    },
+    "native_call_recovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority",
+        "binding_schema_id",
+        "binding_schema_version",
+        "capsule_payload_versions_read",
+        "capsule_payload_version_write_for_recoverable_call",
+        "legacy_v1_resume",
+        "stable_identity_fields",
+        "takeover_fence_fields",
+        "takeover_transition",
+        "numeric_wire_encoding",
+        "binding_authentication",
+        "capsule_authority_match",
+        "provider_call_match",
+        "maximum_plaintext_bytes",
+        "cross_runtime_binding_sha256",
+        "hot_path_work_added",
+        "current_status"
+      ],
+      "properties": {
+        "authority": {
+          "const": "Unified_RustPBX_Native_Call_registry"
+        },
+        "binding_schema_id": {
+          "const": "converact.native-call-recovery-binding"
+        },
+        "binding_schema_version": {
+          "const": "1.0.0"
+        },
+        "capsule_payload_versions_read": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "prefixItems": [
+            {
+              "const": 1
+            },
+            {
+              "const": 2
+            }
+          ],
+          "items": false
+        },
+        "capsule_payload_version_write_for_recoverable_call": {
+          "const": 2
+        },
+        "legacy_v1_resume": {
+          "const": "forbidden_fail_closed"
+        },
+        "stable_identity_fields": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "prefixItems": [
+            {
+              "const": "tenant_id"
+            },
+            {
+              "const": "call_id"
+            },
+            {
+              "const": "interaction_id"
+            },
+            {
+              "const": "provider_call_id"
+            }
+          ],
+          "items": false
+        },
+        "takeover_fence_fields": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "prefixItems": [
+            {
+              "const": "owner_epoch"
+            },
+            {
+              "const": "generation"
+            },
+            {
+              "const": "revision"
+            }
+          ],
+          "items": false
+        },
+        "takeover_transition": {
+          "const": "new_owner_epoch_must_increase_generation_and_revision_increment_exactly_once"
+        },
+        "numeric_wire_encoding": {
+          "const": "canonical_positive_uint64_decimal_strings"
+        },
+        "binding_authentication": {
+          "const": "inside_A256GCM_capsule_and_equal_across_both_dialog_legs"
+        },
+        "capsule_authority_match": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "prefixItems": [
+            {
+              "const": "tenant_id"
+            },
+            {
+              "const": "owner_epoch"
+            }
+          ],
+          "items": false
+        },
+        "provider_call_match": {
+          "const": "provider_call_id_equals_call_session_ref"
+        },
+        "maximum_plaintext_bytes": {
+          "const": 16384
+        },
+        "cross_runtime_binding_sha256": {
+          "const": "aa731eba74f64cc5b2eb67d10ea8da044e87cb87b30e5b0550b8a7dfaf759871"
+        },
+        "hot_path_work_added": {
+          "const": "none"
+        },
+        "current_status": {
+          "const": "component_implemented_host_requalification_not_run"
         }
       }
     },

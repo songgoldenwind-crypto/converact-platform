@@ -1,13 +1,14 @@
 import {
   createCipheriv,
   createDecipheriv,
+  createHash,
   randomBytes
 } from 'node:crypto';
 
 const ALGORITHM = 'aes-256-gcm';
 const NONCE_BYTES = 12;
 const AUTH_TAG_BYTES = 16;
-const MAX_PLAINTEXT_BYTES = 24 * 1024;
+const MAX_PLAINTEXT_BYTES = 16 * 1024;
 const PAYLOAD_KEYS = [
   'call_session_ref',
   'interaction_id',
@@ -33,8 +34,20 @@ const PAYLOAD_KEYS = [
 ].sort();
 const PAYLOAD_OPTIONAL_KEYS = [
   'answered_at',
+  'native_call_binding',
   'route_snapshot_revision',
   'started_at'
+].sort();
+const NATIVE_CALL_BINDING_KEYS = [
+  'call_id',
+  'generation',
+  'interaction_id',
+  'owner_epoch',
+  'provider_call_id',
+  'revision',
+  'schema_id',
+  'schema_version',
+  'tenant_id'
 ].sort();
 const ENVELOPE_KEYS = [
   'algorithm',
@@ -54,7 +67,8 @@ export interface DialogRecoveryCapsuleBinding {
 }
 
 export interface DialogRecoveryCapsulePayload {
-  schema_version: 1;
+  schema_version: 1 | 2;
+  native_call_binding?: NativeCallRecoveryBinding;
   call_session_ref: string;
   interaction_id: string;
   dialog_id: string;
@@ -78,6 +92,25 @@ export interface DialogRecoveryCapsulePayload {
   answered_at?: string | null;
   cdr_sequence: number;
   route_snapshot_revision?: number;
+}
+
+export interface NativeCallRecoveryBinding {
+  schema_id: 'converact.native-call-recovery-binding';
+  schema_version: '1.0.0';
+  tenant_id: string;
+  call_id: string;
+  interaction_id: string;
+  provider_call_id: string;
+  owner_epoch: string;
+  generation: string;
+  revision: string;
+}
+
+export function nativeCallRecoveryBindingSha256(
+  value: NativeCallRecoveryBinding
+): string {
+  const validated = nativeCallRecoveryBinding(value, value.provider_call_id);
+  return createHash('sha256').update(canonicalJson(validated)).digest('hex');
 }
 
 export interface DialogRecoveryCapsuleEnvelope {
@@ -124,6 +157,7 @@ export class DialogRecoveryCapsuleCodec {
   ): DialogRecoveryCapsuleEnvelope {
     const payload = assertDialogRecoveryCapsulePayload(value);
     const checkedBinding = assertDialogRecoveryCapsuleBinding(binding);
+    assertPayloadMatchesBinding(payload, checkedBinding);
     const plaintext = Buffer.from(canonicalJson(payload), 'utf8');
     if (plaintext.byteLength > MAX_PLAINTEXT_BYTES) invalid();
     const nonce = this.#randomBytes(NONCE_BYTES);
@@ -182,6 +216,7 @@ export class DialogRecoveryCapsuleCodec {
       const decoded = assertDialogRecoveryCapsulePayload(
         JSON.parse(text) as DialogRecoveryCapsulePayload
       );
+      assertPayloadMatchesBinding(decoded, checkedBinding);
       if (canonicalJson(decoded) !== text) invalid();
       return decoded;
     } catch (error) {
@@ -227,9 +262,13 @@ export function assertDialogRecoveryCapsulePayload(
 ): DialogRecoveryCapsulePayload {
   try {
     exactKeys(value, PAYLOAD_KEYS, PAYLOAD_OPTIONAL_KEYS);
-    if (value.schema_version !== 1) invalid();
+    if (value.schema_version !== 1 && value.schema_version !== 2) invalid();
+    if ((value.schema_version === 1 && hasOwn(value, 'native_call_binding')) ||
+        (value.schema_version === 2 && !hasOwn(value, 'native_call_binding'))) {
+      invalid();
+    }
     const result: DialogRecoveryCapsulePayload = {
-      schema_version: 1,
+      schema_version: value.schema_version,
       call_session_ref: identifier(value.call_session_ref, 128),
       interaction_id: identifier(value.interaction_id, 128),
       dialog_id: identifier(value.dialog_id, 128),
@@ -253,6 +292,12 @@ export function assertDialogRecoveryCapsulePayload(
       media_reservation_id: mediaReservationId(value.media_reservation_id),
       cdr_sequence: integer(value.cdr_sequence, 0, Number.MAX_SAFE_INTEGER)
     };
+    if (value.schema_version === 2) {
+      result.native_call_binding = nativeCallRecoveryBinding(
+        value.native_call_binding,
+        result.call_session_ref
+      );
+    }
     if (hasOwn(value, 'started_at')) {
       result.started_at = optionalTimestamp(value.started_at);
     }
@@ -283,6 +328,49 @@ export function assertDialogRecoveryCapsulePayload(
       'dialog_recovery_capsule_invalid',
       'recovery capsule payload is invalid',
       error
+    );
+  }
+}
+
+function nativeCallRecoveryBinding(
+  value: unknown,
+  expectedProviderCallId: string
+): NativeCallRecoveryBinding {
+  exactKeys(value, NATIVE_CALL_BINDING_KEYS);
+  const record = value as unknown as NativeCallRecoveryBinding;
+  if (record.schema_id !== 'converact.native-call-recovery-binding' ||
+      record.schema_version !== '1.0.0') {
+    invalid();
+  }
+  const result: NativeCallRecoveryBinding = {
+    schema_id: 'converact.native-call-recovery-binding',
+    schema_version: '1.0.0',
+    tenant_id: identifier(record.tenant_id, 128),
+    call_id: canonicalFoundationId(record.call_id, 'call_'),
+    interaction_id: canonicalFoundationId(
+      record.interaction_id,
+      'interaction_'
+    ),
+    provider_call_id: identifier(record.provider_call_id, 128),
+    owner_epoch: canonicalUint64(record.owner_epoch),
+    generation: canonicalUint64(record.generation),
+    revision: canonicalUint64(record.revision)
+  };
+  if (result.provider_call_id !== expectedProviderCallId) invalid();
+  return result;
+}
+
+function assertPayloadMatchesBinding(
+  payload: DialogRecoveryCapsulePayload,
+  binding: DialogRecoveryCapsuleBinding
+): void {
+  const native = payload.native_call_binding;
+  if (!native) return;
+  if (native.tenant_id !== binding.tenant_id ||
+      native.owner_epoch !== String(binding.owner_epoch)) {
+    throw new DialogRecoveryCapsuleError(
+      'dialog_recovery_capsule_invalid',
+      'native Call recovery binding does not match capsule authority'
     );
   }
 }
@@ -388,6 +476,20 @@ function identifier(value: unknown, maximum: number): string {
       !/^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(result)) {
     invalid();
   }
+  return result;
+}
+
+function canonicalFoundationId(value: unknown, prefix: string): string {
+  const result = String(value || '');
+  if (!new RegExp(`^${prefix}[a-f0-9]{32}$`).test(result)) invalid();
+  return result;
+}
+
+function canonicalUint64(value: unknown): string {
+  const result = String(value || '');
+  if (!/^(?:[1-9][0-9]*)$/.test(result)) invalid();
+  const parsed = BigInt(result);
+  if (parsed > 0xffff_ffff_ffff_ffffn) invalid();
   return result;
 }
 

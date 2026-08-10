@@ -17,7 +17,7 @@ const RSIPSTACK_PATCH = readFileSync(
 );
 
 test('the current patchset retains recovery and mTLS CDR convergence before media tracing', () => {
-  assert.match(BUILD, /PATCHSET="ivekit\.64"/);
+  assert.match(BUILD, /PATCHSET="ivekit\.65"/);
   assert.match(
     BUILD,
     /rsipstack-ivekit-retransmission-atomicity\.patch"[\s\S]*rsipstack-ivekit-dialog-recovery\.patch"/

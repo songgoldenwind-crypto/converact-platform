@@ -35,7 +35,7 @@ test("durable rsipstack gate patch is exact and build linked", () => {
   assert.match(patch, /src\/call\/adapters\/mod\.rs/);
   assert.match(patch, /src\/call\/adapters\/rsipstack_sip_effect_gate\.rs/);
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.64"/);
+  assert.match(build, /PATCHSET="ivekit\.65"/);
   assert.match(
     build,
     /rustpbx-converact-native-call-live-authority\.patch"[\s\S]*rustpbx-converact-rsipstack-sip-effect-gate\.patch"/,

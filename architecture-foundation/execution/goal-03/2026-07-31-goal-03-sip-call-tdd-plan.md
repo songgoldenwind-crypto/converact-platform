@@ -111,7 +111,7 @@ Run serially:
 2. New Call/Leg tests.
 3. SipFoundation, effect and recovery tests.
 4. Exact rsipstack/RustPBX patch contract tests.
-5. Native Call/Leg/effect binding tests; the `.64` RustPBX port includes a
+5. Native Call/Leg/effect binding tests; the `.65` RustPBX port includes a
    direction-keyed UAS/UAC state model, closed v2 wire-attempt facts and
    separate transport/protocol receipts plus one parent-bound non-2xx ACK
    derivation. Network peer observations additionally require the private,
@@ -120,7 +120,10 @@ Run serially:
    owner now retains the same frozen response and permit through exact ACK or
    64*T1, with no per-call task. The product layer retains that owner after
    module return and classifies deadline/initial-send failure explicitly. Local
-   exact-source suites pass. The gate
+   exact-source suites pass. The v2 HA capsule additionally authenticates one
+   canonical `CallId`/`InteractionId`/provider reference across both legs and
+   advances owner/generation/revision exactly once; legacy v1 remains readable
+   but cannot resume live Native Call authority. The gate
    remains default-disabled; retain activation `not_run` until
    its real Call Core holder, live Endpoint composition and reconciliation
    resume are wired, and until parent-Unknown, stale-nonterminal and in-flight

@@ -4,8 +4,10 @@ import test from 'node:test';
 import {
   DialogRecoveryCapsuleCodec,
   DialogRecoveryCapsuleError,
+  nativeCallRecoveryBindingSha256,
   type DialogRecoveryCapsuleBinding,
-  type DialogRecoveryCapsulePayload
+  type DialogRecoveryCapsulePayload,
+  type NativeCallRecoveryBinding
 } from '../src/agent-runtime/converact/voice/dialog-recovery-capsule.js';
 
 const KEY_A = Buffer.alloc(32, 0x11);
@@ -61,6 +63,23 @@ function codec() {
     previous: { key_id: 'recovery-2026-06', key: KEY_B },
     random_bytes: (size) => Buffer.alloc(size, 0x33)
   });
+}
+
+function nativeCallBinding(
+  overrides: Partial<NativeCallRecoveryBinding> = {}
+): NativeCallRecoveryBinding {
+  return {
+    schema_id: 'converact.native-call-recovery-binding',
+    schema_version: '1.0.0',
+    tenant_id: 'tenant-a',
+    call_id: 'call_7f906e5acdb6ff58c90d54566ced341f',
+    interaction_id: 'interaction_2f76cfe99ecf8daf6972aa0734d860b4',
+    provider_call_id: 'call-session-a',
+    owner_epoch: '7',
+    generation: '11',
+    revision: '13',
+    ...overrides
+  };
 }
 
 test('recovery capsule round-trips exact SIP restoration state without plaintext leakage', () => {
@@ -186,6 +205,47 @@ test('capsule rejects invalid Rust timing and route revision fields', () => {
       (error) => code(error) === 'dialog_recovery_capsule_invalid'
     );
   }
+});
+
+test('capsule v2 freezes the canonical Native Call recovery binding', () => {
+  const value = payload({
+    schema_version: 2,
+    native_call_binding: nativeCallBinding()
+  });
+  const envelope = codec().seal(value, binding());
+  assert.deepEqual(codec().open(envelope, binding()), value);
+
+  for (const invalid of [
+    payload({ schema_version: 2 }),
+    payload({ native_call_binding: nativeCallBinding() }),
+    payload({
+      schema_version: 2,
+      native_call_binding: nativeCallBinding({ provider_call_id: 'other-call' })
+    }),
+    payload({
+      schema_version: 2,
+      native_call_binding: nativeCallBinding({ owner_epoch: '07' })
+    }),
+    payload({
+      schema_version: 2,
+      native_call_binding: {
+        ...nativeCallBinding(),
+        unexpected: true
+      } as NativeCallRecoveryBinding
+    })
+  ]) {
+    assert.throws(
+      () => codec().seal(invalid, binding()),
+      (error) => code(error) === 'dialog_recovery_capsule_invalid'
+    );
+  }
+});
+
+test('Native Call recovery binding hash matches the Rust golden vector', () => {
+  assert.equal(
+    nativeCallRecoveryBindingSha256(nativeCallBinding()),
+    'aa731eba74f64cc5b2eb67d10ea8da044e87cb87b30e5b0550b8a7dfaf759871'
+  );
 });
 
 function code(error: unknown): string {

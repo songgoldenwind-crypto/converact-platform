@@ -1,0 +1,587 @@
+diff --git a/src/call/domain/foundation_identity.rs b/src/call/domain/foundation_identity.rs
+index 20cba53..e3de668 100644
+--- a/src/call/domain/foundation_identity.rs
++++ b/src/call/domain/foundation_identity.rs
+@@ -125,6 +125,72 @@ pub struct NativeCallIdentity {
+     revision: u64,
+ }
+ 
++#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
++#[serde(deny_unknown_fields)]
++pub struct NativeCallRecoveryBinding {
++    pub schema_id: String,
++    pub schema_version: String,
++    pub tenant_id: String,
++    pub call_id: CallId,
++    pub interaction_id: InteractionId,
++    pub provider_call_id: ProviderCallId,
++    pub owner_epoch: String,
++    pub generation: String,
++    pub revision: String,
++}
++
++impl NativeCallRecoveryBinding {
++    pub(crate) fn validate(&self) -> Result<(u64, u64, u64), FoundationIdentityError> {
++        if self.schema_id != "converact.native-call-recovery-binding"
++            || self.schema_version != "1.0.0"
++        {
++            return Err(FoundationIdentityError::InvalidProjection);
++        }
++        valid_tenant_id(&self.tenant_id)?;
++        Ok((
++            canonical_positive_u64(&self.owner_epoch)?,
++            canonical_positive_u64(&self.generation)?,
++            canonical_positive_u64(&self.revision)?,
++        ))
++    }
++}
++
++impl<'de> Deserialize<'de> for NativeCallRecoveryBinding {
++    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
++    where
++        D: Deserializer<'de>,
++    {
++        #[derive(Deserialize)]
++        #[serde(deny_unknown_fields)]
++        struct WireBinding {
++            schema_id: String,
++            schema_version: String,
++            tenant_id: String,
++            call_id: CallId,
++            interaction_id: InteractionId,
++            provider_call_id: ProviderCallId,
++            owner_epoch: String,
++            generation: String,
++            revision: String,
++        }
++
++        let wire = WireBinding::deserialize(deserializer)?;
++        let binding = Self {
++            schema_id: wire.schema_id,
++            schema_version: wire.schema_version,
++            tenant_id: wire.tenant_id,
++            call_id: wire.call_id,
++            interaction_id: wire.interaction_id,
++            provider_call_id: wire.provider_call_id,
++            owner_epoch: wire.owner_epoch,
++            generation: wire.generation,
++            revision: wire.revision,
++        };
++        binding.validate().map_err(serde::de::Error::custom)?;
++        Ok(binding)
++    }
++}
++
+ impl NativeCallIdentity {
+     pub fn standalone(provider_call_id: &str) -> Result<Self, FoundationIdentityError> {
+         const TENANT_ID: &str = "standalone";
+@@ -231,6 +297,43 @@ impl NativeCallIdentity {
+     pub fn revision(&self) -> u64 {
+         self.revision
+     }
++
++    pub fn recovery_binding(&self) -> NativeCallRecoveryBinding {
++        NativeCallRecoveryBinding {
++            schema_id: "converact.native-call-recovery-binding".to_string(),
++            schema_version: "1.0.0".to_string(),
++            tenant_id: self.tenant_id.clone(),
++            call_id: self.call_id.clone(),
++            interaction_id: self.interaction_id.clone(),
++            provider_call_id: self.provider_call_id.clone(),
++            owner_epoch: self.owner_epoch.to_string(),
++            generation: self.generation.to_string(),
++            revision: self.revision.to_string(),
++        }
++    }
++
++    pub fn recover_from_binding(
++        binding: &NativeCallRecoveryBinding,
++        owner_epoch: u64,
++    ) -> Result<Self, FoundationIdentityError> {
++        let (previous_owner_epoch, generation, revision) = binding.validate()?;
++        if owner_epoch <= previous_owner_epoch {
++            return Err(FoundationIdentityError::InvalidFence);
++        }
++        Self::from_canonical(
++            &binding.tenant_id,
++            binding.call_id.clone(),
++            binding.interaction_id.clone(),
++            binding.provider_call_id.clone(),
++            owner_epoch,
++            generation
++                .checked_add(1)
++                .ok_or(FoundationIdentityError::InvalidFence)?,
++            revision
++                .checked_add(1)
++                .ok_or(FoundationIdentityError::InvalidFence)?,
++        )
++    }
+ }
+ 
+ impl<'de> Deserialize<'de> for NativeCallIdentity {
+@@ -278,6 +381,20 @@ fn parse_canonical(value: &str, prefix: &str) -> Result<String, FoundationIdenti
+     Ok(value.to_string())
+ }
+ 
++fn canonical_positive_u64(value: &str) -> Result<u64, FoundationIdentityError> {
++    if value.is_empty()
++        || (value.len() > 1 && value.starts_with('0'))
++        || !value.bytes().all(|byte| byte.is_ascii_digit())
++    {
++        return Err(FoundationIdentityError::InvalidFence);
++    }
++    value
++        .parse::<u64>()
++        .ok()
++        .filter(|value| *value > 0)
++        .ok_or(FoundationIdentityError::InvalidFence)
++}
++
+ fn derive_identifier(
+     prefix: &str,
+     namespace: &str,
+@@ -558,6 +675,74 @@ mod tests {
+         );
+     }
+ 
++    #[test]
++    fn native_recovery_binding_preserves_ids_and_advances_owner_fences_once() {
++        let original = NativeCallIdentity::adopt_projection(
++            "tenant-a",
++            "vcall_abc",
++            "vcall_abc",
++            "provider-call-id@example.test",
++            7,
++            11,
++            13,
++        )
++        .unwrap();
++
++        let binding = original.recovery_binding();
++        let recovered = NativeCallIdentity::recover_from_binding(&binding, 8).unwrap();
++
++        assert_eq!(recovered.tenant_id(), original.tenant_id());
++        assert_eq!(recovered.call_id(), original.call_id());
++        assert_eq!(recovered.interaction_id(), original.interaction_id());
++        assert_eq!(recovered.provider_call_id(), original.provider_call_id());
++        assert_eq!(recovered.owner_epoch(), 8);
++        assert_eq!(recovered.generation(), 12);
++        assert_eq!(recovered.revision(), 14);
++        assert_eq!(binding.schema_id, "converact.native-call-recovery-binding");
++        assert_eq!(binding.schema_version, "1.0.0");
++        assert_eq!(binding.owner_epoch, "7");
++        assert_eq!(binding.generation, "11");
++        assert_eq!(binding.revision, "13");
++
++        assert!(NativeCallIdentity::recover_from_binding(&binding, 7).is_err());
++        assert!(NativeCallIdentity::recover_from_binding(&binding, 6).is_err());
++    }
++
++    #[test]
++    fn native_recovery_binding_rejects_role_confusion_overflow_and_unknown_fields() {
++        let original = NativeCallIdentity::adopt_projection(
++            "tenant-a",
++            "vcall_abc",
++            "vcall_abc",
++            "provider-call-id@example.test",
++            7,
++            u64::MAX,
++            13,
++        )
++        .unwrap();
++        assert!(NativeCallIdentity::recover_from_binding(&original.recovery_binding(), 8).is_err());
++
++        let binding = NativeCallIdentity::adopt_projection(
++            "tenant-a",
++            "vcall_abc",
++            "vcall_abc",
++            "provider-call-id@example.test",
++            7,
++            11,
++            13,
++        )
++        .unwrap()
++        .recovery_binding();
++        let mut value = serde_json::to_value(&binding).unwrap();
++        value["call_id"] =
++            serde_json::Value::String("interaction_2f76cfe99ecf8daf6972aa0734d860b4".to_string());
++        assert!(serde_json::from_value::<NativeCallRecoveryBinding>(value).is_err());
++
++        let mut value = serde_json::to_value(&binding).unwrap();
++        value["unexpected"] = serde_json::Value::Bool(true);
++        assert!(serde_json::from_value::<NativeCallRecoveryBinding>(value).is_err());
++    }
++
+     #[test]
+     fn deserialization_cannot_bypass_identifier_validation() {
+         assert!(
+diff --git a/src/ivekit_dialog_shadow.rs b/src/ivekit_dialog_shadow.rs
+index 308bd0f..daebf20 100644
+--- a/src/ivekit_dialog_shadow.rs
++++ b/src/ivekit_dialog_shadow.rs
+@@ -14,6 +14,8 @@ use std::sync::{Arc, OnceLock};
+ use std::time::Duration;
+ use tokio::sync::{Mutex, Semaphore};
+ 
++use crate::call::domain::foundation_identity::{NativeCallIdentity, NativeCallRecoveryBinding};
++
+ const PROFILE_T1: &str = "VOICE-HA-T1";
+ const MAX_RECORD_BYTES: usize = 32 * 1024;
+ const MAX_ROUTE_SET: usize = 16;
+@@ -127,6 +129,8 @@ pub struct DialogRecoveryCapsuleBinding {
+ #[serde(deny_unknown_fields)]
+ pub struct DialogRecoveryCapsulePayload {
+     pub schema_version: u8,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub native_call_binding: Option<NativeCallRecoveryBinding>,
+     pub call_session_ref: String,
+     pub interaction_id: String,
+     pub dialog_id: String,
+@@ -207,6 +211,7 @@ impl DialogRecoveryCapsuleCodec {
+     ) -> Result<DialogRecoveryCapsuleEnvelope, DialogShadowError> {
+         validate_recovery_payload(value)?;
+         validate_recovery_binding(binding)?;
++        validate_capsule_native_call_authority(value, binding)?;
+         let plaintext = canonical_json(value)?;
+         if plaintext.len() > MAX_RECOVERY_PLAINTEXT_BYTES {
+             return Err(DialogShadowError::InvalidRecord);
+@@ -285,6 +290,7 @@ impl DialogRecoveryCapsuleCodec {
+         let payload: DialogRecoveryCapsulePayload =
+             serde_json::from_value(raw).map_err(|_| DialogShadowError::InvalidRecord)?;
+         validate_recovery_payload(&payload)?;
++        validate_capsule_native_call_authority(&payload, binding)?;
+         Ok(payload)
+     }
+ }
+@@ -1293,6 +1299,13 @@ impl DialogShadowLifecycle {
+         event: &DialogShadowEvent,
+     ) -> Result<DialogShadowCommitRequest, DialogShadowError> {
+         validate_event(event)?;
++        if let Some(payload) = event.recovery_payload.as_ref() {
++            validate_native_call_binding(
++                payload,
++                &self.binding.tenant_id,
++                self.binding.owner_epoch,
++            )?;
++        }
+         let recovery_capsule = match &event.recovery_payload {
+             Some(payload) => Some(
+                 self.recovery_codec
+@@ -1581,7 +1594,9 @@ fn validate_recovery_payload(
+                 .bytes()
+                 .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace())
+     };
+-    if value.schema_version != 1
++    if !matches!(value.schema_version, 1 | 2)
++        || (value.schema_version == 1 && value.native_call_binding.is_some())
++        || (value.schema_version == 2 && value.native_call_binding.is_none())
+         || !valid_identifier(&value.call_session_ref)
+         || !valid_identifier(&value.interaction_id)
+         || !valid_identifier(&value.dialog_id)
+@@ -1616,6 +1631,14 @@ fn validate_recovery_payload(
+     {
+         return Err(DialogShadowError::InvalidRecord);
+     }
++    if let Some(binding) = value.native_call_binding.as_ref() {
++        binding
++            .validate()
++            .map_err(|_| DialogShadowError::InvalidRecord)?;
++        if binding.provider_call_id.as_str() != value.call_session_ref {
++            return Err(DialogShadowError::InvalidRecord);
++        }
++    }
+     let started_at = value
+         .started_at
+         .as_deref()
+@@ -1638,6 +1661,44 @@ fn validate_recovery_payload(
+     Ok(())
+ }
+ 
++fn validate_native_call_binding(
++    payload: &DialogRecoveryCapsulePayload,
++    tenant_id: &str,
++    owner_epoch: u64,
++) -> Result<(), DialogShadowError> {
++    validate_recovery_payload(payload)?;
++    let binding = payload
++        .native_call_binding
++        .as_ref()
++        .ok_or(DialogShadowError::InvalidRecord)?;
++    let (bound_owner_epoch, _, _) = binding
++        .validate()
++        .map_err(|_| DialogShadowError::InvalidRecord)?;
++    if binding.tenant_id != tenant_id
++        || binding.provider_call_id.as_str() != payload.call_session_ref
++        || bound_owner_epoch != owner_epoch
++    {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    Ok(())
++}
++
++fn validate_capsule_native_call_authority(
++    payload: &DialogRecoveryCapsulePayload,
++    binding: &DialogRecoveryCapsuleBinding,
++) -> Result<(), DialogShadowError> {
++    let Some(native) = payload.native_call_binding.as_ref() else {
++        return Ok(());
++    };
++    let (owner_epoch, _, _) = native
++        .validate()
++        .map_err(|_| DialogShadowError::InvalidRecord)?;
++    if native.tenant_id != binding.tenant_id || owner_epoch != binding.owner_epoch {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    Ok(())
++}
++
+ fn validate_takeover_claim_request(
+     value: &DialogOwnerTakeoverClaimRequest,
+ ) -> Result<(), DialogShadowError> {
+@@ -1925,6 +1986,13 @@ pub fn open_recovery_pair(
+                     != record.media_reservation_id.as_deref()
+                 || payload.cdr_sequence != record.cdr_sequence
+                 || sha256(&payload.raw_call_id) != record.call_id_hash
++                || (payload.schema_version == 2
++                    && validate_native_call_binding(
++                        &payload,
++                        &record.tenant_id,
++                        record.owner_epoch,
++                    )
++                    .is_err())
+             {
+                 return Err(DialogShadowError::InvalidRecord);
+             }
+@@ -1950,12 +2018,38 @@ pub fn open_recovery_pair(
+         || caller.route_snapshot_revision != callee.route_snapshot_revision
+         || caller.started_at != callee.started_at
+         || caller.answered_at != callee.answered_at
++        || caller.native_call_binding != callee.native_call_binding
+     {
+         return Err(DialogShadowError::InvalidRecord);
+     }
+     Ok(payloads)
+ }
+ 
++fn recovered_native_call_identity(
++    payloads: &[DialogRecoveryCapsulePayload],
++    owner_epoch: u64,
++) -> Result<NativeCallIdentity, DialogShadowError> {
++    if payloads.len() != 2 {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    let first = payloads.first().ok_or(DialogShadowError::InvalidRecord)?;
++    let binding = first
++        .native_call_binding
++        .as_ref()
++        .ok_or(DialogShadowError::InvalidRecord)?;
++    if first.schema_version != 2
++        || payloads.iter().any(|payload| {
++            payload.schema_version != 2
++                || payload.native_call_binding.as_ref() != Some(binding)
++                || payload.call_session_ref != first.call_session_ref
++        })
++    {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    NativeCallIdentity::recover_from_binding(binding, owner_epoch)
++        .map_err(|_| DialogShadowError::InvalidRecord)
++}
++
+ pub async fn recover_dialog_pair(
+     dialog_layer: &Arc<rsipstack::dialog::dialog_layer::DialogLayer>,
+     requested_dialog_id: &str,
+@@ -1995,7 +2089,7 @@ pub async fn recover_dialog_pair(
+         .first()
+         .map(|record| record.auth_context_ref.clone())
+         .ok_or(DialogShadowError::InvalidRecord)?;
+-    let payloads = open_recovery_pair(&config.recovery_codec, &claim.shadow_records)?;
++    let mut payloads = open_recovery_pair(&config.recovery_codec, &claim.shadow_records)?;
+     let requested_payload = payloads
+         .iter()
+         .find(|payload| payload.dialog_id == requested_dialog_id)
+@@ -2003,6 +2097,12 @@ pub async fn recover_dialog_pair(
+     let call_session_ref = requested_payload.call_session_ref.clone();
+     let interaction_id = requested_payload.interaction_id.clone();
+     let previous_owner_epoch = claim.shadow_records[0].owner_epoch;
++    let native_call_identity = recovered_native_call_identity(&payloads, claim.owner_epoch)?;
++    let recovered_binding = native_call_identity.recovery_binding();
++    for payload in &mut payloads {
++        payload.schema_version = 2;
++        payload.native_call_binding = Some(recovered_binding.clone());
++    }
+     let caller = payloads
+         .iter()
+         .find(|payload| payload.leg == "caller")
+@@ -2023,6 +2123,7 @@ pub async fn recover_dialog_pair(
+             &interaction_id,
+             &auth_context_ref,
+             &payloads,
++            &native_call_identity,
+         )
+         .await?;
+         return Err(DialogShadowError::AbsentOrTerminal);
+@@ -2165,7 +2266,7 @@ pub async fn recover_dialog_pair(
+         remove_restored_dialogs(dialog_layer, &restored_ids);
+         return Err(DialogShadowError::InvalidRecord);
+     }
+-    if crate::ivekit_owner::ensure_owner(
++    if crate::ivekit_owner::ensure_owner_with_identity(
+         &call_session_ref,
+         crate::ivekit_owner::OwnerContract {
+             reservation_id,
+@@ -2179,6 +2280,7 @@ pub async fn recover_dialog_pair(
+             owner_node_id: owner_node_id.clone(),
+             media_control_profile: callee.media_control_profile.clone(),
+         },
++        native_call_identity,
+     )
+     .await
+     .is_err()
+@@ -3098,6 +3200,7 @@ async fn finalize_recovered_dialog_pair(
+     interaction_id: &str,
+     auth_context_ref: &str,
+     payloads: &[DialogRecoveryCapsulePayload],
++    native_call_identity: &NativeCallIdentity,
+ ) -> Result<(), DialogShadowError> {
+     commit_recovered_shadow_pair(
+         config,
+@@ -3154,7 +3257,7 @@ async fn finalize_recovered_dialog_pair(
+         .strip_suffix("/callee")
+         .ok_or(DialogShadowError::InvalidRecord)?
+         .to_string();
+-    if crate::ivekit_owner::ensure_owner(
++    if crate::ivekit_owner::ensure_owner_with_identity(
+         call_session_ref,
+         crate::ivekit_owner::OwnerContract {
+             reservation_id,
+@@ -3168,6 +3271,7 @@ async fn finalize_recovered_dialog_pair(
+             owner_node_id: owner_node_id.to_string(),
+             media_control_profile: callee.media_control_profile.clone(),
+         },
++        native_call_identity.clone(),
+     )
+     .await
+     .is_err()
+@@ -3480,8 +3584,11 @@ pub fn recovery_payload_from_dialog_snapshots_with_timing_and_profile(
+         TransactionRole::Server => ("caller", "uas"),
+         TransactionRole::Client => ("callee", "uac"),
+     };
++    let native_call_binding = crate::ivekit_owner::owner_identity(call_session_ref)
++        .map(|identity| identity.recovery_binding());
+     let payload = DialogRecoveryCapsulePayload {
+-        schema_version: 1,
++        schema_version: if native_call_binding.is_some() { 2 } else { 1 },
++        native_call_binding,
+         call_session_ref: call_session_ref.to_string(),
+         interaction_id: interaction_id.to_string(),
+         dialog_id,
+@@ -3825,6 +3932,7 @@ mod tests {
+     ) -> DialogRecoveryCapsulePayload {
+         DialogRecoveryCapsulePayload {
+             schema_version: 1,
++            native_call_binding: None,
+             call_session_ref: "call-session-a".into(),
+             interaction_id: "interaction-a".into(),
+             dialog_id: dialog_id.into(),
+@@ -3852,6 +3960,100 @@ mod tests {
+         }
+     }
+ 
++    fn native_recovery_binding()
++    -> crate::call::domain::foundation_identity::NativeCallRecoveryBinding {
++        crate::call::domain::foundation_identity::NativeCallIdentity::adopt_projection(
++            "tenant-a",
++            "vcall_abc",
++            "vcall_abc",
++            "call-session-a",
++            7,
++            11,
++            13,
++        )
++        .unwrap()
++        .recovery_binding()
++    }
++
++    #[test]
++    fn native_call_recovery_binding_hash_matches_typescript_golden_vector() {
++        let binding = serde_json::from_str::<
++            crate::call::domain::foundation_identity::NativeCallRecoveryBinding,
++        >(
++            r#"{"schema_id":"converact.native-call-recovery-binding","schema_version":"1.0.0","tenant_id":"tenant-a","call_id":"call_7f906e5acdb6ff58c90d54566ced341f","interaction_id":"interaction_2f76cfe99ecf8daf6972aa0734d860b4","provider_call_id":"call-session-a","owner_epoch":"7","generation":"11","revision":"13"}"#,
++        )
++        .unwrap();
++
++        assert_eq!(
++            hash_json(&binding).unwrap(),
++            "aa731eba74f64cc5b2eb67d10ea8da044e87cb87b30e5b0550b8a7dfaf759871"
++        );
++    }
++
++    #[test]
++    fn resume_capsule_v2_preserves_one_native_call_and_advances_takeover_fence() {
++        let binding = native_recovery_binding();
++        let mut caller = recovery_payload("dialog-a", "dialog-b", "caller", "uas");
++        caller.schema_version = 2;
++        caller.native_call_binding = Some(binding.clone());
++        let mut callee = recovery_payload("dialog-b", "dialog-a", "callee", "uac");
++        callee.schema_version = 2;
++        callee.native_call_binding = Some(binding);
++
++        let recovered =
++            recovered_native_call_identity(&[caller.clone(), callee.clone()], 8).unwrap();
++        assert_eq!(recovered.tenant_id(), "tenant-a");
++        assert_eq!(recovered.provider_call_id().as_str(), "call-session-a");
++        assert_eq!(recovered.owner_epoch(), 8);
++        assert_eq!(recovered.generation(), 12);
++        assert_eq!(recovered.revision(), 14);
++
++        callee.native_call_binding = Some(
++            crate::call::domain::foundation_identity::NativeCallIdentity::adopt_projection(
++                "tenant-a",
++                "vcall_other",
++                "vcall_other",
++                "call-session-a",
++                7,
++                11,
++                13,
++            )
++            .unwrap()
++            .recovery_binding(),
++        );
++        assert!(recovered_native_call_identity(&[caller, callee], 8).is_err());
++    }
++
++    #[test]
++    fn resume_capsule_v1_cannot_grant_native_call_authority() {
++        let caller = recovery_payload("dialog-a", "dialog-b", "caller", "uas");
++        let callee = recovery_payload("dialog-b", "dialog-a", "callee", "uac");
++        assert!(recovered_native_call_identity(&[caller, callee], 8).is_err());
++    }
++
++    #[test]
++    fn capsule_v2_native_binding_must_match_aead_authority() {
++        let codec = DialogRecoveryCapsuleCodec::new(
++            DialogRecoveryCapsuleKey::new("recovery-2026-07", &[0x55; 32]).unwrap(),
++            None,
++        )
++        .unwrap();
++        let mut value = recovery_payload("dialog-a", "dialog-b", "caller", "uas");
++        value.schema_version = 2;
++        value.native_call_binding = Some(native_recovery_binding());
++        let mut capsule_binding = DialogRecoveryCapsuleBinding {
++            tenant_id: "tenant-b".into(),
++            cell_id: "cell-a".into(),
++            dialog_id: "dialog-a".into(),
++            owner_epoch: 7,
++            sequence: 1,
++        };
++        assert!(codec.seal(&value, &capsule_binding).is_err());
++        capsule_binding.tenant_id = "tenant-a".into();
++        capsule_binding.owner_epoch = 8;
++        assert!(codec.seal(&value, &capsule_binding).is_err());
++    }
++
+     #[test]
+     fn recovered_update_builds_one_pair_with_shared_takeover_identity() {
+         let codec = DialogRecoveryCapsuleCodec::new(

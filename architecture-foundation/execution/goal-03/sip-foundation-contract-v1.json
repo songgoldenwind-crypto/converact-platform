@@ -37,7 +37,7 @@
     "rustpbx_commit": "6c49ee76baa54fdbf8f98020cc9bee158c7c15de",
     "rsipstack_commit": "8318e97b1170de4e5245b120afec1cdf53e3d716",
     "rustrtc_commit": "166c6d22984429eb6b509920c14fcd69f974f0b3",
-    "patchset": "ivekit.64",
+    "patchset": "ivekit.65",
     "current_adapter": "rsipstack",
     "target_adapter": "rvoip_low_level_slices_after_separate_gates",
     "native_runtime_authority": "Unified RustPBX process",
@@ -57,6 +57,40 @@
       "MediaSession"
     ],
     "provider_call_id": "opaque_native_runtime_reference_never_CallId"
+  },
+  "native_call_recovery": {
+    "authority": "Unified_RustPBX_Native_Call_registry",
+    "binding_schema_id": "converact.native-call-recovery-binding",
+    "binding_schema_version": "1.0.0",
+    "capsule_payload_versions_read": [
+      1,
+      2
+    ],
+    "capsule_payload_version_write_for_recoverable_call": 2,
+    "legacy_v1_resume": "forbidden_fail_closed",
+    "stable_identity_fields": [
+      "tenant_id",
+      "call_id",
+      "interaction_id",
+      "provider_call_id"
+    ],
+    "takeover_fence_fields": [
+      "owner_epoch",
+      "generation",
+      "revision"
+    ],
+    "takeover_transition": "new_owner_epoch_must_increase_generation_and_revision_increment_exactly_once",
+    "numeric_wire_encoding": "canonical_positive_uint64_decimal_strings",
+    "binding_authentication": "inside_A256GCM_capsule_and_equal_across_both_dialog_legs",
+    "capsule_authority_match": [
+      "tenant_id",
+      "owner_epoch"
+    ],
+    "provider_call_match": "provider_call_id_equals_call_session_ref",
+    "maximum_plaintext_bytes": 16384,
+    "cross_runtime_binding_sha256": "aa731eba74f64cc5b2eb67d10ea8da044e87cb87b30e5b0550b8a7dfaf759871",
+    "hot_path_work_added": "none",
+    "current_status": "component_implemented_host_requalification_not_run"
   },
   "ingress_events": [
     "request_received",

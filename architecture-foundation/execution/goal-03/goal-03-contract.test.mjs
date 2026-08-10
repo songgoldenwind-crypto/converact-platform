@@ -127,7 +127,7 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
     rustpbx_commit: '6c49ee76baa54fdbf8f98020cc9bee158c7c15de',
     rsipstack_commit: '8318e97b1170de4e5245b120afec1cdf53e3d716',
     rustrtc_commit: '166c6d22984429eb6b509920c14fcd69f974f0b3',
-    patchset: 'ivekit.64',
+    patchset: 'ivekit.65',
     current_adapter: 'rsipstack',
     target_adapter: 'rvoip_low_level_slices_after_separate_gates',
     native_runtime_authority: 'Unified RustPBX process',
@@ -137,6 +137,19 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
   assert.equal(
     contract.anti_corruption_boundary.provider_call_id,
     'opaque_native_runtime_reference_never_CallId',
+  );
+  assert.equal(
+    contract.native_call_recovery.authority,
+    'Unified_RustPBX_Native_Call_registry',
+  );
+  assert.equal(
+    contract.native_call_recovery.legacy_v1_resume,
+    'forbidden_fail_closed',
+  );
+  assert.equal(contract.native_call_recovery.maximum_plaintext_bytes, 16384);
+  assert.equal(
+    contract.native_call_recovery.cross_runtime_binding_sha256,
+    'aa731eba74f64cc5b2eb67d10ea8da044e87cb87b30e5b0550b8a7dfaf759871',
   );
   assert.equal(contract.admission_and_store_slo.trying_p99_budget_ms, 100);
   assert.equal(contract.admission_and_store_slo.trying_hard_deadline_ms, 200);
@@ -175,7 +188,7 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
   assert.match(build, /RUSTPBX_COMMIT="6c49ee76baa54fdbf8f98020cc9bee158c7c15de"/u);
   assert.match(build, /RSIPSTACK_COMMIT="8318e97b1170de4e5245b120afec1cdf53e3d716"/u);
   assert.match(build, /RUSTRTC_COMMIT="166c6d22984429eb6b509920c14fcd69f974f0b3"/u);
-  assert.match(build, /PATCHSET="ivekit\.64"/u);
+  assert.match(build, /PATCHSET="ivekit\.65"/u);
   assert.match(
     build,
     /rustpbx-converact-postgres-sip-effect-repair-batch\.patch/u,
