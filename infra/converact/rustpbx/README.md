@@ -694,6 +694,20 @@ and rejects a malformed same-name index. Live successor-owner wiring, automatic
 worker activation, physical PostgreSQL crash-window evidence, exact Linux
 verification and production eligibility remain `not_run`.
 
+ivekit.67 changes only the ignored isolated-PostgreSQL recovery fixture. Its
+administrator-only clock-age setup now advances the immutable ledger revision
+exactly once while backdating `updated_at`; the production recovery query,
+state machine, role grants and runtime activation remain byte-identical to
+ivekit.66. The test connects as `opc_runtime` and continues to enter the
+`NOLOGIN` `opc_sip_effect_executor` role inside each tenant transaction. Exact
+Linux physical-PostgreSQL evidence remains `not_run` until that corrected
+fixture completes on the controlled server.
+
+Local `.67` exact-patch gates pass `186/186`, the affected database and
+delivery gates pass `121/121`, the G03 machine contract passes `9/9`, and the
+repository typecheck passes. These are source/component results only and do not
+promote the still-unrun exact `.67` Linux physical case.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

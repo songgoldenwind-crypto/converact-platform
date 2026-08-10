@@ -1,0 +1,18 @@
+diff --git a/src/call/adapters/postgres_sip_effect.rs b/src/call/adapters/postgres_sip_effect.rs
+--- a/src/call/adapters/postgres_sip_effect.rs
++++ b/src/call/adapters/postgres_sip_effect.rs
+@@ -2862,12 +2862,13 @@ mod tests {
+         let admin_pool = PgPoolOptions::new()
+             .max_connections(1)
+             .connect(&admin_database_url)
+             .await
+             .unwrap();
+         for effect in [&send_attempted, &transport_accepted] {
+             let result = sqlx::query(
+                 "UPDATE ivekit_sip_protocol_effects \
+-                 SET updated_at = statement_timestamp() - INTERVAL '60 seconds' \
++                 SET revision = revision + 1, \
++                     updated_at = statement_timestamp() - INTERVAL '60 seconds' \
+                  WHERE tenant_id = $1 AND protocol_effect_id = $2",
+             )
+             .bind(&effect.identity.tenant_id)

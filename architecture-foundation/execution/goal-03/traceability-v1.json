@@ -1144,7 +1144,8 @@
         "infra/converact/rustpbx/patches/rsipstack-ivekit-bounded-protocol-mailboxes.patch",
         "infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-ivekit-bounded-call-mailboxes.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-test-fixture.patch"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
@@ -3323,7 +3324,8 @@
         "infra/converact/rustpbx/patches/rsipstack-ivekit-bounded-protocol-mailboxes.patch",
         "infra/converact/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-ivekit-bounded-call-mailboxes.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-test-fixture.patch"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",

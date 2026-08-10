@@ -111,7 +111,7 @@ Run serially:
 2. New Call/Leg tests.
 3. SipFoundation, effect and recovery tests.
 4. Exact rsipstack/RustPBX patch contract tests.
-5. Native Call/Leg/effect binding tests; the `.66` RustPBX port includes a
+5. Native Call/Leg/effect binding tests; the current `.67` RustPBX port includes a
    direction-keyed UAS/UAC state model, closed v2 wire-attempt facts and
    separate transport/protocol receipts plus one parent-bound non-2xx ACK
    derivation. Network peer observations additionally require the private,

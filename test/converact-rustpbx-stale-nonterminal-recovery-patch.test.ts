@@ -6,6 +6,8 @@ import test from "node:test";
 
 const PATCH =
   "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery.patch";
+const FIXTURE_PATCH =
+  "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-test-fixture.patch";
 const MIGRATION =
   "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql";
 const BUILD = "infra/converact/rustpbx/build.sh";
@@ -77,16 +79,31 @@ test("stale nonterminal selection has a rolling partial index", () => {
   assert.match(runner, /expectedPredicate/);
 });
 
-test("ivekit.66 applies and formats stale recovery after ivekit.65", () => {
+test("ivekit.67 applies the immutable-ledger fixture fix after stale recovery", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.66"/);
+  assert.match(build, /PATCHSET="ivekit\.67"/);
   assert.match(
     build,
-    /rustpbx-converact-native-call-recovery-identity\.patch"[\s\S]*rustpbx-converact-stale-nonterminal-recovery\.patch"/,
+    /rustpbx-converact-stale-nonterminal-recovery\.patch"[\s\S]*rustpbx-converact-stale-nonterminal-recovery-test-fixture\.patch"/,
   );
   assert.match(
     build,
-    /git -C "\$BUILD_ROOT\/rustpbx" apply --numstat[\s\S]*rustpbx-converact-stale-nonterminal-recovery\.patch/,
+    /git -C "\$BUILD_ROOT\/rustpbx" apply --numstat[\s\S]*rustpbx-converact-stale-nonterminal-recovery-test-fixture\.patch/,
+  );
+  const fixturePatch = readFileSync(FIXTURE_PATCH, "utf8");
+  assert.equal(
+    createHash("sha256").update(fixturePatch).digest("hex"),
+    "837b63848c3abfa6e7a72d3fbc876d5c92e9f3e011d6ba2832b6599c89ac7eaa",
+  );
+  const parsedFixture = spawnSync("git", ["apply", "--numstat", FIXTURE_PATCH], {
+    encoding: "utf8",
+  });
+  assert.equal(parsedFixture.status, 0, parsedFixture.stderr);
+  assert.match(fixturePatch, /SET revision = revision \+ 1/);
+  assert.match(fixturePatch, /updated_at = statement_timestamp\(\) - INTERVAL '60 seconds'/);
+  assert.doesNotMatch(
+    fixturePatch,
+    /\+\s+SET updated_at = statement_timestamp\(\) - INTERVAL '60 seconds'/,
   );
 });
 
@@ -95,7 +112,7 @@ test("stale recovery remains default-disabled until live owner fencing is proved
   const evidence = JSON.parse(readFileSync(EVIDENCE, "utf8")) as {
     entries: Array<{ evidence_id: string; status: string }>;
   };
-  assert.match(readme, /ivekit\.66/);
+  assert.match(readme, /ivekit\.67/);
   assert.match(readme, /stale\s+`send_attempted` and `transport_accepted`/i);
   assert.match(readme, /live successor-owner wiring[\s\S]*`not_run`/i);
   assert.equal(
