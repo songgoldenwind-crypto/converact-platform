@@ -36,7 +36,7 @@ test("ivekit.64 retains the successful server-INVITE owner", () => {
   }
 
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.68"/);
+  assert.match(build, /PATCHSET="ivekit\.69"/);
   assert.match(
     build,
     /rsipstack-converact-uas-2xx-owner\.patch"[\s\S]*rsipstack-converact-uas-2xx-owner-retention\.patch"[\s\S]*rustrtc-ivekit-udp-socket-capacity\.patch"/,

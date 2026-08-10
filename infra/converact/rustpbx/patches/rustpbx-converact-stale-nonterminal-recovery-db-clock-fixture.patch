@@ -1,0 +1,35 @@
+diff --git a/src/call/adapters/postgres_sip_effect.rs b/src/call/adapters/postgres_sip_effect.rs
+index feda8ef..1f8e799 100644
+--- a/src/call/adapters/postgres_sip_effect.rs
++++ b/src/call/adapters/postgres_sip_effect.rs
+@@ -2857,29 +2857,7 @@ mod tests {
+         assert_eq!(second.state, SipEffectState::TransportAccepted);
+         store.pool.close().await;
+ 
+-        let fixture_store = PostgresSipEffectStore::connect(&database_url, options)
+-            .await
+-            .unwrap();
+-        for effect in [&send_attempted, &transport_accepted] {
+-            let (_admission, mut transaction) = fixture_store
+-                .begin_tenant_transaction(&effect.identity.tenant_id)
+-                .await
+-                .unwrap();
+-            let result = sqlx::query(
+-                "UPDATE ivekit_sip_protocol_effects \
+-                 SET revision = revision + 1, \
+-                     updated_at = statement_timestamp() - INTERVAL '60 seconds' \
+-                 WHERE tenant_id = $1 AND protocol_effect_id = $2",
+-            )
+-            .bind(&effect.identity.tenant_id)
+-            .bind(&effect.identity.protocol_effect_id)
+-            .execute(&mut *transaction)
+-            .await
+-            .unwrap();
+-            assert_eq!(result.rows_affected(), 1);
+-            transaction.commit().await.unwrap();
+-        }
+-        fixture_store.pool.close().await;
++        tokio::time::sleep(MIN_STALE_NONTERMINAL_AGE + Duration::from_secs(1)).await;
+ 
+         let recovered_store = PostgresSipEffectStore::connect(&database_url, options)
+             .await
