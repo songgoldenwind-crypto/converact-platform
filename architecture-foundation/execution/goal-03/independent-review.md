@@ -140,10 +140,13 @@ failure retains the same armed work under bounded exponential backoff, an
 unwind panic releases the old lease before atomic restart, permanent failure
 stays quarantined, and cancellation leaves work for explicit restart. Focused
 Rust tests pass `38/38`, patch gates `189/189`, the machine contract `9/9`, and
-typecheck. It does not touch product configuration, `SipServerBuilder` or live
-Endpoint composition. This is not final independent review or host evidence;
-reconciler supervision, live intent registration and every production gate
-remain `not_run`.
+typecheck. Controlled Linux requalification at exact source `1ebbd765…` passes
+RustPBX `2,022/0/9`, three focused regressions, dialog-shadow `20/20`,
+rsipstack `311/311` and doctests `67/67`; the bundle is
+`evidence/raw/full-linux-suites-1ebbd76-13/`. It does not touch product
+configuration, `SipServerBuilder` or live Endpoint composition. This is not
+final independent acceptance: reconciler supervision, live intent
+registration and every production gate remain `not_run`.
 
 ## Rejection history and remaining gate
 

@@ -92,7 +92,7 @@
     "maximum_plaintext_bytes": 16384,
     "cross_runtime_binding_sha256": "aa731eba74f64cc5b2eb67d10ea8da044e87cb87b30e5b0550b8a7dfaf759871",
     "hot_path_work_added": "none",
-    "current_status": "component_implemented_host_requalification_not_run"
+    "current_status": "component_implemented_host_requalified_live_takeover_not_run"
   },
   "ingress_events": [
     "request_received",

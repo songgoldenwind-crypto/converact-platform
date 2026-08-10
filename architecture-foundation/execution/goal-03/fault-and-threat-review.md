@@ -77,8 +77,9 @@ microbenchmark or citing rvoip upstream numbers cannot close that Gate.
 ## 6. Residual Risks
 
 1. TypeScript SipFoundation/effect source is a conformance/reference harness;
-   the `.58` native composition is compiled but default-disabled and therefore is
-   not yet an elected live writer path.
+   the `.71` native composition and fixed observation supervisor are compiled,
+   host-requalified but default-disabled, and therefore are not yet an elected
+   live writer path.
 2. Exact `.53` wire, raw latency, SIPp/Asterisk interop, two-hour SIP-control
    and 2-vCPU capacity regression campaigns passed; rvoip differential,
    allocation and multi-core scaling remain separate future Gates. The soak is
@@ -89,7 +90,7 @@ microbenchmark or citing rvoip upstream numbers cannot close that Gate.
 4. Native panic, process abort, OOM, disk/network loss and blocking-call
    campaigns have not run.
 5. Fault/OOM and complete host-performance evidence have not run for the exact
-   `.58` candidate. Retained `.53` evidence is scoped to its exact source, and
+   `.71` candidate. Retained `.53` evidence is scoped to its exact source, and
    `.42` results remain historical only.
 
 All five remain visible in `evidence-index-v1.json` and prevent production

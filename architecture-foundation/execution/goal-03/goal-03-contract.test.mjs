@@ -155,6 +155,10 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
     contract.native_call_recovery.cross_runtime_binding_sha256,
     'aa731eba74f64cc5b2eb67d10ea8da044e87cb87b30e5b0550b8a7dfaf759871',
   );
+  assert.equal(
+    contract.native_call_recovery.current_status,
+    'component_implemented_host_requalified_live_takeover_not_run',
+  );
   assert.equal(contract.admission_and_store_slo.trying_p99_budget_ms, 100);
   assert.equal(contract.admission_and_store_slo.trying_hard_deadline_ms, 200);
   assert.equal(contract.admission_and_store_slo.durable_transaction_p99_budget_ms, 20);
@@ -542,7 +546,7 @@ test('evidence promotes only exact proved slices and retains every open gate', (
     'G03-E01-CONTRACT': 'verified_local',
     'G03-E02-BASELINE': 'verified_local',
     'G03-E03-ID-STATE': 'verified_local',
-    'G03-E04-EFFECT': 'verified_local',
+    'G03-E04-EFFECT': 'verified_controlled',
     'G03-E05-POSTGRES': 'verified_controlled',
     'G03-E06-TRYING': 'verified_controlled',
     'G03-E07-WIRE': 'verified_controlled',
@@ -565,6 +569,7 @@ test('evidence promotes only exact proved slices and retains every open gate', (
     } else {
       assert.ok(entry.evidence_uris.length > 0, entry.evidence_id);
       const controlledSourceCommits = new Map([
+        ['G03-E04-EFFECT', '1ebbd765c3e88ef157fde54bed9e4680aa708da3'],
         ['G03-E06-TRYING', 'b63383bda16bcd9d311c9ce5e0761877d474797b'],
         ['G03-E07-WIRE', 'b63383bda16bcd9d311c9ce5e0761877d474797b'],
         ['G03-E08-RECOVERY', '6abf714ea8b71817e91fa9493e882c360050cf7f'],
@@ -592,11 +597,20 @@ test('evidence promotes only exact proved slices and retains every open gate', (
     recovery.raw_output_sha256,
     '45072f23e6e8eff7a3f77b1ec075c596d8049a2072437934278898e14f9666ca',
   );
+  const effect = evidence.entries.find(
+    (entry) => entry.evidence_id === 'G03-E04-EFFECT',
+  );
+  assert.ok(effect.evidence_uris.some((uri) =>
+    uri.includes('full-linux-suites-1ebbd76-13')));
+  assert.equal(
+    effect.raw_output_sha256,
+    '343daec5381eb949a2848d2a539d2416941ef31c104c5ac7fff51a1f6f9cbfc0',
+  );
   const currentStateAudit = readFileSync(
     join(goalDirectory, 'current-state-audit.md'),
     'utf8',
   );
-  assert.match(currentStateAudit, /RustPBX `2,016\/0\/9`/u);
+  assert.match(currentStateAudit, /RustPBX `2,022\/0\/9`/u);
   assert.match(currentStateAudit, /rsipstack `311\/311` and doctests `67\/67`/u);
   for (const path of requiredMarkdown) {
     const absolute = join(goalDirectory, path);

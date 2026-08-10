@@ -751,7 +751,8 @@ function sipFoundationContract() {
       cross_runtime_binding_sha256:
         'aa731eba74f64cc5b2eb67d10ea8da044e87cb87b30e5b0550b8a7dfaf759871',
       hot_path_work_added: 'none',
-      current_status: 'component_implemented_host_requalification_not_run',
+      current_status:
+        'component_implemented_host_requalified_live_takeover_not_run',
     },
     ingress_events: [
       'request_received',
@@ -1607,8 +1608,12 @@ function evidenceIndex() {
     'architecture-foundation/execution/goal-03/evidence/raw/stale-nonterminal-recovery-6abf714-11';
   const fullLinuxSuiteEvidenceRoot =
     'architecture-foundation/execution/goal-03/evidence/raw/full-linux-suites-6abf714-12';
+  const observerFullLinuxSuiteEvidenceRoot =
+    'architecture-foundation/execution/goal-03/evidence/raw/full-linux-suites-1ebbd76-13';
   const staleRecoverySourceCommit =
     '6abf714ea8b71817e91fa9493e882c360050cf7f';
+  const observerFullLinuxSuiteSourceCommit =
+    '1ebbd765c3e88ef157fde54bed9e4680aa708da3';
   const entry = (
     evidence_id,
     claim,
@@ -1662,9 +1667,14 @@ function evidenceIndex() {
       entry(
         'G03-E04-EFFECT',
         'Durable effect and semantic receipt classes',
-        'verified_local',
-        [`${localEvidenceRoot}/focused.log`],
-        '9d212173335acf075dd07ab0ef198b8e76b1fd97dacc820f8b5c6f5c071025b9',
+        'verified_controlled',
+        [
+          `${observerFullLinuxSuiteEvidenceRoot}/README.md`,
+          `${observerFullLinuxSuiteEvidenceRoot}/SHA256SUMS`,
+          `${observerFullLinuxSuiteEvidenceRoot}/server-suite-results.txt`,
+        ],
+        '343daec5381eb949a2848d2a539d2416941ef31c104c5ac7fff51a1f6f9cbfc0',
+        observerFullLinuxSuiteSourceCommit,
       ),
       entry(
         'G03-E05-POSTGRES',

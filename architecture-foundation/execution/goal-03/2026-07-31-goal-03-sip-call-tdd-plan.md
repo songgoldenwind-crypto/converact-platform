@@ -156,9 +156,15 @@ The `.63` UAS-2xx rsipstack host suites pass, but the host exposed a RustPBX
 exhaustive-match compile failure and therefore rejected that candidate. The
 `.64` owner-retention correction passes the local and authorized-host full
 component suites; the controlled raw bundle is
-`evidence/raw/uas-2xx-retention-a85d249-09/`.
-They remain within
-`G03-E05-POSTGRES = verified_controlled` and do not qualify the remaining
+`evidence/raw/uas-2xx-retention-a85d249-09/`; it remains within
+`G03-E05-POSTGRES = verified_controlled`.
+The `.71` fixed observation-supervisor candidate also passes the complete
+controlled Linux component suites at exact source `1ebbd765…`; its secret-
+scanned raw logs and dependency-cache history are under
+`evidence/raw/full-linux-suites-1ebbd76-13/`. This closes host component
+requalification for `G03-E04-EFFECT` only. Reconciler supervision, live
+Endpoint composition, real process crash and all performance/fault gates
+remain open. Neither controlled component result qualifies the remaining
 campaigns:
 
 - PostgreSQL role/RLS, physical restart, receipt replay, atomic v2 transition,

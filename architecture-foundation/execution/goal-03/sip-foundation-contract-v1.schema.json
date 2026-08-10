@@ -390,7 +390,7 @@
           "const": "none"
         },
         "current_status": {
-          "const": "component_implemented_host_requalification_not_run"
+          "const": "component_implemented_host_requalified_live_takeover_not_run"
         }
       }
     },
