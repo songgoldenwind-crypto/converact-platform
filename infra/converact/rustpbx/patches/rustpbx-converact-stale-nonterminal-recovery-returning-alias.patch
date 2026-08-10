@@ -1,0 +1,18 @@
+diff --git a/src/call/adapters/postgres_sip_effect.rs b/src/call/adapters/postgres_sip_effect.rs
+index 1f8e799..2817689 100644
+--- a/src/call/adapters/postgres_sip_effect.rs
++++ b/src/call/adapters/postgres_sip_effect.rs
+@@ -434,11 +434,11 @@ const STALE_NONTERMINAL_UPDATE_SQL: &str = concat!(
+     FROM unnest(
+       $1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[]
+     ) AS candidate(
+-      protocol_effect_id, expected_revision, expected_state,
++      candidate_effect_id, expected_revision, expected_state,
+       expected_identity_hash, receipt_id, receipt_hash
+     )
+     WHERE effect.tenant_id = $7
+-      AND effect.protocol_effect_id = candidate.protocol_effect_id
++      AND effect.protocol_effect_id = candidate.candidate_effect_id
+       AND effect.revision = candidate.expected_revision::numeric
+       AND effect.state = candidate.expected_state
+       AND effect.effect_identity_hash = candidate.expected_identity_hash

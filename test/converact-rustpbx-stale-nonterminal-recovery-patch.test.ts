@@ -12,6 +12,8 @@ const ROLE_SCOPED_FIXTURE_PATCH =
   "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-role-scoped-fixture.patch";
 const DB_CLOCK_FIXTURE_PATCH =
   "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-db-clock-fixture.patch";
+const RETURNING_ALIAS_PATCH =
+  "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-returning-alias.patch";
 const MIGRATION =
   "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql";
 const BUILD = "infra/converact/rustpbx/build.sh";
@@ -83,12 +85,12 @@ test("stale nonterminal selection has a rolling partial index", () => {
   assert.match(runner, /expectedPredicate/);
 });
 
-test("ivekit.69 applies the database-clock fixture after both rejected shortcuts", () => {
+test("ivekit.70 applies the SQL alias after the database-clock fixture", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.69"/);
+  assert.match(build, /PATCHSET="ivekit\.70"/);
   assert.match(
     build,
-    /rustpbx-converact-stale-nonterminal-recovery\.patch"[\s\S]*rustpbx-converact-stale-nonterminal-recovery-test-fixture\.patch"[\s\S]*rustpbx-converact-stale-nonterminal-recovery-role-scoped-fixture\.patch"[\s\S]*rustpbx-converact-stale-nonterminal-recovery-db-clock-fixture\.patch"/,
+    /rustpbx-converact-stale-nonterminal-recovery\.patch"[\s\S]*rustpbx-converact-stale-nonterminal-recovery-test-fixture\.patch"[\s\S]*rustpbx-converact-stale-nonterminal-recovery-role-scoped-fixture\.patch"[\s\S]*rustpbx-converact-stale-nonterminal-recovery-db-clock-fixture\.patch"[\s\S]*rustpbx-converact-stale-nonterminal-recovery-returning-alias\.patch"/,
   );
   assert.match(
     build,
@@ -151,7 +153,7 @@ test("stale recovery remains default-disabled until live owner fencing is proved
   const evidence = JSON.parse(readFileSync(EVIDENCE, "utf8")) as {
     entries: Array<{ evidence_id: string; status: string }>;
   };
-  assert.match(readme, /ivekit\.69/);
+  assert.match(readme, /ivekit\.70/);
   assert.match(readme, /stale\s+`send_attempted` and `transport_accepted`/i);
   assert.match(readme, /live successor-owner wiring[\s\S]*`not_run`/i);
   assert.equal(
@@ -164,5 +166,27 @@ test("stale recovery remains default-disabled until live owner fencing is proved
     evidence.entries.find((entry) => entry.evidence_id === "G03-E10-FAULT")
       ?.status,
     "not_run",
+  );
+});
+
+test("stale recovery update gives the candidate effect id an unambiguous alias", () => {
+  const patch = readFileSync(RETURNING_ALIAS_PATCH, "utf8");
+  assert.equal(
+    createHash("sha256").update(patch).digest("hex"),
+    "3a2d1683e8ba8b9adea2cf5af988b4ecdc439795e364cd174e4046deb0ce4d41",
+  );
+  const parsedPatch = spawnSync("git", ["apply", "--numstat", RETURNING_ALIAS_PATCH], {
+    encoding: "utf8",
+  });
+  assert.equal(parsedPatch.status, 0, parsedPatch.stderr);
+  const patchAdditions = additions(patch);
+  assert.match(patchAdditions, /candidate_effect_id, expected_revision/);
+  assert.match(
+    patchAdditions,
+    /effect\.protocol_effect_id = candidate\.candidate_effect_id/,
+  );
+  assert.doesNotMatch(
+    patchAdditions,
+    /effect\.protocol_effect_id = candidate\.protocol_effect_id/,
   );
 });

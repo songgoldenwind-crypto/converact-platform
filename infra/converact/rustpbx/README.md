@@ -714,13 +714,18 @@ ivekit.69 removes the test's final direct effect mutation. Because the ledger
 requires `updated_at >= prepared_at` and production prepare uses the database
 clock, the physical case now waits the frozen minimum stale age plus one second
 before recovery. It does not rewrite `prepared_at`, `updated_at`, revision,
-state or any constraint. Exact `.69` Linux physical-PostgreSQL evidence remains
-`not_run` until that database-clock wait completes on the controlled server.
+state or any constraint. Exact `.69` Linux completed that wait and passed the
+bounded unit, but PostgreSQL rejected the recovery `UPDATE ... RETURNING`
+projection because the unnest input reused the target table's
+`protocol_effect_id` name; the focused result was `1/2`.
 
-Local `.69` exact-patch gates pass `186/186`, the affected database and delivery
-gates pass `121/121`, the G03 machine contract passes `9/9`, and the repository
-typecheck passes. These are source/component results only and do not promote the
-still-unrun exact `.69` Linux physical case.
+ivekit.70 gives that unnest input the distinct `candidate_effect_id` name and
+keeps the recovery predicate on
+`effect.protocol_effect_id = candidate.candidate_effect_id`. Local `.70`
+exact-patch gates pass `187/187`, affected database and delivery gates pass
+`121/121`, the G03 machine contract passes `9/9`, and repository typecheck
+passes. Exact `.70` Linux physical-PostgreSQL evidence remains `not_run`; the
+local source/component results do not prove that corrected path.
 
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out

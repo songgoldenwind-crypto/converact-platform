@@ -1147,7 +1147,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-test-fixture.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-role-scoped-fixture.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-db-clock-fixture.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-db-clock-fixture.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-returning-alias.patch"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
@@ -3329,7 +3330,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-test-fixture.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-role-scoped-fixture.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-db-clock-fixture.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-db-clock-fixture.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-returning-alias.patch"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
