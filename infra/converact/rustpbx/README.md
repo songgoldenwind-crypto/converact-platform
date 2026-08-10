@@ -641,11 +641,14 @@ with `2,008` passed, `0` failed and `8` ignored. The ignored tests retain their
 external-prerequisite labels and are not proof. This slice adds no task,
 unbounded queue, global scan, media-path work or duplicate wire allocation.
 
-Authorized-server `.64` full-suite verification, live Call Core/Endpoint
-composition, process-crash recovery of an in-flight UAS owner, exact release
-image, real-peer, long-call, fault/OOM and capacity qualification remain
-`not_run`. No result is inherited from `.62` or the failed `.63` RustPBX build;
-production eligibility remains false.
+The exact `.64` source also passes the authorized-server component suites:
+rsipstack `311/311`, compile-fail/doctests `67/67`, and RustPBX `2,008/0/8`.
+The retained raw bundle is
+`architecture-foundation/execution/goal-03/evidence/raw/uas-2xx-retention-a85d249-09/`.
+Live Call Core/Endpoint composition, process-crash recovery of an in-flight UAS
+owner, exact release image, real-peer, long-call, fault/OOM and capacity
+qualification remain `not_run`. No result is inherited from `.62`, `.53` or
+the failed `.63` RustPBX build; production eligibility remains false.
 
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out

@@ -143,8 +143,9 @@ atomic-derived-ACK case, the `.61` peer-ingress suites and the `.62`
 peer-derived CANCEL source suites completed on the authorized validation host.
 The `.63` UAS-2xx rsipstack host suites pass, but the host exposed a RustPBX
 exhaustive-match compile failure and therefore rejected that candidate. The
-`.64` owner-retention correction passes the local full suites; its authorized-
-host run remains `not_run` until the exact candidate commit is frozen.
+`.64` owner-retention correction passes the local and authorized-host full
+component suites; the controlled raw bundle is
+`evidence/raw/uas-2xx-retention-a85d249-09/`.
 They remain within
 `G03-E05-POSTGRES = verified_controlled` and do not qualify the remaining
 campaigns:

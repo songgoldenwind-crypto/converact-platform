@@ -95,9 +95,11 @@ The `.64` correction adds the missing product-owner retention and typed outcome
 classification. It also makes an initial successful-response transport failure
 terminate with `TransportError` instead of leaving an ambiguous Trying state.
 Both behaviors were observed RED against `.63`; local exact-source suites are
-GREEN at rsipstack `311/311`, doctest `67/67`, and RustPBX `2,008/0/8`. This is
-not an independent acceptance or authorized-server `.64` result; both remain
-`not_run`.
+GREEN at rsipstack `311/311`, doctest `67/67`, and RustPBX `2,008/0/8`. The
+same exact-source counts pass on the authorized server and are retained under
+`evidence/raw/uas-2xx-retention-a85d249-09/`. This is controlled component
+evidence, not an independent acceptance, release-image qualification or live
+Native Authority result.
 
 That work is not a final independent acceptance. Live Endpoint composition and
 transport-flow-generation binding, the live Call Core holder for the matched
