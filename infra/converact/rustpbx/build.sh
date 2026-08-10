@@ -426,6 +426,7 @@ if [[ "${CONVERACT_FABRIC_RUSTPBX_VERIFY_ONLY:-0}" == "1" ]]; then
       cargo test --locked --lib test_recording_pending_start_rejects_duplicate
       cargo test --locked --lib missing_callee_terminal_data_stays_independent_from_the_caller
       cargo test --locked --test ivekit_dialog_shadow_contract_test
+      cargo clean --manifest-path /build/rustpbx/Cargo.toml
       cargo fetch --manifest-path /build/rsipstack/Cargo.toml --locked
       cargo test --manifest-path /build/rsipstack/Cargo.toml --offline
     ' bash "${#RUSTPBX_FORMAT_FILES[@]}" \

@@ -151,6 +151,10 @@ test('rsipstack native tests fetch one locked graph before switching offline', (
     buildScript,
     /cargo fetch --manifest-path \/build\/rsipstack\/Cargo\.toml --locked[\s\S]*cargo test --manifest-path \/build\/rsipstack\/Cargo\.toml --offline/
   );
+  assert.match(
+    buildScript,
+    /cargo test --locked --test ivekit_dialog_shadow_contract_test\s+cargo clean --manifest-path \/build\/rustpbx\/Cargo\.toml\s+cargo fetch --manifest-path \/build\/rsipstack\/Cargo\.toml --locked/
+  );
   const rsipstackOfflineTests = buildScript
     .split('\n')
     .map((line) => line.trim())
