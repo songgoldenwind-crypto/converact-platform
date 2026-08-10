@@ -32,6 +32,10 @@ test("every live SIP call resolves exactly one native identity and admission aut
   assert.doesNotMatch(patch, /src\/call\/domain\/native_call\.rs/);
   assert.match(source, /pub fn standalone\(/);
   assert.match(source, /live_native_identity\(&provider_call_id\)/);
+  assert.match(
+    source,
+    /let result = live_native_identity\(&provider_call_id\)\n\s+\.and_then\(\|identity\| self\.try_upsert_slot/,
+  );
   assert.match(source, /live_native_identity\(&session_id\)/);
   assert.match(
     source,

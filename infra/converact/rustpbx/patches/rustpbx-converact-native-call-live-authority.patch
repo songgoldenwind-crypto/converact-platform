@@ -55,15 +55,14 @@
              NativeCallIdentity::adopt_projection(
 --- a/src/proxy/active_call_registry.rs
 +++ b/src/proxy/active_call_registry.rs
-@@ -182,7 +182,11 @@
+@@ -182,7 +182,10 @@
  
      #[cfg(test)]
      pub fn upsert(&self, entry: ActiveProxyCallEntry, handle: SipSessionHandle) {
 -        if let Err(error) = self.try_upsert(entry, handle) {
 +        let provider_call_id = entry.session_id.clone();
-+        let result = live_native_identity(&provider_call_id).and_then(|identity| {
-+            self.try_upsert_slot(entry, handle, Some(identity), true)
-+        });
++        let result = live_native_identity(&provider_call_id)
++            .and_then(|identity| self.try_upsert_slot(entry, handle, Some(identity), true));
 +        if let Err(error) = result {
              warn!(error = %error, "active call compatibility registration rejected");
          }
