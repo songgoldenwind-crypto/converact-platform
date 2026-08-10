@@ -1,0 +1,4 @@
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 2033 filtered out; finished in 0.09s
+test result: ok. 87 passed; 0 failed; 8 ignored; 0 measured; 1966 filtered out; finished in 0.24s
+rustc 1.94.1 (e408947bf 2026-03-25)
+cargo 1.94.1 (29ea6fb6a 2026-03-24)

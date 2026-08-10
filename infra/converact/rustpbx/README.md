@@ -777,7 +777,10 @@ SipEffect suite `87/87` with 8 explicitly ignored external-prerequisite tests,
 and the two sibling privacy UI probes fail only with their exact expected
 `E0603`/`E0451` codes. Both in-memory and PostgreSQL claim paths validate the
 same maximum 512-byte repair fence. Locked library check and Rust formatting
-also pass. The authoritative grant issuer,
+also pass. The same two test counts and scoped formatting pass in the offline
+controlled Linux focused run retained under
+`architecture-foundation/execution/goal-03/evidence/raw/focused-linux-sip-effect-b3c9da0-14/`.
+This does not replace the `.72` full verify-only suite. The authoritative grant issuer,
 durable per-target completion sink, physical PostgreSQL concurrency/rollback
 and query-plan proof, process-crash recovery, live Endpoint activation, Linux
 full-suite requalification and production eligibility remain `not_run`.

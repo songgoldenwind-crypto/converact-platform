@@ -1,0 +1,11 @@
+commit=b3c9da0930c30ca89c1ab3883113c045f9dc6625
+host=VM-0-3-ubuntu
+kernel=Linux 6.8.0-71-generic x86_64 GNU/Linux
+arch=x86_64
+cpu_model=Intel(R) Xeon(R) Platinum 8255C CPU @ 2.50GHz
+cpu_count=2
+memory_bytes=8059359232
+root_available_bytes=6114258944
+target_bytes=3101784354
+old_opc_running=0
+test_postgres=running/healthy

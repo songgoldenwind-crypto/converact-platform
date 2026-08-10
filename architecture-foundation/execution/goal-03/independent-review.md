@@ -189,8 +189,15 @@ tests passed `192/192`, and typecheck passed. Its one minor hardening suggestion
 is also closed: both whole-child panic tests now explicitly prove that stopping
 the reconciler child before and during supervisor shutdown never cancels the
 parent Call token. This accepts only the default-disabled `.72` component
-slice; it is not a `G03-E15` evidence promotion. The authoritative issuer,
-durable completion sink, physical
+slice; it is not a `G03-E15` evidence promotion.
+
+The exact committed source was then rerun offline on the authorized Linux host:
+the reconciler passed `28/28`, the affected SipEffect suite passed
+`87 passed / 0 failed / 8 ignored`, and the container exited `0` without OOM.
+The raw bundle is
+`evidence/raw/focused-linux-sip-effect-b3c9da0-14/`; this focused rerun does not
+replace `.72` full-suite or physical PostgreSQL evidence. The authoritative
+issuer, durable completion sink, physical
 PostgreSQL exact-target/rollback and 10K/100K distractor plans, live Endpoint,
 process-crash/two-node, Linux full, fault/performance and production gates
 remain `not_run`.

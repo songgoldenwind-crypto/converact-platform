@@ -187,10 +187,12 @@ Endpoint composition, real process crash and all performance/fault gates
 remain open. Neither controlled component result qualifies the remaining
 campaigns:
 
-The `.72` exact-target reconciler currently has isolated local component proof
-only: `28/28`, affected SipEffect `87 passed / 0 failed / 8 ignored`, the two
-expected-code privacy UI probes, locked
-check and Rust formatting. It does not inherit `.71` Linux evidence or promote any evidence
+The `.72` exact-target reconciler has local and controlled offline focused-Linux
+component proof: `28/28`, affected SipEffect
+`87 passed / 0 failed / 8 ignored`, the two expected-code privacy UI probes,
+locked check and Rust formatting. The focused raw bundle is
+`evidence/raw/focused-linux-sip-effect-b3c9da0-14/`. It does not inherit `.71`
+Linux full-suite evidence or promote any evidence
 entry. Its physical PostgreSQL exact-target/rollback and 10K/100K query-plan
 campaigns, authoritative issuer, durable completion sink, live Endpoint,
 process-crash/two-node, Linux full, fault/performance and production gates stay

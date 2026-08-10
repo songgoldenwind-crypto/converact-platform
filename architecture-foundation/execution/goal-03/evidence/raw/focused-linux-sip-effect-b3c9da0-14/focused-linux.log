@@ -1,0 +1,12 @@
+rustc 1.94.1 (e408947bf 2026-03-25)
+binary: rustc
+commit-hash: e408947bfd200af42db322daf0fadfe7e26d3bd1
+commit-date: 2026-03-25
+host: x86_64-unknown-linux-gnu
+release: 1.94.1
+LLVM version: 21.1.8
+cargo 1.94.1 (29ea6fb6a 2026-03-24)
+error: no matching package named `anyhow` found
+location searched: crates.io index
+required by package `rustpbx v0.4.11 (/build/rustpbx)`
+As a reminder, you're using offline mode (--offline) which can sometimes cause surprising resolution failures, if this error is too confusing you may wish to retry without `--offline`.
