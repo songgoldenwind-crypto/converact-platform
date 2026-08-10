@@ -1,15 +1,15 @@
 diff --git a/src/call/adapters/mod.rs b/src/call/adapters/mod.rs
-index 46c8d35..083be06 100644
+index 46c8d35..23fe771 100644
 --- a/src/call/adapters/mod.rs
 +++ b/src/call/adapters/mod.rs
-@@ -12,6 +12,7 @@
- #[cfg(feature = "console")]
- mod console_adapter;
- pub mod postgres_sip_effect;
-+pub mod sip_effect_observer_supervisor;
+@@ -15,6 +15,7 @@ pub mod postgres_sip_effect;
  pub mod rsipstack_sip_effect_gate;
  mod rwi_adapter;
  mod session_action_bridge;
++pub mod sip_effect_observer_supervisor;
+ 
+ #[cfg(feature = "console")]
+ pub use console_adapter::*;
 diff --git a/src/call/adapters/rsipstack_sip_effect_gate.rs b/src/call/adapters/rsipstack_sip_effect_gate.rs
 index cfe378c..66734d8 100644
 --- a/src/call/adapters/rsipstack_sip_effect_gate.rs
