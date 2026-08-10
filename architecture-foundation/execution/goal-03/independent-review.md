@@ -38,11 +38,11 @@ unchanged container IDs are retained instead.
 Neither accepted review proves that the TypeScript `VoiceCall`, Call/Leg model,
 `RsipstackFoundationAdapter` or PostgreSQL reference ledger is a live native
 authority. Unified RustPBX remains the sole active Call/Leg authority;
-`G03-E16-NATIVE-AUTHORITY` and the `.63` current patchset, including its
+`G03-E16-NATIVE-AUTHORITY` and the `.64` current patchset, including its
 default-disabled native durable egress adapter, are outside those old reviewed
 diffs and remain pending exact-source review.
 
-## Current `.63` interim review boundary
+## Current `.64` interim review boundary
 
 The `.59` protocol-observation slice received iterative code review while it
 was developed. Findings around cancellation ownership, queue loss, receipt
@@ -86,8 +86,18 @@ permit and immutable response bytes. UDP retransmission is T1→T2 on the shared
 timer heap; reliable transports never retransmit. Exact Call-ID/tag/CSeq ACK
 matching is accepted only from Endpoint-proven ingress, while 64*T1, owner drop
 or retransmission failure resolves Unknown once. Local exact-source tests pass
-rsipstack `309/309` and the RustPBX durable-gate module `32/32`. This is not an
-independent review or host result; both remain `not_run` for `.63`.
+rsipstack `309/309` and the RustPBX durable-gate module `32/32`. The authorized
+server passed rsipstack `309/309` plus doctest `67/67`, then rejected `.63`
+because full RustPBX compilation exposed an uncovered
+`Uas2xxDeadlineExpired` outcome.
+
+The `.64` correction adds the missing product-owner retention and typed outcome
+classification. It also makes an initial successful-response transport failure
+terminate with `TransportError` instead of leaving an ambiguous Trying state.
+Both behaviors were observed RED against `.63`; local exact-source suites are
+GREEN at rsipstack `311/311`, doctest `67/67`, and RustPBX `2,008/0/8`. This is
+not an independent acceptance or authorized-server `.64` result; both remain
+`not_run`.
 
 That work is not a final independent acceptance. Live Endpoint composition and
 transport-flow-generation binding, the live Call Core holder for the matched

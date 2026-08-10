@@ -111,14 +111,16 @@ Run serially:
 2. New Call/Leg tests.
 3. SipFoundation, effect and recovery tests.
 4. Exact rsipstack/RustPBX patch contract tests.
-5. Native Call/Leg/effect binding tests; the `.63` RustPBX port includes a
+5. Native Call/Leg/effect binding tests; the `.64` RustPBX port includes a
    direction-keyed UAS/UAC state model, closed v2 wire-attempt facts and
    separate transport/protocol receipts plus one parent-bound non-2xx ACK
    derivation. Network peer observations additionally require the private,
    zero-sized Endpoint ingress proof. The matched-CANCEL component path now
    requires one pre-registered peer-derived capability. One bounded UAS-2xx
    owner now retains the same frozen response and permit through exact ACK or
-   64*T1, with no per-call task. Local exact-source suites pass. The gate
+   64*T1, with no per-call task. The product layer retains that owner after
+   module return and classifies deadline/initial-send failure explicitly. Local
+   exact-source suites pass. The gate
    remains default-disabled; retain activation `not_run` until
    its real Call Core holder, live Endpoint composition and reconciliation
    resume are wired, and until parent-Unknown, stale-nonterminal and in-flight
@@ -139,8 +141,10 @@ does not stop independent offline work. The physical PostgreSQL restart/replay
 campaign, the `.59` six-case native PostgreSQL component campaign, the `.60`
 atomic-derived-ACK case, the `.61` peer-ingress suites and the `.62`
 peer-derived CANCEL source suites completed on the authorized validation host.
-The `.63` UAS-2xx local suites are complete; its authorized-host full suites
-remain `not_run` until the exact candidate commit is frozen.
+The `.63` UAS-2xx rsipstack host suites pass, but the host exposed a RustPBX
+exhaustive-match compile failure and therefore rejected that candidate. The
+`.64` owner-retention correction passes the local full suites; its authorized-
+host run remains `not_run` until the exact candidate commit is frozen.
 They remain within
 `G03-E05-POSTGRES = verified_controlled` and do not qualify the remaining
 campaigns:

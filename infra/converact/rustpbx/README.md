@@ -618,11 +618,34 @@ uses the shared timer heap, so this slice adds no per-call task, unbounded
 channel, global scan, media-path work or duplicate wire allocation.
 
 Local exact-source Rust 1.94.1 component tests pass rsipstack `309/309` and the
-RustPBX durable-gate module `32/32`. Authorized-server full-suite verification,
-live Call Core/Endpoint composition, process-crash recovery of an in-flight UAS
-owner, exact release image, real-peer, long-call, fault/OOM and capacity
-qualification remain `not_run`. No result is inherited from `.62`; production
-eligibility remains false.
+RustPBX durable-gate module `32/32`. The authorized Linux server then passed
+rsipstack `309/309` plus `67/67` doctests but exposed an exhaustive-match build
+failure in the full RustPBX suite: the product owner did not classify the new
+`Uas2xxDeadlineExpired` outcome. Therefore `.63` is a failed intermediate
+candidate, is superseded by `.64`, and is not production eligible.
+
+ivekit.64 closes that integration gap without widening authority. The
+server-INVITE drain now retains either the RFC 3261 non-2xx owner or the embedded
+UAS 2xx owner until exact ACK, typed deadline, cancellation, or transport
+failure. A compatibility alias preserves existing callers while RustPBX uses
+the accurately named all-final-response API. RustPBX classifies the 2xx deadline
+with one fixed-label metric instead of dropping the transaction after module
+return. An initial 2xx transport failure commits neither the cached response nor
+Completed state; it records `TransportError`, terminates, and resolves the
+existing permit as Unknown exactly once.
+
+The new retention and initial-send-failure tests were red against `.63` and are
+green against `.64`. Local exact-source Rust 1.94.1 suites pass rsipstack
+`311/311`, its `67/67` compile-fail/doctests, and the full RustPBX library suite
+with `2,008` passed, `0` failed and `8` ignored. The ignored tests retain their
+external-prerequisite labels and are not proof. This slice adds no task,
+unbounded queue, global scan, media-path work or duplicate wire allocation.
+
+Authorized-server `.64` full-suite verification, live Call Core/Endpoint
+composition, process-crash recovery of an in-flight UAS owner, exact release
+image, real-peer, long-call, fault/OOM and capacity qualification remain
+`not_run`. No result is inherited from `.62` or the failed `.63` RustPBX build;
+production eligibility remains false.
 
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out

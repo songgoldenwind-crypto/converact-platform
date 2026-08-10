@@ -1,0 +1,63 @@
+--- a/src/proxy/server.rs
++++ b/src/proxy/server.rs
+@@ -1320,7 +1320,7 @@
+ 
+     async fn retain_server_invite_owner(token: &CancellationToken, tx: &mut Transaction) {
+         select! {
+-            result = tx.drain_non_2xx_server_invite() => {
++            result = tx.drain_server_invite() => {
+                 match result {
+                     Ok(Some(ServerInviteTermination::Acknowledged)) => {
+                         debug!(key = %tx.key, "server INVITE transaction acknowledged");
+@@ -1329,6 +1329,13 @@
+                         metrics::counter!(
+                             "rustpbx_sip_server_invite_terminations_total",
+                             "cause" => "timer_h_expired"
++                        ).increment(1);
++                        debug!(key = %tx.key, ?termination, "server INVITE transaction failed");
++                    }
++                    Ok(Some(termination @ ServerInviteTermination::Uas2xxDeadlineExpired)) => {
++                        metrics::counter!(
++                            "rustpbx_sip_server_invite_terminations_total",
++                            "cause" => "uas_2xx_deadline_expired"
+                         ).increment(1);
+                         debug!(key = %tx.key, ?termination, "server INVITE transaction failed");
+                     }
+@@ -1582,6 +1589,37 @@
+             .await
+             .expect("owner cancellation timeout")
+             .expect("owner task panicked");
++        drop(transaction);
++        assert_eq!(endpoint.get_stats().running_transactions, 0);
++    }
++
++    #[tokio::test]
++    async fn ivekit_server_invite_2xx_owner_survives_module_return_until_cancelled() {
++        let request = create_test_request(Method::Invite, "alice", None, "rustpbx.test", None);
++        let (mut transaction, endpoint) = create_transaction(request).await;
++        transaction
++            .reply(StatusCode::OK)
++            .await
++            .expect("successful final response");
++        let token = CancellationToken::new();
++        let owner_token = token.clone();
++        let owner = tokio::spawn(async move {
++            SipServer::retain_server_invite_owner(&owner_token, &mut transaction).await;
++            transaction
++        });
++
++        tokio::task::yield_now().await;
++        assert!(
++            !owner.is_finished(),
++            "2xx owner dropped before ACK or UAS deadline"
++        );
++        assert_eq!(endpoint.get_stats().running_transactions, 1);
++
++        token.cancel();
++        let transaction = timeout(Duration::from_secs(1), owner)
++            .await
++            .expect("2xx owner cancellation timeout")
++            .expect("2xx owner task panicked");
+         drop(transaction);
+         assert_eq!(endpoint.get_stats().running_transactions, 0);
+     }

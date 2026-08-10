@@ -33,7 +33,7 @@ test('recording lifecycle reservation is reproducible and recorded in the fork m
     build,
     /cargo test --locked --lib test_recording_pending_start_rejects_duplicate/
   );
-  assert.match(build, /PATCHSET="ivekit\.63"/);
+  assert.match(build, /PATCHSET="ivekit\.64"/);
 
   const manifest = JSON.parse(
     readFileSync('docs/capacity/forks/ivekit-forks-v1.json', 'utf8')

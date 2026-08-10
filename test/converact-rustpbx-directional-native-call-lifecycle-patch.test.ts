@@ -118,7 +118,7 @@ test("the versioned contract freezes UAS and UAC semantics separately", () => {
 
 test("ivekit.58 compiles the directional model without promoting activation", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.63"/);
+  assert.match(build, /PATCHSET="ivekit\.64"/);
   assert.match(
     build,
     /rustpbx-converact-native-call-runtime-composition\.patch"[\s\S]*rustpbx-converact-directional-native-call-lifecycle\.patch"/,

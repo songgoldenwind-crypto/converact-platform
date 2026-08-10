@@ -19,7 +19,7 @@ function additions(contents: string): string {
     .join("\n");
 }
 
-test("ivekit.63 applies the UAS 2xx owner after peer-derived CANCEL support", () => {
+test("ivekit.64 applies the UAS 2xx owner after peer-derived CANCEL support", () => {
   const patches = [
     [RSIPSTACK_PATCH, "062a3f84280ff7048720cb43268aac4dc23098283fee79def7b4d54dba980805"],
     [RUSTPBX_PATCH, "8205d52b99a03649716254f08f3d7e58f11e36ef56a33645e935b64380b572a9"],
@@ -37,7 +37,7 @@ test("ivekit.63 applies the UAS 2xx owner after peer-derived CANCEL support", ()
   }
 
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.63"/);
+  assert.match(build, /PATCHSET="ivekit\.64"/);
   assert.match(
     build,
     /rsipstack-converact-peer-derived-cancel-response\.patch"[\s\S]*rsipstack-converact-uas-2xx-owner\.patch"[\s\S]*rustrtc-ivekit-udp-socket-capacity\.patch"/,
@@ -85,7 +85,7 @@ test("only exact Endpoint-proven ACK completes the deferred 2xx scope", () => {
 
 test("documentation keeps crash recovery and production activation unclaimed", () => {
   const readme = readFileSync(README, "utf8");
-  assert.match(readme, /ivekit\.63/);
+  assert.match(readme, /ivekit\.64/);
   assert.match(readme, /UAS[- ]Core|UAS 2xx/i);
   assert.match(readme, /crash[\s\S]{0,240}`not_run`/i);
   assert.match(readme, /production eligibility remains false/i);

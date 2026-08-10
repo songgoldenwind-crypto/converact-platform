@@ -1,0 +1,152 @@
+--- a/src/transaction/transaction.rs
++++ b/src/transaction/transaction.rs
+@@ -894,7 +894,7 @@
+             .await
+         {
+             effect_attempt.observe(EgressEffectOutcome::TransportUnknown);
+-            if is_non_2xx_server_invite {
++            if is_non_2xx_server_invite || is_2xx_server_invite {
+                 self.terminate_server_invite_transport_error(&error);
+             }
+             return Err(error);
+@@ -1275,9 +1275,15 @@
+         self.state == TransactionState::Terminated
+     }
+ 
+-    pub async fn drain_non_2xx_server_invite(&mut self) -> Result<Option<ServerInviteTermination>> {
++    /// Retains the server-INVITE transaction owner until its final response is
++    /// acknowledged, reaches its protocol deadline, or encounters a transport
++    /// failure. This covers both transaction-owned non-2xx responses and the
++    /// embedded UAS-Core owner for successful final responses.
++    pub async fn drain_server_invite(&mut self) -> Result<Option<ServerInviteTermination>> {
+         if self.transaction_type != TransactionType::ServerInvite
+-            || (!self.is_non_2xx_server_invite() && self.server_invite_termination.is_none())
++            || (!self.is_non_2xx_server_invite()
++                && self.server_invite_2xx_owner.is_none()
++                && self.server_invite_termination.is_none())
+             || !matches!(
+                 self.state,
+                 TransactionState::Completed
+@@ -1294,6 +1300,12 @@
+             }
+         }
+         Ok(self.server_invite_termination.clone())
++    }
++
++    /// Compatibility alias for callers compiled against the former non-2xx-only API.
++    #[doc(hidden)]
++    pub async fn drain_non_2xx_server_invite(&mut self) -> Result<Option<ServerInviteTermination>> {
++        self.drain_server_invite().await
+     }
+ }
+ 
+--- a/src/transaction/tests/test_server.rs
++++ b/src/transaction/tests/test_server.rs
+@@ -897,6 +897,45 @@
+ }
+ 
+ #[tokio::test]
++async fn server_invite_2xx_drain_retains_owner_until_deadline() {
++    let gate = Arc::new(RecordingEgressEffectGate {
++        prepare_calls: AtomicUsize::new(0),
++        canonical_wire_images: std::sync::Mutex::new(Vec::new()),
++        outcomes: std::sync::Mutex::new(Vec::new()),
++        protocol_observations: std::sync::Mutex::new(Vec::new()),
++        reject_prepare: false,
++    });
++    let (mut transaction, peer, _endpoint) = udp_server_transaction_with_effect_gate(gate).await;
++
++    transaction
++        .reply(crate::sip::StatusCode::OK)
++        .await
++        .expect("send 2xx response");
++    let _response = recv_udp_bytes(&peer).await;
++
++    assert!(
++        timeout(Duration::from_millis(20), transaction.drain_server_invite(),)
++            .await
++            .is_err(),
++        "active UAS 2xx ownership must not return before ACK or deadline"
++    );
++
++    transaction
++        .tu_sender
++        .send(TransactionEvent::Timer(
++            TransactionTimer::TimerUas2xxDeadline(transaction.key.clone()),
++        ))
++        .expect("UAS 2xx deadline event");
++    assert_eq!(
++        transaction
++            .drain_server_invite()
++            .await
++            .expect("drain UAS 2xx deadline"),
++        Some(ServerInviteTermination::Uas2xxDeadlineExpired)
++    );
++}
++
++#[tokio::test]
+ async fn dropping_server_invite_before_ack_marks_final_response_unknown_once() {
+     let gate = Arc::new(RecordingEgressEffectGate {
+         prepare_calls: AtomicUsize::new(0),
+@@ -1527,6 +1566,61 @@
+             .drain_non_2xx_server_invite()
+             .await
+             .expect("typed transport failure"),
++        Some(ServerInviteTermination::TransportError)
++    );
++}
++
++#[tokio::test]
++async fn initial_2xx_send_failure_does_not_commit_response_and_terminates() {
++    let gate = Arc::new(RecordingEgressEffectGate {
++        prepare_calls: AtomicUsize::new(0),
++        canonical_wire_images: std::sync::Mutex::new(Vec::new()),
++        outcomes: std::sync::Mutex::new(Vec::new()),
++        protocol_observations: std::sync::Mutex::new(Vec::new()),
++        reject_prepare: false,
++    });
++    let (_incoming_tx, incoming_rx) = crate::bounded::test_channel();
++    let (outgoing_tx, outgoing_rx) = crate::bounded::test_channel();
++    drop(outgoing_rx);
++    let channel_addr = SipAddr::from(
++        "127.0.0.1:5060"
++            .parse::<std::net::SocketAddr>()
++            .expect("channel address"),
++    );
++    let connection =
++        ChannelConnection::create_connection(incoming_rx, outgoing_tx, channel_addr.clone(), None)
++            .await
++            .expect("channel connection");
++    let endpoint = EndpointBuilder::new()
++        .with_user_agent("rsipstack-test")
++        .with_egress_effect_gate(gate.clone())
++        .build();
++    let request = invite_request("UDP", &channel_addr, "z9hG4bK-2xx-send-failure");
++    let key = crate::transaction::TransactionKey::from_request(
++        &request,
++        crate::transaction::key::TransactionRole::Server,
++    )
++    .expect("transaction key");
++    let mut transaction = crate::transaction::transaction::Transaction::new_server(
++        key,
++        request,
++        endpoint.inner.clone(),
++        Some(connection.into()),
++    );
++
++    assert!(transaction.reply(crate::sip::StatusCode::OK).await.is_err());
++    assert_eq!(transaction.state, TransactionState::Terminated);
++    assert!(transaction.last_response.is_none());
++    assert_eq!(gate.prepare_calls.load(Ordering::SeqCst), 1);
++    assert_eq!(
++        gate.outcomes.lock().expect("outcome lock").as_slice(),
++        [EgressEffectOutcome::TransportUnknown]
++    );
++    assert_eq!(
++        transaction
++            .drain_non_2xx_server_invite()
++            .await
++            .expect("typed 2xx transport failure"),
+         Some(ServerInviteTermination::TransportError)
+     );
+ }
