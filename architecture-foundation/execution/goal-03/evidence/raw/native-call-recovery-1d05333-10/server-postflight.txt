@@ -1,0 +1,22 @@
+captured_at=2026-08-10T04:32:05Z
+hostname=VM-0-3-ubuntu
+Linux 6.8.0-71-generic x86_64 GNU/Linux
+nginx=inactive
+pm2.metafate-teacher-domestic=stopped
+pm2.liuyao-server=stopped
+pm2.metafate-user-center-domestic=stopped
+pm2.metafate-prediction=stopped
+container.converact-g03-current-pg-7f4cd00c=Up 11 hours (healthy)
+postgres.ports={"5432/tcp":null}
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vda2        79G   66G   11G  87% /
+Netid State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess                                    
+udp   UNCONN 0      0         127.0.0.54:53         0.0.0.0:*    users:(("systemd-resolve",pid=430,fd=16)) 
+udp   UNCONN 0      0      127.0.0.53%lo:53         0.0.0.0:*    users:(("systemd-resolve",pid=430,fd=14)) 
+udp   UNCONN 0      0      10.2.0.3%eth0:68         0.0.0.0:*    users:(("systemd-network",pid=5103,fd=21))
+udp   UNCONN 0      0          127.0.0.1:323        0.0.0.0:*    users:(("chronyd",pid=6274,fd=5))         
+udp   UNCONN 0      0              [::1]:323           [::]:*    users:(("chronyd",pid=6274,fd=6))         
+tcp   LISTEN 0      4096      127.0.0.54:53         0.0.0.0:*    users:(("systemd-resolve",pid=430,fd=17)) 
+tcp   LISTEN 0      4096       127.0.0.1:38991      0.0.0.0:*    users:(("containerd",pid=13741,fd=7))     
+tcp   LISTEN 0      4096   127.0.0.53%lo:53         0.0.0.0:*    users:(("systemd-resolve",pid=430,fd=15)) 
+tcp   LISTEN 0      4096               *:22               *:*    users:(("sshd",pid=5363,fd=3),("systemd",pid=1,fd=226))

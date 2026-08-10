@@ -1,0 +1,59 @@
+nginx_journal
+2026-08-10T12:01:14+08:00 VM-0-3-ubuntu systemd[1]: Starting nginx.service - A high performance web server and a reverse proxy server...
+2026-08-10T12:01:14+08:00 VM-0-3-ubuntu systemd[1]: Started nginx.service - A high performance web server and a reverse proxy server.
+2026-08-10T12:10:02+08:00 VM-0-3-ubuntu systemd[1]: Stopping nginx.service - A high performance web server and a reverse proxy server...
+2026-08-10T12:10:02+08:00 VM-0-3-ubuntu systemd[1]: nginx.service: Deactivated successfully.
+2026-08-10T12:10:02+08:00 VM-0-3-ubuntu systemd[1]: Stopped nginx.service - A high performance web server and a reverse proxy server.
+2026-08-10T12:12:06+08:00 VM-0-3-ubuntu systemd[1]: Starting nginx.service - A high performance web server and a reverse proxy server...
+2026-08-10T12:12:06+08:00 VM-0-3-ubuntu systemd[1]: Started nginx.service - A high performance web server and a reverse proxy server.
+2026-08-10T12:12:54+08:00 VM-0-3-ubuntu systemd[1]: Stopping nginx.service - A high performance web server and a reverse proxy server...
+2026-08-10T12:12:54+08:00 VM-0-3-ubuntu systemd[1]: nginx.service: Deactivated successfully.
+2026-08-10T12:12:54+08:00 VM-0-3-ubuntu systemd[1]: Stopped nginx.service - A high performance web server and a reverse proxy server.
+2026-08-10T12:30:18+08:00 VM-0-3-ubuntu systemd[1]: Starting nginx.service - A high performance web server and a reverse proxy server...
+2026-08-10T12:30:18+08:00 VM-0-3-ubuntu systemd[1]: Started nginx.service - A high performance web server and a reverse proxy server.
+2026-08-10T12:31:45+08:00 VM-0-3-ubuntu systemd[1]: Stopping nginx.service - A high performance web server and a reverse proxy server...
+2026-08-10T12:31:45+08:00 VM-0-3-ubuntu systemd[1]: nginx.service: Deactivated successfully.
+2026-08-10T12:31:45+08:00 VM-0-3-ubuntu systemd[1]: Stopped nginx.service - A high performance web server and a reverse proxy server.
+docker_events
+1786336186 start confident_cori
+1786336213 start mongodb-metafate
+1786336213 start mysql-metafate
+1786336304 stop mongodb-metafate
+1786336305 stop mysql-metafate
+pm2_log
+2026-08-10T12:01:09: PM2 log: App [metafate-user-center-domestic:7] starting in -fork mode-
+2026-08-10T12:01:09: PM2 log: App [metafate-user-center-domestic:7] online
+2026-08-10T12:01:13: PM2 log: App [metafate-prediction:195] starting in -fork mode-
+2026-08-10T12:01:14: PM2 log: App [metafate-prediction:195] online
+2026-08-10T12:02:10: PM2 log: Process 195 in a stopped status, starting it
+2026-08-10T12:02:10: PM2 log: Stopping app:metafate-prediction id:195
+2026-08-10T12:02:10: PM2 log: App [metafate-prediction:195] exited with code [0] via signal [SIGINT]
+2026-08-10T12:02:10: PM2 log: pid=402015 msg=process killed
+2026-08-10T12:02:10: PM2 log: App [metafate-prediction:195] starting in -fork mode-
+2026-08-10T12:02:10: PM2 log: App [metafate-prediction:195] online
+2026-08-10T12:09:59: PM2 log: Stopping app:metafate-user-center-domestic id:7
+2026-08-10T12:09:59: PM2 log: App [metafate-user-center-domestic:7] exited with code [0] via signal [SIGINT]
+2026-08-10T12:09:59: PM2 log: pid=401763 msg=process killed
+2026-08-10T12:09:59: PM2 log: Stopping app:metafate-prediction id:195
+2026-08-10T12:09:59: PM2 log: App [metafate-prediction:195] exited with code [0] via signal [SIGINT]
+2026-08-10T12:09:59: PM2 log: pid=404339 msg=process killed
+2026-08-10T12:11:59: PM2 log: App [metafate-user-center-domestic:7] starting in -fork mode-
+2026-08-10T12:11:59: PM2 log: App [metafate-user-center-domestic:7] online
+2026-08-10T12:12:04: PM2 log: App [metafate-prediction:195] starting in -fork mode-
+2026-08-10T12:12:04: PM2 log: App [metafate-prediction:195] online
+2026-08-10T12:12:53: PM2 log: Stopping app:metafate-user-center-domestic id:7
+2026-08-10T12:12:53: PM2 log: App [metafate-user-center-domestic:7] exited with code [0] via signal [SIGINT]
+2026-08-10T12:12:53: PM2 log: pid=435307 msg=process killed
+2026-08-10T12:12:53: PM2 log: Stopping app:metafate-prediction id:195
+2026-08-10T12:12:53: PM2 log: App [metafate-prediction:195] exited with code [0] via signal [SIGINT]
+2026-08-10T12:12:53: PM2 log: pid=435621 msg=process killed
+2026-08-10T12:30:13: PM2 log: App [metafate-user-center-domestic:7] starting in -fork mode-
+2026-08-10T12:30:13: PM2 log: App [metafate-user-center-domestic:7] online
+2026-08-10T12:30:17: PM2 log: App [metafate-prediction:195] starting in -fork mode-
+2026-08-10T12:30:17: PM2 log: App [metafate-prediction:195] online
+2026-08-10T12:31:43: PM2 log: Stopping app:metafate-user-center-domestic id:7
+2026-08-10T12:31:43: PM2 log: App [metafate-user-center-domestic:7] exited with code [0] via signal [SIGINT]
+2026-08-10T12:31:43: PM2 log: pid=464864 msg=process killed
+2026-08-10T12:31:43: PM2 log: Stopping app:metafate-prediction id:195
+2026-08-10T12:31:43: PM2 log: App [metafate-prediction:195] exited with code [0] via signal [SIGINT]
+2026-08-10T12:31:43: PM2 log: pid=465081 msg=process killed

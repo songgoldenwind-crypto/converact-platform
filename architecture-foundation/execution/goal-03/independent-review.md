@@ -118,9 +118,12 @@ increments the owner epoch, generation and revision exactly once. Rust and
 TypeScript share a 16 KiB ceiling and one fixed binding hash. Local static gates
 pass `191/191`, TypeScript capsule tests pass `9/9`, and RustPBX passes
 `2,015/0/8`; the dialog-shadow integration contract passes `20/20`.
-Authorized-server replay, real crash/two-node takeover and final
-independent acceptance remain `not_run`; this paragraph does not promote
-`G03-E15` or `G03-E16`.
+Authorized-server candidate `1d05333…` exits zero with the same RustPBX and
+integration results plus rsipstack `311/311` and doctests `67/67`. Its
+component bundle is `evidence/raw/native-call-recovery-1d05333-10/`; it records
+external old-service restarts and therefore makes no performance claim. Real
+crash/two-node takeover and final independent acceptance remain `not_run`;
+this paragraph does not promote `G03-E15` or `G03-E16`.
 
 ## Rejection history and remaining gate
 
