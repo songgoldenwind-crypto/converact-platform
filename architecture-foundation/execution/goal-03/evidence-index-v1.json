@@ -108,7 +108,10 @@
         "architecture-foundation/execution/goal-03/evidence/raw/stale-nonterminal-recovery-6abf714-11/README.md",
         "architecture-foundation/execution/goal-03/evidence/raw/stale-nonterminal-recovery-6abf714-11/remote-artifacts.sha256",
         "architecture-foundation/execution/goal-03/evidence/raw/stale-nonterminal-recovery-6abf714-11/server-verify.log",
-        "architecture-foundation/execution/goal-03/evidence/raw/stale-nonterminal-recovery-6abf714-11/verification.txt"
+        "architecture-foundation/execution/goal-03/evidence/raw/stale-nonterminal-recovery-6abf714-11/verification.txt",
+        "architecture-foundation/execution/goal-03/evidence/raw/full-linux-suites-6abf714-12/README.md",
+        "architecture-foundation/execution/goal-03/evidence/raw/full-linux-suites-6abf714-12/SHA256SUMS",
+        "architecture-foundation/execution/goal-03/evidence/raw/full-linux-suites-6abf714-12/server-suite-results.txt"
       ],
       "source_commit": "6abf714ea8b71817e91fa9493e882c360050cf7f",
       "raw_output_sha256": "45072f23e6e8eff7a3f77b1ec075c596d8049a2072437934278898e14f9666ca",

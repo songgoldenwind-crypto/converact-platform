@@ -38,11 +38,11 @@ unchanged container IDs are retained instead.
 Neither accepted review proves that the TypeScript `VoiceCall`, Call/Leg model,
 `RsipstackFoundationAdapter` or PostgreSQL reference ledger is a live native
 authority. Unified RustPBX remains the sole active Call/Leg authority;
-`G03-E16-NATIVE-AUTHORITY` and the `.64` current patchset, including its
+`G03-E16-NATIVE-AUTHORITY` and the `.70` current patchset, including its
 default-disabled native durable egress adapter, are outside those old reviewed
 diffs and remain pending exact-source review.
 
-## Current `.64` interim review boundary
+## Current `.70` interim review boundary
 
 The `.59` protocol-observation slice received iterative code review while it
 was developed. Findings around cancellation ownership, queue loss, receipt
@@ -124,6 +124,15 @@ component bundle is `evidence/raw/native-call-recovery-1d05333-10/`; it records
 external old-service restarts and therefore makes no performance claim. Real
 crash/two-node takeover and final independent acceptance remain `not_run`;
 this paragraph does not promote `G03-E15` or `G03-E16`.
+
+The later exact `.70` source passes the focused physical PostgreSQL recovery
+case `2/2`, the complete RustPBX library suite `2,016/0/9`, rsipstack
+`311/311`, and its compile-fail/doctest target `67/67` on the authorized
+server. The full-suite bundle is
+`evidence/raw/full-linux-suites-6abf714-12/`. This closes the exact `.70`
+component-suite execution gap only. It is not an independent acceptance and
+does not prove live Native Authority, a real process crash, a two-node
+takeover, fault/OOM isolation, performance or production eligibility.
 
 ## Rejection history and remaining gate
 

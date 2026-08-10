@@ -572,10 +572,18 @@ test('evidence promotes only exact proved slices and retains every open gate', (
   );
   assert.ok(recovery.evidence_uris.some((uri) =>
     uri.includes('stale-nonterminal-recovery-6abf714-11')));
+  assert.ok(recovery.evidence_uris.some((uri) =>
+    uri.includes('full-linux-suites-6abf714-12')));
   assert.equal(
     recovery.raw_output_sha256,
     '45072f23e6e8eff7a3f77b1ec075c596d8049a2072437934278898e14f9666ca',
   );
+  const currentStateAudit = readFileSync(
+    join(goalDirectory, 'current-state-audit.md'),
+    'utf8',
+  );
+  assert.match(currentStateAudit, /RustPBX `2,016\/0\/9`/u);
+  assert.match(currentStateAudit, /rsipstack `311\/311` and doctests `67\/67`/u);
   for (const path of requiredMarkdown) {
     const absolute = join(goalDirectory, path);
     assert.ok(existsSync(absolute), `missing ${path}`);

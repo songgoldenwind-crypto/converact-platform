@@ -74,7 +74,13 @@ local exact-patch gates pass `187/187`, affected TypeScript gates pass `121/121`
 the G03 contract passes `9/9`, and typecheck passes. Exact `.69` Linux passed the focused unit and real
 stale wait, then stopped on PostgreSQL's ambiguous-column guard; corrected exact `.70`
 passed the focused PostgreSQL recovery tests `2/2` in `31.25s`. Linux full suite
-and live successor-owner composition have not run. The
+on the same exact `.70` source then passed RustPBX `2,016/0/9`, rsipstack
+`311/311` and doctests `67/67` on the authorized server. The rsipstack run used
+an isolated vendor copy after all 47 lockfile packages missing from the older
+RustPBX vendor were verified against their exact Cargo.lock SHA-256; neither
+lockfile nor the original vendor changed. The controlled bundle is
+`evidence/raw/full-linux-suites-6abf714-12/`. Live successor-owner composition
+has not run. The
 following remain `not_run`:
 
 - native Call/Leg and effect-writer activation;

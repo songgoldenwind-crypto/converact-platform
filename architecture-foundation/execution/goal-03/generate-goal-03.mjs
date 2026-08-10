@@ -1595,6 +1595,8 @@ function evidenceIndex() {
     'architecture-foundation/execution/goal-03/evidence/raw/postgres-restart-a18229cd-02';
   const staleRecoveryEvidenceRoot =
     'architecture-foundation/execution/goal-03/evidence/raw/stale-nonterminal-recovery-6abf714-11';
+  const fullLinuxSuiteEvidenceRoot =
+    'architecture-foundation/execution/goal-03/evidence/raw/full-linux-suites-6abf714-12';
   const staleRecoverySourceCommit =
     '6abf714ea8b71817e91fa9493e882c360050cf7f';
   const entry = (
@@ -1697,6 +1699,9 @@ function evidenceIndex() {
           `${staleRecoveryEvidenceRoot}/remote-artifacts.sha256`,
           `${staleRecoveryEvidenceRoot}/server-verify.log`,
           `${staleRecoveryEvidenceRoot}/verification.txt`,
+          `${fullLinuxSuiteEvidenceRoot}/README.md`,
+          `${fullLinuxSuiteEvidenceRoot}/SHA256SUMS`,
+          `${fullLinuxSuiteEvidenceRoot}/server-suite-results.txt`,
         ],
         '45072f23e6e8eff7a3f77b1ec075c596d8049a2072437934278898e14f9666ca',
         staleRecoverySourceCommit,
