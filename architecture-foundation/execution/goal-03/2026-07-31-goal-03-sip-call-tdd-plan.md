@@ -189,7 +189,11 @@ Run serially:
    Local functional checks pass response capability `17/17`, Native Call
    `13/13`, registry `24/24`, durable gate `39/39`, locked check and rustfmt.
    Full RustPBX, physical PostgreSQL, live Endpoint and isolated-server `.74`
-   verification remain `not_run`; all performance work is deferred.
+   verification remain `not_run`; all performance work is deferred. The exact
+   isolated `9775a79` attempt executed no test because the RustPBX lib-test
+   compile reached its 3,584 MiB container memory cgroup. Do not raise that
+   ceiling on the shared host; retain the zero-impact failed-attempt bundle and
+   requalify only on a future isolated host with adequate resources.
 6. repository typecheck.
 7. Generate raw output, command/source manifest and SHA-256 evidence with no
    secrets.

@@ -264,6 +264,16 @@ independent acceptance. Full RustPBX, physical PostgreSQL, live Endpoint and
 isolated-server `.74` verification remain `not_run`. It inherits no `.73`
 server evidence and performs no performance/load/capacity/soak work.
 
+The later isolated `9775a79` Linux attempt applied the exact `.73`/`.74`
+patch chain but executed no RustPBX test: `rustc` reached the test container's
+3,584 MiB memory cgroup while producing the lib-test binary and received
+`SIGKILL`. The ceiling was not raised. Pre/post service and lower-source
+snapshots are byte-identical, the existing PostgreSQL container remained
+healthy with restart count zero, and the test container and overlays are
+absent. This failed attempt is retained in
+`isolated-server-native-response-9775a79-16/`; it does not promote server
+functional verification or any Evidence status.
+
 ## Rejection history and remaining gate
 
 The earlier `6cbe1a3` evidence review was rejected with

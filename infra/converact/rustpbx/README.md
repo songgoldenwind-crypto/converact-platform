@@ -857,9 +857,14 @@ Local focused functional verification passes Native response capabilities
 durable SIP effect gate `39/39`. The locked Rust library check and scoped Rust
 format check pass. The full RustPBX library, physical PostgreSQL path, live
 Endpoint activation and isolated server functional verification remain
-`not_run`. All performance, load, concurrency, capacity and soak verification
-also remain `not_run` and are deferred to the final performance Goal. No
-server service or deployed code has been changed for ivekit.74.
+`not_run`. An exact isolated Linux attempt for commit `9775a79` applied the
+patches successfully, but the RustPBX lib-test binary was not produced because
+`rustc` reached its isolated 3,584 MiB memory cgroup and received `SIGKILL`;
+no test executed and the ceiling was not raised. The existing service and
+lower-source snapshots remained byte-identical. All performance, load,
+concurrency, capacity and soak verification also remain `not_run` and are
+deferred to the final performance Goal. No server service or deployed code
+has been changed for ivekit.74.
 
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out

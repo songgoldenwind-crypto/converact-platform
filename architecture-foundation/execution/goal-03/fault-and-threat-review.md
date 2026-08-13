@@ -126,8 +126,11 @@ microbenchmark or citing rvoip upstream numbers cannot close that Gate.
    concurrent Call revision after durable prepare emits `TransportUnknown` and
    cannot authorize another response. Local focused functional tests cover
    these paths, but physical PostgreSQL, process restart/rebuild, live Endpoint
-   and isolated-server `.74` verification remain `not_run`. The slice executes
-   no performance, load, capacity, concurrency or soak test.
+   and isolated-server `.74` verification remain `not_run`. The exact isolated
+   `9775a79` attempt reached a cgroup-scoped `rustc` OOM before any test
+   executed; its 3,584 MiB ceiling was not raised, and byte-identical service
+   and lower-source snapshots prove zero impact. The slice executes no
+   performance, load, capacity, concurrency or soak test.
 
 All eight remain visible in the G03 status artifacts and prevent production
 eligibility.

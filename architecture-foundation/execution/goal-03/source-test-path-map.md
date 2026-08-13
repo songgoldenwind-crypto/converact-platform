@@ -75,6 +75,9 @@ product activation and every performance Gate remain `not_run`.
 
 The `.74` ordinary-response results are local focused functional checks only.
 They prove exact authority ordering and failure behavior in Rust, but do not
-inherit `.73` server evidence. Physical PostgreSQL, live Endpoint and isolated
-server functional verification remain `not_run`; no performance, load,
-capacity, concurrency or soak command is part of this slice.
+inherit `.73` server evidence. The isolated `9775a79` attempt applied the exact
+patch chain but executed no RustPBX test because the lib-test compile reached
+its 3,584 MiB cgroup; byte-identical service/lower-source snapshots are retained
+under `isolated-server-native-response-9775a79-16/`. Physical PostgreSQL, live
+Endpoint and isolated server functional verification remain `not_run`; no
+performance, load, capacity, concurrency or soak command is part of this slice.

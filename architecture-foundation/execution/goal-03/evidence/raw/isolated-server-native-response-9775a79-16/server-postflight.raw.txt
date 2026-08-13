@@ -1,0 +1,14 @@
+2026-08-13T19:21:33Z
+17d46406fdf328b51ccd39cca5e0f2a48d349a4ebd75771cd3480065fdaac3e6|converact-g03-current-pg-7f4cd00c|postgres:16-alpine|Up 4 days (healthy)|5432/tcp
+existing=true|health=healthy|restarts=0|started=2026-08-09T17:02:25.400658937Z
+test_container=absent
+overlay_directory=absent
+overlay_mounts=absent
+service_snapshot=unchanged
+lower_source=unchanged
+Filesystem     1024-blocks     Used Available Capacity Mounted on
+/dev/vda2         82445124 74611540   4357212      95% /
+MemTotal:        7870468 kB
+MemAvailable:    5801492 kB
+SwapTotal:       2035708 kB
+SwapFree:        1120128 kB

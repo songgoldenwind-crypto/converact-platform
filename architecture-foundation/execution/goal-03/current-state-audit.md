@@ -127,7 +127,12 @@ promoted by these component results. The following remain `not_run`:
   isolated server functional verification. Local focused tests prove exact
   authority ordering, multiple provisional responses, one final response,
   frozen dialog identity, cancellation ambiguity and concurrent-revision
-  `TransportUnknown`; they do not prove a deployed call path;
+  `TransportUnknown`; they do not prove a deployed call path. The isolated
+  `9775a79` attempt applied exact patches but executed no test because the
+  RustPBX lib-test compile reached its 3,584 MiB cgroup and was killed. The
+  ceiling was not raised; service and lower-source snapshots remained
+  byte-identical. Raw attempt evidence is retained under
+  `isolated-server-native-response-9775a79-16/` and the Gate stays `not_run`;
 - process-crash recovery of an in-flight UAS 2xx owner;
 - physical PostgreSQL `.72` exact-target claim/rollback and 10K/100K distractor
   query-plan proof;

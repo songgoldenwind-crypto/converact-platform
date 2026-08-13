@@ -1,0 +1,7 @@
+2026-08-14 03:18:55.763463667 +0800|8567|/home/ubuntu/converact-g03-74-9775a79-functional/results/functional.log
+2026-08-14 03:18:56.432464826 +0800|146|/home/ubuntu/converact-g03-74-9775a79-functional/results/summary.txt
+Aug 14 03:18:55 VM-0-3-ubuntu kernel: rustc invoked oom-killer: gfp_mask=0x100cca(GFP_HIGHUSER_MOVABLE), order=0, oom_score_adj=0
+Aug 14 03:18:55 VM-0-3-ubuntu kernel:  oom_kill_process+0x118/0x280
+Aug 14 03:18:55 VM-0-3-ubuntu kernel: [  pid  ]   uid  tgid total_vm      rss rss_anon rss_file rss_shmem pgtables_bytes swapents oom_score_adj name
+Aug 14 03:18:55 VM-0-3-ubuntu kernel: oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=docker-c26f25aadd973ea3823788609f4e37b1c178b20b429352db2ed46710ffdd861e.scope,mems_allowed=0,oom_memcg=/system.slice/docker-c26f25aadd973ea3823788609f4e37b1c178b20b429352db2ed46710ffdd861e.scope,task_memcg=/system.slice/docker-c26f25aadd973ea3823788609f4e37b1c178b20b429352db2ed46710ffdd861e.scope,task=rustc,pid=551960,uid=0
+Aug 14 03:18:55 VM-0-3-ubuntu kernel: Memory cgroup out of memory: Killed process 551960 (rustc) total-vm:6362348kB, anon-rss:3539508kB, file-rss:24452kB, shmem-rss:0kB, UID:0 pgtables:10224kB oom_score_adj:0
