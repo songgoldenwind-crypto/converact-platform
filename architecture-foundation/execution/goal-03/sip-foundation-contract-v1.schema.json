@@ -545,7 +545,7 @@
               "const": "physical_postgresql_path_not_verified"
             },
             {
-              "const": "isolated_server_functional_verification_not_run"
+              "const": "rustpbx_isolated_server_functional_verification_not_run_under_safe_memory_ceiling"
             }
           ],
           "items": false
@@ -554,7 +554,52 @@
           "const": "not_run"
         },
         "server_functional_verification": {
-          "const": "not_run"
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "campaign_id",
+            "source_commit",
+            "evidence_uri",
+            "rsipstack_server_transactions",
+            "rustpbx_focused_targets",
+            "campaign_exit",
+            "existing_service_state",
+            "retained_lower_source_state",
+            "test_container_and_mounts_after_cleanup"
+          ],
+          "properties": {
+            "status": {
+              "const": "partial_component_verification"
+            },
+            "campaign_id": {
+              "const": "converact-g03-73-4431270-functional"
+            },
+            "source_commit": {
+              "const": "4431270bb775458803a2252cb892254afc7aaae7"
+            },
+            "evidence_uri": {
+              "const": "architecture-foundation/execution/goal-03/evidence/raw/isolated-server-matched-cancel-4431270-15/README.md"
+            },
+            "rsipstack_server_transactions": {
+              "const": "32_passed_0_failed"
+            },
+            "rustpbx_focused_targets": {
+              "const": "not_run_test_binary_compile_sigkill_at_2560MiB_isolated_memory_ceiling"
+            },
+            "campaign_exit": {
+              "const": 101
+            },
+            "existing_service_state": {
+              "const": "unchanged_running_healthy"
+            },
+            "retained_lower_source_state": {
+              "const": "unchanged_sha256_identical"
+            },
+            "test_container_and_mounts_after_cleanup": {
+              "const": "absent"
+            }
+          }
         },
         "performance_verification": {
           "const": "not_run"

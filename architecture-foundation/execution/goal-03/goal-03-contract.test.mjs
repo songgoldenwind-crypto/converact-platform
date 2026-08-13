@@ -155,6 +155,24 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
     contract.native_call_recovery.cross_runtime_binding_sha256,
     'aa731eba74f64cc5b2eb67d10ea8da044e87cb87b30e5b0550b8a7dfaf759871',
   );
+  assert.deepEqual(contract.native_matched_cancel_effects.server_functional_verification, {
+    status: 'partial_component_verification',
+    campaign_id: 'converact-g03-73-4431270-functional',
+    source_commit: '4431270bb775458803a2252cb892254afc7aaae7',
+    evidence_uri:
+      'architecture-foundation/execution/goal-03/evidence/raw/isolated-server-matched-cancel-4431270-15/README.md',
+    rsipstack_server_transactions: '32_passed_0_failed',
+    rustpbx_focused_targets:
+      'not_run_test_binary_compile_sigkill_at_2560MiB_isolated_memory_ceiling',
+    campaign_exit: 101,
+    existing_service_state: 'unchanged_running_healthy',
+    retained_lower_source_state: 'unchanged_sha256_identical',
+    test_container_and_mounts_after_cleanup: 'absent',
+  });
+  assert.equal(
+    contract.native_matched_cancel_effects.performance_verification,
+    'not_run',
+  );
   assert.equal(
     contract.native_call_recovery.current_status,
     'component_implemented_host_requalified_live_takeover_not_run',

@@ -787,10 +787,23 @@ function sipFoundationContract() {
         'concurrent_successor_call_cleanup_fencing_not_implemented',
         'capability_rebuild_after_process_restart_not_implemented',
         'physical_postgresql_path_not_verified',
-        'isolated_server_functional_verification_not_run',
+        'rustpbx_isolated_server_functional_verification_not_run_under_safe_memory_ceiling',
       ],
       live_server_activation: 'not_run',
-      server_functional_verification: 'not_run',
+      server_functional_verification: {
+        status: 'partial_component_verification',
+        campaign_id: 'converact-g03-73-4431270-functional',
+        source_commit: '4431270bb775458803a2252cb892254afc7aaae7',
+        evidence_uri:
+          'architecture-foundation/execution/goal-03/evidence/raw/isolated-server-matched-cancel-4431270-15/README.md',
+        rsipstack_server_transactions: '32_passed_0_failed',
+        rustpbx_focused_targets:
+          'not_run_test_binary_compile_sigkill_at_2560MiB_isolated_memory_ceiling',
+        campaign_exit: 101,
+        existing_service_state: 'unchanged_running_healthy',
+        retained_lower_source_state: 'unchanged_sha256_identical',
+        test_container_and_mounts_after_cleanup: 'absent',
+      },
       performance_verification: 'not_run',
     },
     ingress_events: [

@@ -175,9 +175,10 @@ Run serially:
    registry `24/24`, builder default disabled `1/1`, and both locked library
    checks. The ignored external-prerequisite cases remain `not_run`. This does
    not activate the runtime: ordinary provisional/final response intents are
-   not yet issued, and physical PostgreSQL, isolated server functional
-   verification, non-UDP transports, crash/restart and live product wiring
-   remain `not_run`.
+   not yet issued. The isolated Linux rsipstack server target passes `32/32`;
+   RustPBX host targets remain `not_run` after their lib-test compile reached
+   the unchanged safe memory ceiling. Physical PostgreSQL, non-UDP transports,
+   crash/restart and live product wiring remain `not_run`.
 6. repository typecheck.
 7. Generate raw output, command/source manifest and SHA-256 evidence with no
    secrets.
@@ -219,13 +220,15 @@ campaigns, authoritative issuer, durable completion sink, live Endpoint,
 process-crash/two-node, Linux full, fault/performance and production gates stay
 `not_run`.
 
-The `.73` matched-CANCEL candidate must next be verified as a clean exact-source
-functional bundle on the authorized host without changing any running service,
-container, deployed code, configuration, data or occupied port. Use a unique
-temporary directory and isolated process/port only after read-only preflight;
-repeat read-only state checks afterward. This campaign is correctness-only:
-no load, soak, CPS, concurrency, capacity or performance command is permitted.
-Until that evidence exists, server functional verification stays `not_run`.
+The `.73` zero-impact host campaign is retained under
+`evidence/raw/isolated-server-matched-cancel-4431270-15/`. The exact rsipstack
+server-transaction target passes `32/32`. The RustPBX lib-test binary was not
+produced because its compile received SIGKILL at the unchanged 2,560 MiB
+isolation ceiling, so all RustPBX server targets remain `not_run`; no resource
+limit will be raised against a host carrying existing services. Pre/post
+service snapshots and lower-source hashes are identical, and the temporary
+container/mounts are absent. This was correctness-only: no load, soak, CPS,
+concurrency, capacity or performance command ran.
 
 - PostgreSQL role/RLS, physical restart, receipt replay, atomic v2 transition,
   repair exhaustion and database-clock skew (completed controlled slices;

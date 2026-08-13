@@ -1,0 +1,37 @@
+17d46406fdf328b51ccd39cca5e0f2a48d349a4ebd75771cd3480065fdaac3e6|/converact-g03-current-pg-7f4cd00c|sha256:e684c11a6c7c127c1b7602063cc6a13db0a12b62dfd770d83936c089751d498d|2026-08-09T17:02:25.400658937Z|true|0
+listeners
+tcp LISTEN 0      4096               *:22          *:*
+tcp LISTEN 0      4096       127.0.0.1:38991 0.0.0.0:*
+tcp LISTEN 0      4096      127.0.0.54:53    0.0.0.0:*
+tcp LISTEN 0      4096   127.0.0.53%lo:53    0.0.0.0:*
+udp UNCONN 0      0              [::1]:323      [::]:*
+udp UNCONN 0      0          127.0.0.1:323   0.0.0.0:*
+udp UNCONN 0      0         127.0.0.54:53    0.0.0.0:*
+udp UNCONN 0      0      10.2.0.3%eth0:68    0.0.0.0:*
+udp UNCONN 0      0      127.0.0.53%lo:53    0.0.0.0:*
+services
+ModemManager.service|active|a8fcc0022f0e4329b4c45ad05c67c428|
+acpid.service|active|dca3dabdefcb4c969de70ec24b521a7b|
+bazi-remaining-27b.service|active|98e01d1eb36c45638fa3815ce3eacb9c|
+chrony.service|active|994aa98ba870456d8d3a4fdb9f29190f|
+containerd.service|active|efe9a9e1bbd14262a56c5dec1b359ba5|
+cron.service|active|1ceb50c35b8842c384840ad1a834ced2|
+dbus.service|active|7052f2fbe33b4b5c96d2940f8bd6d1c6|
+docker.service|active|a6a7a7a33a8946539e8643ed245b92d6|
+getty@tty1.service|active|ceae4be220e94c6a86316da6bc2afc77|
+multipathd.service|active|2fa6c6dd9e494e67b14d3aeff1aabfae|
+networkd-dispatcher.service|active|c180cc17cc334e7ea3abbd40a3869541|
+polkit.service|active|6856f018e71743cc8718180881c96d1d|
+rsyslog.service|active|2f45367783934aabbc8076dd3b88a0e0|
+serial-getty@ttyS0.service|active|8d09fb1d5a054639af08e006724414a5|
+ssh.service|active|95e7ec0247f04440bd0a593371fe79e8|
+systemd-journald.service|active|28adeb4f08714a5ea56e9e4695ed16d7|
+systemd-logind.service|active|ca0d8afa59d24fc49759eaf341bfaedb|
+systemd-networkd.service|active|2d714ec5d3524071b631a810b056d02e|
+systemd-resolved.service|active|0605a934cf5941bba86c3f0b79a9d5e0|
+systemd-udevd.service|active|294502c1ad834aaa84ccdf8abed26bff|
+tat_agent.service|active|5f9394d7f60a42bbbe1f237f49902ef6|
+udisks2.service|active|34816afce86d49ce83e20246a667760a|
+unattended-upgrades.service|active|d58ace4a234f4f9fa32beae3770efe44|
+upower.service|active|dade06c2e3b04d33b6544c3b89d88526|
+user@1000.service|active|a3fbe730979e458e8a4cb5860b96eb48|

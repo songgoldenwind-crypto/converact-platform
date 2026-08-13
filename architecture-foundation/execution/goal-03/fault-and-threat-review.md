@@ -23,8 +23,8 @@ Production eligibility: `false`
 | stale/split-brain owner | positive epoch, generation, expected revision and durable CAS | local logic/source tests; fleet partition `not_run` |
 | duplicate visible effect | idempotency key + exact prepared bytes + receipt replay | native isolated PostgreSQL transition/repair tests and restart verified; live SIP dispatch `not_run` |
 | unknown send blindly retried | unknown state, query, repair lease/token/revision fence | `.57` native gate and ledger tests; live endpoint activation `not_run` |
-| one pending-INVITE CANCEL is treated as one effect, allows an unowned 487, or a late CANCEL authorizes a second final | split only the sealed transaction-layer peer proof while INVITE is Trying/Proceeding; bind separate one-use capabilities, identities and completion scopes to `200 CANCEL` and `487 INVITE`; 487 waits for exact ACK; after an existing final, authorize only 200 CANCEL | `.73` local rsipstack `32/32`, durable gate `39/39` and Native capability `8/8`; isolated server traffic and restart/reconcile remain `not_run` |
-| a durable gate is installed globally, twice or after visible signaling | install only on the admitted server-INVITE transaction, after idempotent 100 Trying and before any other visible response/effect; conflict revokes both capabilities and closes only that Call | `.73` local default-disabled and conflict tests; product activation and real server traffic `not_run` |
+| one pending-INVITE CANCEL is treated as one effect, allows an unowned 487, or a late CANCEL authorizes a second final | split only the sealed transaction-layer peer proof while INVITE is Trying/Proceeding; bind separate one-use capabilities, identities and completion scopes to `200 CANCEL` and `487 INVITE`; 487 waits for exact ACK; after an existing final, authorize only 200 CANCEL | `.73` local rsipstack `32/32`, durable gate `39/39` and Native capability `8/8`; isolated Linux rsipstack server target `32/32`; RustPBX host and restart/reconcile remain `not_run` |
+| a durable gate is installed globally, twice or after visible signaling | install only on the admitted server-INVITE transaction, after idempotent 100 Trying and before any other visible response/effect; conflict revokes both capabilities and closes only that Call | `.73` local default-disabled and conflict tests plus isolated Linux rsipstack `32/32`; product activation and RustPBX host execution `not_run` |
 | repair worker enumerates or takes cross-session authority | only an opaque/sealed crate-private minting surface can create the one-shot grant for one exact tenant/session/generation, one successor repair epoch and 1..100 exact ordered target IDs/revisions/identity hashes; worker cannot scan, mint/reuse epochs or send SIP | `.72` isolated local reconciler `28/28`, affected SipEffect `87 passed / 0 failed / 8 ignored` and sibling UI probes with expected `E0603`/`E0451`; live durable Authority issuer, physical PostgreSQL and activation `not_run` |
 | partial/stale repair claim mutates an ambiguous subset | existing composite primary key exact-target lookup; one transaction returns exact claimed/exhausted IDs; any missing/stale/locked target is `FenceLost` and rolls back; true monotonic expiry includes queue dwell and freezes one whole-ms execution lease at dequeue; usable timeout is at most 29 s and remaining lease must be strictly greater than timeout + 500 ms | `.72` local source/tests only; physical PostgreSQL rollback and 10K/100K distractor query-plan proof `not_run` |
 | cancelled or panicked reconciler accepts/reuses authority | reject submit after parent cancellation without queue-counter churn; a caught port panic cancels the reconciler child token, stops every repair worker and rejects new grants so shared dependencies are never reused; parent Call/Human Communication remains outside the child domain | `.72` local TDD only; process-crash/two-node and live supervision `not_run` |
@@ -110,10 +110,13 @@ microbenchmark or citing rvoip upstream numbers cannot close that Gate.
    physical PostgreSQL exact-target/10K/100K plan, live Endpoint,
    process-crash/two-node and Linux full campaigns remain `not_run`.
 7. `.73` compiles the matched-CANCEL pair and Rust session composition but
-   leaves the builder runtime `None`. Only local UDP component behavior is
-   proved. Concurrent successor-safe cleanup fencing and reconstruction of
+   leaves the builder runtime `None`. Local UDP behavior and the exact isolated
+   Linux rsipstack server target (`32/32`) are proved; RustPBX host targets
+   remain `not_run` because their test binary compile reached the unchanged
+   2,560 MiB isolation ceiling. Pre/post service snapshots and lower-source
+   hashes are identical. Concurrent successor-safe cleanup fencing and reconstruction of
    unconsumed capabilities after restart are not implemented and block
-   activation. Isolated server functional traffic, TCP/WS/TLS/WSS, physical
+   activation. RustPBX server functionality, TCP/WS/TLS/WSS, physical
    store, restart/reconcile and product activation remain `not_run`; no running
    server program or deployed source was modified.
 

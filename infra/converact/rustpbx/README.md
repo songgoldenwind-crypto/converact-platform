@@ -816,11 +816,19 @@ infrastructure and remain `not_run`. These are functional correctness results,
 not a load claim. The one-line `test_auth.rs` constructor update remains covered
 by compilation and the full library suite but is excluded from rustfmt scope
 because the pinned upstream file contains three unrelated formatting drifts;
-all other new Rust files pass pinned rustfmt. Server functional verification
-remains `not_run`; TCP, WS,
-TLS and WSS interoperability, physical PostgreSQL, live product activation and
-all performance gates remain `not_run`. No running server service or deployed
-code is changed by this patchset.
+all other new Rust files pass pinned rustfmt. The isolated Linux campaign
+retained under
+`architecture-foundation/execution/goal-03/evidence/raw/isolated-server-matched-cancel-4431270-15/`
+passes the exact rsipstack server-transaction target `32/32`. The first
+RustPBX focused target did not execute because compilation of the lib-test
+binary received SIGKILL at the deliberately unchanged 2,560 MiB isolation
+ceiling; all RustPBX server targets therefore remain `not_run`, not failed.
+The running service snapshot and retained lower-source hashes are identical
+before and after the campaign, the existing service stayed running/healthy,
+and all test containers and mounts were removed. TCP, WS, TLS and WSS
+interoperability, physical PostgreSQL, live product activation and all
+performance gates remain `not_run`. No load/performance command ran and no
+running server service or deployed code was changed by this patchset.
 
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out

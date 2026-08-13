@@ -231,10 +231,20 @@ still ineligible: the transaction-local gate currently has capabilities only
 for the matched-CANCEL pair, so ordinary provisional/final response intents
 must be supplied by the same Native Call authority before the runtime can be
 enabled. Successor-safe cleanup fencing, restart capability reconstruction,
-physical PostgreSQL, isolated server functional verification, TCP,
-WS, TLS and WSS, crash/restart, live product activation and all deferred
-performance gates remain `not_run`. No running validation-server service or
-deployed code was changed by the local candidate.
+physical PostgreSQL, RustPBX host functional verification, TCP, WS, TLS and
+WSS, crash/restart, live product activation and all deferred performance gates
+remain `not_run`.
+
+The subsequent zero-impact isolated Linux campaign passes the exact rsipstack
+server-transaction target `32/32`. Compilation of the RustPBX lib-test binary
+then received SIGKILL at the deliberately unchanged 2,560 MiB isolation
+ceiling, before any RustPBX test ran; that is recorded as `not_run`, not a test
+failure. The existing service stayed running/healthy, service/listener/unit
+snapshots and retained lower-source hashes are byte-identical before and after,
+and the test container and mounts are absent after cleanup. The bundle is
+`evidence/raw/isolated-server-matched-cancel-4431270-15/`. No performance
+command ran and no running validation-server service or deployed code was
+changed.
 
 ## Rejection history and remaining gate
 
