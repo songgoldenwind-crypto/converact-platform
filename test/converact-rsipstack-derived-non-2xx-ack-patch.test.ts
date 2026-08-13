@@ -31,7 +31,7 @@ test("ivekit.60 applies derived non-2xx ACK authority after peer observation", (
   assert.equal(parsed.status, 0, parsed.stderr);
 
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.72"/);
+  assert.match(build, /PATCHSET="ivekit\.73"/);
   assert.match(
     build,
     /rsipstack-converact-protocol-observation\.patch"[\s\S]*rsipstack-converact-derived-non-2xx-ack\.patch"[\s\S]*rustrtc-ivekit-udp-socket-capacity\.patch"/,

@@ -1,0 +1,587 @@
+diff --git a/src/transaction/endpoint.rs b/src/transaction/endpoint.rs
+index d9ecc3c..10766f9 100644
+--- a/src/transaction/endpoint.rs
++++ b/src/transaction/endpoint.rs
+@@ -105,6 +105,9 @@ pub enum EgressEffectPeerDerivedKind {
+     /// The 200 response to a CANCEL that matched an existing server INVITE
+     /// transaction.
+     ServerInviteCancelOk,
++    /// The 487 response that terminates the original INVITE after the same
++    /// matched CANCEL was accepted.
++    ServerInviteRequestTerminated,
+ }
+ 
+ /// Optional application-owned durable gate for the first externally visible
+@@ -200,6 +203,14 @@ impl PeerIngressProof {
+         Self { _private: () }
+     }
+ 
++    /// Split one actual matched-CANCEL ingress into the two RFC-mandated
++    /// response authorities owned by the transaction layer. The method is
++    /// visible only inside the transaction parent module, so applications
++    /// cannot manufacture either child proof.
++    pub(super) fn split_for_matched_cancel(self) -> (Self, Self) {
++        (Self { _private: () }, Self { _private: () })
++    }
++
+     #[cfg(test)]
+     pub(crate) fn test_only() -> Self {
+         Self { _private: () }
+diff --git a/src/transaction/tests/test_server.rs b/src/transaction/tests/test_server.rs
+index 0013e82..4407e3b 100644
+--- a/src/transaction/tests/test_server.rs
++++ b/src/transaction/tests/test_server.rs
+@@ -59,9 +59,7 @@ impl EgressEffectGate for RecordingPeerDerivedGate {
+         _canonical_wire_bytes: &[u8],
+     ) -> crate::Result<EgressEffectPermit> {
+         self.primary_prepare_calls.fetch_add(1, Ordering::SeqCst);
+-        Err(crate::Error::EndpointError(
+-            "ordinary application intent cannot authorize 200-to-CANCEL".to_string(),
+-        ))
++        EgressEffectPermit::try_new("effect-primary-response")
+     }
+ 
+     async fn prepare_peer_derived(
+@@ -74,7 +72,6 @@ impl EgressEffectGate for RecordingPeerDerivedGate {
+         canonical_wire_bytes: &[u8],
+         _ingress_proof: PeerIngressProof,
+     ) -> crate::Result<EgressEffectPermit> {
+-        assert_eq!(kind, EgressEffectPeerDerivedKind::ServerInviteCancelOk);
+         self.peer_derived_calls.fetch_add(1, Ordering::SeqCst);
+         self.trigger_and_response
+             .lock()
+@@ -84,7 +81,12 @@ impl EgressEffectGate for RecordingPeerDerivedGate {
+             .lock()
+             .expect("peer-derived wire lock")
+             .push(canonical_wire_bytes.to_vec());
+-        EgressEffectPermit::try_new("effect-peer-derived-cancel-ok")
++        EgressEffectPermit::try_new(match kind {
++            EgressEffectPeerDerivedKind::ServerInviteCancelOk => "effect-peer-derived-cancel-ok",
++            EgressEffectPeerDerivedKind::ServerInviteRequestTerminated => {
++                "effect-peer-derived-invite-terminated"
++            }
++        })
+     }
+ 
+     fn observe_transport(&self, _permit: EgressEffectPermit, outcome: EgressEffectOutcome) {
+@@ -434,6 +436,188 @@ async fn matched_cancel_uses_one_peer_proven_effect_and_replays_frozen_200() {
+     );
+ }
+ 
++#[tokio::test]
++async fn transaction_local_gate_installs_after_trying_and_gates_the_first_final_effect() {
++    let gate = Arc::new(RecordingEgressEffectGate {
++        prepare_calls: AtomicUsize::new(0),
++        canonical_wire_images: std::sync::Mutex::new(Vec::new()),
++        outcomes: std::sync::Mutex::new(Vec::new()),
++        protocol_observations: std::sync::Mutex::new(Vec::new()),
++        reject_prepare: false,
++    });
++    let (mut transaction, peer) = udp_server_transaction(EndpointOption::default(), None).await;
++
++    transaction
++        .send_trying()
++        .await
++        .expect("send ungated Trying");
++    let trying = crate::sip::SipMessage::try_from(recv_udp_bytes(&peer).await.as_slice())
++        .expect("valid Trying");
++    assert!(matches!(
++        trying,
++        crate::sip::SipMessage::Response(response)
++            if response.status_code == crate::sip::StatusCode::Trying
++    ));
++
++    transaction
++        .install_egress_effect_gate(gate.clone())
++        .expect("install one transaction-local gate after 100 Trying");
++    transaction
++        .reply(crate::sip::StatusCode::ServiceUnavailable)
++        .await
++        .expect("send gated final response");
++    let final_response = recv_udp_bytes(&peer).await;
++
++    assert_eq!(gate.prepare_calls.load(Ordering::SeqCst), 1);
++    assert_eq!(
++        gate.canonical_wire_images
++            .lock()
++            .expect("wire image lock")
++            .as_slice(),
++        [final_response]
++    );
++    assert!(
++        transaction.install_egress_effect_gate(gate).is_err(),
++        "a gate cannot be installed or replaced after a final attempt"
++    );
++}
++
++#[tokio::test]
++async fn matched_cancel_authorizes_200_and_487_as_two_peer_derived_effects() {
++    let gate = Arc::new(RecordingPeerDerivedGate {
++        primary_prepare_calls: AtomicUsize::new(0),
++        peer_derived_calls: AtomicUsize::new(0),
++        trigger_and_response: std::sync::Mutex::new(Vec::new()),
++        canonical_wire_images: std::sync::Mutex::new(Vec::new()),
++        outcomes: std::sync::Mutex::new(Vec::new()),
++        protocol_observations: std::sync::Mutex::new(Vec::new()),
++    });
++    let (mut transaction, peer) = udp_server_transaction(EndpointOption::default(), None).await;
++    transaction.send_trying().await.expect("send Trying");
++    let _trying = recv_udp_bytes(&peer).await;
++    transaction
++        .install_egress_effect_gate(gate.clone())
++        .expect("scope durable effects to the admitted INVITE");
++
++    let cancel = matching_cancel(&transaction);
++    transaction
++        .tu_sender
++        .send(peer_received(
++            cancel.into(),
++            transaction.connection.clone().expect("server connection"),
++        ))
++        .expect("matched CANCEL ingress");
++    assert!(matches!(
++        transaction.receive().await,
++        Some(crate::sip::SipMessage::Request(request))
++            if request.method == crate::sip::Method::Cancel
++    ));
++    let cancel_ok = crate::sip::SipMessage::try_from(recv_udp_bytes(&peer).await.as_slice())
++        .expect("valid 200-to-CANCEL");
++    assert!(matches!(
++        cancel_ok,
++        crate::sip::SipMessage::Response(response)
++            if response.status_code == crate::sip::StatusCode::OK
++    ));
++
++    transaction
++        .reply(crate::sip::StatusCode::RequestTerminated)
++        .await
++        .expect("send peer-derived 487-to-INVITE");
++    let invite_terminated =
++        crate::sip::SipMessage::try_from(recv_udp_bytes(&peer).await.as_slice())
++            .expect("valid 487-to-INVITE");
++    assert!(matches!(
++        invite_terminated,
++        crate::sip::SipMessage::Response(response)
++            if response.status_code == crate::sip::StatusCode::RequestTerminated
++    ));
++    assert_eq!(gate.primary_prepare_calls.load(Ordering::SeqCst), 0);
++    assert_eq!(gate.peer_derived_calls.load(Ordering::SeqCst), 2);
++    assert_eq!(
++        gate.protocol_observations
++            .lock()
++            .expect("peer-derived protocol lock")
++            .as_slice(),
++        [EgressEffectProtocolObservation::TransportTerminal]
++    );
++
++    let mut ack = transaction.original.clone();
++    ack.method = crate::sip::Method::Ack;
++    ack.headers.unique_push(CSeq::new("1 ACK").into());
++    transaction
++        .tu_sender
++        .send(peer_received(
++            ack.into(),
++            transaction.connection.clone().expect("server connection"),
++        ))
++        .expect("matching ACK ingress");
++    assert!(matches!(
++        transaction.receive().await,
++        Some(crate::sip::SipMessage::Request(request))
++            if request.method == crate::sip::Method::Ack
++    ));
++    assert_eq!(
++        gate.protocol_observations
++            .lock()
++            .expect("peer-derived protocol lock")
++            .as_slice(),
++        [
++            EgressEffectProtocolObservation::TransportTerminal,
++            EgressEffectProtocolObservation::Completed,
++        ]
++    );
++}
++
++#[tokio::test]
++async fn cancel_after_an_existing_final_does_not_authorize_a_second_final() {
++    let gate = Arc::new(RecordingPeerDerivedGate {
++        primary_prepare_calls: AtomicUsize::new(0),
++        peer_derived_calls: AtomicUsize::new(0),
++        trigger_and_response: std::sync::Mutex::new(Vec::new()),
++        canonical_wire_images: std::sync::Mutex::new(Vec::new()),
++        outcomes: std::sync::Mutex::new(Vec::new()),
++        protocol_observations: std::sync::Mutex::new(Vec::new()),
++    });
++    let (mut transaction, peer, _endpoint) =
++        udp_server_transaction_with_effect_gate(gate.clone()).await;
++    transaction.send_trying().await.expect("send Trying");
++    let _trying = recv_udp_bytes(&peer).await;
++    transaction
++        .reply(crate::sip::StatusCode::BusyHere)
++        .await
++        .expect("send existing final response");
++    let _busy = recv_udp_bytes(&peer).await;
++    assert_eq!(transaction.state, TransactionState::Completed);
++
++    let cancel = matching_cancel(&transaction);
++    transaction
++        .tu_sender
++        .send(peer_received(
++            cancel.into(),
++            transaction.connection.clone().expect("server connection"),
++        ))
++        .expect("late matching CANCEL ingress");
++    assert!(matches!(
++        transaction.receive().await,
++        Some(crate::sip::SipMessage::Request(request))
++            if request.method == crate::sip::Method::Cancel
++    ));
++    let cancel_ok = crate::sip::SipMessage::try_from(recv_udp_bytes(&peer).await.as_slice())
++        .expect("valid 200-to-late-CANCEL");
++    assert!(matches!(
++        cancel_ok,
++        crate::sip::SipMessage::Response(response)
++            if response.status_code == crate::sip::StatusCode::OK
++    ));
++    assert_eq!(gate.primary_prepare_calls.load(Ordering::SeqCst), 1);
++    assert_eq!(gate.peer_derived_calls.load(Ordering::SeqCst), 1);
++    assert!(
++        !transaction.has_matched_cancel_final_authorization(),
++        "an already-final INVITE cannot receive a second-final capability"
++    );
++}
++
+ #[tokio::test]
+ async fn matched_cancel_fails_closed_when_peer_derivation_is_not_authorized() {
+     let gate = Arc::new(RecordingEgressEffectGate {
+diff --git a/src/transaction/transaction.rs b/src/transaction/transaction.rs
+index bb48fca..3921820 100644
+--- a/src/transaction/transaction.rs
++++ b/src/transaction/transaction.rs
+@@ -28,6 +28,11 @@ pub enum ServerInviteTermination {
+     TransportError,
+ }
+ 
++struct MatchedCancelFinalResponseAuthorization {
++    trigger_message: SipMessage,
++    ingress_proof: PeerIngressProof,
++}
++
+ pub(super) fn finalize_outbound_message(mut message: SipMessage) -> SipMessage {
+     let body_len = match &message {
+         SipMessage::Request(request) => request.body.len(),
+@@ -368,6 +373,7 @@ pub struct Transaction {
+     pub state: TransactionState,
+     pub endpoint_inner: EndpointInnerRef,
+     pub connection: Option<SipConnection>,
++    egress_effect_gate: Option<Arc<dyn EgressEffectGate>>,
+     pub last_response: Option<Response>,
+     pub last_ack: Option<Request>,
+     frozen_initial_request: Option<Arc<FrozenSipMessage>>,
+@@ -387,6 +393,9 @@ pub struct Transaction {
+     last_automatic_ack_error: Option<String>,
+     automatic_cancel_reconciliation_required: bool,
+     last_automatic_cancel_error: Option<String>,
++    matched_cancel_final_authorization: Option<MatchedCancelFinalResponseAuthorization>,
++    matched_cancel_final_reconciliation_required: bool,
++    last_matched_cancel_final_error: Option<String>,
+     initial_peer_ingress_proof: Option<PeerIngressProof>,
+     tu_receiver: TransactionEventReceiver,
+     pub(crate) tu_sender: TransactionEventSender,
+@@ -419,7 +428,7 @@ impl Transaction {
+         ) {
+             return Ok(EgressTransportAttempt::new(None, None));
+         }
+-        let gate = self.endpoint_inner.egress_effect_gate.clone();
++        let gate = self.egress_effect_gate.clone();
+         let permit = match gate.as_ref() {
+             Some(gate) => {
+                 let transport_binding =
+@@ -443,7 +452,7 @@ impl Transaction {
+         connection: &SipConnection,
+         canonical_wire_bytes: &[u8],
+     ) -> Result<EgressTransportAttempt> {
+-        let gate = self.endpoint_inner.egress_effect_gate.clone();
++        let gate = self.egress_effect_gate.clone();
+         let permit = match gate.as_ref() {
+             Some(gate) => {
+                 let transport_binding =
+@@ -475,7 +484,7 @@ impl Transaction {
+         canonical_wire_bytes: &[u8],
+         ingress_proof: PeerIngressProof,
+     ) -> Result<EgressTransportAttempt> {
+-        let gate = self.endpoint_inner.egress_effect_gate.clone();
++        let gate = self.egress_effect_gate.clone();
+         let permit = match gate.as_ref() {
+             Some(gate) => {
+                 let transport_binding =
+@@ -503,9 +512,7 @@ impl Transaction {
+         permit: Option<EgressEffectPermit>,
+         observation: EgressEffectProtocolObservation,
+     ) {
+-        if let (Some(gate), Some(permit)) =
+-            (self.endpoint_inner.egress_effect_gate.as_ref(), permit)
+-        {
++        if let (Some(gate), Some(permit)) = (self.egress_effect_gate.as_ref(), permit) {
+             gate.observe_protocol(permit, observation);
+         }
+     }
+@@ -528,10 +535,12 @@ impl Transaction {
+             TransactionState::Nothing
+         };
+         trace!(%key, %state, "transaction created");
++        let egress_effect_gate = endpoint_inner.egress_effect_gate.clone();
+         let mut tx = Self {
+             transaction_type,
+             endpoint_inner,
+             connection,
++            egress_effect_gate,
+             key,
+             original,
+             destination: None,
+@@ -555,6 +564,9 @@ impl Transaction {
+             last_automatic_ack_error: None,
+             automatic_cancel_reconciliation_required: false,
+             last_automatic_cancel_error: None,
++            matched_cancel_final_authorization: None,
++            matched_cancel_final_reconciliation_required: false,
++            last_matched_cancel_final_error: None,
+             initial_peer_ingress_proof,
+             timer_a: None,
+             timer_b: None,
+@@ -634,6 +646,37 @@ impl Transaction {
+         self.admitted
+     }
+ 
++    /// Install a durable gate for one admitted inbound INVITE before any
++    /// externally visible response other than the idempotent 100 Trying.
++    /// A transaction-local gate cannot replace an Endpoint gate and cannot be
++    /// installed after provisional/final signaling has begun.
++    pub fn install_egress_effect_gate(&mut self, gate: Arc<dyn EgressEffectGate>) -> Result<()> {
++        let only_trying_was_sent = self
++            .last_response
++            .as_ref()
++            .is_none_or(|response| response.status_code == StatusCode::Trying);
++        if self.transaction_type != TransactionType::ServerInvite
++            || self.state != TransactionState::Trying
++            || self.egress_effect_gate.is_some()
++            || !only_trying_was_sent
++            || self.initial_effect_attempt_started
++            || self.cancel_effect_attempt_started
++            || self.cancel_response_effect_attempt_started
++            || self.ack_effect_attempt_started
++            || self.final_response_effect_attempt_started
++            || self.initial_effect_permit.is_some()
++            || self.last_response_effect_permit.is_some()
++            || self.server_invite_2xx_owner.is_some()
++        {
++            return Err(Error::TransactionError(
++                "transaction-local SIP egress gate installation is no longer safe".to_string(),
++                self.key.clone(),
++            ));
++        }
++        self.egress_effect_gate = Some(gate);
++        Ok(())
++    }
++
+     // send client request
+     pub async fn send(&mut self) -> Result<()> {
+         if !self.admitted {
+@@ -842,11 +885,32 @@ impl Transaction {
+             ));
+         }
+ 
+-        let connection = self.connection.as_ref().ok_or(Error::TransactionError(
++        let connection = self.connection.clone().ok_or(Error::TransactionError(
+             "no connection found".to_string(),
+             self.key.clone(),
+         ))?;
+ 
++        let matched_cancel_final_authorization = if self.transaction_type
++            == TransactionType::ServerInvite
++            && response.status_code == StatusCode::RequestTerminated
++        {
++            self.matched_cancel_final_authorization.take()
++        } else {
++            None
++        };
++        let is_matched_cancel_final = matched_cancel_final_authorization.is_some();
++        let gated_matched_cancel_final =
++            is_matched_cancel_final && self.egress_effect_gate.is_some();
++        if gated_matched_cancel_final {
++            // Consume the one-use peer proof before the first cancellation
++            // point. A dropped future is ambiguous and cannot fall back to an
++            // ordinary response effect.
++            self.final_response_effect_attempt_started = true;
++            self.matched_cancel_final_reconciliation_required = true;
++            self.last_matched_cancel_final_error =
++                Some("487-to-INVITE durable preparation is pending".to_string());
++        }
++
+         let response = Arc::new(FrozenSipMessage::new(finalize_outbound_message(
+             if let Some(ref inspector) = self.endpoint_inner.message_inspector {
+                 inspector.before_send(
+@@ -857,15 +921,43 @@ impl Transaction {
+                 response.to_owned().into()
+             },
+         )));
+-        let effect_attempt = self
+-            .prepare_egress_effect(
+-                &response.message,
+-                connection,
+-                &response.canonical_wire_bytes,
+-            )
+-            .await?;
++        let effect_attempt_result = match matched_cancel_final_authorization {
++            Some(MatchedCancelFinalResponseAuthorization {
++                trigger_message,
++                ingress_proof,
++            }) => {
++                self.prepare_peer_derived_egress_effect(
++                    EgressEffectPeerDerivedKind::ServerInviteRequestTerminated,
++                    &trigger_message,
++                    &response.message,
++                    &connection,
++                    &response.canonical_wire_bytes,
++                    ingress_proof,
++                )
++                .await
++            }
++            None => {
++                self.prepare_egress_effect(
++                    &response.message,
++                    &connection,
++                    &response.canonical_wire_bytes,
++                )
++                .await
++            }
++        };
++        let effect_attempt = match effect_attempt_result {
++            Ok(attempt) => attempt,
++            Err(error) => {
++                if is_matched_cancel_final {
++                    self.matched_cancel_final_reconciliation_required =
++                        self.egress_effect_gate.is_some();
++                    self.last_matched_cancel_final_error = Some(error.to_string());
++                }
++                return Err(error);
++            }
++        };
+         if is_final_response {
+-            self.final_response_effect_attempt_started = effect_attempt.is_armed();
++            self.final_response_effect_attempt_started |= effect_attempt.is_armed();
+         }
+         trace!(key = %self.key, response = %response.message, "responding");
+ 
+@@ -894,12 +986,21 @@ impl Transaction {
+             .await
+         {
+             effect_attempt.observe(EgressEffectOutcome::TransportUnknown);
++            if is_matched_cancel_final {
++                self.matched_cancel_final_reconciliation_required =
++                    self.egress_effect_gate.is_some();
++                self.last_matched_cancel_final_error = Some(error.to_string());
++            }
+             if is_non_2xx_server_invite || is_2xx_server_invite {
+                 self.terminate_server_invite_transport_error(&error);
+             }
+             return Err(error);
+         }
+         let protocol_permit = effect_attempt.observe(EgressEffectOutcome::TransportAccepted);
++        if is_matched_cancel_final {
++            self.matched_cancel_final_reconciliation_required = false;
++            self.last_matched_cancel_final_error = None;
++        }
+         if is_non_2xx_server_invite {
+             self.last_response_effect_permit = protocol_permit;
+         } else if is_2xx_server_invite {
+@@ -1216,6 +1317,23 @@ impl Transaction {
+         self.automatic_cancel_reconciliation_required
+     }
+ 
++    /// Return and clear the most recent durable 487-to-INVITE failure after a
++    /// matched CANCEL.
++    pub fn take_matched_cancel_final_error(&mut self) -> Option<String> {
++        self.last_matched_cancel_final_error.take()
++    }
++
++    /// Whether the peer-derived 487 has an ambiguous or rejected durable
++    /// outcome that must be queried/reconciled before replacement signaling.
++    pub fn matched_cancel_final_reconciliation_required(&self) -> bool {
++        self.matched_cancel_final_reconciliation_required
++    }
++
++    #[cfg(test)]
++    pub(crate) fn has_matched_cancel_final_authorization(&self) -> bool {
++        self.matched_cancel_final_authorization.is_some()
++    }
++
+     pub async fn receive(&mut self) -> Option<SipMessage> {
+         while let Some(event) = self.tu_receiver.recv().await {
+             match event {
+@@ -1471,6 +1589,10 @@ impl Transaction {
+             self.connection = Some(connection.clone());
+         }
+         if req.method == Method::Cancel {
++            let cancel_terminates_pending_invite = matches!(
++                self.state,
++                TransactionState::Proceeding | TransactionState::Trying
++            );
+             match self.state {
+                 TransactionState::Proceeding
+                 | TransactionState::Trying
+@@ -1523,14 +1645,30 @@ impl Transaction {
+                             response.into()
+                         },
+                     )));
++                    let trigger_message: SipMessage = req.clone().into();
++                    let (cancel_ok_ingress_proof, invite_terminated_ingress_proof) =
++                        if cancel_terminates_pending_invite {
++                            let (cancel_ok, invite_terminated) =
++                                ingress_proof.split_for_matched_cancel();
++                            (cancel_ok, Some(invite_terminated))
++                        } else {
++                            (ingress_proof, None)
++                        };
++                    let gated_cancel_response = self.egress_effect_gate.is_some();
++                    if gated_cancel_response {
++                        self.cancel_response_effect_attempt_started = true;
++                        self.automatic_cancel_reconciliation_required = true;
++                        self.last_automatic_cancel_error =
++                            Some("200-to-CANCEL durable preparation is pending".to_string());
++                    }
+                     let effect_attempt = match self
+                         .prepare_peer_derived_egress_effect(
+                             EgressEffectPeerDerivedKind::ServerInviteCancelOk,
+-                            &req.clone().into(),
++                            &trigger_message,
+                             &frozen.message,
+                             &connection,
+                             &frozen.canonical_wire_bytes,
+-                            ingress_proof,
++                            cancel_ok_ingress_proof,
+                         )
+                         .await
+                     {
+@@ -1569,6 +1707,13 @@ impl Transaction {
+                         EgressEffectProtocolObservation::TransportTerminal,
+                     );
+                     self.frozen_cancel_response = Some(frozen);
++                    self.matched_cancel_final_authorization =
++                        invite_terminated_ingress_proof.map(|ingress_proof| {
++                            MatchedCancelFinalResponseAuthorization {
++                                trigger_message,
++                                ingress_proof,
++                            }
++                        });
+                     self.automatic_cancel_reconciliation_required = false;
+                     self.last_automatic_cancel_error = None;
+                     return Some(req.into()); // into dialog
+@@ -1725,7 +1870,7 @@ impl Transaction {
+         self.transition(new_state).ok();
+ 
+         if is_completed_client_invite {
+-            let gate = self.endpoint_inner.egress_effect_gate.clone();
++            let gate = self.egress_effect_gate.clone();
+             let gated_automatic_ack = gate.is_some();
+             // Arm reconciliation before the first cancellation point. If this
+             // receive future is dropped while the derived ACK is being

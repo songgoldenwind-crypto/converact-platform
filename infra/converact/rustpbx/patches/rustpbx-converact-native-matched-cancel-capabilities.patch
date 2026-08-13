@@ -1,0 +1,1314 @@
+diff --git a/src/call/adapters/mod.rs b/src/call/adapters/mod.rs
+index abb8c56..80146b2 100644
+--- a/src/call/adapters/mod.rs
++++ b/src/call/adapters/mod.rs
+@@ -11,6 +11,7 @@
+ 
+ #[cfg(feature = "console")]
+ mod console_adapter;
++pub(crate) mod native_sip_effect_capabilities;
+ pub mod postgres_sip_effect;
+ pub mod rsipstack_sip_effect_gate;
+ mod rwi_adapter;
+diff --git a/src/call/adapters/native_sip_effect_capabilities.rs b/src/call/adapters/native_sip_effect_capabilities.rs
+new file mode 100644
+index 0000000..43cc3da
+--- /dev/null
++++ b/src/call/adapters/native_sip_effect_capabilities.rs
+@@ -0,0 +1,709 @@
++use super::rsipstack_sip_effect_gate::{
++    DurableRsipstackEgressGate, SipEffectGateError, SipEffectIntent, SipEffectIntentLease,
++    SipEffectIntentRegistry,
++};
++use crate::proxy::active_call_registry::{
++    ActiveCallRegistryError, ActiveProxyCallRegistry, NativeMatchedCancelCapabilityFacts,
++};
++use chrono::{Duration, Utc};
++use rsipstack::sip::{SipMessage, StatusCode, Transport};
++use rsipstack::transaction::endpoint::{EgressEffectGate, EgressEffectPeerDerivedKind};
++use rsipstack::transaction::transaction::Transaction;
++use serde_json::Value;
++use sha2::{Digest, Sha256};
++use std::sync::Arc;
++
++#[allow(
++    dead_code,
++    reason = "construction stays unreachable until the default-disabled runtime activation gate"
++)]
++const MAX_AUDIT_RETENTION_DAYS: i64 = 365;
++const PINNED_RSIPSTACK_SOURCE_COMMIT: &str = "8318e97b1170de4e5245b120afec1cdf53e3d716";
++
++#[derive(Debug, thiserror::Error)]
++pub(crate) enum NativeSipEffectCapabilityError {
++    #[error("native Call authority rejected SIP effect capability issuance")]
++    ActiveCall(#[from] ActiveCallRegistryError),
++    #[error("durable SIP effect capability registration failed")]
++    Gate(#[from] SipEffectGateError),
++    #[error("native SIP effect runtime configuration is invalid")]
++    InvalidConfiguration,
++    #[error("native SIP effect transport binding is unavailable")]
++    TransportBinding,
++    #[error("native SIP effect transport requires a frozen TLS authority binding")]
++    UnsupportedSecureTransport,
++    #[error("transaction-local durable SIP effect gate installation failed")]
++    TransactionGate(#[source] rsipstack::Error),
++}
++
++pub(crate) struct NativeSipEffectRuntime {
++    gate: Arc<DurableRsipstackEgressGate>,
++    intents: Arc<SipEffectIntentRegistry>,
++    adapter_identity: Value,
++    audit_retention: Duration,
++}
++
++impl NativeSipEffectRuntime {
++    #[allow(
++        dead_code,
++        reason = "construction stays unreachable until the default-disabled runtime activation gate"
++    )]
++    pub(crate) fn try_new(
++        gate: Arc<DurableRsipstackEgressGate>,
++        intents: Arc<SipEffectIntentRegistry>,
++        adapter_identity: Value,
++        audit_retention: Duration,
++    ) -> Result<Self, NativeSipEffectCapabilityError> {
++        let identity = adapter_identity
++            .as_object()
++            .ok_or(NativeSipEffectCapabilityError::InvalidConfiguration)?;
++        let source_commit = identity
++            .get("source_commit")
++            .and_then(Value::as_str)
++            .ok_or(NativeSipEffectCapabilityError::InvalidConfiguration)?;
++        if identity.len() != 2
++            || identity.get("adapter_id").and_then(Value::as_str) != Some("rsipstack")
++            || source_commit != PINNED_RSIPSTACK_SOURCE_COMMIT
++            || audit_retention <= Duration::zero()
++            || audit_retention > Duration::days(MAX_AUDIT_RETENTION_DAYS)
++            || !gate.uses_intent_registry(&intents)
++        {
++            return Err(NativeSipEffectCapabilityError::InvalidConfiguration);
++        }
++        Ok(Self {
++            gate,
++            intents,
++            adapter_identity,
++            audit_retention,
++        })
++    }
++
++    pub(crate) fn gate(&self) -> Arc<dyn EgressEffectGate> {
++        self.gate.clone()
++    }
++
++    pub(crate) fn register_matched_cancel_capabilities(
++        &self,
++        active_calls: &Arc<ActiveProxyCallRegistry>,
++        provider_call_id: &str,
++        transaction: &Transaction,
++    ) -> Result<NativeMatchedCancelCapabilityHolder, NativeSipEffectCapabilityError> {
++        let reservation =
++            active_calls.reserve_matched_cancel_capabilities(provider_call_id, transaction)?;
++        let registration = (|| {
++            let facts = reservation.facts();
++            let route_binding = route_binding(transaction, facts)?;
++            let pair = matched_cancel_intents(
++                facts,
++                route_binding,
++                self.adapter_identity.clone(),
++                self.audit_retention,
++            )?;
++            let cancel_ok = self.intents.register_peer_derived(
++                &transaction.key,
++                EgressEffectPeerDerivedKind::ServerInviteCancelOk,
++                pair.cancel_ok,
++            )?;
++            let invite_terminated = self.intents.register_peer_derived(
++                &transaction.key,
++                EgressEffectPeerDerivedKind::ServerInviteRequestTerminated,
++                pair.invite_terminated,
++            )?;
++            Ok(NativeMatchedCancelCapabilityHolder {
++                _cancel_ok: cancel_ok,
++                _invite_terminated: invite_terminated,
++            })
++        })();
++        match registration {
++            Ok(holder) => {
++                reservation.commit();
++                Ok(holder)
++            }
++            Err(error) => {
++                drop(reservation);
++                active_calls.remove(provider_call_id);
++                Err(error)
++            }
++        }
++    }
++}
++
++pub(crate) struct NativeMatchedCancelCapabilityHolder {
++    _cancel_ok: SipEffectIntentLease,
++    _invite_terminated: SipEffectIntentLease,
++}
++
++pub(crate) fn install_for_admitted_native_call(
++    runtime: Option<&NativeSipEffectRuntime>,
++    active_calls: &Arc<ActiveProxyCallRegistry>,
++    provider_call_id: &str,
++    transaction: &mut Transaction,
++) -> Result<Option<NativeMatchedCancelCapabilityHolder>, NativeSipEffectCapabilityError> {
++    let Some(runtime) = runtime else {
++        return Ok(None);
++    };
++    let holder = runtime.register_matched_cancel_capabilities(
++        active_calls,
++        provider_call_id,
++        transaction,
++    )?;
++    if let Err(error) = transaction.install_egress_effect_gate(runtime.gate()) {
++        drop(holder);
++        active_calls.remove(provider_call_id);
++        return Err(NativeSipEffectCapabilityError::TransactionGate(error));
++    }
++    Ok(Some(holder))
++}
++
++struct MatchedCancelIntents {
++    cancel_ok: SipEffectIntent,
++    invite_terminated: SipEffectIntent,
++}
++
++fn matched_cancel_intents(
++    facts: &NativeMatchedCancelCapabilityFacts,
++    route_binding: Value,
++    adapter_identity: Value,
++    audit_retention: Duration,
++) -> Result<MatchedCancelIntents, NativeSipEffectCapabilityError> {
++    let identity = facts.identity();
++    let pair_hash = facts.pair_binding_sha256();
++    let semantic_intent_sha256 = sha256_lower_hex(
++        format!(
++            "matched-cancel-effects\0{}\0{}\0{}\0{}",
++            identity.tenant_id(),
++            identity.call_id(),
++            identity.generation(),
++            facts.transaction_key(),
++        )
++        .as_bytes(),
++    );
++    let cancel_ok_effect_id = format!("sip-cancel-ok-{pair_hash}");
++    let invite_terminated_effect_id = format!("sip-invite-487-{pair_hash}");
++    let decision_id = format!("sip-cancel-decision-{pair_hash}");
++    let prepared_at = Utc::now();
++    let audit_until = prepared_at
++        .checked_add_signed(audit_retention)
++        .ok_or(NativeSipEffectCapabilityError::InvalidConfiguration)?;
++
++    let common = |effect_id: &str,
++                  command_kind: &str,
++                  command_sequence: u64,
++                  parent_attempt_id: Option<&str>|
++     -> SipEffectIntent {
++        SipEffectIntent {
++            tenant_id: identity.tenant_id().to_string(),
++            protocol_effect_id: effect_id.to_string(),
++            protocol_session_id: identity.call_id().as_str().to_string(),
++            protocol_session_generation: identity.generation().to_string(),
++            decision_id: decision_id.clone(),
++            idempotency_key: format!("sip-{command_kind}-idempotency-{pair_hash}"),
++            semantic_intent_sha256: semantic_intent_sha256.clone(),
++            command_id: format!("sip-{command_kind}-command-{pair_hash}"),
++            adapter_identity: adapter_identity.clone(),
++            route_binding: route_binding.clone(),
++            wire_attempt_facts: serde_json::json!({
++                "schema_id": "sip-foundation-wire-attempt-v1",
++                "schema_version": "1.0.0",
++                "attempt_id": effect_id,
++                "transaction_lineage_id": cancel_ok_effect_id,
++                "semantic_intent_sha256": semantic_intent_sha256,
++                "parent_attempt_id": parent_attempt_id,
++                "lineage_reason": if parent_attempt_id.is_some() {
++                    "derived_attempt"
++                } else {
++                    "transaction_root"
++                },
++            }),
++            owner_epoch: identity.owner_epoch(),
++            command_sequence,
++            prepared_at,
++            audit_until,
++        }
++    };
++
++    Ok(MatchedCancelIntents {
++        cancel_ok: common(
++            &cancel_ok_effect_id,
++            "cancel-ok",
++            facts.cancel_ok_command_sequence(),
++            None,
++        ),
++        invite_terminated: common(
++            &invite_terminated_effect_id,
++            "invite-487",
++            facts.invite_terminated_command_sequence(),
++            Some(&cancel_ok_effect_id),
++        ),
++    })
++}
++
++fn route_binding(
++    transaction: &Transaction,
++    facts: &NativeMatchedCancelCapabilityFacts,
++) -> Result<Value, NativeSipEffectCapabilityError> {
++    let connection = transaction
++        .connection
++        .as_ref()
++        .ok_or(NativeSipEffectCapabilityError::TransportBinding)?;
++    let response = transaction.endpoint_inner.make_response(
++        &transaction.original,
++        StatusCode::RequestTerminated,
++        None,
++    );
++    let transport_binding = connection
++        .egress_transport_binding(
++            &SipMessage::Response(response),
++            transaction.destination.as_ref(),
++        )
++        .map_err(|_| NativeSipEffectCapabilityError::TransportBinding)?;
++    let protocol = match transport_binding.protocol() {
++        Transport::Udp => "udp",
++        Transport::Tcp => "tcp",
++        Transport::Ws => "ws",
++        Transport::Tls | Transport::Wss => {
++            return Err(NativeSipEffectCapabilityError::UnsupportedSecureTransport);
++        }
++        _ => return Err(NativeSipEffectCapabilityError::TransportBinding),
++    };
++    let local = connection
++        .get_addr()
++        .get_socketaddr()
++        .map_err(|_| NativeSipEffectCapabilityError::TransportBinding)?;
++    let remote = transport_binding.remote_addr();
++    let transport_hash = sha256_lower_hex(
++        format!(
++            "{}\0{}\0{}\0{}\0{}",
++            protocol,
++            local,
++            remote,
++            transport_binding.flow_id().unwrap_or("datagram"),
++            transport_binding.flow_generation().unwrap_or(0),
++        )
++        .as_bytes(),
++    );
++    Ok(serde_json::json!({
++        "schema_id": "sip-foundation-route-binding-v1",
++        "schema_version": "1.0.0",
++        "route": {
++            "id": format!("sip-route-{}", facts.pair_binding_sha256()),
++            "revision": facts.native_call_revision(),
++        },
++        "rfc3263_candidate": format!("{remote}/{protocol}"),
++        "route_set": [],
++        "transport": {
++            "id": format!("sip-transport-{transport_hash}"),
++            "protocol": protocol,
++            "next_hop": {"address": remote.ip().to_string(), "port": remote.port()},
++        },
++        "local_endpoint": {"address": local.ip().to_string(), "port": local.port()},
++        "advertised_via_sent_by": {"host": local.ip().to_string(), "port": local.port()},
++        "tls_sni": null,
++        "authorization_identity": null,
++        "authorization_headers_sha256": [],
++    }))
++}
++
++fn sha256_lower_hex(value: &[u8]) -> String {
++    const HEX: &[u8; 16] = b"0123456789abcdef";
++    let digest = Sha256::digest(value);
++    let mut encoded = String::with_capacity(64);
++    for byte in digest {
++        encoded.push(HEX[(byte >> 4) as usize] as char);
++        encoded.push(HEX[(byte & 0x0f) as usize] as char);
++    }
++    encoded
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use crate::call::adapters::postgres_sip_effect::{
++        PostgresSipEffectStore, PostgresSipEffectStoreOptions,
++    };
++    use crate::call::adapters::rsipstack_sip_effect_gate::{
++        DurableRsipstackEgressGate, SipEffectGateOptions, SipEffectIntentRegistry,
++    };
++    use crate::call::domain::foundation_identity::NativeCallIdentity;
++    use crate::proxy::active_call_registry::{
++        ActiveProxyCallEntry, ActiveProxyCallRegistry, ActiveProxyCallStatus,
++    };
++    use crate::proxy::proxy_call::sip_session::SipSessionHandle;
++    use chrono::Utc;
++    use rsipstack::EndpointBuilder;
++    use rsipstack::sip::headers::{CSeq, CallId, From, To, Via};
++    use rsipstack::sip::{Method, Request, Uri, Version};
++    use rsipstack::transaction::key::{TransactionKey, TransactionRole};
++    use rsipstack::transaction::transaction::Transaction;
++    use rsipstack::transport::udp::UdpConnection;
++    use sqlx::postgres::PgPoolOptions;
++    use std::sync::Arc;
++
++    fn entry(session_id: &str) -> ActiveProxyCallEntry {
++        ActiveProxyCallEntry {
++            session_id: session_id.to_string(),
++            caller: None,
++            callee: None,
++            direction: "inbound".to_string(),
++            started_at: Utc::now(),
++            answered_at: None,
++            status: ActiveProxyCallStatus::Ringing,
++        }
++    }
++
++    fn handle(session_id: &str) -> SipSessionHandle {
++        let (tx, _rx) = tokio::sync::mpsc::channel(1);
++        SipSessionHandle::new_for_test(session_id, tx)
++    }
++
++    async fn transaction(session_id: &str) -> Transaction {
++        let server = UdpConnection::create_connection(
++            "127.0.0.1:0".parse().expect("server address"),
++            None,
++            None,
++        )
++        .await
++        .expect("server UDP");
++        let peer = UdpConnection::create_connection(
++            "127.0.0.1:0".parse().expect("peer address"),
++            None,
++            None,
++        )
++        .await
++        .expect("peer UDP");
++        let request = Request {
++            method: Method::Invite,
++            uri: Uri::try_from("sip:bob@example.test").expect("request URI"),
++            headers: vec![
++                Via::new(&format!(
++                    "SIP/2.0/UDP {};branch=z9hG4bK-native-cancel",
++                    peer.get_addr().addr
++                ))
++                .into(),
++                CSeq::new("1 INVITE").into(),
++                From::new("Alice <sip:alice@example.test>;tag=native-cancel").into(),
++                To::new("Bob <sip:bob@example.test>").into(),
++                CallId::new(session_id).into(),
++            ]
++            .into(),
++            version: Version::V2,
++            body: Default::default(),
++        };
++        let key = TransactionKey::from_request(&request, TransactionRole::Server)
++            .expect("transaction key");
++        let endpoint = EndpointBuilder::new()
++            .with_user_agent("native-cancel-capability-test")
++            .build();
++        Transaction::new_server(key, request, endpoint.inner, Some(server.into()))
++    }
++
++    fn runtime() -> (NativeSipEffectRuntime, Arc<SipEffectIntentRegistry>) {
++        let intents = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let pool = PgPoolOptions::new()
++            .max_connections(1)
++            .connect_lazy("postgres://unused:unused@127.0.0.1:1/unused")
++            .expect("lazy PostgreSQL pool");
++        let store = Arc::new(
++            PostgresSipEffectStore::from_pool(pool, PostgresSipEffectStoreOptions::default())
++                .unwrap(),
++        );
++        let (gate, _observers) = DurableRsipstackEgressGate::new_postgres(
++            intents.clone(),
++            store,
++            SipEffectGateOptions {
++                observation_worker_shards: 1,
++                ..SipEffectGateOptions::default()
++            },
++        )
++        .unwrap();
++        let runtime = NativeSipEffectRuntime::try_new(
++            gate,
++            intents.clone(),
++            serde_json::json!({
++                "adapter_id": "rsipstack",
++                "source_commit": "8318e97b1170de4e5245b120afec1cdf53e3d716",
++            }),
++            chrono::Duration::days(30),
++        )
++        .unwrap();
++        (runtime, intents)
++    }
++
++    #[tokio::test]
++    async fn admitted_native_call_registers_exactly_two_cancel_capabilities_once() {
++        let session_id = "native-cancel-call@example.test";
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(
++                entry(session_id),
++                handle(session_id),
++                NativeCallIdentity::standalone(session_id).unwrap(),
++            )
++            .unwrap();
++        let transaction = transaction(session_id).await;
++        let (runtime, intents) = runtime();
++
++        let holder = runtime
++            .register_matched_cancel_capabilities(&registry, session_id, &transaction)
++            .expect("Native Call authority registers the pair");
++        assert_eq!(intents.snapshot().registered, 2);
++        assert!(
++            runtime
++                .register_matched_cancel_capabilities(&registry, session_id, &transaction)
++                .is_err()
++        );
++        assert_eq!(intents.snapshot().registered, 2);
++
++        drop(holder);
++        assert_eq!(
++            intents.snapshot().registered,
++            0,
++            "unconsumed capabilities follow the admitted call holder lifetime"
++        );
++    }
++
++    #[tokio::test]
++    async fn missing_or_mismatched_native_call_cannot_register_cancel_capabilities() {
++        let session_id = "native-cancel-missing@example.test";
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        let transaction = transaction(session_id).await;
++        let (runtime, intents) = runtime();
++        assert!(
++            runtime
++                .register_matched_cancel_capabilities(&registry, session_id, &transaction)
++                .is_err()
++        );
++
++        let other_session = "native-cancel-other@example.test";
++        registry
++            .try_upsert_authoritative(
++                entry(other_session),
++                handle(other_session),
++                NativeCallIdentity::standalone(other_session).unwrap(),
++            )
++            .unwrap();
++        assert!(
++            runtime
++                .register_matched_cancel_capabilities(&registry, other_session, &transaction)
++                .is_err()
++        );
++        assert_eq!(intents.snapshot().registered, 0);
++    }
++
++    #[tokio::test]
++    async fn mismatched_install_cannot_close_an_unrelated_active_call() {
++        let transaction_session = "native-cancel-transaction@example.test";
++        let unrelated_session = "native-cancel-unrelated@example.test";
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(
++                entry(unrelated_session),
++                handle(unrelated_session),
++                NativeCallIdentity::standalone(unrelated_session).unwrap(),
++            )
++            .unwrap();
++        let mut transaction = transaction(transaction_session).await;
++        let (runtime, intents) = runtime();
++
++        assert!(matches!(
++            install_for_admitted_native_call(
++                Some(&runtime),
++                &registry,
++                unrelated_session,
++                &mut transaction,
++            ),
++            Err(NativeSipEffectCapabilityError::ActiveCall(
++                ActiveCallRegistryError::AuthorityConflict
++            ))
++        ));
++        assert!(registry.get(unrelated_session).is_some());
++        assert_eq!(intents.snapshot().registered, 0);
++    }
++
++    #[tokio::test]
++    async fn default_disabled_runtime_leaves_the_transaction_ungated() {
++        let session_id = "native-cancel-disabled@example.test";
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(
++                entry(session_id),
++                handle(session_id),
++                NativeCallIdentity::standalone(session_id).unwrap(),
++            )
++            .unwrap();
++        let mut transaction = transaction(session_id).await;
++        let (runtime, intents) = runtime();
++
++        let holder =
++            install_for_admitted_native_call(None, &registry, session_id, &mut transaction)
++                .expect("the default-disabled path is a no-op");
++        assert!(holder.is_none());
++        assert_eq!(intents.snapshot().registered, 0);
++        transaction
++            .install_egress_effect_gate(runtime.gate())
++            .expect("the disabled path did not install a transaction gate");
++    }
++
++    #[tokio::test]
++    async fn enabled_runtime_registers_then_installs_one_transaction_local_gate() {
++        let session_id = "native-cancel-enabled@example.test";
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(
++                entry(session_id),
++                handle(session_id),
++                NativeCallIdentity::standalone(session_id).unwrap(),
++            )
++            .unwrap();
++        let mut transaction = transaction(session_id).await;
++        let (runtime, intents) = runtime();
++
++        let holder = install_for_admitted_native_call(
++            Some(&runtime),
++            &registry,
++            session_id,
++            &mut transaction,
++        )
++        .expect("the enabled runtime installs after authority registration")
++        .expect("the enabled runtime returns the capability holder");
++        assert_eq!(intents.snapshot().registered, 2);
++        assert!(
++            transaction
++                .install_egress_effect_gate(runtime.gate())
++                .is_err()
++        );
++
++        drop(holder);
++        assert_eq!(intents.snapshot().registered, 0);
++    }
++
++    #[tokio::test]
++    async fn gate_installation_conflict_revokes_capabilities_and_closes_the_call() {
++        let session_id = "native-cancel-install-conflict@example.test";
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(
++                entry(session_id),
++                handle(session_id),
++                NativeCallIdentity::standalone(session_id).unwrap(),
++            )
++            .unwrap();
++        let mut transaction = transaction(session_id).await;
++        let (runtime, intents) = runtime();
++        transaction
++            .install_egress_effect_gate(runtime.gate())
++            .expect("pre-existing transaction gate");
++
++        assert!(matches!(
++            install_for_admitted_native_call(
++                Some(&runtime),
++                &registry,
++                session_id,
++                &mut transaction,
++            ),
++            Err(NativeSipEffectCapabilityError::TransactionGate(_))
++        ));
++        assert!(registry.get(session_id).is_none());
++        assert_eq!(intents.snapshot().registered, 0);
++    }
++
++    #[tokio::test]
++    async fn partial_intent_registration_revokes_the_pair_and_closes_the_call() {
++        let session_id = "native-cancel-partial-registration@example.test";
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(
++                entry(session_id),
++                handle(session_id),
++                NativeCallIdentity::standalone(session_id).unwrap(),
++            )
++            .unwrap();
++        let mut transaction = transaction(session_id).await;
++        let intents = Arc::new(SipEffectIntentRegistry::try_new(1).unwrap());
++        let pool = PgPoolOptions::new()
++            .max_connections(1)
++            .connect_lazy("postgres://unused:unused@127.0.0.1:1/unused")
++            .expect("lazy PostgreSQL pool");
++        let store = Arc::new(
++            PostgresSipEffectStore::from_pool(pool, PostgresSipEffectStoreOptions::default())
++                .unwrap(),
++        );
++        let (gate, _observers) = DurableRsipstackEgressGate::new_postgres(
++            intents.clone(),
++            store,
++            SipEffectGateOptions {
++                observation_worker_shards: 1,
++                ..SipEffectGateOptions::default()
++            },
++        )
++        .unwrap();
++        let runtime = NativeSipEffectRuntime::try_new(
++            gate,
++            intents.clone(),
++            serde_json::json!({
++                "adapter_id": "rsipstack",
++                "source_commit": PINNED_RSIPSTACK_SOURCE_COMMIT,
++            }),
++            chrono::Duration::days(30),
++        )
++        .unwrap();
++
++        assert!(matches!(
++            install_for_admitted_native_call(
++                Some(&runtime),
++                &registry,
++                session_id,
++                &mut transaction,
++            ),
++            Err(NativeSipEffectCapabilityError::Gate(_))
++        ));
++        assert!(registry.get(session_id).is_none());
++        assert_eq!(intents.snapshot().registered, 0);
++        assert!(
++            transaction
++                .install_egress_effect_gate(runtime.gate())
++                .is_ok(),
++            "a partial registry failure must not install the transaction gate"
++        );
++    }
++
++    #[tokio::test]
++    async fn runtime_rejects_an_unpinned_or_noncanonical_source_commit() {
++        let intents = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let pool = PgPoolOptions::new()
++            .max_connections(1)
++            .connect_lazy("postgres://unused:unused@127.0.0.1:1/unused")
++            .expect("lazy PostgreSQL pool");
++        let store = Arc::new(
++            PostgresSipEffectStore::from_pool(pool, PostgresSipEffectStoreOptions::default())
++                .unwrap(),
++        );
++        let (gate, _observers) = DurableRsipstackEgressGate::new_postgres(
++            intents.clone(),
++            store,
++            SipEffectGateOptions {
++                observation_worker_shards: 1,
++                ..SipEffectGateOptions::default()
++            },
++        )
++        .unwrap();
++
++        for source_commit in [
++            "0000000000000000000000000000000000000000",
++            "8318E97B1170DE4E5245B120AFEC1CDF53E3D716",
++        ] {
++            assert!(matches!(
++                NativeSipEffectRuntime::try_new(
++                    gate.clone(),
++                    intents.clone(),
++                    serde_json::json!({
++                        "adapter_id": "rsipstack",
++                        "source_commit": source_commit,
++                    }),
++                    chrono::Duration::days(30),
++                ),
++                Err(NativeSipEffectCapabilityError::InvalidConfiguration)
++            ));
++        }
++    }
++}
+diff --git a/src/call/adapters/rsipstack_sip_effect_gate.rs b/src/call/adapters/rsipstack_sip_effect_gate.rs
+index 66734d8..6f3471f 100644
+--- a/src/call/adapters/rsipstack_sip_effect_gate.rs
++++ b/src/call/adapters/rsipstack_sip_effect_gate.rs
+@@ -796,15 +796,12 @@ pub(crate) fn materialize_peer_derived_effect(
+     intent: &SipEffectIntent,
+     attempt: &SipEffectPeerDerivedAttempt,
+ ) -> Result<PreparedSipEffect, SipEffectGateError> {
+-    if attempt.kind != EgressEffectPeerDerivedKind::ServerInviteCancelOk
+-        || attempt.canonical_wire_bytes != attempt.message.to_bytes()
+-    {
++    if attempt.canonical_wire_bytes != attempt.message.to_bytes() {
+         return Err(SipEffectGateError::InvalidIntent);
+     }
+     let (cancel, response) = match (&attempt.trigger_message, &attempt.message) {
+         (SipMessage::Request(cancel), SipMessage::Response(response))
+             if cancel.method == rsipstack::sip::Method::Cancel
+-                && response.status_code == rsipstack::sip::StatusCode::OK
+                 && cancel.body.is_empty()
+                 && response.body.is_empty() =>
+         {
+@@ -839,9 +836,35 @@ pub(crate) fn materialize_peer_derived_effect(
+         .map_err(|_| SipEffectGateError::InvalidIntent)?
+         .typed()
+         .map_err(|_| SipEffectGateError::InvalidIntent)?;
+-    if response_cseq.seq().ok() != Some(cancel_sequence)
++    let expected_response = match attempt.kind {
++        EgressEffectPeerDerivedKind::ServerInviteCancelOk => (
++            rsipstack::sip::StatusCode::OK,
++            rsipstack::sip::Method::Cancel,
++            COMPLETION_SCOPE_TRANSPORT_TERMINAL,
++        ),
++        EgressEffectPeerDerivedKind::ServerInviteRequestTerminated => (
++            rsipstack::sip::StatusCode::RequestTerminated,
++            rsipstack::sip::Method::Invite,
++            COMPLETION_SCOPE_TRANSACTION_PEER,
++        ),
++    };
++    let response_matches_original_transaction = match attempt.kind {
++        // A server request key deliberately normalizes CANCEL to INVITE, while
++        // a response key retains its CSeq method. The already-validated CANCEL
++        // trigger therefore owns this response without a second key equality.
++        EgressEffectPeerDerivedKind::ServerInviteCancelOk => true,
++        EgressEffectPeerDerivedKind::ServerInviteRequestTerminated => {
++            TransactionKey::from_response(response, TransactionRole::Server)
++                .ok()
++                .as_ref()
++                == Some(&attempt.transaction_key)
++        }
++    };
++    if response.status_code != expected_response.0
++        || response_cseq.seq().ok() != Some(cancel_sequence)
+         || cancel_cseq.method().ok() != Some(rsipstack::sip::Method::Cancel)
+-        || response_cseq.method().ok() != Some(rsipstack::sip::Method::Cancel)
++        || response_cseq.method().ok() != Some(expected_response.1)
++        || !response_matches_original_transaction
+         || cancel.call_id_header().ok().map(|header| header.value())
+             != response.call_id_header().ok().map(|header| header.value())
+         || cancel.from_header().ok().map(|header| header.value())
+@@ -861,7 +884,7 @@ pub(crate) fn materialize_peer_derived_effect(
+         &attempt.message,
+         &attempt.transport_binding,
+         &attempt.canonical_wire_bytes,
+-        COMPLETION_SCOPE_TRANSPORT_TERMINAL,
++        expected_response.2,
+     )
+ }
+ 
+@@ -925,6 +948,14 @@ impl DurableRsipstackEgressGate {
+         Self::new_with_store(intents, store, options)
+     }
+ 
++    #[allow(
++        dead_code,
++        reason = "runtime construction remains default-disabled until its activation gate"
++    )]
++    pub(crate) fn uses_intent_registry(&self, intents: &Arc<SipEffectIntentRegistry>) -> bool {
++        Arc::ptr_eq(&self.intents, intents)
++    }
++
+     fn new_with_store<T>(
+         intents: Arc<SipEffectIntentRegistry>,
+         store: Arc<T>,
+@@ -2202,6 +2233,9 @@ fn peer_derived_binding_key(
+ ) -> String {
+     let kind = match kind {
+         EgressEffectPeerDerivedKind::ServerInviteCancelOk => "server_invite_cancel_ok",
++        EgressEffectPeerDerivedKind::ServerInviteRequestTerminated => {
++            "server_invite_request_terminated"
++        }
+     };
+     let mut hasher = Sha256::new();
+     update_length_prefixed(&mut hasher, b"sip-peer-derived-intent-v1");
+@@ -2683,6 +2717,23 @@ Content-Length: 0\r\n\r\n"
+         .into()
+     }
+ 
++    fn invite_request_terminated(call: &str, branch: &str) -> SipMessage {
++        rsipstack::sip::Response::try_from(
++            format!(
++                "SIP/2.0 487 Request Terminated\r\n\
++Via: SIP/2.0/UDP 127.0.0.1:5060;branch={branch}\r\n\
++From: <sip:alice@example.test>;tag=from-tag\r\n\
++To: <sip:bob@example.test>;tag=to-tag\r\n\
++Call-ID: {call}\r\n\
++CSeq: 1 INVITE\r\n\
++Content-Length: 0\r\n\r\n"
++            )
++            .as_str(),
++        )
++        .unwrap()
++        .into()
++    }
++
+     fn intent(effect: &str, session: &str) -> SipEffectIntent {
+         let semantic_intent_sha256 = sha256_lower_hex(effect.as_bytes());
+         let prepared_at = Utc.with_ymd_and_hms(2026, 8, 9, 0, 0, 0).unwrap();
+@@ -3282,6 +3333,90 @@ Content-Length: 0\r\n\r\n"
+         assert_eq!(gate.snapshot().pending_observations, 0);
+     }
+ 
++    #[tokio::test]
++    async fn peer_derived_cancel_487_is_distinct_and_waits_for_peer_ack() {
++        let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let writer = Arc::new(InMemoryWriter::new());
++        let (gate, mut observer) = runtime(
++            registry.clone(),
++            writer.clone(),
++            SipEffectGateOptions::default(),
++        );
++        let call = "call-peer-cancel-final@example.test";
++        let branch = "z9hG4bK-peer-cancel-final";
++        let (key, trigger) = cancel(call, branch);
++        let response = invite_request_terminated(call, branch);
++        let _lease = registry
++            .register_peer_derived(
++                &key,
++                EgressEffectPeerDerivedKind::ServerInviteRequestTerminated,
++                intent("effect-peer-cancel-final", "session-peer-cancel-final"),
++            )
++            .unwrap();
++        let transport_binding = test_transport_binding(&response).await;
++
++        let permit = gate
++            .prepare_peer_derived_inner(
++                EgressEffectPeerDerivedKind::ServerInviteRequestTerminated,
++                &key,
++                &trigger,
++                &response,
++                &transport_binding,
++                &response.to_bytes(),
++            )
++            .await
++            .expect("peer-derived 487 durable permit");
++
++        let prepared = writer.prepared.lock().unwrap()[0].clone();
++        assert_eq!(
++            prepared.wire_attempt_facts["completion_scope"],
++            COMPLETION_SCOPE_TRANSACTION_PEER
++        );
++        gate.observe_transport(permit.clone(), EgressEffectOutcome::TransportAccepted);
++        assert!(observer.persist_next().await.unwrap());
++        assert_eq!(
++            writer.state(&prepared).await,
++            SipEffectState::TransportAccepted,
++            "local transport acceptance must not impersonate the peer ACK"
++        );
++        gate.observe_protocol(permit, EgressEffectProtocolObservation::Completed);
++        assert!(observer.persist_next().await.unwrap());
++        assert_eq!(
++            writer.state(&prepared).await,
++            SipEffectState::ProtocolObserved
++        );
++        assert_eq!(registry.snapshot().registered, 0);
++        assert_eq!(gate.snapshot().pending_observations, 0);
++    }
++
++    #[tokio::test]
++    async fn peer_derived_cancel_487_rejects_a_cancel_cseq_response() {
++        let call = "call-peer-cancel-wrong-cseq@example.test";
++        let branch = "z9hG4bK-peer-cancel-wrong-cseq";
++        let (key, trigger) = cancel(call, branch);
++        let response = cancel_ok(call, branch);
++        let attempt = SipEffectPeerDerivedAttempt {
++            kind: EgressEffectPeerDerivedKind::ServerInviteRequestTerminated,
++            transaction_key: key,
++            trigger_message: trigger,
++            message: response.clone(),
++            transport_binding: test_transport_binding(&response).await,
++            canonical_wire_bytes: response.to_bytes(),
++        };
++
++        assert_eq!(
++            materialize_peer_derived_effect(
++                &intent(
++                    "effect-peer-cancel-wrong-cseq",
++                    "session-peer-cancel-wrong-cseq",
++                ),
++                &attempt,
++            )
++            .unwrap_err(),
++            SipEffectGateError::InvalidIntent
++        );
++    }
++
+     #[tokio::test]
+     async fn peer_derived_cancel_ok_rejects_mismatched_response_before_store() {
+         let registry = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
+diff --git a/src/proxy/active_call_registry.rs b/src/proxy/active_call_registry.rs
+index d64bdbe..db4a27f 100644
+--- a/src/proxy/active_call_registry.rs
++++ b/src/proxy/active_call_registry.rs
+@@ -4,6 +4,7 @@ use crate::call::domain::foundation_identity::{
+ };
+ use crate::call::domain::native_call::{
+     NativeCall, NativeCallBounds, NativeCallError, NativeCallSnapshot, NativeLegDirection,
++    NativeLegEvent, NativeLegState, NativeRequiredEffect,
+ };
+ use crate::proxy::proxy_call::sip_session::SipSessionHandle;
+ use chrono::{DateTime, Utc};
+@@ -22,6 +23,7 @@ const CALL_LEGS_HARD_CEILING: usize = 256;
+ const PROTOCOL_DIALOG_HISTORY_HARD_CEILING: usize = 16;
+ const PROVIDER_DIALOG_IDENTIFIER_HARD_CEILING: usize = 1_024;
+ const NATIVE_CALL_REGISTRATION_RETRIES: usize = 3;
++const SIP_EFFECT_TRANSACTION_CAPABILITIES_HARD_CEILING: usize = 256;
+ 
+ #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize)]
+ pub enum ActiveProxyCallStatus {
+@@ -71,6 +73,8 @@ struct NativeCallCell {
+ struct NativeCallCellState {
+     call: NativeCall,
+     provider_call_ids: HashSet<String>,
++    sip_effect_transactions: HashSet<String>,
++    next_sip_effect_command_sequence: u64,
+     closed: bool,
+ }
+ 
+@@ -127,6 +131,71 @@ pub struct ActiveCallAdmissionLease {
+     provider_call_id: String,
+ }
+ 
++pub(crate) struct NativeMatchedCancelCapabilityFacts {
++    identity: NativeCallIdentity,
++    transaction_key: String,
++    pair_binding_sha256: String,
++    native_call_revision: u64,
++    cancel_ok_command_sequence: u64,
++    invite_terminated_command_sequence: u64,
++}
++
++impl NativeMatchedCancelCapabilityFacts {
++    pub(crate) fn identity(&self) -> &NativeCallIdentity {
++        &self.identity
++    }
++
++    pub(crate) fn transaction_key(&self) -> &str {
++        &self.transaction_key
++    }
++
++    pub(crate) fn pair_binding_sha256(&self) -> &str {
++        &self.pair_binding_sha256
++    }
++
++    pub(crate) fn native_call_revision(&self) -> u64 {
++        self.native_call_revision
++    }
++
++    pub(crate) fn cancel_ok_command_sequence(&self) -> u64 {
++        self.cancel_ok_command_sequence
++    }
++
++    pub(crate) fn invite_terminated_command_sequence(&self) -> u64 {
++        self.invite_terminated_command_sequence
++    }
++}
++
++#[must_use = "an uncommitted SIP effect capability reservation rolls back its transaction key"]
++pub(crate) struct NativeMatchedCancelCapabilityReservation {
++    cell: Arc<NativeCallCell>,
++    facts: NativeMatchedCancelCapabilityFacts,
++    committed: bool,
++}
++
++impl NativeMatchedCancelCapabilityReservation {
++    pub(crate) fn facts(&self) -> &NativeMatchedCancelCapabilityFacts {
++        &self.facts
++    }
++
++    pub(crate) fn commit(mut self) {
++        self.committed = true;
++    }
++}
++
++impl Drop for NativeMatchedCancelCapabilityReservation {
++    fn drop(&mut self) {
++        if self.committed {
++            return;
++        }
++        if let Ok(mut state) = self.cell.state.lock() {
++            state
++                .sip_effect_transactions
++                .remove(&self.facts.transaction_key);
++        }
++    }
++}
++
+ impl std::fmt::Debug for ActiveCallAdmissionLease {
+     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+         formatter
+@@ -461,6 +530,8 @@ impl ActiveProxyCallRegistry {
+                         .provider_call_id()
+                         .as_str()
+                         .to_string()]),
++                    sip_effect_transactions: HashSet::new(),
++                    next_sip_effect_command_sequence: 1,
+                     closed: false,
+                 }),
+             });
+@@ -709,6 +780,133 @@ impl ActiveProxyCallRegistry {
+             .and_then(|slot| slot.identity.clone())
+     }
+ 
++    pub(crate) fn reserve_matched_cancel_capabilities(
++        self: &Arc<Self>,
++        provider_call_id: &str,
++        transaction: &rsipstack::transaction::transaction::Transaction,
++    ) -> Result<NativeMatchedCancelCapabilityReservation, ActiveCallRegistryError> {
++        use rsipstack::sip::prelude::HeadersExt;
++
++        if transaction.transaction_type != rsipstack::transaction::TransactionType::ServerInvite
++            || transaction.original.method != rsipstack::sip::Method::Invite
++            || transaction
++                .original
++                .call_id_header()
++                .ok()
++                .map(|header| header.value())
++                != Some(provider_call_id)
++            || rsipstack::transaction::key::TransactionKey::from_request(
++                &transaction.original,
++                rsipstack::transaction::key::TransactionRole::Server,
++            )
++            .ok()
++            .as_ref()
++                != Some(&transaction.key)
++        {
++            return Err(ActiveCallRegistryError::AuthorityConflict);
++        }
++
++        let (identity, binding) = {
++            let slot = self
++                .slots
++                .get(provider_call_id)
++                .ok_or(ActiveCallRegistryError::SessionNotRegistered)?;
++            let identity = slot
++                .identity
++                .clone()
++                .ok_or(ActiveCallRegistryError::NativeCallUnavailable)?;
++            let binding = slot
++                .native_binding
++                .clone()
++                .ok_or(ActiveCallRegistryError::NativeCallUnavailable)?;
++            (identity, binding)
++        };
++        if identity.provider_call_id().as_str() != provider_call_id
++            || binding.direction != NativeLegDirection::Inbound
++        {
++            return Err(ActiveCallRegistryError::AuthorityConflict);
++        }
++
++        let transaction_key = transaction.key.to_string();
++        let pair_binding_sha256 = sha256_lower_hex(
++            format!(
++                "matched-cancel-capability\0{}\0{}\0{}\0{}",
++                identity.tenant_id(),
++                identity.call_id(),
++                identity.generation(),
++                transaction_key,
++            )
++            .as_bytes(),
++        );
++        let mut state = binding
++            .cell
++            .state
++            .lock()
++            .map_err(|_| ActiveCallRegistryError::NativeCallUnavailable)?;
++        if state.closed || !state.call.matches_authority(&identity) {
++            return Err(ActiveCallRegistryError::AuthorityConflict);
++        }
++        if state.sip_effect_transactions.contains(&transaction_key) {
++            return Err(ActiveCallRegistryError::NativeCallStateConflict);
++        }
++        if state.sip_effect_transactions.len() >= SIP_EFFECT_TRANSACTION_CAPABILITIES_HARD_CEILING {
++            return Err(ActiveCallRegistryError::CapacityExhausted);
++        }
++
++        let leg = state
++            .call
++            .leg(&binding.leg_id)
++            .map_err(map_native_leg_registration_error)?;
++        match leg.state {
++            NativeLegState::Planned => {
++                let event_id = format!("sip-invite-observed-{pair_binding_sha256}");
++                let fence = state.call.fence();
++                let receipt = state
++                    .call
++                    .apply_leg_event(
++                        &fence,
++                        &binding.leg_id,
++                        &event_id,
++                        &pair_binding_sha256,
++                        NativeLegEvent::InboundInviteObserved,
++                    )
++                    .map_err(map_native_leg_registration_error)?;
++                if receipt.required_effect != NativeRequiredEffect::None {
++                    return Err(ActiveCallRegistryError::NativeCallStateConflict);
++                }
++            }
++            NativeLegState::Inviting | NativeLegState::Early => {}
++            _ => return Err(ActiveCallRegistryError::NativeCallStateConflict),
++        }
++
++        let cancel_ok_command_sequence = state.next_sip_effect_command_sequence;
++        let invite_terminated_command_sequence = cancel_ok_command_sequence
++            .checked_add(1)
++            .ok_or(ActiveCallRegistryError::CapacityExhausted)?;
++        let next_sequence = invite_terminated_command_sequence
++            .checked_add(1)
++            .ok_or(ActiveCallRegistryError::CapacityExhausted)?;
++        state.next_sip_effect_command_sequence = next_sequence;
++        state
++            .sip_effect_transactions
++            .insert(transaction_key.clone());
++        let native_call_revision = state.call.snapshot().revision;
++        drop(state);
++
++        Ok(NativeMatchedCancelCapabilityReservation {
++            cell: binding.cell,
++            facts: NativeMatchedCancelCapabilityFacts {
++                identity,
++                transaction_key,
++                pair_binding_sha256,
++                native_call_revision,
++                cancel_ok_command_sequence,
++                invite_terminated_command_sequence,
++            },
++            committed: false,
++        })
++    }
++
+     pub fn get_by_call_id(&self, call_id: &CallId) -> Vec<ActiveProxyCallEntry> {
+         let Some(providers) = self
+             .providers_by_call
+diff --git a/src/proxy/proxy_call/sip_session.rs b/src/proxy/proxy_call/sip_session.rs
+index f294545..3c429bf 100644
+--- a/src/proxy/proxy_call/sip_session.rs
++++ b/src/proxy/proxy_call/sip_session.rs
+@@ -1260,6 +1260,26 @@ impl SipSession {
+             return Ok(());
+         }
+ 
++        let _native_sip_effect_capabilities = match crate::call::adapters::
++            native_sip_effect_capabilities::install_for_admitted_native_call(
++                server.native_sip_effect_runtime.as_deref(),
++                &server.active_call_registry,
++                &session_id,
++                tx,
++            ) {
++            Ok(holder) => holder,
++            Err(error) => {
++                warn!(
++                    %session_id,
++                    error = %error,
++                    "Durable Native SIP effect capability admission failed"
++                );
++                server.active_call_registry.remove(&session_id);
++                reject_active_call_admission(tx, &session_id, true).await?;
++                return Ok(());
++            }
++        };
++
+         // Emit CallIncoming event via RWI gateway if configured.
+         let incoming_sip_headers = {
+             let mut hdrs = crate::call::app::extract_sip_headers(&server_dialog.initial_request());
+diff --git a/src/proxy/server.rs b/src/proxy/server.rs
+index 4876279..e0d32c4 100644
+--- a/src/proxy/server.rs
++++ b/src/proxy/server.rs
+@@ -79,6 +79,8 @@ pub struct SipServerInner {
+     pub sipflow_config: Option<SipFlowConfig>,
+     pub sip_flow: Option<SipFlow>,
+     pub active_call_registry: Arc<ActiveProxyCallRegistry>,
++    pub(crate) native_sip_effect_runtime:
++        Option<Arc<crate::call::adapters::native_sip_effect_capabilities::NativeSipEffectRuntime>>,
+     pub frequency_limiter: Option<Arc<dyn FrequencyLimiter>>,
+     pub call_record_hooks: Arc<Vec<Box<dyn crate::callrecord::CallRecordHook>>>,
+     pub runnings_tx: Arc<AtomicUsize>,
+@@ -175,6 +177,8 @@ pub struct SipServerBuilder {
+     trunk_health: Option<crate::proxy::trunk_health::HealthStateMap>,
+     /// Session lifecycle hooks registered via [`SipServerBuilder::with_session_hook`].
+     session_hooks: Vec<Arc<dyn crate::proxy::proxy_call::session_hooks::CallSessionHook>>,
++    native_sip_effect_runtime:
++        Option<Arc<crate::call::adapters::native_sip_effect_capabilities::NativeSipEffectRuntime>>,
+ }
+ 
+ impl SipServerBuilder {
+@@ -212,6 +216,7 @@ impl SipServerBuilder {
+             media_policy: None,
+             trunk_health: None,
+             session_hooks: Vec::new(),
++            native_sip_effect_runtime: None,
+         }
+     }
+ 
+@@ -383,6 +388,18 @@ impl SipServerBuilder {
+         self
+     }
+ 
++    #[allow(
++        dead_code,
++        reason = "the durable Native SIP runtime stays default-disabled until its activation gate"
++    )]
++    pub(crate) fn with_native_sip_effect_runtime(
++        mut self,
++        runtime: Arc<crate::call::adapters::native_sip_effect_capabilities::NativeSipEffectRuntime>,
++    ) -> Self {
++        self.native_sip_effect_runtime = Some(runtime);
++        self
++    }
++
+     pub fn with_skip_migrate(mut self, skip: bool) -> Self {
+         self.skip_migrate = skip;
+         self
+@@ -962,6 +979,7 @@ impl SipServerBuilder {
+             sipflow_config: self.sipflow_config.clone(),
+             sip_flow,
+             active_call_registry,
++            native_sip_effect_runtime: self.native_sip_effect_runtime,
+             frequency_limiter: self.frequency_limiter,
+             call_record_hooks: Arc::new(self.call_record_hooks),
+             runnings_tx: Arc::new(AtomicUsize::new(0)),
+@@ -1555,13 +1573,21 @@ impl Drop for SipServerInner {
+ 
+ #[cfg(test)]
+ mod invite_owner_tests {
+-    use super::SipServer;
++    use super::{SipServer, SipServerBuilder};
++    use crate::config::ProxyConfig;
+     use crate::proxy::tests::common::{create_test_request, create_transaction};
+     use rsipstack::sip::{Method, StatusCode};
++    use std::sync::Arc;
+     use std::time::Duration;
+     use tokio::time::timeout;
+     use tokio_util::sync::CancellationToken;
+ 
++    #[test]
++    fn durable_native_sip_effect_runtime_is_default_disabled() {
++        let builder = SipServerBuilder::new(Arc::new(ProxyConfig::default()));
++        assert!(builder.native_sip_effect_runtime.is_none());
++    }
++
+     #[tokio::test]
+     async fn ivekit_server_invite_owner_survives_module_return_until_cancelled() {
+         let request = create_test_request(Method::Invite, "alice", None, "rustpbx.test", None);
+diff --git a/src/proxy/tests/common.rs b/src/proxy/tests/common.rs
+index 003af91..8f373a6 100644
+--- a/src/proxy/tests/common.rs
++++ b/src/proxy/tests/common.rs
+@@ -94,6 +94,7 @@ pub async fn create_test_server_with_config(
+         sipflow_config: None,
+         sip_flow: None,
+         active_call_registry: Arc::new(ActiveProxyCallRegistry::new()),
++        native_sip_effect_runtime: None,
+         frequency_limiter: None,
+         call_record_hooks: Arc::new(Vec::new()),
+         runnings_tx: Arc::new(AtomicUsize::new(0)),
+diff --git a/src/proxy/tests/test_auth.rs b/src/proxy/tests/test_auth.rs
+index 36c325c..b1ec7d2 100644
+--- a/src/proxy/tests/test_auth.rs
++++ b/src/proxy/tests/test_auth.rs
+@@ -496,6 +496,7 @@ async fn test_guest_call_allowed_extension() {
+         sipflow_config: None,
+         sip_flow: None,
+         active_call_registry: Arc::new(ActiveProxyCallRegistry::new()),
++        native_sip_effect_runtime: None,
+         frequency_limiter: None,
+         call_record_hooks: Arc::new(Vec::new()),
+         runnings_tx: Arc::new(AtomicUsize::new(0)),

@@ -193,11 +193,21 @@ recorded as `not_run`, not described as completed wiring.
    timeout or cancellation. Normal `FenceLost`/`Terminal` races are superseded
    and keep healthy workers available. In-memory and PostgreSQL claim paths use
    the same maximum 512-byte `SipEffectRepairFence` validator.
-6. Transaction retransmission replays the exact committed bytes/hash.
-7. `snapshot` carries protocol state only. `restore` accepts only a confirmed,
+6. `.73` binds a real matched CANCEL on a Trying/Proceeding INVITE to two
+   distinct one-use effects inside the Rust transaction: `200 CANCEL` completes
+   only under transport-terminal policy, while `487 INVITE` remains
+   non-terminal until the matching peer ACK. A late CANCEL after an existing
+   final receives only `200 CANCEL` and cannot authorize a second final.
+   Native Call authority reserves both identities before a transaction-local
+   gate is installed. The runtime is `None` by default; Endpoint-global gating,
+   self-issued capabilities and partial-pair activation are forbidden.
+   Successor-safe cleanup fencing and restart reconstruction of unconsumed
+   capabilities remain explicit activation blockers.
+7. Transaction retransmission replays the exact committed bytes/hash.
+8. `snapshot` carries protocol state only. `restore` accepts only a confirmed,
    transaction-quiescent, same-Adapter/runtime snapshot after outer Call-owner
    authority is granted.
-8. `drain` stops new Protocol Sessions, preserves existing runtime identity and
+9. `drain` stops new Protocol Sessions, preserves existing runtime identity and
    reaches active-zero naturally. A session-opening reservation is installed
    before any Adapter identity getter or create callback and counts toward both
    capacity and active-zero; failed opens revoke their lease and release that
@@ -271,7 +281,7 @@ observation distinguishable even though both converge the effect record to
 | State | Meaning |
 | --- | --- |
 | current | RustPBX/rsipstack is the native runtime; TypeScript contains bounded conformance/reference models and a physical PostgreSQL reference ledger, but these are not a second live SIP/Call authority |
-| target | The complete interface and corpus are frozen; `.72` contains bounded protocol/control mailboxes, the direction-keyed native Call/Leg model, bounded PostgreSQL SipEffect primitives, a default-disabled exact-wire rsipstack gate, one fixed task per observation shard and a separately default-disabled exact-target reconciler. Isolated `.72` component tests pass `28/28`, affected SipEffect tests pass `87 passed / 0 failed / 8 ignored`, the sibling privacy probes fail with exact expected compiler codes, and locked check/Rust formatting pass, but they do not inherit controlled `.71` Linux evidence or promote an evidence entry. Physical PostgreSQL exact-target claim, 10K/100K query plans, live Authority issuer/durable sink, live Endpoint, process-crash/two-node, Linux full, fault/performance and Native Authority remain `not_run` |
+| target | The complete interface and corpus are frozen; `.73` retains the `.72` bounded supervisors and adds a default-disabled Rust matched-CANCEL pair owned by Native Call authority. Only Trying/Proceeding INVITEs receive the 487 capability; a late CANCEL after an existing final receives only 200. Local exact-source checks pass full rsipstack `314/314`, full RustPBX `2063 passed / 0 failed / 9 ignored`, focused server transactions `32/32`, durable gate `39/39`, Native capability composition `8/8`, Active Call registry `24/24`, builder default `1/1` and locked library checks. The 9 external-prerequisite cases remain `not_run`. No server service was changed and no performance campaign ran. Successor-safe cleanup fencing, capability reconstruction after restart, isolated server functional traffic, remaining transports, physical PostgreSQL, live product activation, process-crash/two-node, Linux full, fault/performance and Native Authority remain `not_run` |
 | production eligible | `false` until long-run, fault/OOM, Native Authority, allocation and multi-core scaling evidence pass independent review |
 
 No rvoip benchmark, old server result or historical Wave result is inherited.

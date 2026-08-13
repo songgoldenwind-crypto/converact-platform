@@ -785,6 +785,43 @@ durable per-target completion sink, physical PostgreSQL concurrency/rollback
 and query-plan proof, process-crash recovery, live Endpoint activation, Linux
 full-suite requalification and production eligibility remain `not_run`.
 
+ivekit.73 adds a default-disabled Rust matched-CANCEL functional slice. A real
+matched peer CANCEL that arrives while the INVITE is Trying/Proceeding is split
+inside rsipstack into two non-forgeable child proofs: one authorizes the
+transport-terminal `200` response to CANCEL and the other authorizes the
+distinct `487` response to the original INVITE. A late CANCEL after an existing
+final response gets only its `200` and cannot authorize a second final. The 487
+does not become protocol-observed on local socket acceptance; it retains its
+own permit until the exact matching peer ACK. The transaction-local egress gate
+may be installed only on an admitted server INVITE after the idempotent
+`100 Trying` and before any other visible response or effect attempt.
+
+Unified RustPBX Native Call authority reserves exactly two one-use capabilities
+for that transaction before installing the local gate. Duplicate, mismatched or
+over-capacity reservations fail closed. A partial registration or gate-install
+conflict revokes both capabilities and closes the affected active Call in the
+covered non-concurrent paths. Exact cleanup fencing against a concurrently
+installed successor Call and reconstruction after process restart remain
+activation blockers. The
+runtime field and builder entry are `None` by default, no Endpoint-global gate
+is installed, and no product configuration activates the slice.
+
+Local exact-source functional checks pass the full rsipstack library `314/314`
+and the full RustPBX library `2063 passed / 0 failed / 9 ignored`. Focused
+counts remain rsipstack server transactions `32/32`, the durable rsipstack
+adapter `39/39`, Native capability composition `8/8`, Active Call registry
+`24/24`, and the default-disabled builder check `1/1`; both locked library
+checks pass. The 9 ignored RustPBX cases require isolated PostgreSQL or external
+infrastructure and remain `not_run`. These are functional correctness results,
+not a load claim. The one-line `test_auth.rs` constructor update remains covered
+by compilation and the full library suite but is excluded from rustfmt scope
+because the pinned upstream file contains three unrelated formatting drifts;
+all other new Rust files pass pinned rustfmt. Server functional verification
+remains `not_run`; TCP, WS,
+TLS and WSS interoperability, physical PostgreSQL, live product activation and
+all performance gates remain `not_run`. No running server service or deployed
+code is changed by this patchset.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

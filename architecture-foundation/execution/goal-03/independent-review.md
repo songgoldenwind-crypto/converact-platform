@@ -202,6 +202,40 @@ PostgreSQL exact-target/rollback and 10K/100K distractor plans, live Endpoint,
 process-crash/two-node, Linux full, fault/performance and production gates
 remain `not_run`.
 
+The incremental `.73` candidate is a feature-only, default-disabled Rust
+component slice. It fixes the pending-INVITE matched-CANCEL effect boundary by
+deriving two separate one-use capabilities from one sealed peer ingress proof:
+the `200` response to CANCEL is transport-terminal, while the distinct `487`
+response to the original INVITE remains pending until its exact matching ACK.
+A late CANCEL after an existing final receives only 200 and cannot authorize a
+second final. Unified
+RustPBX Native Call authority reserves the pair before one transaction-local
+gate is installed; duplicate, mismatched, partially registered or conflicting
+installation paths fail closed and remove the affected active Call in the
+covered non-concurrent paths. Concurrent replacement by a successor Call still
+needs an exact cell/identity cleanup fence, and process restart still needs
+capability reconstruction; both are explicit activation blockers. No
+Endpoint-global gate and no product activation are introduced.
+
+The exact local source passes full rsipstack `314/314`, full RustPBX
+`2063 passed / 0 failed / 9 ignored`, rsipstack server transactions `32/32`,
+the durable gate `39/39`, Native capability composition `8/8`, Active Call
+registry `24/24`, the default-disabled builder check `1/1`, and both locked
+Rust library checks. The 9 external-prerequisite cases remain `not_run`. This
+patch's one-line `test_auth.rs` constructor update is compiled and covered by
+the full library suite but excluded from rustfmt scope because the pinned
+upstream file has three unrelated pre-existing formatting drifts; every other
+new Rust file in the slice passes the pinned rustfmt check. This
+is not final `G03-E15` review or evidence promotion. Activation is
+still ineligible: the transaction-local gate currently has capabilities only
+for the matched-CANCEL pair, so ordinary provisional/final response intents
+must be supplied by the same Native Call authority before the runtime can be
+enabled. Successor-safe cleanup fencing, restart capability reconstruction,
+physical PostgreSQL, isolated server functional verification, TCP,
+WS, TLS and WSS, crash/restart, live product activation and all deferred
+performance gates remain `not_run`. No running validation-server service or
+deployed code was changed by the local candidate.
+
 ## Rejection history and remaining gate
 
 The earlier `6cbe1a3` evidence review was rejected with

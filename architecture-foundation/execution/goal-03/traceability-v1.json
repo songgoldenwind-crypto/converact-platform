@@ -308,12 +308,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -333,12 +336,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -446,12 +452,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -539,12 +548,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -604,12 +616,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -649,12 +664,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -742,12 +760,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -767,12 +788,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -792,12 +816,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -964,12 +991,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -989,12 +1019,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1014,12 +1047,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1066,12 +1102,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1198,12 +1237,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1223,12 +1265,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1248,12 +1293,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1273,12 +1321,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1298,12 +1349,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1323,12 +1377,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1348,12 +1405,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1373,12 +1433,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1398,12 +1461,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1423,12 +1489,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1448,12 +1517,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1473,12 +1545,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1498,12 +1573,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1523,12 +1601,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1548,12 +1629,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1573,12 +1657,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1719,12 +1806,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1764,12 +1854,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1789,12 +1882,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1814,12 +1910,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1839,12 +1938,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1920,12 +2022,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1945,12 +2050,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2194,12 +2302,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2527,12 +2638,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2580,12 +2694,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2717,12 +2834,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2742,12 +2862,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2767,12 +2890,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2876,12 +3002,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2901,12 +3030,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3038,12 +3170,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3231,12 +3366,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3276,12 +3414,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3301,12 +3442,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3503,12 +3647,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3528,12 +3675,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3553,12 +3703,15 @@
         "src/agent-runtime/converact/voice/sip-foundation/types.ts",
         "src/agent-runtime/converact/voice/sip-foundation/session-registry.ts",
         "src/agent-runtime/converact/voice/sip-foundation/rsipstack-adapter.ts",
-        "infra/converact/rustpbx/build.sh"
+        "infra/converact/rustpbx/build.sh",
+        "infra/converact/rustpbx/patches/rsipstack-converact-transaction-local-matched-cancel-pair.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
         "test/converact-rustpbx-build.test.ts",
-        "test/converact-rsipstack-single-trying-patch.test.ts"
+        "test/converact-rsipstack-single-trying-patch.test.ts",
+        "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],

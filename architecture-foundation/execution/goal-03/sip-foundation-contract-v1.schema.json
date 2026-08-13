@@ -16,6 +16,7 @@
     "source_identity",
     "anti_corruption_boundary",
     "native_call_recovery",
+    "native_matched_cancel_effects",
     "ingress_events",
     "control_interface",
     "egress_events",
@@ -186,7 +187,7 @@
           "const": "166c6d22984429eb6b509920c14fcd69f974f0b3"
         },
         "patchset": {
-          "const": "ivekit.72"
+          "const": "ivekit.73"
         },
         "current_adapter": {
           "const": "rsipstack"
@@ -391,6 +392,172 @@
         },
         "current_status": {
           "const": "component_implemented_host_requalified_live_takeover_not_run"
+        }
+      }
+    },
+    "native_matched_cancel_effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority",
+        "implementation_status",
+        "admitted_order",
+        "peer_trigger",
+        "invite_termination_precondition",
+        "late_cancel_after_existing_final",
+        "cancel_response_effect",
+        "invite_response_effect",
+        "duplicate_or_mismatched_capability",
+        "adapter_source_identity",
+        "pre_reservation_authority_mismatch",
+        "post_reservation_registration_failure",
+        "successor_replacement_cleanup_fence",
+        "capability_restart_rebuild",
+        "format_scope_exception",
+        "endpoint_global_gate",
+        "component_transport_verified",
+        "remaining_transport_verification",
+        "local_functional_verification",
+        "activation_blockers",
+        "live_server_activation",
+        "server_functional_verification",
+        "performance_verification"
+      ],
+      "properties": {
+        "authority": {
+          "const": "Unified_RustPBX_Native_Call_registry"
+        },
+        "implementation_status": {
+          "const": "component_implemented_default_disabled"
+        },
+        "admitted_order": {
+          "const": "Native_Call_then_two_one_use_capabilities_then_transaction_local_gate"
+        },
+        "peer_trigger": {
+          "const": "sealed_actual_matched_CANCEL_ingress"
+        },
+        "invite_termination_precondition": {
+          "const": "server_INVITE_state_trying_or_proceeding"
+        },
+        "late_cancel_after_existing_final": {
+          "const": "200_CANCEL_only_no_487_capability"
+        },
+        "cancel_response_effect": {
+          "const": "200_CANCEL_transport_completed"
+        },
+        "invite_response_effect": {
+          "const": "487_INVITE_protocol_observed_only_after_matching_ACK"
+        },
+        "duplicate_or_mismatched_capability": {
+          "const": "fail_closed"
+        },
+        "adapter_source_identity": {
+          "const": "exact_pinned_rsipstack_commit_only"
+        },
+        "pre_reservation_authority_mismatch": {
+          "const": "reject_without_call_mutation"
+        },
+        "post_reservation_registration_failure": {
+          "const": "remove_affected_active_call_in_covered_nonconcurrent_paths"
+        },
+        "successor_replacement_cleanup_fence": {
+          "const": "not_implemented_activation_blocker"
+        },
+        "capability_restart_rebuild": {
+          "const": "not_implemented_activation_blocker"
+        },
+        "format_scope_exception": {
+          "const": "test_auth_constructor_compiled_and_full_tested_rustfmt_excluded_due_unrelated_upstream_drift"
+        },
+        "endpoint_global_gate": {
+          "const": "forbidden"
+        },
+        "component_transport_verified": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "prefixItems": [
+            {
+              "const": "udp"
+            }
+          ],
+          "items": false
+        },
+        "remaining_transport_verification": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "prefixItems": [
+            {
+              "const": "tcp"
+            },
+            {
+              "const": "ws"
+            },
+            {
+              "const": "tls"
+            },
+            {
+              "const": "wss"
+            }
+          ],
+          "items": false
+        },
+        "local_functional_verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "rsipstack_library",
+            "rustpbx_library",
+            "affected_static_contract_tests",
+            "repository_typecheck"
+          ],
+          "properties": {
+            "rsipstack_library": {
+              "const": "314_passed_0_failed"
+            },
+            "rustpbx_library": {
+              "const": "2063_passed_0_failed_9_external_prerequisites_ignored"
+            },
+            "affected_static_contract_tests": {
+              "const": "196_passed_0_failed"
+            },
+            "repository_typecheck": {
+              "const": "passed"
+            }
+          }
+        },
+        "activation_blockers": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "prefixItems": [
+            {
+              "const": "ordinary_provisional_and_final_response_intents_not_issued"
+            },
+            {
+              "const": "concurrent_successor_call_cleanup_fencing_not_implemented"
+            },
+            {
+              "const": "capability_rebuild_after_process_restart_not_implemented"
+            },
+            {
+              "const": "physical_postgresql_path_not_verified"
+            },
+            {
+              "const": "isolated_server_functional_verification_not_run"
+            }
+          ],
+          "items": false
+        },
+        "live_server_activation": {
+          "const": "not_run"
+        },
+        "server_functional_verification": {
+          "const": "not_run"
+        },
+        "performance_verification": {
+          "const": "not_run"
         }
       }
     },

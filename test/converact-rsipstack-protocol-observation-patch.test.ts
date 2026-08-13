@@ -23,7 +23,7 @@ test("ivekit.59 applies protocol observation after canonical wire freeze", () =>
   });
   assert.equal(parsed.status, 0, parsed.stderr);
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.72"/);
+  assert.match(build, /PATCHSET="ivekit\.73"/);
   assert.match(
     build,
     /rsipstack-converact-canonical-wire-freeze\.patch"[\s\S]*rsipstack-converact-protocol-observation\.patch"[\s\S]*rustrtc-ivekit-udp-socket-capacity\.patch"/,

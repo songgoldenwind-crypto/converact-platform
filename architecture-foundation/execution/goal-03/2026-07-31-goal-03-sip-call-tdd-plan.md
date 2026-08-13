@@ -157,6 +157,27 @@ Run serially:
    completion sink, physical PostgreSQL exact-target claim, 10K/100K
    distractor query plans, process-crash/two-node and Linux full suites also
    remain `not_run`.
+   The feature-first `.73` slice then splits one exact matched peer CANCEL on a
+   Trying/Proceeding INVITE into two Rust transaction-local effects. A sealed
+   child proof authorizes `200` to CANCEL as transport-terminal; a second child
+   proof authorizes `487` to the original INVITE and holds its own protocol
+   permit until matching ACK. A late CANCEL after an existing final receives
+   only 200 and cannot authorize another final.
+   Unified RustPBX Native Call authority reserves the exact pair before gate
+   installation, and partial registration or installation conflict revokes
+   the pair and closes the affected active Call in covered non-concurrent
+   paths. Exact cleanup fencing against a concurrently installed successor Call
+   and capability reconstruction after process restart remain activation
+   blockers. Local exact-source tests
+   pass full rsipstack `314/314`, full RustPBX
+   `2063 passed / 0 failed / 9 ignored`, focused server transactions `32/32`,
+   durable gate `39/39`, Native capability composition `8/8`, Active Call
+   registry `24/24`, builder default disabled `1/1`, and both locked library
+   checks. The ignored external-prerequisite cases remain `not_run`. This does
+   not activate the runtime: ordinary provisional/final response intents are
+   not yet issued, and physical PostgreSQL, isolated server functional
+   verification, non-UDP transports, crash/restart and live product wiring
+   remain `not_run`.
 6. repository typecheck.
 7. Generate raw output, command/source manifest and SHA-256 evidence with no
    secrets.
@@ -197,6 +218,14 @@ entry. Its physical PostgreSQL exact-target/rollback and 10K/100K query-plan
 campaigns, authoritative issuer, durable completion sink, live Endpoint,
 process-crash/two-node, Linux full, fault/performance and production gates stay
 `not_run`.
+
+The `.73` matched-CANCEL candidate must next be verified as a clean exact-source
+functional bundle on the authorized host without changing any running service,
+container, deployed code, configuration, data or occupied port. Use a unique
+temporary directory and isolated process/port only after read-only preflight;
+repeat read-only state checks afterward. This campaign is correctness-only:
+no load, soak, CPS, concurrency, capacity or performance command is permitted.
+Until that evidence exists, server functional verification stays `not_run`.
 
 - PostgreSQL role/RLS, physical restart, receipt replay, atomic v2 transition,
   repair exhaustion and database-clock skew (completed controlled slices;
