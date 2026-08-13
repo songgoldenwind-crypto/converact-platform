@@ -201,8 +201,8 @@ recorded as `not_run`, not described as completed wiring.
    Native Call authority reserves both identities before a transaction-local
    gate is installed. The runtime is `None` by default; Endpoint-global gating,
    self-issued capabilities and partial-pair activation are forbidden.
-   Successor-safe cleanup fencing and restart reconstruction of unconsumed
-   capabilities remain explicit activation blockers.
+   `.75` provides successor-safe cleanup fencing; restart reconstruction of
+   unconsumed capabilities remains an explicit activation blocker.
 7. Transaction retransmission replays the exact committed bytes/hash.
 8. `snapshot` carries protocol state only. `restore` accepts only a confirmed,
    transaction-quiescent, same-Adapter/runtime snapshot after outer Call-owner
@@ -281,7 +281,7 @@ observation distinguishable even though both converge the effect record to
 | State | Meaning |
 | --- | --- |
 | current | RustPBX/rsipstack is the native runtime; TypeScript contains bounded conformance/reference models and a physical PostgreSQL reference ledger, but these are not a second live SIP/Call authority |
-| target | The complete interface and corpus are frozen; `.73` retains the `.72` bounded supervisors and adds the default-disabled Rust matched-CANCEL pair. `.74` adds ordinary initial inbound-INVITE response authority to the same transaction-local gate: it freezes Call-ID/CSeq/From/Via/To and one local To tag, authorizes exact 101..699 wire images, allows multiple provisional responses then one final, and orders durable prepare before Call-state commit and transport. Focused `.74` checks pass response capability `17/17`, Native Call `13/13`, registry `24/24`, durable gate `39/39`, locked check and rustfmt. The `.73` isolated Linux rsipstack target remains `32/32` with unchanged service/source snapshots, but `.74` does not inherit it. Full RustPBX `.74`, physical PostgreSQL, live Endpoint, isolated-server `.74`, successor-safe cleanup, restart reconstruction, remaining transports, process-crash/two-node, Linux full, all performance work and Native Authority remain `not_run` |
+| target | The complete interface and corpus are frozen; `.73` retains the `.72` bounded supervisors and adds the default-disabled Rust matched-CANCEL pair. `.74` adds ordinary initial inbound-INVITE response authority to the same transaction-local gate. `.75` binds failure teardown to the exact admitted Native Call identity and cell with a sealed, non-cloneable fence consumed once by value, and holds the provider slot through provider/native/dialog index cleanup so stale cleanup cannot delete a same-ID successor. Focused `.75` checks pass Native SIP capability `19/19`, registry `24/24`, full local RustPBX `2076/2076` with 9 external-prerequisite cases ignored, locked check and rustfmt. Earlier server evidence is not inherited. Physical PostgreSQL, live Endpoint, isolated-server `.75`, restart reconstruction, remaining transports, process-crash/two-node, Linux full, all performance work and Native Authority remain `not_run` |
 | production eligible | `false` until long-run, fault/OOM, Native Authority, allocation and multi-core scaling evidence pass independent review |
 
 No rvoip benchmark, old server result or historical Wave result is inherited.

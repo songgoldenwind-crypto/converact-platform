@@ -194,6 +194,19 @@ Run serially:
    compile reached its 3,584 MiB container memory cgroup. Do not raise that
    ceiling on the shared host; retain the zero-impact failed-attempt bundle and
    requalify only on a future isolated host with adequate resources.
+   The `.75` RED/GREEN slice captures the exact admitted `NativeCallIdentity`
+   and Native Call cell in one sealed, non-cloneable fence consumed exactly
+   once by value before any capability setup can fail. Partial intent
+   registration, response-binding freeze and transaction-gate installation
+   now use one atomic conditional teardown; a stale fence preserves a reused
+   provider Call-ID successor and all provider/native/dialog indexes, while an
+   exact fence removes the original Call and every owned index. Provider-slot
+   exclusivity spans secondary-index cleanup, so reinsertion cannot interleave
+   with teardown. Focused exact-source checks pass Native SIP capability
+   `19/19`, Active Call registry `24/24`, full local RustPBX `2076/2076` with
+   9 external-prerequisite cases ignored, locked library check and scoped
+   rustfmt. Restart reconstruction, physical PostgreSQL, live Endpoint, server
+   functional verification and all performance work remain `not_run`.
 6. repository typecheck.
 7. Generate raw output, command/source manifest and SHA-256 evidence with no
    secrets.

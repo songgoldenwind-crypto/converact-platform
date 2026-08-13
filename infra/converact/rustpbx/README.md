@@ -866,6 +866,22 @@ concurrency, capacity and soak verification also remain `not_run` and are
 deferred to the final performance Goal. No server service or deployed code
 has been changed for ivekit.74.
 
+ivekit.75 closes the successor-replacement cleanup race in the same
+default-disabled Native Call capability path. A cleanup fence is minted only
+from the admitted Call reservation, cannot be cloned, is consumed exactly once
+by value, and binds the exact `NativeCallIdentity` and in-memory Call cell.
+Partial intent registration, response binding freeze,
+or transaction-gate installation failure may remove only that exact authority;
+a later Call reusing the provider Call-ID is preserved. Slot removal holds the
+provider slot exclusively while Call/provider/native/dialog secondary indexes
+are cleaned, so a successor cannot publish indexes that an older teardown then
+removes. The focused Native capability suite passes `19/19`, the Active Call
+registry suite passes `24/24`, and the full local RustPBX library passes
+`2076/2076` with 9 external-prerequisite tests explicitly ignored. Runtime
+activation, restart capability reconstruction, physical PostgreSQL, server
+functional verification and every performance/load/capacity/soak claim remain
+`not_run`; no running server service or deployed code is changed by this slice.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

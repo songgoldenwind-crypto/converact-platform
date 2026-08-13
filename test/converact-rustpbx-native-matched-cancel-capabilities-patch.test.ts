@@ -45,7 +45,7 @@ test("ivekit.74 retains the matched-CANCEL pair before response capabilities", (
   }
 
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.74"/);
+  assert.match(build, /PATCHSET="ivekit\.75"/);
   assert.match(
     build,
     /rsipstack-converact-uas-2xx-owner-retention\.patch"[\s\S]*rsipstack-converact-transaction-local-matched-cancel-pair\.patch"/,
@@ -143,7 +143,6 @@ test("the functional slice does not claim server activation or performance evide
   assert.match(readme, /server functional verification\s+remain[s]?\s+`not_run`/i);
   assert.match(readme, /performance[^\n]*remain[^\n]*`not_run`/i);
   assert.deepEqual(matchedCancel.activation_blockers, [
-    "concurrent_successor_call_cleanup_fencing_not_implemented",
     "capability_rebuild_after_process_restart_not_implemented",
     "physical_postgresql_path_not_verified",
     "rustpbx_isolated_server_functional_verification_not_run_under_safe_memory_ceiling",
@@ -158,11 +157,11 @@ test("the functional slice does not claim server activation or performance evide
   );
   assert.equal(
     matchedCancel.post_reservation_registration_failure,
-    "remove_affected_active_call_in_covered_nonconcurrent_paths",
+    "remove_exact_original_Call_authority_only",
   );
   assert.equal(
     matchedCancel.successor_replacement_cleanup_fence,
-    "not_implemented_activation_blocker",
+    "implemented_identity_and_native_cell_pointer_fence",
   );
   assert.equal(
     matchedCancel.capability_restart_rebuild,
@@ -182,8 +181,8 @@ test("the functional slice does not claim server activation or performance evide
   );
   assert.deepEqual(matchedCancel.local_functional_verification, {
     rsipstack_library: "314_passed_0_failed",
-    rustpbx_library: "2063_passed_0_failed_9_external_prerequisites_ignored",
-    affected_static_contract_tests: "196_passed_0_failed",
+    rustpbx_library: "2076_passed_0_failed_9_external_prerequisites_ignored",
+    affected_static_contract_tests: "202_passed_0_failed",
     repository_typecheck: "passed",
   });
   assert.equal(matchedCancel.live_server_activation, "not_run");

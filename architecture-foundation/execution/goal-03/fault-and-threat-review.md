@@ -114,9 +114,9 @@ microbenchmark or citing rvoip upstream numbers cannot close that Gate.
    Linux rsipstack server target (`32/32`) are proved; RustPBX host targets
    remain `not_run` because their test binary compile reached the unchanged
    2,560 MiB isolation ceiling. Pre/post service snapshots and lower-source
-   hashes are identical. Concurrent successor-safe cleanup fencing and reconstruction of
-   unconsumed capabilities after restart are not implemented and block
-   activation. RustPBX server functionality, TCP/WS/TLS/WSS, physical
+   hashes are identical. Reconstruction of unconsumed capabilities after
+   restart is not implemented and blocks activation. RustPBX server
+   functionality, TCP/WS/TLS/WSS, physical
    store, restart/reconcile and product activation remain `not_run`; no running
    server program or deployed source was modified.
 8. `.74` supplies ordinary 101..699 response capabilities in that same
@@ -131,6 +131,15 @@ microbenchmark or citing rvoip upstream numbers cannot close that Gate.
    executed; its 3,584 MiB ceiling was not raised, and byte-identical service
    and lower-source snapshots prove zero impact. The slice executes no
    performance, load, capacity, concurrency or soak test.
+9. `.75` closes the concurrent successor-cleanup threat without activating the
+   runtime. The cleanup capability is sealed by the original reservation,
+   cannot be cloned, is consumed exactly once by value, and compares both full
+   Native Call identity and exact cell pointer. The provider
+   slot stays exclusively held until provider, native and dialog indexes are
+   cleaned. Focused tests prove stale cleanup is a no-op for a reused Call-ID
+   successor and exact cleanup removes every owned index. Process-restart
+   reconstruction, physical dependencies, live Endpoint and server functional
+   verification remain `not_run`; no performance command ran.
 
-All eight remain visible in the G03 status artifacts and prevent production
+All nine remain visible in the G03 status artifacts and prevent production
 eligibility.

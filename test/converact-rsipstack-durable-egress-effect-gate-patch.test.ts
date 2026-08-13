@@ -22,7 +22,7 @@ test("ivekit.55 installs the durable egress gate after the bounded rsipstack que
     encoding: "utf8",
   });
   assert.equal(parsed.status, 0, parsed.stderr);
-  assert.match(build, /PATCHSET="ivekit\.74"/);
+  assert.match(build, /PATCHSET="ivekit\.75"/);
   assert.match(
     build,
     /rsipstack-ivekit-bounded-protocol-mailboxes\.patch"[\s\S]*rsipstack-converact-durable-egress-effect-gate\.patch"[\s\S]*rustrtc-ivekit-udp-socket-capacity\.patch"/,

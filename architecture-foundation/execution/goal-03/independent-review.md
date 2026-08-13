@@ -212,9 +212,9 @@ second final. Unified
 RustPBX Native Call authority reserves the pair before one transaction-local
 gate is installed; duplicate, mismatched, partially registered or conflicting
 installation paths fail closed and remove the affected active Call in the
-covered non-concurrent paths. Concurrent replacement by a successor Call still
-needs an exact cell/identity cleanup fence, and process restart still needs
-capability reconstruction; both are explicit activation blockers. No
+covered non-concurrent paths. `.75` later closes concurrent successor cleanup
+with an exact cell/identity fence; process restart still needs capability
+reconstruction and remains an activation blocker. No
 Endpoint-global gate and no product activation are introduced.
 
 The exact local source passes full rsipstack `314/314`, full RustPBX
@@ -229,7 +229,7 @@ new Rust file in the slice passes the pinned rustfmt check. This
 is not final `G03-E15` review or evidence promotion. At this `.73` checkpoint,
 activation was still ineligible because only the matched-CANCEL pair was
 authorized; `.74` closes that specific ordinary-response implementation gap
-but does not close the remaining activation gates below. Successor-safe cleanup fencing, restart capability reconstruction,
+but does not close the remaining activation gates below. Restart capability reconstruction,
 physical PostgreSQL, RustPBX host functional verification, TCP, WS, TLS and
 WSS, crash/restart, live product activation and all deferred performance gates
 remain `not_run`.
@@ -273,6 +273,22 @@ healthy with restart count zero, and the test container and overlays are
 absent. This failed attempt is retained in
 `isolated-server-native-response-9775a79-16/`; it does not promote server
 functional verification or any Evidence status.
+
+The incremental `.75` candidate addresses the rejected successor-cleanup gap
+without changing the default-disabled activation state. A cleanup fence can be
+obtained only from the exact admitted reservation, cannot be cloned, is
+consumed exactly once by value, and binds both the full
+`NativeCallIdentity` and the original Native Call cell. Failure teardown uses
+one provider-slot entry guard through provider/native/dialog secondary-index
+cleanup. The two RED/GREEN regressions prove that a stale fence preserves a
+same-ID successor and all its indexes, while an exact fence removes the
+original Call and every owned index. Exact-source focused tests pass Native SIP
+capability `19/19`, Active Call registry `24/24`, full local RustPBX
+`2076/2076` with 9 external-prerequisite cases ignored, locked library check
+and scoped rustfmt. This is an implementation self-review checkpoint; final
+independent review, restart capability reconstruction, physical
+PostgreSQL, live Endpoint, server functional verification and all deferred
+performance work remain `not_run`.
 
 ## Rejection history and remaining gate
 

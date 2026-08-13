@@ -1,0 +1,269 @@
+diff --git a/src/call/adapters/native_sip_effect_capabilities.rs b/src/call/adapters/native_sip_effect_capabilities.rs
+index 7965095..c95549e 100644
+--- a/src/call/adapters/native_sip_effect_capabilities.rs
++++ b/src/call/adapters/native_sip_effect_capabilities.rs
+@@ -3,8 +3,8 @@ use super::rsipstack_sip_effect_gate::{
+     SipEffectIntentRegistry,
+ };
+ use crate::proxy::active_call_registry::{
+-    ActiveCallRegistryError, ActiveProxyCallRegistry, NativeMatchedCancelCapabilityFacts,
+-    NativeOrdinaryResponseCapabilityFacts,
++    ActiveCallRegistryError, ActiveProxyCallRegistry, NativeCallCleanupFence,
++    NativeMatchedCancelCapabilityFacts, NativeOrdinaryResponseCapabilityFacts,
+ };
+ use async_trait::async_trait;
+ use chrono::{Duration, Utc};
+@@ -119,20 +119,20 @@ impl NativeSipEffectRuntime {
+                 EgressEffectPeerDerivedKind::ServerInviteRequestTerminated,
+                 pair.invite_terminated,
+             )?;
+-            Ok(NativeMatchedCancelCapabilityHolder {
+-                _cancel_ok: cancel_ok,
+-                _invite_terminated: invite_terminated,
+-                route_binding,
+-            })
++            Ok((cancel_ok, invite_terminated, route_binding))
+         })();
+         match registration {
+-            Ok(holder) => {
+-                reservation.commit();
+-                Ok(holder)
++            Ok((cancel_ok, invite_terminated, route_binding)) => {
++                let cleanup_fence = reservation.commit();
++                Ok(NativeMatchedCancelCapabilityHolder {
++                    _cancel_ok: cancel_ok,
++                    _invite_terminated: invite_terminated,
++                    route_binding,
++                    cleanup_fence,
++                })
+             }
+             Err(error) => {
+-                drop(reservation);
+-                active_calls.remove(provider_call_id);
++                reservation.rollback_call(active_calls);
+                 Err(error)
+             }
+         }
+@@ -143,6 +143,20 @@ pub(crate) struct NativeMatchedCancelCapabilityHolder {
+     _cancel_ok: SipEffectIntentLease,
+     _invite_terminated: SipEffectIntentLease,
+     route_binding: Value,
++    cleanup_fence: NativeCallCleanupFence,
++}
++
++impl NativeMatchedCancelCapabilityHolder {
++    fn rollback_call(self, active_calls: &ActiveProxyCallRegistry) {
++        let Self {
++            _cancel_ok,
++            _invite_terminated,
++            route_binding,
++            cleanup_fence,
++        } = self;
++        drop((_cancel_ok, _invite_terminated, route_binding));
++        cleanup_fence.remove_original(active_calls);
++    }
+ }
+ 
+ pub(crate) fn install_for_admitted_native_call(
+@@ -162,8 +176,7 @@ pub(crate) fn install_for_admitted_native_call(
+     let response_transaction = match NativeResponseTransactionBinding::freeze(transaction) {
+         Ok(binding) => binding,
+         Err(error) => {
+-            drop(holder);
+-            active_calls.remove(provider_call_id);
++            holder.rollback_call(active_calls);
+             return Err(error);
+         }
+     };
+@@ -179,8 +192,7 @@ pub(crate) fn install_for_admitted_native_call(
+         audit_retention: runtime.audit_retention,
+     });
+     if let Err(error) = transaction.install_egress_effect_gate(gate) {
+-        drop(holder);
+-        active_calls.remove(provider_call_id);
++        holder.rollback_call(active_calls);
+         return Err(NativeSipEffectCapabilityError::TransactionGate(error));
+     }
+     Ok(Some(holder))
+@@ -1169,6 +1181,65 @@ mod tests {
+         );
+     }
+ 
++    #[tokio::test]
++    async fn stale_failure_cleanup_cannot_remove_a_reused_provider_call() {
++        let session_id = "native-cleanup-successor@example.test";
++        let identity = NativeCallIdentity::standalone(session_id).unwrap();
++        let call_id = identity.call_id().clone();
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(entry(session_id), handle(session_id), identity.clone())
++            .unwrap();
++        let transaction = transaction(session_id).await;
++        let reservation = registry
++            .reserve_matched_cancel_capabilities(session_id, &transaction)
++            .unwrap();
++        let cleanup_fence = reservation.commit();
++
++        registry.remove(session_id);
++        registry
++            .try_upsert_authoritative(entry(session_id), handle(session_id), identity.clone())
++            .unwrap();
++        registry
++            .try_register_dialog("successor-dialog".to_string(), handle(session_id))
++            .unwrap();
++
++        assert!(!cleanup_fence.remove_original(&registry));
++        assert_eq!(registry.count(), 1);
++        assert_eq!(registry.get_identity(session_id), Some(identity));
++        assert_eq!(registry.get_by_call_id(&call_id).len(), 1);
++        assert!(registry.native_call_snapshot(&call_id).unwrap().is_some());
++        assert_eq!(registry.handles_by_dialog_count(), 1);
++        assert_eq!(registry.protocol_dialog_history(session_id).len(), 1);
++    }
++
++    #[tokio::test]
++    async fn exact_failure_cleanup_removes_every_owned_call_index() {
++        let session_id = "native-cleanup-exact@example.test";
++        let identity = NativeCallIdentity::standalone(session_id).unwrap();
++        let call_id = identity.call_id().clone();
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(entry(session_id), handle(session_id), identity)
++            .unwrap();
++        registry
++            .try_register_dialog("original-dialog".to_string(), handle(session_id))
++            .unwrap();
++        let transaction = transaction(session_id).await;
++        let reservation = registry
++            .reserve_matched_cancel_capabilities(session_id, &transaction)
++            .unwrap();
++        let cleanup_fence = reservation.commit();
++
++        assert!(cleanup_fence.remove_original(&registry));
++        assert_eq!(registry.count(), 0);
++        assert!(registry.get(session_id).is_none());
++        assert!(registry.get_by_call_id(&call_id).is_empty());
++        assert!(registry.native_call_snapshot(&call_id).unwrap().is_none());
++        assert_eq!(registry.handles_by_dialog_count(), 0);
++        assert_eq!(registry.dialog_by_session_count(), 0);
++    }
++
+     #[tokio::test]
+     async fn runtime_rejects_an_unpinned_or_noncanonical_source_commit() {
+         let intents = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
+diff --git a/src/proxy/active_call_registry.rs b/src/proxy/active_call_registry.rs
+index ab44ef7..beeb1d2 100644
+--- a/src/proxy/active_call_registry.rs
++++ b/src/proxy/active_call_registry.rs
+@@ -66,6 +66,17 @@ struct NativeCallBinding {
+     cell: Arc<NativeCallCell>,
+ }
+ 
++pub(crate) struct NativeCallCleanupFence {
++    identity: NativeCallIdentity,
++    cell: Arc<NativeCallCell>,
++}
++
++impl NativeCallCleanupFence {
++    pub(crate) fn remove_original(self, registry: &ActiveProxyCallRegistry) -> bool {
++        registry.remove_if_native_authority(&self)
++    }
++}
++
+ struct NativeCallCell {
+     state: Mutex<NativeCallCellState>,
+ }
+@@ -213,8 +224,23 @@ impl NativeMatchedCancelCapabilityReservation {
+         &self.facts
+     }
+ 
+-    pub(crate) fn commit(mut self) {
++    fn cleanup_fence(&self) -> NativeCallCleanupFence {
++        NativeCallCleanupFence {
++            identity: self.facts.identity.clone(),
++            cell: self.cell.clone(),
++        }
++    }
++
++    pub(crate) fn commit(mut self) -> NativeCallCleanupFence {
++        let cleanup_fence = self.cleanup_fence();
+         self.committed = true;
++        cleanup_fence
++    }
++
++    pub(crate) fn rollback_call(self, registry: &ActiveProxyCallRegistry) -> bool {
++        let cleanup_fence = self.cleanup_fence();
++        drop(self);
++        cleanup_fence.remove_original(registry)
+     }
+ }
+ 
+@@ -836,23 +862,54 @@ impl ActiveProxyCallRegistry {
+         self.notify_waiters();
+     }
+ 
+-    pub fn remove(&self, session_id: &str) {
+-        let Some((_, slot)) = self.slots.remove(session_id) else {
+-            return;
+-        };
+-        self.release_active_slot();
+-        if let Some(identity) = slot.identity.as_ref() {
+-            self.unregister_call_provider(identity);
+-        }
+-        if let Some(binding) = slot.native_binding.as_ref() {
+-            self.unregister_native_call(binding, session_id);
+-        }
+-        if let Some((_, dialogs)) = self.dialog_by_session.remove(session_id) {
+-            for dialog in dialogs {
+-                self.handles_by_dialog.remove(&dialog.provider_dialog_id);
++    fn remove_slot_if(
++        &self,
++        session_id: &str,
++        predicate: impl FnOnce(&ActiveProxyCallSlot) -> bool,
++    ) -> bool {
++        use dashmap::mapref::entry::Entry;
++        let removed = match self.slots.entry(session_id.to_string()) {
++            Entry::Occupied(occupied) if predicate(occupied.get()) => {
++                // Keep the provider slot exclusively held until every secondary
++                // index is cleaned. A successor with the same provider id cannot
++                // publish indexes that this teardown would then remove.
++                let slot = occupied.get();
++                if let Some(identity) = slot.identity.as_ref() {
++                    self.unregister_call_provider(identity);
++                }
++                if let Some(binding) = slot.native_binding.as_ref() {
++                    self.unregister_native_call(binding, session_id);
++                }
++                if let Some((_, dialogs)) = self.dialog_by_session.remove(session_id) {
++                    for dialog in dialogs {
++                        self.handles_by_dialog.remove(&dialog.provider_dialog_id);
++                    }
++                }
++                occupied.remove();
++                true
+             }
++            _ => false,
++        };
++        if !removed {
++            return false;
+         }
++        self.release_active_slot();
+         self.notify_waiters();
++        true
++    }
++
++    fn remove_if_native_authority(&self, fence: &NativeCallCleanupFence) -> bool {
++        self.remove_slot_if(fence.identity.provider_call_id().as_str(), |slot| {
++            slot.identity.as_ref() == Some(&fence.identity)
++                && slot
++                    .native_binding
++                    .as_ref()
++                    .is_some_and(|binding| Arc::ptr_eq(&binding.cell, &fence.cell))
++        })
++    }
++
++    pub fn remove(&self, session_id: &str) {
++        self.remove_slot_if(session_id, |_| true);
+     }
+ 
+     pub fn count(&self) -> usize {
