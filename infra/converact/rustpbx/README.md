@@ -830,6 +830,37 @@ interoperability, physical PostgreSQL, live product activation and all
 performance gates remain `not_run`. No load/performance command ran and no
 running server service or deployed code was changed by this patchset.
 
+ivekit.74 adds the ordinary server-INVITE response side of that same
+default-disabled Rust authority boundary. During transaction-local gate
+installation, Unified RustPBX freezes the original Call-ID, INVITE CSeq,
+From, top Via and To URI, generates one stable local To tag, and writes that
+tag back to the transaction before any ordinary response can be finalized.
+Every `101` through `199`, `200` through `299`, or `300` through `699`
+response must match that dialog identity, the exact transaction key and the
+canonical wire bytes. `100 Trying` remains owned by its earlier idempotent
+path; values at or above 700 fail closed.
+
+The Native Call registry reserves one exact bounded capability, registers its
+matching durable intent, awaits durable preparation, commits the corresponding
+Call/Leg transition, and only then returns a transport permit. It accepts
+multiple distinct provisional responses followed by exactly one final
+response. Duplicate wire bindings and dialog drift fail before another store
+operation. Cancellation or panic after durable work begins retains the exact
+binding for query/reconcile; a concurrent Call revision after durable prepare
+records `TransportUnknown` instead of claiming delivery or minting a second
+effect. Derived ACK and peer-derived matched-CANCEL effects continue through
+the same typed durable gate; this patch creates no second Call authority and
+no Endpoint-global gate.
+
+Local focused functional verification passes Native response capabilities
+`17/17`, Native Call domain `13/13`, Active Call registry `24/24`, and the
+durable SIP effect gate `39/39`. The locked Rust library check and scoped Rust
+format check pass. The full RustPBX library, physical PostgreSQL path, live
+Endpoint activation and isolated server functional verification remain
+`not_run`. All performance, load, concurrency, capacity and soak verification
+also remain `not_run` and are deferred to the final performance Goal. No
+server service or deployed code has been changed for ivekit.74.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

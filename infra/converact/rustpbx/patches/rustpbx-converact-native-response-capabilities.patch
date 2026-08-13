@@ -1,0 +1,1601 @@
+diff --git a/src/call/adapters/native_sip_effect_capabilities.rs b/src/call/adapters/native_sip_effect_capabilities.rs
+index 43cc3da765065046045c9bb8af577f78c8d3a6ea..7965095274bafd4a77459565651776c66a68e4fb 100644
+--- a/src/call/adapters/native_sip_effect_capabilities.rs
++++ b/src/call/adapters/native_sip_effect_capabilities.rs
+@@ -4,11 +4,20 @@ use super::rsipstack_sip_effect_gate::{
+ };
+ use crate::proxy::active_call_registry::{
+     ActiveCallRegistryError, ActiveProxyCallRegistry, NativeMatchedCancelCapabilityFacts,
++    NativeOrdinaryResponseCapabilityFacts,
+ };
++use async_trait::async_trait;
+ use chrono::{Duration, Utc};
++use rsipstack::sip::prelude::{HeadersExt, ToTypedHeader};
+ use rsipstack::sip::{SipMessage, StatusCode, Transport};
+-use rsipstack::transaction::endpoint::{EgressEffectGate, EgressEffectPeerDerivedKind};
++use rsipstack::transaction::endpoint::{
++    EgressDerivedEffectKind, EgressEffectGate, EgressEffectOutcome, EgressEffectPeerDerivedKind,
++    EgressEffectPermit, EgressEffectProtocolObservation, PeerIngressProof,
++};
++use rsipstack::transaction::key::TransactionKey;
++use rsipstack::transaction::make_tag;
+ use rsipstack::transaction::transaction::Transaction;
++use rsipstack::transport::connection::EgressTransportBinding;
+ use serde_json::Value;
+ use sha2::{Digest, Sha256};
+ use std::sync::Arc;
+@@ -22,9 +31,9 @@ const PINNED_RSIPSTACK_SOURCE_COMMIT: &str = "8318e97b1170de4e5245b120afec1cdf53
+ 
+ #[derive(Debug, thiserror::Error)]
+ pub(crate) enum NativeSipEffectCapabilityError {
+-    #[error("native Call authority rejected SIP effect capability issuance")]
++    #[error("native Call authority rejected SIP effect capability issuance: {0}")]
+     ActiveCall(#[from] ActiveCallRegistryError),
+-    #[error("durable SIP effect capability registration failed")]
++    #[error("durable SIP effect capability registration failed: {0}")]
+     Gate(#[from] SipEffectGateError),
+     #[error("native SIP effect runtime configuration is invalid")]
+     InvalidConfiguration,
+@@ -78,7 +87,8 @@ impl NativeSipEffectRuntime {
+         })
+     }
+ 
+-    pub(crate) fn gate(&self) -> Arc<dyn EgressEffectGate> {
++    #[cfg(test)]
++    fn gate(&self) -> Arc<dyn EgressEffectGate> {
+         self.gate.clone()
+     }
+ 
+@@ -95,7 +105,7 @@ impl NativeSipEffectRuntime {
+             let route_binding = route_binding(transaction, facts)?;
+             let pair = matched_cancel_intents(
+                 facts,
+-                route_binding,
++                route_binding.clone(),
+                 self.adapter_identity.clone(),
+                 self.audit_retention,
+             )?;
+@@ -112,6 +122,7 @@ impl NativeSipEffectRuntime {
+             Ok(NativeMatchedCancelCapabilityHolder {
+                 _cancel_ok: cancel_ok,
+                 _invite_terminated: invite_terminated,
++                route_binding,
+             })
+         })();
+         match registration {
+@@ -131,6 +142,7 @@ impl NativeSipEffectRuntime {
+ pub(crate) struct NativeMatchedCancelCapabilityHolder {
+     _cancel_ok: SipEffectIntentLease,
+     _invite_terminated: SipEffectIntentLease,
++    route_binding: Value,
+ }
+ 
+ pub(crate) fn install_for_admitted_native_call(
+@@ -147,7 +159,26 @@ pub(crate) fn install_for_admitted_native_call(
+         provider_call_id,
+         transaction,
+     )?;
+-    if let Err(error) = transaction.install_egress_effect_gate(runtime.gate()) {
++    let response_transaction = match NativeResponseTransactionBinding::freeze(transaction) {
++        Ok(binding) => binding,
++        Err(error) => {
++            drop(holder);
++            active_calls.remove(provider_call_id);
++            return Err(error);
++        }
++    };
++    let gate = Arc::new(NativeCallEgressGate {
++        durable: runtime.gate.clone(),
++        intents: runtime.intents.clone(),
++        active_calls: active_calls.clone(),
++        provider_call_id: provider_call_id.into(),
++        transaction_key: transaction.key.clone(),
++        response_transaction,
++        route_binding: holder.route_binding.clone(),
++        adapter_identity: runtime.adapter_identity.clone(),
++        audit_retention: runtime.audit_retention,
++    });
++    if let Err(error) = transaction.install_egress_effect_gate(gate) {
+         drop(holder);
+         active_calls.remove(provider_call_id);
+         return Err(NativeSipEffectCapabilityError::TransactionGate(error));
+@@ -155,11 +186,333 @@ pub(crate) fn install_for_admitted_native_call(
+     Ok(Some(holder))
+ }
+ 
++struct NativeResponseTransactionBinding {
++    call_id: Box<str>,
++    cseq_sequence: u32,
++    from: Box<str>,
++    via: Box<str>,
++    to_base: Box<str>,
++    local_to_tag: Box<str>,
++}
++
++impl NativeResponseTransactionBinding {
++    fn freeze(transaction: &mut Transaction) -> Result<Self, NativeSipEffectCapabilityError> {
++        let cseq = transaction
++            .original
++            .cseq_header()
++            .map_err(|_| NativeSipEffectCapabilityError::InvalidConfiguration)?;
++        let to = transaction
++            .original
++            .to_header()
++            .map_err(|_| NativeSipEffectCapabilityError::InvalidConfiguration)?;
++        if cseq.method().ok() != Some(rsipstack::sip::Method::Invite)
++            || to
++                .tag()
++                .map_err(|_| NativeSipEffectCapabilityError::InvalidConfiguration)?
++                .is_some()
++        {
++            return Err(NativeSipEffectCapabilityError::InvalidConfiguration);
++        }
++        let tagged_to = to.clone().with_tag(make_tag());
++        let local_to_tag = tagged_to
++            .tag()
++            .map_err(|_| NativeSipEffectCapabilityError::InvalidConfiguration)?
++            .map(|tag| tag.to_string())
++            .filter(|tag| !tag.is_empty())
++            .ok_or(NativeSipEffectCapabilityError::InvalidConfiguration)?;
++        let mut to = tagged_to
++            .typed()
++            .map_err(|_| NativeSipEffectCapabilityError::InvalidConfiguration)?;
++        to.params
++            .retain(|param| !matches!(param, rsipstack::sip::Param::Tag(_)));
++        let binding = Self {
++            call_id: transaction
++                .original
++                .call_id_header()
++                .map_err(|_| NativeSipEffectCapabilityError::InvalidConfiguration)?
++                .value()
++                .into(),
++            cseq_sequence: cseq
++                .seq()
++                .map_err(|_| NativeSipEffectCapabilityError::InvalidConfiguration)?,
++            from: transaction
++                .original
++                .from_header()
++                .map_err(|_| NativeSipEffectCapabilityError::InvalidConfiguration)?
++                .value()
++                .into(),
++            via: transaction
++                .original
++                .top_via_header()
++                .map_err(|_| NativeSipEffectCapabilityError::InvalidConfiguration)?
++                .value()
++                .into(),
++            to_base: to.to_string().into(),
++            local_to_tag: local_to_tag.into(),
++        };
++        transaction.original.headers.unique_push(tagged_to.into());
++        Ok(binding)
++    }
++
++    fn validate(&self, message: &SipMessage) -> Result<(), NativeSipEffectCapabilityError> {
++        let SipMessage::Response(response) = message else {
++            return Err(NativeSipEffectCapabilityError::InvalidConfiguration);
++        };
++        let status = response.status_code.code();
++        let cseq = response
++            .cseq_header()
++            .map_err(|_| NativeSipEffectCapabilityError::InvalidConfiguration)?;
++        let mut to = response
++            .to_header()
++            .map_err(|_| NativeSipEffectCapabilityError::InvalidConfiguration)?
++            .typed()
++            .map_err(|_| NativeSipEffectCapabilityError::InvalidConfiguration)?;
++        let local_tag = to
++            .tag()
++            .map(ToString::to_string)
++            .filter(|tag| !tag.is_empty())
++            .ok_or(NativeSipEffectCapabilityError::InvalidConfiguration)?;
++        to.params
++            .retain(|param| !matches!(param, rsipstack::sip::Param::Tag(_)));
++        if !(101..=699).contains(&status)
++            || cseq.method().ok() != Some(rsipstack::sip::Method::Invite)
++            || cseq.seq().ok() != Some(self.cseq_sequence)
++            || !response
++                .call_id_header()
++                .ok()
++                .is_some_and(|header| header.value() == self.call_id.as_ref())
++            || !response
++                .from_header()
++                .ok()
++                .is_some_and(|header| header.value() == self.from.as_ref())
++            || !response
++                .top_via_header()
++                .ok()
++                .is_some_and(|header| header.value() == self.via.as_ref())
++            || to.to_string() != self.to_base.as_ref()
++        {
++            return Err(NativeSipEffectCapabilityError::InvalidConfiguration);
++        }
++        if self.local_to_tag.as_ref() != local_tag {
++            return Err(NativeSipEffectCapabilityError::InvalidConfiguration);
++        }
++        Ok(())
++    }
++}
++
++struct NativeCallEgressGate {
++    durable: Arc<DurableRsipstackEgressGate>,
++    intents: Arc<SipEffectIntentRegistry>,
++    active_calls: Arc<ActiveProxyCallRegistry>,
++    provider_call_id: Box<str>,
++    transaction_key: TransactionKey,
++    response_transaction: NativeResponseTransactionBinding,
++    route_binding: Value,
++    adapter_identity: Value,
++    audit_retention: Duration,
++}
++
++#[async_trait]
++impl EgressEffectGate for NativeCallEgressGate {
++    async fn prepare(
++        &self,
++        transaction_key: &TransactionKey,
++        message: &SipMessage,
++        transport_binding: &EgressTransportBinding,
++        canonical_wire_bytes: &[u8],
++    ) -> rsipstack::Result<EgressEffectPermit> {
++        if transaction_key != &self.transaction_key {
++            return Err(rsipstack_gate_error(
++                NativeSipEffectCapabilityError::InvalidConfiguration,
++            ));
++        }
++        self.response_transaction
++            .validate(message)
++            .map_err(rsipstack_gate_error)?;
++        let mut reservation = self
++            .active_calls
++            .reserve_ordinary_response_capability(
++                &self.provider_call_id,
++                transaction_key,
++                message,
++                canonical_wire_bytes,
++            )
++            .map_err(|error| rsipstack_gate_error(error.into()))?;
++        let intent = ordinary_response_intent(
++            reservation.facts(),
++            self.route_binding.clone(),
++            self.adapter_identity.clone(),
++            self.audit_retention,
++        )
++        .map_err(rsipstack_gate_error)?;
++        let _intent_lease = self
++            .intents
++            .register(transaction_key, message, intent)
++            .map_err(|error| rsipstack_gate_error(error.into()))?;
++
++        // Once the durable store future starts, cancellation or panic can no
++        // longer prove that no row was committed. Retain the exact Native Call
++        // binding by default and release it only for a typed, unambiguous
++        // pre-send failure.
++        reservation.arm_for_durable_prepare();
++        let prepare_result = self
++            .durable
++            .prepare_registered(
++                transaction_key,
++                message,
++                transport_binding,
++                canonical_wire_bytes,
++            )
++            .await;
++        match prepare_result {
++            Ok(permit) => {
++                if let Err(error) = reservation.commit_after_durable_prepare() {
++                    self.durable
++                        .observe_transport(permit, EgressEffectOutcome::TransportUnknown);
++                    return Err(rsipstack_gate_error(error.into()));
++                }
++                Ok(permit)
++            }
++            Err(SipEffectGateError::ReconciliationRequired) => {
++                drop(reservation);
++                Err(rsipstack_gate_error(
++                    SipEffectGateError::ReconciliationRequired.into(),
++                ))
++            }
++            Err(error) => {
++                reservation.release_after_unambiguous_failure();
++                Err(rsipstack_gate_error(error.into()))
++            }
++        }
++    }
++
++    async fn prepare_derived(
++        &self,
++        parent_permit: &EgressEffectPermit,
++        kind: EgressDerivedEffectKind,
++        transaction_key: &TransactionKey,
++        trigger_message: &SipMessage,
++        message: &SipMessage,
++        transport_binding: &EgressTransportBinding,
++        canonical_wire_bytes: &[u8],
++    ) -> rsipstack::Result<EgressEffectPermit> {
++        self.durable
++            .prepare_derived(
++                parent_permit,
++                kind,
++                transaction_key,
++                trigger_message,
++                message,
++                transport_binding,
++                canonical_wire_bytes,
++            )
++            .await
++    }
++
++    async fn prepare_peer_derived(
++        &self,
++        kind: EgressEffectPeerDerivedKind,
++        transaction_key: &TransactionKey,
++        trigger_message: &SipMessage,
++        message: &SipMessage,
++        transport_binding: &EgressTransportBinding,
++        canonical_wire_bytes: &[u8],
++        ingress_proof: PeerIngressProof,
++    ) -> rsipstack::Result<EgressEffectPermit> {
++        self.durable
++            .prepare_peer_derived(
++                kind,
++                transaction_key,
++                trigger_message,
++                message,
++                transport_binding,
++                canonical_wire_bytes,
++                ingress_proof,
++            )
++            .await
++    }
++
++    fn observe_transport(&self, permit: EgressEffectPermit, outcome: EgressEffectOutcome) {
++        self.durable.observe_transport(permit, outcome);
++    }
++
++    fn observe_protocol(
++        &self,
++        permit: EgressEffectPermit,
++        observation: EgressEffectProtocolObservation,
++    ) {
++        self.durable.observe_protocol(permit, observation);
++    }
++}
++
++fn rsipstack_gate_error(error: NativeSipEffectCapabilityError) -> rsipstack::Error {
++    rsipstack::Error::EndpointError(error.to_string())
++}
++
+ struct MatchedCancelIntents {
+     cancel_ok: SipEffectIntent,
+     invite_terminated: SipEffectIntent,
+ }
+ 
++fn ordinary_response_intent(
++    facts: &NativeOrdinaryResponseCapabilityFacts,
++    route_binding: Value,
++    adapter_identity: Value,
++    audit_retention: Duration,
++) -> Result<SipEffectIntent, NativeSipEffectCapabilityError> {
++    let identity = facts.identity();
++    let response_hash = facts.response_binding_sha256();
++    let event = match facts.event() {
++        crate::call::domain::native_call::NativeLegEvent::Provisional => "provisional",
++        crate::call::domain::native_call::NativeLegEvent::Final2xx => "final-2xx",
++        crate::call::domain::native_call::NativeLegEvent::FinalNon2xx => "final-non-2xx",
++        _ => return Err(NativeSipEffectCapabilityError::InvalidConfiguration),
++    };
++    let semantic_intent_sha256 = sha256_lower_hex(
++        format!(
++            "ordinary-invite-response\0{}\0{}\0{}\0{}\0{}\0{}",
++            identity.tenant_id(),
++            identity.call_id(),
++            identity.generation(),
++            facts.transaction_key(),
++            facts.native_call_revision(),
++            event,
++        )
++        .as_bytes(),
++    );
++    let effect_id = format!("sip-response-{response_hash}");
++    let prepared_at = Utc::now();
++    let audit_until = prepared_at
++        .checked_add_signed(audit_retention)
++        .ok_or(NativeSipEffectCapabilityError::InvalidConfiguration)?;
++
++    Ok(SipEffectIntent {
++        tenant_id: identity.tenant_id().to_string(),
++        protocol_effect_id: effect_id.clone(),
++        protocol_session_id: identity.call_id().as_str().to_string(),
++        protocol_session_generation: identity.generation().to_string(),
++        decision_id: format!("sip-response-decision-{response_hash}"),
++        idempotency_key: format!("sip-response-idempotency-{response_hash}"),
++        semantic_intent_sha256: semantic_intent_sha256.clone(),
++        command_id: format!("sip-response-command-{response_hash}"),
++        adapter_identity,
++        route_binding,
++        wire_attempt_facts: serde_json::json!({
++            "schema_id": "sip-foundation-wire-attempt-v1",
++            "schema_version": "1.0.0",
++            "attempt_id": effect_id.clone(),
++            "transaction_lineage_id": effect_id,
++            "semantic_intent_sha256": semantic_intent_sha256,
++            "parent_attempt_id": null,
++            "lineage_reason": "transaction_root",
++        }),
++        owner_epoch: identity.owner_epoch(),
++        command_sequence: facts.command_sequence(),
++        prepared_at,
++        audit_until,
++    })
++}
++
+ fn matched_cancel_intents(
+     facts: &NativeMatchedCancelCapabilityFacts,
+     route_binding: Value,
+@@ -319,12 +672,18 @@ fn sha256_lower_hex(value: &[u8]) -> String {
+ mod tests {
+     use super::*;
+     use crate::call::adapters::postgres_sip_effect::{
+-        PostgresSipEffectStore, PostgresSipEffectStoreOptions,
++        PostgresSipEffectStore, PostgresSipEffectStoreOptions, SipEffectDurableObservation,
++        SipEffectPrepareForSendOutcome, SipEffectStoreError,
+     };
+     use crate::call::adapters::rsipstack_sip_effect_gate::{
+-        DurableRsipstackEgressGate, SipEffectGateOptions, SipEffectIntentRegistry,
++        DurableRsipstackEgressGate, SipEffectDerivedAttempt, SipEffectGateOptions,
++        SipEffectIntentRegistry, SipEffectStorePort, SipEffectTransportObserver,
+     };
+     use crate::call::domain::foundation_identity::NativeCallIdentity;
++    use crate::call::domain::sip_effect::{
++        InMemorySipEffectLedger, PreparedSipEffect, SipEffectReceipt, SipEffectReceiptLevel,
++        SipEffectState,
++    };
+     use crate::proxy::active_call_registry::{
+         ActiveProxyCallEntry, ActiveProxyCallRegistry, ActiveProxyCallStatus,
+     };
+@@ -338,6 +697,108 @@ mod tests {
+     use rsipstack::transport::udp::UdpConnection;
+     use sqlx::postgres::PgPoolOptions;
+     use std::sync::Arc;
++    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
++
++    struct TestWriter {
++        ledger: tokio::sync::Mutex<InMemorySipEffectLedger>,
++        prepared: AtomicUsize,
++        prepared_effects: std::sync::Mutex<Vec<PreparedSipEffect>>,
++        fail_after_commit: AtomicBool,
++        block_prepare: AtomicBool,
++        prepare_started: tokio::sync::Notify,
++        release_prepare: tokio::sync::Notify,
++        observations: std::sync::Mutex<Vec<SipEffectDurableObservation>>,
++    }
++
++    impl TestWriter {
++        fn new() -> Self {
++            Self {
++                ledger: tokio::sync::Mutex::new(InMemorySipEffectLedger::new(16).unwrap()),
++                prepared: AtomicUsize::new(0),
++                prepared_effects: std::sync::Mutex::new(Vec::new()),
++                fail_after_commit: AtomicBool::new(false),
++                block_prepare: AtomicBool::new(false),
++                prepare_started: tokio::sync::Notify::new(),
++                release_prepare: tokio::sync::Notify::new(),
++                observations: std::sync::Mutex::new(Vec::new()),
++            }
++        }
++
++        async fn prepare_effect(
++            &self,
++            effect: PreparedSipEffect,
++        ) -> Result<SipEffectPrepareForSendOutcome, SipEffectStoreError> {
++            self.prepared.fetch_add(1, Ordering::SeqCst);
++            self.prepared_effects.lock().unwrap().push(effect.clone());
++            let mut ledger = self.ledger.lock().await;
++            let mut record = ledger.prepare(effect)?.record;
++            if record.state == SipEffectState::Prepared {
++                record = ledger
++                    .apply(SipEffectReceipt::new(
++                        record.fence(),
++                        "native-response-durable-decision",
++                        SipEffectReceiptLevel::DurableDecision,
++                        "",
++                        None,
++                    )?)?
++                    .record;
++            }
++            let send_attempt_replayed = if record.state == SipEffectState::DurableDecision {
++                let outcome = ledger.apply(SipEffectReceipt::new(
++                    record.fence(),
++                    "native-response-send-attempted",
++                    SipEffectReceiptLevel::SendAttempted,
++                    "",
++                    None,
++                )?)?;
++                record = outcome.record;
++                outcome.replayed
++            } else {
++                true
++            };
++            drop(ledger);
++            if self.fail_after_commit.swap(false, Ordering::SeqCst) {
++                return Err(SipEffectStoreError::StoreUnavailable);
++            }
++            if self.block_prepare.swap(false, Ordering::SeqCst) {
++                self.prepare_started.notify_one();
++                self.release_prepare.notified().await;
++            }
++            Ok(SipEffectPrepareForSendOutcome {
++                record,
++                send_attempt_replayed,
++            })
++        }
++    }
++
++    #[async_trait::async_trait]
++    impl SipEffectStorePort for TestWriter {
++        async fn prepare_for_send(
++            &self,
++            effect: PreparedSipEffect,
++        ) -> Result<SipEffectPrepareForSendOutcome, SipEffectStoreError> {
++            self.prepare_effect(effect).await
++        }
++
++        async fn prepare_derived_for_send(
++            &self,
++            _attempt: SipEffectDerivedAttempt,
++        ) -> Result<SipEffectPrepareForSendOutcome, SipEffectStoreError> {
++            Err(SipEffectStoreError::StoreUnavailable)
++        }
++
++        async fn persist_observation(
++            &self,
++            _tenant_id: &str,
++            _protocol_effect_id: &str,
++            _expected_identity_hash: &str,
++            observation: SipEffectDurableObservation,
++            _unknown_repair_after_ms: u32,
++        ) -> Result<(), SipEffectStoreError> {
++            self.observations.lock().unwrap().push(observation);
++            Ok(())
++        }
++    }
+ 
+     fn entry(session_id: &str) -> ActiveProxyCallEntry {
+         ActiveProxyCallEntry {
+@@ -397,6 +858,14 @@ mod tests {
+         Transaction::new_server(key, request, endpoint.inner, Some(server.into()))
+     }
+ 
++    fn response(transaction: &Transaction, status: StatusCode) -> SipMessage {
++        SipMessage::Response(transaction.endpoint_inner.make_response(
++            &transaction.original,
++            status,
++            None,
++        ))
++    }
++
+     fn runtime() -> (NativeSipEffectRuntime, Arc<SipEffectIntentRegistry>) {
+         let intents = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
+         let pool = PgPoolOptions::new()
+@@ -429,6 +898,39 @@ mod tests {
+         (runtime, intents)
+     }
+ 
++    fn runtime_with_writer(
++        writer: Arc<TestWriter>,
++    ) -> (
++        NativeSipEffectRuntime,
++        Arc<SipEffectIntentRegistry>,
++        Vec<SipEffectTransportObserver>,
++    ) {
++        let intents = Arc::new(SipEffectIntentRegistry::try_new(16).unwrap());
++        let (gate, observers) = DurableRsipstackEgressGate::new_with_store(
++            intents.clone(),
++            writer,
++            SipEffectGateOptions {
++                max_pending_observations: 8,
++                max_pending_protocol_observations: 8,
++                observation_queue_capacity: 16,
++                observation_worker_shards: 1,
++                unknown_repair_after_ms: 1_000,
++            },
++        )
++        .unwrap();
++        let runtime = NativeSipEffectRuntime::try_new(
++            gate,
++            intents.clone(),
++            serde_json::json!({
++                "adapter_id": "rsipstack",
++                "source_commit": PINNED_RSIPSTACK_SOURCE_COMMIT,
++            }),
++            chrono::Duration::days(30),
++        )
++        .unwrap();
++        (runtime, intents, observers)
++    }
++
+     #[tokio::test]
+     async fn admitted_native_call_registers_exactly_two_cancel_capabilities_once() {
+         let session_id = "native-cancel-call@example.test";
+@@ -706,4 +1208,556 @@ mod tests {
+             ));
+         }
+     }
++
++    #[tokio::test]
++    async fn native_call_authority_reserves_multiple_provisional_then_one_final_response() {
++        let session_id = "native-response-lifecycle@example.test";
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(
++                entry(session_id),
++                handle(session_id),
++                NativeCallIdentity::standalone(session_id).unwrap(),
++            )
++            .unwrap();
++        let transaction = transaction(session_id).await;
++
++        for status in [StatusCode::Ringing, StatusCode::SessionProgress] {
++            let message = response(&transaction, status);
++            let wire = message.to_bytes();
++            registry
++                .reserve_ordinary_response_capability(session_id, &transaction.key, &message, &wire)
++                .expect("Native Call reserves one exact provisional response")
++                .commit_after_durable_prepare()
++                .expect("provisional response advances Native Call state");
++        }
++        let identity = registry.get_identity(session_id).unwrap();
++        let early = registry
++            .native_call_snapshot(identity.call_id())
++            .unwrap()
++            .unwrap();
++        assert_eq!(
++            early.legs[0].state,
++            crate::call::domain::native_call::NativeLegState::Early
++        );
++
++        let answer = response(&transaction, StatusCode::OK);
++        registry
++            .reserve_ordinary_response_capability(
++                session_id,
++                &transaction.key,
++                &answer,
++                &answer.to_bytes(),
++            )
++            .expect("Native Call reserves one exact final response")
++            .commit_after_durable_prepare()
++            .expect("2xx response advances Native Call state");
++        let answered = registry
++            .native_call_snapshot(identity.call_id())
++            .unwrap()
++            .unwrap();
++        assert_eq!(
++            answered.legs[0].state,
++            crate::call::domain::native_call::NativeLegState::AwaitingAck,
++        );
++
++        let late = response(&transaction, StatusCode::Ringing);
++        assert!(
++            registry
++                .reserve_ordinary_response_capability(
++                    session_id,
++                    &transaction.key,
++                    &late,
++                    &late.to_bytes(),
++                )
++                .is_err(),
++            "no provisional response can be issued after the final response",
++        );
++    }
++
++    #[tokio::test]
++    async fn exact_response_capability_is_one_shot_and_non_2xx_final_fails_the_leg() {
++        let session_id = "native-response-non2xx@example.test";
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(
++                entry(session_id),
++                handle(session_id),
++                NativeCallIdentity::standalone(session_id).unwrap(),
++            )
++            .unwrap();
++        let transaction = transaction(session_id).await;
++        let rejected = response(&transaction, StatusCode::BusyHere);
++        let wire = rejected.to_bytes();
++        registry
++            .reserve_ordinary_response_capability(session_id, &transaction.key, &rejected, &wire)
++            .expect("first exact final response is reserved")
++            .commit_after_durable_prepare()
++            .expect("non-2xx response advances Native Call state");
++        assert!(
++            registry
++                .reserve_ordinary_response_capability(
++                    session_id,
++                    &transaction.key,
++                    &rejected,
++                    &wire,
++                )
++                .is_err(),
++            "the same exact response cannot mint a second effect",
++        );
++        let identity = registry.get_identity(session_id).unwrap();
++        let failed = registry
++            .native_call_snapshot(identity.call_id())
++            .unwrap()
++            .unwrap();
++        assert_eq!(
++            failed.legs[0].state,
++            crate::call::domain::native_call::NativeLegState::Failed
++        );
++    }
++
++    #[tokio::test]
++    async fn invalid_ordinary_response_binding_is_rejected_without_mutating_the_call() {
++        let session_id = "native-response-invalid@example.test";
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(
++                entry(session_id),
++                handle(session_id),
++                NativeCallIdentity::standalone(session_id).unwrap(),
++            )
++            .unwrap();
++        let primary_transaction = transaction(session_id).await;
++        let identity = registry.get_identity(session_id).unwrap();
++        let before = registry
++            .native_call_snapshot(identity.call_id())
++            .unwrap()
++            .unwrap();
++        let trying = response(&primary_transaction, StatusCode::Trying);
++        assert!(
++            registry
++                .reserve_ordinary_response_capability(
++                    session_id,
++                    &primary_transaction.key,
++                    &trying,
++                    &trying.to_bytes(),
++                )
++                .is_err(),
++        );
++        let invalid_status = response(&primary_transaction, StatusCode::from(700));
++        assert!(
++            registry
++                .reserve_ordinary_response_capability(
++                    session_id,
++                    &primary_transaction.key,
++                    &invalid_status,
++                    &invalid_status.to_bytes(),
++                )
++                .is_err(),
++        );
++        let ringing = response(&primary_transaction, StatusCode::Ringing);
++        let mut wrong_wire = ringing.to_bytes();
++        wrong_wire.push(b' ');
++        assert!(
++            registry
++                .reserve_ordinary_response_capability(
++                    session_id,
++                    &primary_transaction.key,
++                    &ringing,
++                    &wrong_wire,
++                )
++                .is_err(),
++        );
++        let mut wrong_key_message = ringing.clone();
++        let SipMessage::Response(wrong_key_response) = &mut wrong_key_message else {
++            unreachable!("the test helper returned a response");
++        };
++        wrong_key_response.headers.unique_push(
++            Via::new("SIP/2.0/UDP 127.0.0.1:5060;branch=z9hG4bK-native-response-wrong").into(),
++        );
++        let wrong_transaction_key =
++            TransactionKey::from_response(wrong_key_response, TransactionRole::Server).unwrap();
++        assert!(
++            registry
++                .reserve_ordinary_response_capability(
++                    session_id,
++                    &wrong_transaction_key,
++                    &ringing,
++                    &ringing.to_bytes(),
++                )
++                .is_err(),
++        );
++        let wrong_call = transaction("native-response-wrong-call@example.test").await;
++        let wrong_call_response = response(&wrong_call, StatusCode::Ringing);
++        assert!(
++            registry
++                .reserve_ordinary_response_capability(
++                    session_id,
++                    &wrong_call.key,
++                    &wrong_call_response,
++                    &wrong_call_response.to_bytes(),
++                )
++                .is_err(),
++        );
++
++        let outbound_registry = Arc::new(ActiveProxyCallRegistry::new());
++        let mut outbound_entry = entry(session_id);
++        outbound_entry.direction = "outbound".to_string();
++        outbound_registry
++            .try_upsert_authoritative(
++                outbound_entry,
++                handle(session_id),
++                NativeCallIdentity::standalone(session_id).unwrap(),
++            )
++            .unwrap();
++        assert!(
++            outbound_registry
++                .reserve_ordinary_response_capability(
++                    session_id,
++                    &primary_transaction.key,
++                    &ringing,
++                    &ringing.to_bytes(),
++                )
++                .is_err(),
++        );
++        assert_eq!(
++            registry
++                .native_call_snapshot(identity.call_id())
++                .unwrap()
++                .unwrap(),
++            before,
++        );
++    }
++
++    #[tokio::test]
++    async fn installed_call_gate_authorizes_provisional_and_final_responses_in_order() {
++        let session_id = "native-response-installed@example.test";
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(
++                entry(session_id),
++                handle(session_id),
++                NativeCallIdentity::standalone(session_id).unwrap(),
++            )
++            .unwrap();
++        let mut transaction = transaction(session_id).await;
++        let writer = Arc::new(TestWriter::new());
++        let (runtime, intents, _observers) = runtime_with_writer(writer.clone());
++        let _holder = install_for_admitted_native_call(
++            Some(&runtime),
++            &registry,
++            session_id,
++            &mut transaction,
++        )
++        .expect("the Native Call gate installs")
++        .expect("the enabled runtime owns its capabilities");
++
++        for status in [
++            StatusCode::Ringing,
++            StatusCode::SessionProgress,
++            StatusCode::OK,
++        ] {
++            transaction
++                .reply(status)
++                .await
++                .expect("each exact response is durably authorized before send");
++            assert_eq!(
++                intents.snapshot().registered,
++                2,
++                "ordinary response intent is consumed while matched-CANCEL capabilities remain",
++            );
++        }
++
++        let identity = registry.get_identity(session_id).unwrap();
++        let call = registry
++            .native_call_snapshot(identity.call_id())
++            .unwrap()
++            .unwrap();
++        assert_eq!(
++            call.legs[0].state,
++            crate::call::domain::native_call::NativeLegState::AwaitingAck,
++        );
++        assert_eq!(writer.prepared.load(Ordering::SeqCst), 3);
++    }
++
++    #[tokio::test]
++    async fn installed_call_gate_authorizes_one_non_2xx_final_response() {
++        let session_id = "native-response-installed-non2xx@example.test";
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(
++                entry(session_id),
++                handle(session_id),
++                NativeCallIdentity::standalone(session_id).unwrap(),
++            )
++            .unwrap();
++        let mut transaction = transaction(session_id).await;
++        let writer = Arc::new(TestWriter::new());
++        let (runtime, intents, _observers) = runtime_with_writer(writer.clone());
++        let _holder = install_for_admitted_native_call(
++            Some(&runtime),
++            &registry,
++            session_id,
++            &mut transaction,
++        )
++        .expect("the Native Call gate installs")
++        .expect("the enabled runtime owns its capabilities");
++
++        transaction
++            .reply(StatusCode::BusyHere)
++            .await
++            .expect("the exact non-2xx response is durably authorized before send");
++        let identity = registry.get_identity(session_id).unwrap();
++        let call = registry
++            .native_call_snapshot(identity.call_id())
++            .unwrap()
++            .unwrap();
++        assert_eq!(
++            call.legs[0].state,
++            crate::call::domain::native_call::NativeLegState::Failed,
++        );
++        assert_eq!(writer.prepared.load(Ordering::SeqCst), 1);
++        assert_eq!(intents.snapshot().registered, 2);
++    }
++
++    #[tokio::test]
++    async fn installed_call_gate_rejects_response_dialog_identity_drift_before_store() {
++        let session_id = "native-response-dialog-drift@example.test";
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(
++                entry(session_id),
++                handle(session_id),
++                NativeCallIdentity::standalone(session_id).unwrap(),
++            )
++            .unwrap();
++        let mut transaction = transaction(session_id).await;
++        let writer = Arc::new(TestWriter::new());
++        let (runtime, _intents, _observers) = runtime_with_writer(writer.clone());
++        let _holder = install_for_admitted_native_call(
++            Some(&runtime),
++            &registry,
++            session_id,
++            &mut transaction,
++        )
++        .expect("the Native Call gate installs")
++        .expect("the enabled runtime owns its capabilities");
++        transaction
++            .reply(StatusCode::Ringing)
++            .await
++            .expect("the first response freezes the local dialog tag");
++
++        let mut wrong_cseq = transaction.endpoint_inner.make_response(
++            &transaction.original,
++            StatusCode::SessionProgress,
++            None,
++        );
++        wrong_cseq.headers.unique_push(CSeq::new("2 INVITE").into());
++        assert!(transaction.respond(wrong_cseq).await.is_err());
++
++        let mut wrong_from = transaction.endpoint_inner.make_response(
++            &transaction.original,
++            StatusCode::SessionProgress,
++            None,
++        );
++        wrong_from
++            .headers
++            .unique_push(From::new("Mallory <sip:mallory@example.test>;tag=native-cancel").into());
++        assert!(transaction.respond(wrong_from).await.is_err());
++
++        let mut wrong_via = transaction.endpoint_inner.make_response(
++            &transaction.original,
++            StatusCode::SessionProgress,
++            None,
++        );
++        wrong_via.headers.unique_push(
++            Via::new("SIP/2.0/UDP 127.0.0.1:5099;branch=z9hG4bK-native-cancel").into(),
++        );
++        assert!(transaction.respond(wrong_via).await.is_err());
++
++        let mut wrong_to = transaction.endpoint_inner.make_response(
++            &transaction.original,
++            StatusCode::SessionProgress,
++            None,
++        );
++        wrong_to
++            .headers
++            .unique_push(To::new("Bob <sip:bob@example.test>;tag=different-native-tag").into());
++        assert!(transaction.respond(wrong_to).await.is_err());
++        assert_eq!(
++            writer.prepared.load(Ordering::SeqCst),
++            1,
++            "dialog identity drift must fail before durable store work",
++        );
++
++        transaction
++            .reply(StatusCode::SessionProgress)
++            .await
++            .expect("the original dialog identity remains usable");
++        assert_eq!(writer.prepared.load(Ordering::SeqCst), 2);
++    }
++
++    #[tokio::test]
++    async fn ambiguous_response_prepare_is_retained_for_reconcile_without_state_advance() {
++        let session_id = "native-response-ambiguous@example.test";
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(
++                entry(session_id),
++                handle(session_id),
++                NativeCallIdentity::standalone(session_id).unwrap(),
++            )
++            .unwrap();
++        let mut transaction = transaction(session_id).await;
++        let writer = Arc::new(TestWriter::new());
++        writer.fail_after_commit.store(true, Ordering::SeqCst);
++        let (runtime, _intents, _observers) = runtime_with_writer(writer.clone());
++        let _holder = install_for_admitted_native_call(
++            Some(&runtime),
++            &registry,
++            session_id,
++            &mut transaction,
++        )
++        .expect("the Native Call gate installs")
++        .expect("the enabled runtime owns its capabilities");
++        assert!(transaction.reply(StatusCode::Ringing).await.is_err());
++        let identity = registry.get_identity(session_id).unwrap();
++        let call = registry
++            .native_call_snapshot(identity.call_id())
++            .unwrap()
++            .unwrap();
++        assert_eq!(
++            call.legs[0].state,
++            crate::call::domain::native_call::NativeLegState::Inviting,
++            "ambiguous durable prepare cannot claim that the response was sent",
++        );
++        assert!(
++            transaction.reply(StatusCode::Ringing).await.is_err(),
++            "the retained exact binding prevents blind reissuance",
++        );
++        assert_eq!(writer.prepared.load(Ordering::SeqCst), 1);
++    }
++
++    #[tokio::test]
++    async fn concurrent_call_revision_after_durable_prepare_marks_response_unknown() {
++        let session_id = "native-response-race@example.test";
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(
++                entry(session_id),
++                handle(session_id),
++                NativeCallIdentity::standalone(session_id).unwrap(),
++            )
++            .unwrap();
++        let mut transaction = transaction(session_id).await;
++        let transaction_key = transaction.key.clone();
++        let writer = Arc::new(TestWriter::new());
++        writer.block_prepare.store(true, Ordering::SeqCst);
++        let (runtime, _intents, mut observers) = runtime_with_writer(writer.clone());
++        let _holder = install_for_admitted_native_call(
++            Some(&runtime),
++            &registry,
++            session_id,
++            &mut transaction,
++        )
++        .expect("the Native Call gate installs")
++        .expect("the enabled runtime owns its capabilities");
++        let first = transaction.endpoint_inner.make_response(
++            &transaction.original,
++            StatusCode::Ringing,
++            None,
++        );
++        let second = transaction.endpoint_inner.make_response(
++            &transaction.original,
++            StatusCode::SessionProgress,
++            None,
++        );
++
++        let response_task = tokio::spawn(async move {
++            let result = transaction.respond(first.clone()).await;
++            (transaction, first, result)
++        });
++        writer.prepare_started.notified().await;
++        let second_message = SipMessage::Response(second);
++        registry
++            .reserve_ordinary_response_capability(
++                session_id,
++                &transaction_key,
++                &second_message,
++                &second_message.to_bytes(),
++            )
++            .expect("a distinct response reserves against the same Native Call revision")
++            .commit_after_durable_prepare()
++            .expect("the competing response advances the Native Call");
++        writer.release_prepare.notify_waiters();
++
++        let (mut transaction, first, result) = response_task.await.unwrap();
++        assert!(result.is_err());
++        assert!(observers[0].persist_next().await.unwrap());
++        assert_eq!(
++            writer.observations.lock().unwrap().as_slice(),
++            &[SipEffectDurableObservation::TransportUnknown],
++        );
++        assert!(transaction.respond(first).await.is_err());
++        assert_eq!(writer.prepared.load(Ordering::SeqCst), 1);
++    }
++
++    #[tokio::test]
++    async fn cancelled_durable_response_prepare_retains_exact_binding_for_reconcile() {
++        let session_id = "native-response-cancelled-prepare@example.test";
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(
++                entry(session_id),
++                handle(session_id),
++                NativeCallIdentity::standalone(session_id).unwrap(),
++            )
++            .unwrap();
++        let mut transaction = transaction(session_id).await;
++        let transaction_key = transaction.key.clone();
++        let writer = Arc::new(TestWriter::new());
++        writer.block_prepare.store(true, Ordering::SeqCst);
++        let (runtime, _intents, _observers) = runtime_with_writer(writer.clone());
++        let _holder = install_for_admitted_native_call(
++            Some(&runtime),
++            &registry,
++            session_id,
++            &mut transaction,
++        )
++        .expect("the Native Call gate installs")
++        .expect("the enabled runtime owns its capabilities");
++        let response = transaction.endpoint_inner.make_response(
++            &transaction.original,
++            StatusCode::Ringing,
++            None,
++        );
++
++        let task = tokio::spawn(async move { transaction.respond(response).await });
++        writer.prepare_started.notified().await;
++        task.abort();
++        assert!(task.await.unwrap_err().is_cancelled());
++        let prepared = writer.prepared_effects.lock().unwrap()[0].clone();
++        let message = SipMessage::try_from(prepared.canonical_wire_bytes.as_slice()).unwrap();
++        assert!(
++            registry
++                .reserve_ordinary_response_capability(
++                    session_id,
++                    &transaction_key,
++                    &message,
++                    &prepared.canonical_wire_bytes,
++                )
++                .is_err(),
++            "cancellation after a possibly committed store operation cannot mint a second effect",
++        );
++        let identity = registry.get_identity(session_id).unwrap();
++        let call = registry
++            .native_call_snapshot(identity.call_id())
++            .unwrap()
++            .unwrap();
++        assert_eq!(
++            call.legs[0].state,
++            crate::call::domain::native_call::NativeLegState::Inviting,
++        );
++        assert_eq!(writer.prepared.load(Ordering::SeqCst), 1);
++    }
+ }
+diff --git a/src/call/adapters/rsipstack_sip_effect_gate.rs b/src/call/adapters/rsipstack_sip_effect_gate.rs
+index 6f3471f7e5f271e835a62fb057305fca02132f14..89fb7cc4442fffb42649b3e34f1248a69ad97e33 100644
+--- a/src/call/adapters/rsipstack_sip_effect_gate.rs
++++ b/src/call/adapters/rsipstack_sip_effect_gate.rs
+@@ -956,7 +956,23 @@ impl DurableRsipstackEgressGate {
+         Arc::ptr_eq(&self.intents, intents)
+     }
+ 
+-    fn new_with_store<T>(
++    pub(crate) async fn prepare_registered(
++        &self,
++        transaction_key: &TransactionKey,
++        message: &SipMessage,
++        transport_binding: &EgressTransportBinding,
++        canonical_wire_bytes: &[u8],
++    ) -> Result<EgressEffectPermit, SipEffectGateError> {
++        self.prepare_inner(
++            transaction_key,
++            message,
++            transport_binding,
++            canonical_wire_bytes,
++        )
++        .await
++    }
++
++    pub(crate) fn new_with_store<T>(
+         intents: Arc<SipEffectIntentRegistry>,
+         store: Arc<T>,
+         options: SipEffectGateOptions,
+@@ -1189,12 +1205,12 @@ impl DurableRsipstackEgressGate {
+         }
+         let record = send_attempt.record;
+         let effect_identity_hash = protocol_effect_identity_hash(&record.identity)
+-            .map_err(|_| SipEffectGateError::InvalidIntent)?;
++            .map_err(|_| SipEffectGateError::ReconciliationRequired)?;
+         let protocol_locator =
+             SipEffectObservationLocator::from_record(&record, effect_identity_hash.clone());
+         let permit_token = permit_token(&effect_identity_hash, record.revision);
+         let permit = EgressEffectPermit::try_new(&permit_token)
+-            .map_err(|_| SipEffectGateError::InvalidConfiguration)?;
++            .map_err(|_| SipEffectGateError::ReconciliationRequired)?;
+ 
+         use dashmap::mapref::entry::Entry;
+         match self.pending_transport.entry(permit_token) {
+diff --git a/src/call/domain/native_call.rs b/src/call/domain/native_call.rs
+index 06bf17309af5dc3a510eda1d1a0842f18afdd5cf..2782993148001f87550dc886c90fb2c5ba756cb7 100644
+--- a/src/call/domain/native_call.rs
++++ b/src/call/domain/native_call.rs
+@@ -1123,7 +1123,7 @@ fn transition(
+         (Direction::Outbound, State::Planned, Event::StartInvite) => {
+             Some((State::Inviting, Effect::None))
+         }
+-        (Direction::Outbound, State::Inviting, Event::Provisional) => {
++        (Direction::Outbound, State::Inviting | State::Early, Event::Provisional) => {
+             Some((State::Early, Effect::None))
+         }
+         (Direction::Outbound, State::Inviting | State::Early, Event::Final2xx) => {
+@@ -1144,7 +1144,7 @@ fn transition(
+         (Direction::Inbound, State::Planned, Event::InboundInviteObserved) => {
+             Some((State::Inviting, Effect::None))
+         }
+-        (Direction::Inbound, State::Inviting, Event::Provisional) => {
++        (Direction::Inbound, State::Inviting | State::Early, Event::Provisional) => {
+             Some((State::Early, Effect::None))
+         }
+         (Direction::Inbound, State::Inviting | State::Early, Event::Final2xx) => {
+@@ -1804,6 +1804,89 @@ mod tests {
+         );
+     }
+ 
++    #[test]
++    fn inbound_invite_accepts_multiple_provisional_responses_before_one_final() {
++        let mut call = NativeCall::new(identity(), NativeCallBounds::default()).unwrap();
++        let leg_id = leg("inbound-multiple-provisional");
++        call.add_leg(
++            &call.fence(),
++            leg_id.clone(),
++            ProviderCallId::parse("provider-inbound-provisional").unwrap(),
++            NativeLegDirection::Inbound,
++        )
++        .unwrap();
++
++        for (event_id, event_hash, event) in [
++            ("invite", HASH_A, NativeLegEvent::InboundInviteObserved),
++            ("ringing", HASH_B, NativeLegEvent::Provisional),
++            ("session-progress", HASH_A, NativeLegEvent::Provisional),
++        ] {
++            let receipt = call
++                .apply_leg_event(&call.fence(), &leg_id, event_id, event_hash, event)
++                .unwrap();
++            assert_eq!(receipt.required_effect, NativeRequiredEffect::None);
++        }
++        assert_eq!(call.leg(&leg_id).unwrap().state, NativeLegState::Early);
++
++        let answered = call
++            .apply_leg_event(
++                &call.fence(),
++                &leg_id,
++                "answer",
++                HASH_B,
++                NativeLegEvent::Final2xx,
++            )
++            .unwrap();
++        assert_eq!(answered.state, NativeLegState::AwaitingAck);
++        assert_eq!(answered.required_effect, NativeRequiredEffect::None);
++        assert_eq!(
++            call.apply_leg_event(
++                &call.fence(),
++                &leg_id,
++                "late-provisional",
++                HASH_A,
++                NativeLegEvent::Provisional,
++            )
++            .unwrap_err(),
++            NativeCallError::TransitionInvalid,
++        );
++    }
++
++    #[test]
++    fn outbound_invite_accepts_multiple_provisional_responses_before_one_final() {
++        let mut call = NativeCall::new(identity(), NativeCallBounds::default()).unwrap();
++        let leg_id = leg("outbound-multiple-provisional");
++        call.add_leg(
++            &call.fence(),
++            leg_id.clone(),
++            ProviderCallId::parse("provider-outbound-provisional").unwrap(),
++            NativeLegDirection::Outbound,
++        )
++        .unwrap();
++
++        for (event_id, event_hash, event) in [
++            ("start", HASH_A, NativeLegEvent::StartInvite),
++            ("ringing", HASH_B, NativeLegEvent::Provisional),
++            ("session-progress", HASH_A, NativeLegEvent::Provisional),
++        ] {
++            call.apply_leg_event(&call.fence(), &leg_id, event_id, event_hash, event)
++                .unwrap();
++        }
++        assert_eq!(call.leg(&leg_id).unwrap().state, NativeLegState::Early);
++
++        let failed = call
++            .apply_leg_event(
++                &call.fence(),
++                &leg_id,
++                "final",
++                HASH_B,
++                NativeLegEvent::FinalNon2xx,
++            )
++            .unwrap();
++        assert_eq!(failed.state, NativeLegState::Failed);
++        assert_eq!(failed.required_effect, NativeRequiredEffect::AckNon2xx);
++    }
++
+     #[test]
+     fn directional_final_cancel_and_deferred_bye_races_are_explicit() {
+         let mut inbound = NativeCall::new(identity(), NativeCallBounds::default()).unwrap();
+diff --git a/src/proxy/active_call_registry.rs b/src/proxy/active_call_registry.rs
+index db4a27fa9f0a38add26dd5dc3dbdcd451820a772..ab44ef70558ba10ec590fcaf8a67c883e5068219 100644
+--- a/src/proxy/active_call_registry.rs
++++ b/src/proxy/active_call_registry.rs
+@@ -140,6 +140,41 @@ pub(crate) struct NativeMatchedCancelCapabilityFacts {
+     invite_terminated_command_sequence: u64,
+ }
+ 
++pub(crate) struct NativeOrdinaryResponseCapabilityFacts {
++    identity: NativeCallIdentity,
++    transaction_key: String,
++    response_binding_sha256: String,
++    native_call_revision: u64,
++    command_sequence: u64,
++    event: NativeLegEvent,
++}
++
++impl NativeOrdinaryResponseCapabilityFacts {
++    pub(crate) fn identity(&self) -> &NativeCallIdentity {
++        &self.identity
++    }
++
++    pub(crate) fn transaction_key(&self) -> &str {
++        &self.transaction_key
++    }
++
++    pub(crate) fn response_binding_sha256(&self) -> &str {
++        &self.response_binding_sha256
++    }
++
++    pub(crate) fn native_call_revision(&self) -> u64 {
++        self.native_call_revision
++    }
++
++    pub(crate) fn command_sequence(&self) -> u64 {
++        self.command_sequence
++    }
++
++    pub(crate) fn event(&self) -> NativeLegEvent {
++        self.event
++    }
++}
++
+ impl NativeMatchedCancelCapabilityFacts {
+     pub(crate) fn identity(&self) -> &NativeCallIdentity {
+         &self.identity
+@@ -196,6 +231,73 @@ impl Drop for NativeMatchedCancelCapabilityReservation {
+     }
+ }
+ 
++#[must_use = "an uncommitted SIP response capability reservation revokes its exact binding"]
++pub(crate) struct NativeOrdinaryResponseCapabilityReservation {
++    cell: Arc<NativeCallCell>,
++    leg_id: LegId,
++    binding_key: String,
++    facts: NativeOrdinaryResponseCapabilityFacts,
++    retained: bool,
++}
++
++impl NativeOrdinaryResponseCapabilityReservation {
++    pub(crate) fn facts(&self) -> &NativeOrdinaryResponseCapabilityFacts {
++        &self.facts
++    }
++
++    pub(crate) fn commit_after_durable_prepare(mut self) -> Result<(), ActiveCallRegistryError> {
++        // A durable send-attempt may already exist. Keep the exact binding even
++        // when the concurrent Native Call revision moved; reconciliation must
++        // resolve that ambiguity instead of minting another effect identity.
++        self.retained = true;
++        let mut state = self
++            .cell
++            .state
++            .lock()
++            .map_err(|_| ActiveCallRegistryError::NativeCallUnavailable)?;
++        if state.closed
++            || !state.call.matches_authority(&self.facts.identity)
++            || state.call.snapshot().revision != self.facts.native_call_revision
++        {
++            return Err(ActiveCallRegistryError::AuthorityConflict);
++        }
++        let fence = state.call.fence();
++        let receipt = state
++            .call
++            .apply_leg_event(
++                &fence,
++                &self.leg_id,
++                &format!("sip-response-state-{}", self.facts.response_binding_sha256),
++                &self.facts.response_binding_sha256,
++                self.facts.event,
++            )
++            .map_err(map_native_leg_registration_error)?;
++        if receipt.required_effect != NativeRequiredEffect::None {
++            return Err(ActiveCallRegistryError::NativeCallStateConflict);
++        }
++        Ok(())
++    }
++
++    pub(crate) fn arm_for_durable_prepare(&mut self) {
++        self.retained = true;
++    }
++
++    pub(crate) fn release_after_unambiguous_failure(mut self) {
++        self.retained = false;
++    }
++}
++
++impl Drop for NativeOrdinaryResponseCapabilityReservation {
++    fn drop(&mut self) {
++        if self.retained {
++            return;
++        }
++        if let Ok(mut state) = self.cell.state.lock() {
++            state.sip_effect_transactions.remove(&self.binding_key);
++        }
++    }
++}
++
+ impl std::fmt::Debug for ActiveCallAdmissionLease {
+     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+         formatter
+@@ -907,6 +1009,147 @@ impl ActiveProxyCallRegistry {
+         })
+     }
+ 
++    pub(crate) fn reserve_ordinary_response_capability(
++        self: &Arc<Self>,
++        provider_call_id: &str,
++        transaction_key: &rsipstack::transaction::key::TransactionKey,
++        message: &rsipstack::sip::SipMessage,
++        canonical_wire_bytes: &[u8],
++    ) -> Result<NativeOrdinaryResponseCapabilityReservation, ActiveCallRegistryError> {
++        use rsipstack::sip::prelude::HeadersExt;
++
++        let response = match message {
++            rsipstack::sip::SipMessage::Response(response) => response,
++            rsipstack::sip::SipMessage::Request(_) => {
++                return Err(ActiveCallRegistryError::AuthorityConflict);
++            }
++        };
++        let status = response.status_code.code();
++        let event = match status {
++            101..=199 => NativeLegEvent::Provisional,
++            200..=299 => NativeLegEvent::Final2xx,
++            300..=699 => NativeLegEvent::FinalNon2xx,
++            _ => return Err(ActiveCallRegistryError::AuthorityConflict),
++        };
++        let cseq = response
++            .cseq_header()
++            .map_err(|_| ActiveCallRegistryError::AuthorityConflict)?;
++        if canonical_wire_bytes != message.to_bytes()
++            || cseq.method().ok() != Some(rsipstack::sip::Method::Invite)
++            || response.call_id_header().ok().map(|header| header.value()) != Some(provider_call_id)
++            || rsipstack::transaction::key::TransactionKey::from_response(
++                response,
++                rsipstack::transaction::key::TransactionRole::Server,
++            )
++            .ok()
++            .as_ref()
++                != Some(transaction_key)
++        {
++            return Err(ActiveCallRegistryError::AuthorityConflict);
++        }
++
++        let (identity, binding) = {
++            let slot = self
++                .slots
++                .get(provider_call_id)
++                .ok_or(ActiveCallRegistryError::SessionNotRegistered)?;
++            let identity = slot
++                .identity
++                .clone()
++                .ok_or(ActiveCallRegistryError::NativeCallUnavailable)?;
++            let binding = slot
++                .native_binding
++                .clone()
++                .ok_or(ActiveCallRegistryError::NativeCallUnavailable)?;
++            (identity, binding)
++        };
++        if identity.provider_call_id().as_str() != provider_call_id
++            || binding.direction != NativeLegDirection::Inbound
++        {
++            return Err(ActiveCallRegistryError::AuthorityConflict);
++        }
++
++        let transaction_key_text = transaction_key.to_string();
++        let wire_sha256 = sha256_lower_hex(canonical_wire_bytes);
++        let response_binding_sha256 = sha256_lower_hex(
++            format!(
++                "ordinary-invite-response-capability\0{}\0{}\0{}\0{}\0{}",
++                identity.tenant_id(),
++                identity.call_id(),
++                identity.generation(),
++                transaction_key_text,
++                wire_sha256,
++            )
++            .as_bytes(),
++        );
++        let binding_key = format!("ordinary-response:{response_binding_sha256}");
++        let mut state = binding
++            .cell
++            .state
++            .lock()
++            .map_err(|_| ActiveCallRegistryError::NativeCallUnavailable)?;
++        if state.closed || !state.call.matches_authority(&identity) {
++            return Err(ActiveCallRegistryError::AuthorityConflict);
++        }
++
++        let leg = state
++            .call
++            .leg(&binding.leg_id)
++            .map_err(map_native_leg_registration_error)?;
++        if leg.state == NativeLegState::Planned {
++            let event_id = format!("sip-invite-observed-{response_binding_sha256}");
++            let fence = state.call.fence();
++            let receipt = state
++                .call
++                .apply_leg_event(
++                    &fence,
++                    &binding.leg_id,
++                    &event_id,
++                    &response_binding_sha256,
++                    NativeLegEvent::InboundInviteObserved,
++                )
++                .map_err(map_native_leg_registration_error)?;
++            if receipt.required_effect != NativeRequiredEffect::None {
++                return Err(ActiveCallRegistryError::NativeCallStateConflict);
++            }
++        }
++        let leg = state
++            .call
++            .leg(&binding.leg_id)
++            .map_err(map_native_leg_registration_error)?;
++        if !matches!(leg.state, NativeLegState::Inviting | NativeLegState::Early)
++            || state.sip_effect_transactions.contains(&binding_key)
++        {
++            return Err(ActiveCallRegistryError::NativeCallStateConflict);
++        }
++        if state.sip_effect_transactions.len() >= SIP_EFFECT_TRANSACTION_CAPABILITIES_HARD_CEILING {
++            return Err(ActiveCallRegistryError::CapacityExhausted);
++        }
++
++        let command_sequence = state.next_sip_effect_command_sequence;
++        state.next_sip_effect_command_sequence = command_sequence
++            .checked_add(1)
++            .ok_or(ActiveCallRegistryError::CapacityExhausted)?;
++        state.sip_effect_transactions.insert(binding_key.clone());
++        let native_call_revision = state.call.snapshot().revision;
++        drop(state);
++
++        Ok(NativeOrdinaryResponseCapabilityReservation {
++            cell: binding.cell,
++            leg_id: binding.leg_id,
++            binding_key,
++            facts: NativeOrdinaryResponseCapabilityFacts {
++                identity,
++                transaction_key: transaction_key_text,
++                response_binding_sha256,
++                native_call_revision,
++                command_sequence,
++                event,
++            },
++            retained: false,
++        })
++    }
++
+     pub fn get_by_call_id(&self, call_id: &CallId) -> Vec<ActiveProxyCallEntry> {
+         let Some(providers) = self
+             .providers_by_call

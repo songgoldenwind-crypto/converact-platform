@@ -174,11 +174,22 @@ Run serially:
    durable gate `39/39`, Native capability composition `8/8`, Active Call
    registry `24/24`, builder default disabled `1/1`, and both locked library
    checks. The ignored external-prerequisite cases remain `not_run`. This does
-   not activate the runtime: ordinary provisional/final response intents are
-   not yet issued. The isolated Linux rsipstack server target passes `32/32`;
+   not activate the runtime. The isolated Linux rsipstack server target passes `32/32`;
    RustPBX host targets remain `not_run` after their lib-test compile reached
    the unchanged safe memory ceiling. Physical PostgreSQL, non-UDP transports,
    crash/restart and live product wiring remain `not_run`.
+   The `.74` feature slice now supplies ordinary initial inbound-INVITE
+   response authority without enabling the product path. Installation freezes
+   one exact dialog identity and stable local To tag. The Call registry permits
+   multiple exact 101..199 responses followed by one 200..699 final response,
+   and orders reservation, intent registration, durable prepare, Call-state
+   commit and transport permit. Dialog drift and duplicates fail before a
+   second store attempt; cancelled/panicked durable work retains its identity,
+   and a concurrent revision after durable prepare becomes `TransportUnknown`.
+   Local functional checks pass response capability `17/17`, Native Call
+   `13/13`, registry `24/24`, durable gate `39/39`, locked check and rustfmt.
+   Full RustPBX, physical PostgreSQL, live Endpoint and isolated-server `.74`
+   verification remain `not_run`; all performance work is deferred.
 6. repository typecheck.
 7. Generate raw output, command/source manifest and SHA-256 evidence with no
    secrets.

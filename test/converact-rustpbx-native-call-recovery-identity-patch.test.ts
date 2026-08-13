@@ -47,7 +47,7 @@ test('ivekit.65 carries one fenced Native Call identity through HA recovery', ()
 
 test('ivekit.65 exact-source build applies and formats the recovery slice last', () => {
   const build = readFileSync('infra/converact/rustpbx/build.sh', 'utf8');
-  assert.match(build, /PATCHSET="ivekit\.73"/);
+  assert.match(build, /PATCHSET="ivekit\.74"/);
   assert.match(
     build,
     /rustpbx-converact-uas-2xx-owner-retention\.patch"[\s\S]*rustpbx-converact-native-call-recovery-identity\.patch"/

@@ -119,6 +119,15 @@ microbenchmark or citing rvoip upstream numbers cannot close that Gate.
    activation. RustPBX server functionality, TCP/WS/TLS/WSS, physical
    store, restart/reconcile and product activation remain `not_run`; no running
    server program or deployed source was modified.
+8. `.74` supplies ordinary 101..699 response capabilities in that same
+   default-disabled transaction-local Rust gate. It freezes one dialog identity
+   and stable local To tag before responses are created. Cancellation or panic
+   after durable preparation starts retains the exact effect identity; a
+   concurrent Call revision after durable prepare emits `TransportUnknown` and
+   cannot authorize another response. Local focused functional tests cover
+   these paths, but physical PostgreSQL, process restart/rebuild, live Endpoint
+   and isolated-server `.74` verification remain `not_run`. The slice executes
+   no performance, load, capacity, concurrency or soak test.
 
-All seven remain visible in the G03 status artifacts and prevent production
+All eight remain visible in the G03 status artifacts and prevent production
 eligibility.

@@ -17,6 +17,7 @@
     "anti_corruption_boundary",
     "native_call_recovery",
     "native_matched_cancel_effects",
+    "native_ordinary_response_effects",
     "ingress_events",
     "control_interface",
     "egress_events",
@@ -187,7 +188,7 @@
           "const": "166c6d22984429eb6b509920c14fcd69f974f0b3"
         },
         "patchset": {
-          "const": "ivekit.73"
+          "const": "ivekit.74"
         },
         "current_adapter": {
           "const": "rsipstack"
@@ -529,12 +530,9 @@
         },
         "activation_blockers": {
           "type": "array",
-          "minItems": 5,
-          "maxItems": 5,
+          "minItems": 4,
+          "maxItems": 4,
           "prefixItems": [
-            {
-              "const": "ordinary_provisional_and_final_response_intents_not_issued"
-            },
             {
               "const": "concurrent_successor_call_cleanup_fencing_not_implemented"
             },
@@ -603,6 +601,222 @@
         },
         "performance_verification": {
           "const": "not_run"
+        }
+      }
+    },
+    "native_ordinary_response_effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority",
+        "implementation_status",
+        "scope",
+        "response_classes",
+        "call_state_policy",
+        "authority_order",
+        "exact_binding",
+        "frozen_dialog_identity",
+        "dialog_identity_drift",
+        "duplicate_exact_binding",
+        "durable_prepare_cancellation_or_panic",
+        "call_revision_race_after_durable_prepare",
+        "derived_and_peer_derived_effects",
+        "endpoint_global_gate",
+        "local_functional_verification",
+        "activation_blockers",
+        "live_server_activation",
+        "server_functional_verification",
+        "performance_verification",
+        "performance_policy"
+      ],
+      "properties": {
+        "authority": {
+          "const": "Unified_RustPBX_Native_Call_registry"
+        },
+        "implementation_status": {
+          "const": "component_implemented_default_disabled"
+        },
+        "scope": {
+          "const": "initial_inbound_INVITE_ordinary_responses"
+        },
+        "response_classes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provisional",
+            "final_2xx",
+            "final_non_2xx",
+            "excluded"
+          ],
+          "properties": {
+            "provisional": {
+              "const": "101_through_199"
+            },
+            "final_2xx": {
+              "const": "200_through_299"
+            },
+            "final_non_2xx": {
+              "const": "300_through_699"
+            },
+            "excluded": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "const": "100"
+                },
+                {
+                  "const": "700_through_999"
+                }
+              ],
+              "items": false
+            }
+          }
+        },
+        "call_state_policy": {
+          "const": "multiple_provisional_responses_then_exactly_one_final_response"
+        },
+        "authority_order": {
+          "const": "reserve_exact_Call_capability_then_register_exact_intent_then_durable_prepare_then_commit_Call_state_then_transport_send"
+        },
+        "exact_binding": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "prefixItems": [
+            {
+              "const": "tenant_id"
+            },
+            {
+              "const": "CallId"
+            },
+            {
+              "const": "Call_generation"
+            },
+            {
+              "const": "transaction_key"
+            },
+            {
+              "const": "canonical_wire_sha256"
+            }
+          ],
+          "items": false
+        },
+        "frozen_dialog_identity": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "prefixItems": [
+            {
+              "const": "SIP_Call_ID"
+            },
+            {
+              "const": "INVITE_CSeq_sequence_and_method"
+            },
+            {
+              "const": "From"
+            },
+            {
+              "const": "top_Via"
+            },
+            {
+              "const": "To_without_tag"
+            },
+            {
+              "const": "authority_generated_stable_local_To_tag"
+            }
+          ],
+          "items": false
+        },
+        "dialog_identity_drift": {
+          "const": "reject_before_durable_store_work"
+        },
+        "duplicate_exact_binding": {
+          "const": "fail_closed_without_second_wire_attempt"
+        },
+        "durable_prepare_cancellation_or_panic": {
+          "const": "retain_exact_binding_for_query_reconcile"
+        },
+        "call_revision_race_after_durable_prepare": {
+          "const": "record_TransportUnknown_and_require_query_reconcile"
+        },
+        "derived_and_peer_derived_effects": {
+          "const": "forward_to_same_typed_durable_gate_without_new_authority"
+        },
+        "endpoint_global_gate": {
+          "const": "forbidden"
+        },
+        "local_functional_verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "native_response_capabilities",
+            "native_call_domain",
+            "active_call_registry",
+            "durable_sip_effect_gate",
+            "rustfmt_changed_sources",
+            "locked_library_check",
+            "full_rustpbx_library"
+          ],
+          "properties": {
+            "native_response_capabilities": {
+              "const": "17_passed_0_failed"
+            },
+            "native_call_domain": {
+              "const": "13_passed_0_failed"
+            },
+            "active_call_registry": {
+              "const": "24_passed_0_failed"
+            },
+            "durable_sip_effect_gate": {
+              "const": "39_passed_0_failed"
+            },
+            "rustfmt_changed_sources": {
+              "const": "passed"
+            },
+            "locked_library_check": {
+              "const": "passed"
+            },
+            "full_rustpbx_library": {
+              "const": "not_run"
+            }
+          }
+        },
+        "activation_blockers": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "prefixItems": [
+            {
+              "const": "concurrent_successor_call_cleanup_fencing_not_implemented"
+            },
+            {
+              "const": "capability_rebuild_after_process_restart_not_implemented"
+            },
+            {
+              "const": "physical_postgresql_path_not_verified"
+            },
+            {
+              "const": "live_endpoint_activation_not_run"
+            },
+            {
+              "const": "rustpbx_isolated_server_functional_verification_not_run"
+            }
+          ],
+          "items": false
+        },
+        "live_server_activation": {
+          "const": "not_run"
+        },
+        "server_functional_verification": {
+          "const": "not_run"
+        },
+        "performance_verification": {
+          "const": "not_run"
+        },
+        "performance_policy": {
+          "const": "deferred_to_final_performance_goal"
         }
       }
     },

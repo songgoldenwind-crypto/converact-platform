@@ -226,11 +226,10 @@ patch's one-line `test_auth.rs` constructor update is compiled and covered by
 the full library suite but excluded from rustfmt scope because the pinned
 upstream file has three unrelated pre-existing formatting drifts; every other
 new Rust file in the slice passes the pinned rustfmt check. This
-is not final `G03-E15` review or evidence promotion. Activation is
-still ineligible: the transaction-local gate currently has capabilities only
-for the matched-CANCEL pair, so ordinary provisional/final response intents
-must be supplied by the same Native Call authority before the runtime can be
-enabled. Successor-safe cleanup fencing, restart capability reconstruction,
+is not final `G03-E15` review or evidence promotion. At this `.73` checkpoint,
+activation was still ineligible because only the matched-CANCEL pair was
+authorized; `.74` closes that specific ordinary-response implementation gap
+but does not close the remaining activation gates below. Successor-safe cleanup fencing, restart capability reconstruction,
 physical PostgreSQL, RustPBX host functional verification, TCP, WS, TLS and
 WSS, crash/restart, live product activation and all deferred performance gates
 remain `not_run`.
@@ -245,6 +244,25 @@ and the test container and mounts are absent after cleanup. The bundle is
 `evidence/raw/isolated-server-matched-cancel-4431270-15/`. No performance
 command ran and no running validation-server service or deployed code was
 changed.
+
+The incremental `.74` candidate closes the ordinary-response functional gap
+inside the same default-disabled Rust transaction-local gate. Native Call
+authority freezes Call-ID, INVITE CSeq, From, top Via, To base and one stable
+locally generated To tag at installation. Each exact response capability binds
+the transaction key and canonical wire image; 101..199 may repeat with distinct
+wire identities, followed by exactly one 200..699 final. Authority reservation
+precedes intent registration and durable preparation; Call state is committed
+before transport is permitted. Dialog drift and duplicates fail before store
+work, cancellation/panic after durable work begins retains the identity for
+reconcile, and a Call-revision race after durable prepare records
+`TransportUnknown`.
+
+Focused local checks pass response capability `17/17`, Native Call `13/13`,
+registry `24/24`, durable gate `39/39`, locked library check and scoped
+rustfmt. This is an implementation self-review checkpoint, not final G03
+independent acceptance. Full RustPBX, physical PostgreSQL, live Endpoint and
+isolated-server `.74` verification remain `not_run`. It inherits no `.73`
+server evidence and performs no performance/load/capacity/soak work.
 
 ## Rejection history and remaining gate
 
