@@ -303,9 +303,32 @@ a new effect from the stale gate. Exact-source focused tests pass Native SIP
 capability `25/25`, Active Call registry `24/24`, full local RustPBX `2082/2082`
 with 9 external-prerequisite cases ignored, locked
 library check and scoped rustfmt. This remains an implementation self-review
-checkpoint. The real PostgreSQL atomic Oracle, live recovery holder, physical
-restart/ambiguity verification, isolated-server `.76` functional verification,
-final independent review and all deferred performance work remain `not_run`.
+checkpoint. At that `.76` checkpoint the PostgreSQL implementation had not
+yet landed; live recovery holder, physical restart/ambiguity verification,
+isolated-server Rust verification, final independent review and all deferred
+performance work remained `not_run`.
+
+The incremental `.77` candidate replaces the `.76` placeholder Oracle with a
+default-disabled Rust/PostgreSQL implementation. Self-review confirms that the
+recovery transaction advances one exact tenant/session owner-generation fence,
+probes only the deterministic 200-CANCEL and 487-INVITE effect IDs, returns
+`VisibleOrAmbiguous` for any visible predecessor, and persists an immutable
+idempotent receipt. Migration 116 independently rejects stale effect inserts
+and prevents an effect prepared by the old owner from making its first
+`send_attempted` transition after takeover, while preserving later evidence
+transitions for an already-attempted effect. The transaction key is hashed and
+is not stored.
+
+Local exact-source SipEffect tests pass `121 passed / 0 failed / 10 physical
+tests ignored`. The isolated PostgreSQL 16 migration/SQL harness passes exact
+fencing, visibility, replay/immutability, both stale-binary bypass shapes and
+tenant RLS.
+The temporary server container used `network=none`, no host ports and tmpfs;
+the pre-existing service remained healthy and only the exact test resources
+were removed. This remains an implementation review checkpoint, not final G03
+acceptance. Live recovery wiring, Rust-adapter physical tests, real process
+restart/two-node behavior, Endpoint activation, final independent review,
+production and every deferred performance item remain `not_run`.
 
 ## Rejection history and remaining gate
 

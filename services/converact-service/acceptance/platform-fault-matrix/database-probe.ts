@@ -38,7 +38,7 @@ import { evaluateControlledFaultScenario } from './evidence-contract.mjs';
 
 type JsonRecord = Record<string, any>;
 
-const EXPECTED_MIGRATION = '115_converact_sip_effect_stale_nonterminal_recovery';
+const EXPECTED_MIGRATION = '116_converact_sip_capability_recovery_fence';
 const GOAL_SHA256 = '742e194e6b2d3e2b6fe9390bbabe96a6bbe0f40bdf99d8ed4ae4060a711a87f9';
 
 export function buildDatabaseEvidence(input: {

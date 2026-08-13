@@ -13,12 +13,13 @@ const EXPECTED = [
   '112_converact_platform_history_receipt_integrity.sql',
   '113_converact_sip_effect_transport_completed.sql',
   '114_converact_sip_effect_transport_completed_validate.sql',
-  '115_converact_sip_effect_stale_nonterminal_recovery.sql'
+  '115_converact_sip_effect_stale_nonterminal_recovery.sql',
+  '116_converact_sip_capability_recovery_fence.sql'
 ] as const;
 
 test('platform foundation migrations are additive and ordered immediately after 107', () => {
   const plan = readPostgresMigrationPlan(new URL('../src/migrations', import.meta.url).pathname);
-  assert.deepEqual(plan.slice(-9).map((entry) => entry.file), [
+  assert.deepEqual(plan.slice(-10).map((entry) => entry.file), [
     '107_ivekit_sip_effect_oracle.sql', ...EXPECTED
   ]);
   for (const file of EXPECTED) {
@@ -32,7 +33,7 @@ test('platform foundation migrations are additive and ordered immediately after 
       assert.match(sql, /tenant_id/i);
     }
   }
-  assert.deepEqual(REQUIRED_MIGRATIONS.slice(-9), [
+  assert.deepEqual(REQUIRED_MIGRATIONS.slice(-10), [
     '107_ivekit_sip_effect_oracle',
     '108_converact_platform_identity_consent',
     '109_converact_platform_event_receipts',
@@ -41,7 +42,8 @@ test('platform foundation migrations are additive and ordered immediately after 
     '112_converact_platform_history_receipt_integrity',
     '113_converact_sip_effect_transport_completed',
     '114_converact_sip_effect_transport_completed_validate',
-    '115_converact_sip_effect_stale_nonterminal_recovery'
+    '115_converact_sip_effect_stale_nonterminal_recovery',
+    '116_converact_sip_capability_recovery_fence'
   ]);
 });
 

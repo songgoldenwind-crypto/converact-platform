@@ -2423,7 +2423,7 @@ test('Postgres NUMERIC uint64 values decode only from canonical decimal strings'
   );
 });
 
-test('migration 107 remains immutable while v2 and stale recovery expand additively', async () => {
+test('migration 107 remains immutable while v2 and recovery fences expand additively', async () => {
   const migrationUrl = new URL(
     '../src/migrations/107_ivekit_sip_effect_oracle.sql',
     import.meta.url
@@ -2446,6 +2446,13 @@ test('migration 107 remains immutable while v2 and stale recovery expand additiv
   const staleNonterminalRecovery = await readFile(
     new URL(
       '../src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql',
+      import.meta.url
+    ),
+    'utf8'
+  );
+  const capabilityRecoveryFence = await readFile(
+    new URL(
+      '../src/migrations/116_converact_sip_capability_recovery_fence.sql',
       import.meta.url
     ),
     'utf8'
@@ -2555,6 +2562,14 @@ test('migration 107 remains immutable while v2 and stale recovery expand additiv
     /WHERE state IN \('send_attempted', 'transport_accepted'\)/
   );
   assert.doesNotMatch(staleNonterminalRecovery, /UPDATE\s+ivekit_sip_protocol_effects/i);
+  assert.match(capabilityRecoveryFence, /ivekit_sip_effect_session_fences/);
+  assert.match(capabilityRecoveryFence, /ivekit_sip_capability_recovery_receipts/);
+  assert.match(capabilityRecoveryFence, /BEFORE INSERT ON ivekit_sip_protocol_effects/);
+  assert.match(capabilityRecoveryFence, /transaction_key_sha256/);
+  assert.doesNotMatch(capabilityRecoveryFence, /transaction_key\s+TEXT/i);
+  assert.match(projection, /116_converact_sip_capability_recovery_fence\.sql/);
+  assert.match(sqliteProjection, /ivekit_sip_effect_session_fences/);
+  assert.match(sqliteProjection, /ivekit_sip_capability_recovery_receipts/);
   assert.match(
     migration,
     /GRANT USAGE ON SCHEMA public TO opc_sip_effect_executor/
@@ -2613,10 +2628,14 @@ test('migration 107 remains immutable while v2 and stale recovery expand additiv
   const staleNonterminalRecoveryEntry = plan.find((entry) =>
     entry.file === '115_converact_sip_effect_stale_nonterminal_recovery.sql'
   );
+  const capabilityRecoveryFenceEntry = plan.find((entry) =>
+    entry.file === '116_converact_sip_capability_recovery_fence.sql'
+  );
   assert.ok(sipEffectMigration);
   assert.ok(transportCompletedEntry);
   assert.ok(transportCompletedValidationEntry);
   assert.ok(staleNonterminalRecoveryEntry);
+  assert.ok(capabilityRecoveryFenceEntry);
   const runner = new MigrationRecorder();
   await runPostgresMigrationsOnClient(
     runner,
@@ -2624,14 +2643,16 @@ test('migration 107 remains immutable while v2 and stale recovery expand additiv
       sipEffectMigration,
       transportCompletedEntry,
       transportCompletedValidationEntry,
-      staleNonterminalRecoveryEntry
+      staleNonterminalRecoveryEntry,
+      capabilityRecoveryFenceEntry
     ]
   );
   assert.deepEqual(runner.applied, [
     '107_ivekit_sip_effect_oracle',
     '113_converact_sip_effect_transport_completed',
     '114_converact_sip_effect_transport_completed_validate',
-    '115_converact_sip_effect_stale_nonterminal_recovery'
+    '115_converact_sip_effect_stale_nonterminal_recovery',
+    '116_converact_sip_capability_recovery_fence'
   ]);
 
   assert.equal(SIP_EFFECT_SCHEMA_ID, 'ivekit.sip-effect-oracle');

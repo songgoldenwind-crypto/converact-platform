@@ -297,7 +297,7 @@ test('database evidence requires actual RLS restart recovery and synthetic conti
   const result = buildDatabaseEvidence({
     identity,
     prepare: {
-      status: 'passed', process_pid: 101, migration_head: '115_converact_sip_effect_stale_nonterminal_recovery',
+      status: 'passed', process_pid: 101, migration_head: '116_converact_sip_capability_recovery_fence',
       tenant_a_visible: 1, tenant_b_visible_from_a: 0, no_context_visible: 0,
       cross_tenant_insert_denied: true, inbox_inserted: true,
       accepted_receipt_inserted: true, completed_receipt_inserted: true, usage_inserted: true
@@ -332,7 +332,7 @@ test('database evidence requires actual RLS restart recovery and synthetic conti
   const sameProcess = buildDatabaseEvidence({
     identity,
     prepare: {
-      status: 'passed', process_pid: 101, migration_head: '115_converact_sip_effect_stale_nonterminal_recovery',
+      status: 'passed', process_pid: 101, migration_head: '116_converact_sip_capability_recovery_fence',
       tenant_a_visible: 1, tenant_b_visible_from_a: 0, no_context_visible: 0,
       cross_tenant_insert_denied: true, inbox_inserted: true,
       accepted_receipt_inserted: true, completed_receipt_inserted: true, usage_inserted: true
@@ -407,7 +407,7 @@ test('backup restore evidence requires a distinct empty target and measured zero
       target_was_empty: true,
       restore_process_pid: 201,
       fresh_process_pid: 202,
-      migration_head: '115_converact_sip_effect_stale_nonterminal_recovery',
+      migration_head: '116_converact_sip_capability_recovery_fence',
       restored_records: 7,
       restored_digest: '2'.repeat(64),
       restored_object_count: 1,
@@ -441,7 +441,7 @@ test('backup restore evidence requires a distinct empty target and measured zero
       status: 'passed', target_database_id: 'same-db', target_was_empty: true,
       backup_id: 'restore-proof-a',
       restore_process_pid: 201,
-      fresh_process_pid: 202, migration_head: '115_converact_sip_effect_stale_nonterminal_recovery',
+      fresh_process_pid: 202, migration_head: '116_converact_sip_capability_recovery_fence',
       restored_records: 7, restored_digest: '2'.repeat(64), measured_rpo_ms: 0,
       restored_object_count: 1, restored_object_digest: '3'.repeat(64),
       measured_rto_ms: 3_250, runtime_rls_verified: true, append_only_verified: true,
@@ -465,7 +465,7 @@ test('backup restore evidence requires a distinct empty target and measured zero
       status: 'passed', target_database_id: 'restore-db-b', target_was_empty: true,
       backup_id: 'restore-proof-a',
       restore_process_pid: 201,
-      fresh_process_pid: 202, migration_head: '115_converact_sip_effect_stale_nonterminal_recovery',
+      fresh_process_pid: 202, migration_head: '116_converact_sip_capability_recovery_fence',
       restored_records: 7, restored_digest: '2'.repeat(64),
       restored_object_count: 1, restored_object_digest: '3'.repeat(64),
       measured_rpo_ms: 0, measured_rto_ms: 3_250, runtime_rls_verified: true,
@@ -490,7 +490,7 @@ test('backup restore evidence requires a distinct empty target and measured zero
       status: 'passed', target_database_id: 'restore-db-b', target_was_empty: true,
       backup_id: 'restore-proof-a',
       restore_process_pid: 201,
-      fresh_process_pid: 202, migration_head: '115_converact_sip_effect_stale_nonterminal_recovery',
+      fresh_process_pid: 202, migration_head: '116_converact_sip_capability_recovery_fence',
       restored_records: 7, restored_digest: '2'.repeat(64),
       restored_object_count: 1, restored_object_digest: '4'.repeat(64),
       measured_rpo_ms: 0, measured_rto_ms: 3_250, runtime_rls_verified: true,
@@ -513,7 +513,7 @@ test('backup restore evidence requires a distinct empty target and measured zero
     restore: {
       status: 'passed', target_database_id: 'restore-db-b', target_was_empty: true,
       backup_id: 'restore-proof-b', restore_process_pid: 201, fresh_process_pid: 202,
-      migration_head: '115_converact_sip_effect_stale_nonterminal_recovery',
+      migration_head: '116_converact_sip_capability_recovery_fence',
       restored_records: 7, restored_digest: '2'.repeat(64),
       restored_object_count: 1, restored_object_digest: '3'.repeat(64),
       measured_rpo_ms: 0, measured_rto_ms: 3_250, runtime_rls_verified: true,
@@ -536,7 +536,7 @@ test('backup restore evidence requires a distinct empty target and measured zero
     restore: {
       status: 'passed', target_database_id: 'restore-db-b', target_was_empty: true,
       backup_id: 'restore-proof-a', restore_process_pid: 201, fresh_process_pid: 202,
-      migration_head: '115_converact_sip_effect_stale_nonterminal_recovery',
+      migration_head: '116_converact_sip_capability_recovery_fence',
       restored_records: 7, restored_digest: '2'.repeat(64),
       restored_object_count: 1, restored_object_digest: '3'.repeat(64),
       measured_rpo_ms: 0, measured_rto_ms: 3_250,

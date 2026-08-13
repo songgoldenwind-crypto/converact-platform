@@ -2570,7 +2570,8 @@ CREATE INDEX IF NOT EXISTS idx_rustdesk_device_commands_claim
 
 -- ===== Revision 4 SIP effect authority (SQLite/dev projection) =====
 -- "Oracle" in the machine schema id means a fact arbiter, not Oracle Database.
--- PostgreSQL authority: migrations 107 (v1 base) and 113 (v2 expand).
+-- PostgreSQL authority: migrations 107 (v1 base), 113 (v2 expand),
+-- 115 (stale nonterminal recovery), and 116 (Native Call recovery fence).
 -- All uint64 authority values stay canonical decimal TEXT in this projection.
 
 CREATE TABLE IF NOT EXISTS ivekit_sip_effect_schema_registry (
@@ -2608,6 +2609,66 @@ CREATE TABLE IF NOT EXISTS ivekit_sip_effect_writer_registry (
     enabled = 0 OR
     (activation_receipt_id IS NOT NULL AND activated_at IS NOT NULL)
   )
+);
+
+CREATE TABLE IF NOT EXISTS ivekit_sip_effect_session_fences (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
+  protocol_session_id TEXT NOT NULL CHECK (
+    length(protocol_session_id) BETWEEN 1 AND 200
+  ),
+  owner_epoch_high_watermark TEXT NOT NULL,
+  generation_high_watermark TEXT NOT NULL,
+  revision_high_watermark TEXT,
+  last_recovery_request_sha256 TEXT CHECK (
+    last_recovery_request_sha256 IS NULL OR
+    length(last_recovery_request_sha256) = 64
+  ),
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, protocol_session_id)
+);
+
+CREATE TABLE IF NOT EXISTS ivekit_sip_capability_recovery_receipts (
+  recovery_request_sha256 TEXT NOT NULL CHECK (
+    length(recovery_request_sha256) = 64
+  ),
+  tenant_id TEXT NOT NULL,
+  protocol_session_id TEXT NOT NULL,
+  provider_call_id TEXT NOT NULL CHECK (
+    length(provider_call_id) BETWEEN 1 AND 200
+  ),
+  predecessor_binding_sha256 TEXT NOT NULL CHECK (
+    length(predecessor_binding_sha256) = 64
+  ),
+  transaction_key_sha256 TEXT NOT NULL CHECK (
+    length(transaction_key_sha256) = 64
+  ),
+  previous_owner_epoch TEXT NOT NULL,
+  previous_generation TEXT NOT NULL,
+  previous_revision TEXT NOT NULL,
+  successor_owner_epoch TEXT NOT NULL,
+  successor_generation TEXT NOT NULL,
+  successor_revision TEXT NOT NULL,
+  cancel_ok_effect_id TEXT NOT NULL,
+  invite_terminated_effect_id TEXT NOT NULL,
+  outcome TEXT NOT NULL CHECK (
+    outcome IN ('no_visible_effect', 'visible_or_ambiguous')
+  ),
+  successor_fence_receipt_sha256 TEXT NOT NULL CHECK (
+    length(successor_fence_receipt_sha256) = 64
+  ),
+  decided_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, recovery_request_sha256),
+  UNIQUE (
+    tenant_id,
+    protocol_session_id,
+    successor_owner_epoch,
+    successor_generation,
+    successor_revision
+  ),
+  FOREIGN KEY (tenant_id, protocol_session_id)
+    REFERENCES ivekit_sip_effect_session_fences(
+      tenant_id, protocol_session_id
+    ) ON DELETE RESTRICT
 );
 
 CREATE TABLE IF NOT EXISTS ivekit_sip_protocol_effects (

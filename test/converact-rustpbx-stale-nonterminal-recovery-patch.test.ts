@@ -87,7 +87,7 @@ test("stale nonterminal selection has a rolling partial index", () => {
 
 test("ivekit.71 retains the SQL alias after the database-clock fixture", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.76"/);
+  assert.match(build, /PATCHSET="ivekit\.77"/);
   assert.match(
     build,
     /rustpbx-converact-stale-nonterminal-recovery\.patch"[\s\S]*rustpbx-converact-stale-nonterminal-recovery-test-fixture\.patch"[\s\S]*rustpbx-converact-stale-nonterminal-recovery-role-scoped-fixture\.patch"[\s\S]*rustpbx-converact-stale-nonterminal-recovery-db-clock-fixture\.patch"[\s\S]*rustpbx-converact-stale-nonterminal-recovery-returning-alias\.patch"/,

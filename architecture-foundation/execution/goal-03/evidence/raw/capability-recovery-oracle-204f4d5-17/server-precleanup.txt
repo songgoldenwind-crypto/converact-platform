@@ -1,0 +1,13 @@
+2026-08-13T22:21:18Z
+VM-0-3-ubuntu
+existing=17d46406fdf3 converact-g03-current-pg-7f4cd00c Up 4 days (healthy)
+isolated=d74713627b82 converact-g03-77-pg-204f4d5-physical2 Up 15 seconds
+isolated_network=none
+isolated_ports={}
+69eb22f100587136a9ce512dae578ab3b51d1ef515e863524079035829eb374a  /dev/shm/converact-g03-77-204f4d5-physical2/migrations/116_converact_sip_capability_recovery_fence.sql
+aee4e258a00e37c6bfc7b4e3ab6e82f8960136e603a84f0aa80a71dc07b7da4e  /dev/shm/converact-g03-77-204f4d5-physical2/physical.sql
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vda2        79G   72G  4.2G  95% /
+               total        used        free      shared  buff/cache   available
+Mem:           7.5Gi       2.1Gi       3.4Gi       114Mi       2.4Gi       5.4Gi
+Swap:          1.9Gi       891Mi       1.1Gi

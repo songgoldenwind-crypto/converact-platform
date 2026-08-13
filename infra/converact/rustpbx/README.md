@@ -909,6 +909,29 @@ functional verification and every performance/load/capacity/soak claim remain
 running server service, deployed code, configuration, data, container, or
 occupied port.
 
+ivekit.77 implements the default-disabled durable recovery oracle in Rust and
+PostgreSQL. One transaction advances the exact tenant/session owner-generation
+fence, probes only the deterministic 200-CANCEL and 487-INVITE predecessor
+effect IDs, and writes an immutable idempotent recovery receipt. Any visible
+or ambiguous predecessor effect fails closed; only a proven
+`NoVisibleEffect` result can continue to the already-fenced Native Call
+capability installer. The raw SIP transaction key is hashed and is never
+stored by the recovery tables.
+
+Migration 116 also enforces the session fence at the database boundary so an
+older binary cannot insert a stale SIP effect after takeover or advance a
+pre-existing effect into its first `send_attempted` state. It still allows
+later transport/protocol evidence for an effect already attempted. An isolated
+PostgreSQL 16 functional campaign on `101.42.7.139` ran the complete migration
+chain and verified exact-key probing, successor fencing, immutable receipt
+replay, both stale-binary bypass shapes and tenant RLS. The test used
+`network=none`, no
+host ports and tmpfs storage; after cleanup the pre-existing service remained
+running and healthy. No deployed service or code was changed. The Rust adapter
+physical PostgreSQL tests, real restart wiring, live Endpoint activation and
+all performance/load/CPS/concurrency/capacity/soak/100K verification remain
+`not_run`.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

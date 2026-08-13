@@ -223,8 +223,22 @@ Run serially:
    asynchronous durable preparation. Focused Native SIP capability passes
    `25/25`, registry remains `24/24`, full local RustPBX passes `2082/2082` with
    9 external-prerequisite cases ignored, locked check and scoped rustfmt pass.
-   The PostgreSQL Oracle, live recovery holder, physical restart/ambiguity test,
-   server functional verification and all performance work remain `not_run`.
+   The live recovery holder, physical restart/ambiguity test, server Rust
+   adapter verification and all performance work remain `not_run`.
+   The `.77` RED/GREEN slice implements the Oracle in Rust/PostgreSQL. RED
+   fixes exact predecessor IDs, atomic successor fencing, visible/ambiguous
+   fail-closed behavior, receipt replay/mutation, stale old-binary insertion,
+   tenant RLS and cancellation-safe transaction behavior. GREEN adds migration
+   116, the exact `PostgresSipEffectStore` Oracle implementation and the
+   Native capability trait binding. The local exact-source SipEffect suite
+   passes `121/121` with 10 physical tests explicitly ignored. A disposable
+   PostgreSQL 16 container on the authorized server then ran the full migration
+   chain and exact SQL harness with `network=none`, no host ports and tmpfs:
+   fencing, two-key visibility, immutable replay, old-binary rejection and RLS
+   passed. The existing service stayed healthy and only the exact temporary
+   resources were removed. This is functional component evidence only; live
+   wiring, Rust-adapter physical tests, real process restart, Endpoint
+   activation, production and all performance work remain `not_run`.
 6. repository typecheck.
 7. Generate raw output, command/source manifest and SHA-256 evidence with no
    secrets.
@@ -275,6 +289,20 @@ limit will be raised against a host carrying existing services. Pre/post
 service snapshots and lower-source hashes are identical, and the temporary
 container/mounts are absent. This was correctness-only: no load, soak, CPS,
 concurrency, capacity or performance command ran.
+
+The `.77` isolated PostgreSQL functional bundle is retained under
+`evidence/raw/capability-recovery-oracle-204f4d5-17/`. It proves the complete
+migration chain through 116 and the exact SQL contract, not a running product
+or Rust adapter physical test. The temporary container had no network and no
+host port; the pre-existing container remained healthy before and after exact
+cleanup. No running service or deployed code changed, and no load, latency,
+CPS, concurrency, capacity, soak or 100K command ran.
+
+The retained harness includes both rolling-binary bypass shapes: a stale new
+effect insert and a pre-existing `durable_decision` effect attempting its first
+`send_attempted` transition after takeover. Both are rejected at the database
+fence; the latter's attempted receipt rolls back in the same subtransaction,
+while observation transitions for already-attempted effects remain permitted.
 
 - PostgreSQL role/RLS, physical restart, receipt replay, atomic v2 transition,
   repair exhaustion and database-clock skew (completed controlled slices;

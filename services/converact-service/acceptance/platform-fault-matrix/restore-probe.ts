@@ -20,7 +20,7 @@ import { buildBackupRestoreEvidence } from './campaign-evidence.mjs';
 
 type JsonRecord = Record<string, any>;
 
-const EXPECTED_MIGRATION = '115_converact_sip_effect_stale_nonterminal_recovery';
+const EXPECTED_MIGRATION = '116_converact_sip_capability_recovery_fence';
 const execFileAsync = promisify(execFile);
 
 async function main(): Promise<void> {

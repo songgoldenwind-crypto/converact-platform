@@ -196,12 +196,14 @@
         "src/migrations/107_ivekit_sip_effect_oracle.sql",
         "src/migrations/113_converact_sip_effect_transport_completed.sql",
         "src/migrations/114_converact_sip_effect_transport_completed_validate.sql",
-        "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql"
+        "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-effect-oracle.test.ts",
-        "test/converact-sip-effect-postgres.test.ts"
+        "test/converact-sip-effect-postgres.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -223,12 +225,14 @@
         "src/migrations/107_ivekit_sip_effect_oracle.sql",
         "src/migrations/113_converact_sip_effect_transport_completed.sql",
         "src/migrations/114_converact_sip_effect_transport_completed_validate.sql",
-        "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql"
+        "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-effect-oracle.test.ts",
-        "test/converact-sip-effect-postgres.test.ts"
+        "test/converact-sip-effect-postgres.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -313,7 +317,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -322,7 +328,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -347,7 +354,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -356,7 +365,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -420,7 +430,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -428,7 +440,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -473,7 +486,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -482,7 +497,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -506,7 +522,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -514,7 +532,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -579,7 +598,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -588,7 +609,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -653,7 +675,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -662,7 +686,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -707,7 +732,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -716,7 +743,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -740,7 +768,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -748,7 +778,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -813,7 +844,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -822,7 +855,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -847,7 +881,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -856,7 +892,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -881,7 +918,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -890,7 +929,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1032,12 +1072,14 @@
         "src/migrations/107_ivekit_sip_effect_oracle.sql",
         "src/migrations/113_converact_sip_effect_transport_completed.sql",
         "src/migrations/114_converact_sip_effect_transport_completed_validate.sql",
-        "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql"
+        "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-effect-oracle.test.ts",
-        "test/converact-sip-effect-postgres.test.ts"
+        "test/converact-sip-effect-postgres.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1062,7 +1104,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -1071,7 +1115,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1096,7 +1141,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -1105,7 +1152,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1130,7 +1178,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -1139,7 +1189,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1161,12 +1212,14 @@
         "src/migrations/107_ivekit_sip_effect_oracle.sql",
         "src/migrations/113_converact_sip_effect_transport_completed.sql",
         "src/migrations/114_converact_sip_effect_transport_completed_validate.sql",
-        "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql"
+        "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-effect-oracle.test.ts",
-        "test/converact-sip-effect-postgres.test.ts"
+        "test/converact-sip-effect-postgres.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1191,7 +1244,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -1200,7 +1255,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1245,12 +1301,14 @@
         "src/migrations/107_ivekit_sip_effect_oracle.sql",
         "src/migrations/113_converact_sip_effect_transport_completed.sql",
         "src/migrations/114_converact_sip_effect_transport_completed_validate.sql",
-        "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql"
+        "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-effect-oracle.test.ts",
-        "test/converact-sip-effect-postgres.test.ts"
+        "test/converact-sip-effect-postgres.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1332,7 +1390,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -1341,7 +1401,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1366,7 +1427,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -1375,7 +1438,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1400,7 +1464,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -1409,7 +1475,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1434,7 +1501,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -1443,7 +1512,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1468,7 +1538,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -1477,7 +1549,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1502,7 +1575,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -1511,7 +1586,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1536,7 +1612,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -1545,7 +1623,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1570,7 +1649,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -1579,7 +1660,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1604,7 +1686,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -1613,7 +1697,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1638,7 +1723,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -1647,7 +1734,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1672,7 +1760,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -1681,7 +1771,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1706,7 +1797,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -1715,7 +1808,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1740,7 +1834,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -1749,7 +1845,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1774,7 +1871,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -1783,7 +1882,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1808,7 +1908,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -1817,7 +1919,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1842,7 +1945,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -1851,7 +1956,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1875,7 +1981,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -1883,7 +1991,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1928,12 +2037,14 @@
         "src/migrations/107_ivekit_sip_effect_oracle.sql",
         "src/migrations/113_converact_sip_effect_transport_completed.sql",
         "src/migrations/114_converact_sip_effect_transport_completed_validate.sql",
-        "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql"
+        "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-effect-oracle.test.ts",
-        "test/converact-sip-effect-postgres.test.ts"
+        "test/converact-sip-effect-postgres.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2001,7 +2112,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -2010,7 +2123,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2055,7 +2169,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -2064,7 +2180,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2089,7 +2206,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -2098,7 +2217,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2123,7 +2243,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -2132,7 +2254,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2157,7 +2280,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -2166,7 +2291,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2190,7 +2316,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -2198,7 +2326,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2222,7 +2351,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -2230,7 +2361,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2255,7 +2387,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -2264,7 +2398,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2289,7 +2424,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -2298,7 +2435,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2322,7 +2460,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -2330,7 +2470,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2354,7 +2495,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -2362,7 +2505,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2386,7 +2530,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -2394,7 +2540,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2418,7 +2565,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -2426,7 +2575,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2450,7 +2600,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -2458,7 +2610,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2482,7 +2635,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -2490,7 +2645,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2514,7 +2670,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -2522,7 +2680,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2546,7 +2705,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -2554,7 +2715,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2579,7 +2741,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -2588,7 +2752,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2612,7 +2777,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -2620,7 +2787,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2644,7 +2812,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -2652,7 +2822,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2676,7 +2847,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -2684,7 +2857,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2708,7 +2882,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -2716,7 +2892,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2740,7 +2917,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -2748,7 +2927,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2772,7 +2952,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -2780,7 +2962,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2804,7 +2987,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -2812,7 +2997,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2836,7 +3022,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -2844,7 +3032,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2868,7 +3057,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -2876,7 +3067,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2900,7 +3092,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -2908,7 +3102,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2932,7 +3127,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -2940,7 +3137,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2965,7 +3163,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -2974,7 +3174,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2998,7 +3199,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -3006,7 +3209,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3031,7 +3235,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -3040,7 +3246,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3064,7 +3271,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -3072,7 +3281,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3096,7 +3306,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -3104,7 +3316,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3128,7 +3341,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -3136,7 +3351,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3160,7 +3376,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -3168,7 +3386,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3193,7 +3412,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -3202,7 +3423,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3227,7 +3449,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -3236,7 +3460,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3261,7 +3486,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -3270,7 +3497,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3294,7 +3522,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -3302,7 +3532,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3326,7 +3557,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -3334,7 +3567,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3358,7 +3592,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -3366,7 +3602,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3391,7 +3628,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -3400,7 +3639,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3425,7 +3665,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -3434,7 +3676,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3458,7 +3701,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -3466,7 +3711,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3490,7 +3736,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -3498,7 +3746,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3522,7 +3771,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -3530,7 +3781,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3554,7 +3806,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -3562,7 +3816,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3587,7 +3842,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -3596,7 +3853,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3620,7 +3878,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -3628,7 +3888,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3652,7 +3913,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -3660,7 +3923,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3684,7 +3948,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -3692,7 +3958,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3716,7 +3983,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -3724,7 +3993,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3748,7 +4018,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -3756,7 +4028,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3780,7 +4053,9 @@
         "src/agent-runtime/converact/voice/dialog-owner-takeover.ts",
         "src/agent-runtime/converact/voice/cdr-convergence.ts",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-call-leg-foundation.test.ts",
@@ -3788,7 +4063,8 @@
         "test/converact-dialog-owner-takeover.test.ts",
         "test/converact-voice-cdr-convergence.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3813,7 +4089,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -3822,7 +4100,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3867,7 +4146,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -3876,7 +4157,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3901,7 +4183,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -3910,7 +4194,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -4112,7 +4397,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -4121,7 +4408,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -4146,7 +4434,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -4155,7 +4445,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -4180,7 +4471,9 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
+        "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
         "test/converact-sip-foundation.test.ts",
@@ -4189,7 +4482,8 @@
         "test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-response-capabilities-patch.test.ts",
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
-        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts"
+        "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
+        "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],

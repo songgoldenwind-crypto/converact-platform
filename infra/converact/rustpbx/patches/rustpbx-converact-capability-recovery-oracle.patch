@@ -1,0 +1,991 @@
+--- a/src/call/adapters/native_sip_effect_capabilities.rs
++++ b/src/call/adapters/native_sip_effect_capabilities.rs
+@@ -1,3 +1,7 @@
++use super::postgres_sip_effect::{
++    PostgresSipEffectStore, SipCapabilityRecoveryFenceOutcome, SipCapabilityRecoveryFenceRequest,
++    SipEffectStoreError,
++};
+ use super::rsipstack_sip_effect_gate::{
+     DurableRsipstackEgressGate, SipEffectGateError, SipEffectIntent, SipEffectIntentLease,
+     SipEffectIntentRegistry,
+@@ -51,6 +55,8 @@
+     RecoveryReconciliationRequired,
+     #[error("native SIP effect recovery fence receipt is invalid")]
+     RecoveryFenceInvalid,
++    #[error("native SIP effect recovery store failed: {0}")]
++    RecoveryStore(#[from] SipEffectStoreError),
+ }
+ 
+ #[allow(
+@@ -96,6 +102,40 @@
+     ) -> Result<NativeSipRecoveryProbeOutcome, NativeSipEffectCapabilityError>;
+ }
+ 
++#[async_trait]
++impl NativeSipCapabilityRecoveryOracle for PostgresSipEffectStore {
++    async fn fence_predecessor_and_probe(
++        &self,
++        request: NativeSipRecoveryProbeRequest,
++    ) -> Result<NativeSipRecoveryProbeOutcome, NativeSipEffectCapabilityError> {
++        let outcome = self
++            .fence_predecessor_and_probe_capabilities(SipCapabilityRecoveryFenceRequest {
++                tenant_id: &request.tenant_id,
++                protocol_session_id: &request.protocol_session_id,
++                provider_call_id: &request.provider_call_id,
++                predecessor_binding_sha256: &request.predecessor_binding_sha256,
++                transaction_key: &request.transaction_key,
++                previous_owner_epoch: request.previous_owner_epoch,
++                previous_generation: request.previous_generation,
++                previous_revision: request.previous_revision,
++                successor_owner_epoch: request.successor_owner_epoch,
++                successor_generation: request.successor_generation,
++                successor_revision: request.successor_revision,
++            })
++            .await?;
++        Ok(match outcome {
++            SipCapabilityRecoveryFenceOutcome::NoVisibleEffect {
++                successor_fence_receipt_sha256,
++            } => NativeSipRecoveryProbeOutcome::NoVisibleEffect {
++                successor_fence_receipt_sha256,
++            },
++            SipCapabilityRecoveryFenceOutcome::VisibleOrAmbiguous => {
++                NativeSipRecoveryProbeOutcome::VisibleOrAmbiguous
++            }
++        })
++    }
++}
++
+ pub(crate) struct NativeSipEffectRuntime {
+     gate: Arc<DurableRsipstackEgressGate>,
+     intents: Arc<SipEffectIntentRegistry>,
+@@ -1273,6 +1313,13 @@
+         (binding, recovered)
+     }
+ 
++    #[test]
++    fn postgres_store_implements_the_native_recovery_oracle() {
++        fn assert_recovery_oracle<T: NativeSipCapabilityRecoveryOracle>() {}
++
++        assert_recovery_oracle::<PostgresSipEffectStore>();
++    }
++
+     #[tokio::test]
+     async fn admitted_native_call_registers_exactly_two_cancel_capabilities_once() {
+         let session_id = "native-cancel-call@example.test";
+--- a/src/call/adapters/postgres_sip_effect.rs
++++ b/src/call/adapters/postgres_sip_effect.rs
+@@ -6,9 +6,9 @@
+     SIP_EFFECT_SCHEMA_ID, SIP_EFFECT_SCHEMA_V1_HASH, SIP_EFFECT_SCHEMA_V1_VERSION,
+     SIP_EFFECT_SCHEMA_VERSION, SIP_EFFECT_WRITER_IDENTITY, SipEffectApplyOutcome, SipEffectError,
+     SipEffectPrepareOutcome, SipEffectReceipt, SipEffectReceiptLevel, SipEffectReconcileOutcome,
+-    SipEffectRecord, SipEffectRepairFence, SipEffectState, classify_receipt,
+-    protocol_effect_identity_hash, sip_effect_repair_exhaustion_hash, sip_effect_stage_token,
+-    validate_sip_effect_identifier,
++    SipEffectRecord, SipEffectRepairFence, SipEffectState, canonical_json_sha256, classify_receipt,
++    protocol_effect_identity_hash, sha256_lower_hex, sip_effect_repair_exhaustion_hash,
++    sip_effect_stage_token, validate_sip_effect_identifier,
+ };
+ use chrono::{DateTime, Utc};
+ use serde_json::Value;
+@@ -32,6 +32,7 @@
+ const MAX_STALE_NONTERMINAL_BATCH_SIZE: usize = 100;
+ const MAX_STALE_RECOVERY_REPAIR_DELAY_MS: u32 = 86_400_000;
+ const MAX_AUDIT_RETENTION_MS: i64 = 315_576_000_000;
++const MAX_RECOVERY_TRANSACTION_KEY_BYTES: usize = 1_024;
+ 
+ #[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+ pub enum SipEffectStoreError {
+@@ -476,8 +477,128 @@
+     "#,
+     effect_columns!(),
+ );
++
++const SIP_EFFECT_SESSION_FENCE_SEED_SQL: &str = r#"
++    INSERT INTO ivekit_sip_effect_session_fences
++      (tenant_id, protocol_session_id, owner_epoch_high_watermark,
++       generation_high_watermark, revision_high_watermark, updated_at)
++    VALUES ($1, $2, $3::numeric, $4::numeric, NULL, statement_timestamp())
++    ON CONFLICT DO NOTHING
++"#;
++
++const SIP_EFFECT_SESSION_FENCE_LOCK_SQL: &str = r#"
++    SELECT owner_epoch_high_watermark::text AS owner_epoch_high_watermark,
++           generation_high_watermark::text AS generation_high_watermark,
++           revision_high_watermark::text AS revision_high_watermark
++    FROM ivekit_sip_effect_session_fences
++    WHERE tenant_id = $1 AND protocol_session_id = $2
++    FOR UPDATE
++"#;
++
++const CAPABILITY_RECOVERY_EFFECT_VISIBILITY_SQL: &str = r#"
++    SELECT protocol_effect_id, protocol_session_id, state,
++           owner_epoch::text AS owner_epoch,
++           protocol_session_generation
++    FROM ivekit_sip_protocol_effects
++    WHERE tenant_id = $1
++      AND protocol_effect_id = ANY($2::text[])
++    ORDER BY protocol_effect_id
++"#;
++
++const CAPABILITY_RECOVERY_FENCE_UPDATE_SQL: &str = r#"
++    UPDATE ivekit_sip_effect_session_fences
++    SET owner_epoch_high_watermark = $3::numeric,
++        generation_high_watermark = $4::numeric,
++        revision_high_watermark = $5::numeric,
++        last_recovery_request_sha256 = $6,
++        updated_at = statement_timestamp()
++    WHERE tenant_id = $1
++      AND protocol_session_id = $2
++      AND owner_epoch_high_watermark = $7::numeric
++      AND generation_high_watermark = $8::numeric
++      AND (
++        revision_high_watermark IS NULL OR
++        revision_high_watermark = $9::numeric
++      )
++    RETURNING owner_epoch_high_watermark::text AS owner_epoch_high_watermark,
++              generation_high_watermark::text AS generation_high_watermark,
++              revision_high_watermark::text AS revision_high_watermark
++"#;
++
++const CAPABILITY_RECOVERY_RECEIPT_SELECT_SQL: &str = r#"
++    SELECT tenant_id, protocol_session_id, provider_call_id,
++           predecessor_binding_sha256, transaction_key_sha256,
++           previous_owner_epoch::text AS previous_owner_epoch,
++           previous_generation::text AS previous_generation,
++           previous_revision::text AS previous_revision,
++           successor_owner_epoch::text AS successor_owner_epoch,
++           successor_generation::text AS successor_generation,
++           successor_revision::text AS successor_revision,
++           cancel_ok_effect_id, invite_terminated_effect_id,
++           outcome, successor_fence_receipt_sha256
++    FROM ivekit_sip_capability_recovery_receipts
++    WHERE tenant_id = $1 AND recovery_request_sha256 = $2
++"#;
++
++const CAPABILITY_RECOVERY_RECEIPT_INSERT_SQL: &str = r#"
++    INSERT INTO ivekit_sip_capability_recovery_receipts
++      (recovery_request_sha256, tenant_id, protocol_session_id,
++       provider_call_id, predecessor_binding_sha256, transaction_key_sha256,
++       previous_owner_epoch, previous_generation, previous_revision,
++       successor_owner_epoch, successor_generation, successor_revision,
++       cancel_ok_effect_id, invite_terminated_effect_id, outcome,
++       successor_fence_receipt_sha256, decided_at)
++    VALUES (
++      $1, $2, $3, $4, $5, $6,
++      $7::numeric, $8::numeric, $9::numeric,
++      $10::numeric, $11::numeric, $12::numeric,
++      $13, $14, $15, $16, statement_timestamp()
++    )
++    ON CONFLICT DO NOTHING
++    RETURNING recovery_request_sha256
++"#;
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub(crate) struct SipCapabilityRecoveryFenceRequest<'a> {
++    pub tenant_id: &'a str,
++    pub protocol_session_id: &'a str,
++    pub provider_call_id: &'a str,
++    pub predecessor_binding_sha256: &'a str,
++    pub transaction_key: &'a str,
++    pub previous_owner_epoch: u64,
++    pub previous_generation: u64,
++    pub previous_revision: u64,
++    pub successor_owner_epoch: u64,
++    pub successor_generation: u64,
++    pub successor_revision: u64,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++struct FrozenSipCapabilityRecoveryFenceRequest {
++    tenant_id: Box<str>,
++    protocol_session_id: Box<str>,
++    provider_call_id: Box<str>,
++    predecessor_binding_sha256: Box<str>,
++    transaction_key_sha256: Box<str>,
++    previous_owner_epoch: u64,
++    previous_generation: u64,
++    previous_revision: u64,
++    successor_owner_epoch: u64,
++    successor_generation: u64,
++    successor_revision: u64,
++    predecessor_effect_ids: [String; 2],
++    request_sha256: Box<str>,
++}
+ 
+ #[derive(Clone, Debug, Eq, PartialEq)]
++pub(crate) enum SipCapabilityRecoveryFenceOutcome {
++    NoVisibleEffect {
++        successor_fence_receipt_sha256: Box<str>,
++    },
++    VisibleOrAmbiguous,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
+ pub struct SipEffectRepairBatch {
+     pub effects: Vec<SipEffectRecord>,
+     pub exhausted_count: usize,
+@@ -617,6 +738,148 @@
+             audit_retention_ms,
+         )
+         .await?;
++        transaction.commit().await.map_err(map_sqlx_error)?;
++        Ok(outcome)
++    }
++
++    pub(crate) async fn fence_predecessor_and_probe_capabilities(
++        &self,
++        request: SipCapabilityRecoveryFenceRequest<'_>,
++    ) -> Result<SipCapabilityRecoveryFenceOutcome, SipEffectStoreError> {
++        run_with_store_deadline(
++            self.wait_timeout,
++            self.fence_predecessor_and_probe_capabilities_inner(request),
++        )
++        .await
++    }
++
++    async fn fence_predecessor_and_probe_capabilities_inner(
++        &self,
++        request: SipCapabilityRecoveryFenceRequest<'_>,
++    ) -> Result<SipCapabilityRecoveryFenceOutcome, SipEffectStoreError> {
++        let request = freeze_capability_recovery_request(&request)?;
++        let (_admission, mut transaction) =
++            self.begin_tenant_transaction(&request.tenant_id).await?;
++        seed_effect_session_fence(
++            &mut transaction,
++            &request.tenant_id,
++            &request.protocol_session_id,
++            request.previous_owner_epoch,
++            request.previous_generation,
++        )
++        .await?;
++        let fence = lock_effect_session_fence(
++            &mut transaction,
++            &request.tenant_id,
++            &request.protocol_session_id,
++        )
++        .await?;
++
++        if let Some(row) = select_capability_recovery_receipt(&mut transaction, &request).await? {
++            if !capability_recovery_replay_fence_matches(
++                fence,
++                request.successor_owner_epoch,
++                request.successor_generation,
++                request.successor_revision,
++            ) {
++                return Err(SipEffectError::FenceLost.into());
++            }
++            let replay = decode_capability_recovery_receipt(&row, &request)?;
++            transaction.commit().await.map_err(map_sqlx_error)?;
++            return Ok(replay);
++        }
++        if fence.owner_epoch != request.previous_owner_epoch
++            || fence.generation != request.previous_generation
++            || fence
++                .revision
++                .is_some_and(|value| value != request.previous_revision)
++        {
++            return Err(SipEffectError::FenceLost.into());
++        }
++
++        let effect_rows = sqlx::query(CAPABILITY_RECOVERY_EFFECT_VISIBILITY_SQL)
++            .bind(request.tenant_id.as_ref())
++            .bind(&request.predecessor_effect_ids[..])
++            .fetch_all(&mut *transaction)
++            .await
++            .map_err(map_sqlx_error)?;
++        if effect_rows.len() > request.predecessor_effect_ids.len() {
++            return Err(SipEffectStoreError::SchemaIncompatible);
++        }
++        let mut visible_or_ambiguous = false;
++        for row in &effect_rows {
++            let effect_id: String = schema_field(row, "protocol_effect_id")?;
++            let session_id: String = schema_field(row, "protocol_session_id")?;
++            let owner_epoch = canonical_u64(&schema_field::<String>(row, "owner_epoch")?, true)?;
++            let generation: String = schema_field(row, "protocol_session_generation")?;
++            let state = database_state(&schema_field::<String>(row, "state")?)?;
++            let belongs_to_request = request
++                .predecessor_effect_ids
++                .iter()
++                .any(|expected| expected == &effect_id)
++                && session_id == request.protocol_session_id.as_ref()
++                && owner_epoch == request.previous_owner_epoch
++                && canonical_u64(&generation, true)? == request.previous_generation;
++            visible_or_ambiguous |=
++                !belongs_to_request || capability_recovery_state_is_visible_or_ambiguous(state);
++        }
++        let outcome_name = if visible_or_ambiguous {
++            "visible_or_ambiguous"
++        } else {
++            "no_visible_effect"
++        };
++        let receipt_sha256 = capability_recovery_receipt_sha256(&request, outcome_name)?;
++
++        let updated = sqlx::query(CAPABILITY_RECOVERY_FENCE_UPDATE_SQL)
++            .bind(request.tenant_id.as_ref())
++            .bind(request.protocol_session_id.as_ref())
++            .bind(request.successor_owner_epoch.to_string())
++            .bind(request.successor_generation.to_string())
++            .bind(request.successor_revision.to_string())
++            .bind(request.request_sha256.as_ref())
++            .bind(request.previous_owner_epoch.to_string())
++            .bind(request.previous_generation.to_string())
++            .bind(request.previous_revision.to_string())
++            .fetch_optional(&mut *transaction)
++            .await
++            .map_err(map_sqlx_error)?
++            .ok_or(SipEffectError::FenceLost)?;
++        let updated_fence = decode_effect_session_fence(&updated)?;
++        if updated_fence.owner_epoch != request.successor_owner_epoch
++            || updated_fence.generation != request.successor_generation
++            || updated_fence.revision != Some(request.successor_revision)
++        {
++            return Err(SipEffectStoreError::SchemaIncompatible);
++        }
++
++        let inserted = sqlx::query(CAPABILITY_RECOVERY_RECEIPT_INSERT_SQL)
++            .bind(request.request_sha256.as_ref())
++            .bind(request.tenant_id.as_ref())
++            .bind(request.protocol_session_id.as_ref())
++            .bind(request.provider_call_id.as_ref())
++            .bind(request.predecessor_binding_sha256.as_ref())
++            .bind(request.transaction_key_sha256.as_ref())
++            .bind(request.previous_owner_epoch.to_string())
++            .bind(request.previous_generation.to_string())
++            .bind(request.previous_revision.to_string())
++            .bind(request.successor_owner_epoch.to_string())
++            .bind(request.successor_generation.to_string())
++            .bind(request.successor_revision.to_string())
++            .bind(&request.predecessor_effect_ids[0])
++            .bind(&request.predecessor_effect_ids[1])
++            .bind(outcome_name)
++            .bind(&receipt_sha256)
++            .fetch_optional(&mut *transaction)
++            .await
++            .map_err(map_sqlx_error)?;
++        let outcome = if inserted.is_some() {
++            capability_recovery_outcome(outcome_name, &receipt_sha256)?
++        } else {
++            let replay = select_capability_recovery_receipt(&mut transaction, &request)
++                .await?
++                .ok_or(SipEffectError::ReceiptConflict)?;
++            decode_capability_recovery_receipt(&replay, &request)?
++        };
+         transaction.commit().await.map_err(map_sqlx_error)?;
+         Ok(outcome)
+     }
+@@ -1723,6 +1986,7 @@
+     effect_identity_hash: &str,
+     audit_retention_ms: i64,
+ ) -> Result<(SipEffectPrepareOutcome, SipEffectLedgerSchema), SipEffectStoreError> {
++    ensure_effect_session_fence_locked(transaction, &effect.identity).await?;
+     let inserted = sqlx::query(PREPARE_INSERT_SQL)
+         .bind(&effect.identity.protocol_effect_id)
+         .bind(&effect.identity.tenant_id)
+@@ -1797,6 +2061,106 @@
+     ))
+ }
+ 
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++struct EffectSessionFence {
++    owner_epoch: u64,
++    generation: u64,
++    revision: Option<u64>,
++}
++
++fn capability_recovery_replay_fence_matches(
++    fence: EffectSessionFence,
++    successor_owner_epoch: u64,
++    successor_generation: u64,
++    successor_revision: u64,
++) -> bool {
++    fence.owner_epoch == successor_owner_epoch
++        && fence.generation == successor_generation
++        && fence.revision == Some(successor_revision)
++}
++
++async fn ensure_effect_session_fence_locked(
++    transaction: &mut Transaction<'_, Postgres>,
++    identity: &crate::call::domain::sip_effect::SipEffectIdentity,
++) -> Result<(), SipEffectStoreError> {
++    let generation = canonical_u64(&identity.protocol_session_generation, true)?;
++    seed_effect_session_fence(
++        transaction,
++        &identity.tenant_id,
++        &identity.protocol_session_id,
++        identity.owner_epoch,
++        generation,
++    )
++    .await?;
++    let fence = lock_effect_session_fence(
++        transaction,
++        &identity.tenant_id,
++        &identity.protocol_session_id,
++    )
++    .await?;
++    if !effect_session_fence_matches(
++        fence.owner_epoch,
++        fence.generation,
++        identity.owner_epoch,
++        &identity.protocol_session_generation,
++    )? {
++        return Err(SipEffectError::FenceLost.into());
++    }
++    Ok(())
++}
++
++async fn seed_effect_session_fence(
++    transaction: &mut Transaction<'_, Postgres>,
++    tenant_id: &str,
++    protocol_session_id: &str,
++    owner_epoch: u64,
++    generation: u64,
++) -> Result<(), SipEffectStoreError> {
++    if owner_epoch == 0 || generation == 0 {
++        return Err(SipEffectStoreError::InvalidConfiguration);
++    }
++    sqlx::query(SIP_EFFECT_SESSION_FENCE_SEED_SQL)
++        .bind(tenant_id)
++        .bind(protocol_session_id)
++        .bind(owner_epoch.to_string())
++        .bind(generation.to_string())
++        .execute(&mut **transaction)
++        .await
++        .map_err(map_sqlx_error)?;
++    Ok(())
++}
++
++async fn lock_effect_session_fence(
++    transaction: &mut Transaction<'_, Postgres>,
++    tenant_id: &str,
++    protocol_session_id: &str,
++) -> Result<EffectSessionFence, SipEffectStoreError> {
++    let row = sqlx::query(SIP_EFFECT_SESSION_FENCE_LOCK_SQL)
++        .bind(tenant_id)
++        .bind(protocol_session_id)
++        .fetch_optional(&mut **transaction)
++        .await
++        .map_err(map_sqlx_error)?
++        .ok_or(SipEffectStoreError::SchemaIncompatible)?;
++    decode_effect_session_fence(&row)
++}
++
++fn decode_effect_session_fence(row: &PgRow) -> Result<EffectSessionFence, SipEffectStoreError> {
++    Ok(EffectSessionFence {
++        owner_epoch: canonical_u64(
++            &schema_field::<String>(row, "owner_epoch_high_watermark")?,
++            true,
++        )?,
++        generation: canonical_u64(
++            &schema_field::<String>(row, "generation_high_watermark")?,
++            true,
++        )?,
++        revision: schema_field::<Option<String>>(row, "revision_high_watermark")?
++            .map(|value| canonical_u64(&value, true))
++            .transpose()?,
++    })
++}
++
+ fn prepare_stage_receipt(
+     record: &SipEffectRecord,
+     stage: &str,
+@@ -2273,6 +2637,194 @@
+     Ok(())
+ }
+ 
++fn freeze_capability_recovery_request(
++    request: &SipCapabilityRecoveryFenceRequest<'_>,
++) -> Result<FrozenSipCapabilityRecoveryFenceRequest, SipEffectStoreError> {
++    validate_sip_effect_identifier(request.tenant_id)?;
++    validate_sip_effect_identifier(request.protocol_session_id)?;
++    validate_sip_effect_identifier(request.provider_call_id)?;
++    if !is_sha256_lower_hex(request.predecessor_binding_sha256)
++        || request.transaction_key.is_empty()
++        || request.transaction_key.len() > MAX_RECOVERY_TRANSACTION_KEY_BYTES
++        || request
++            .transaction_key
++            .bytes()
++            .any(|byte| !(b'!'..=b'~').contains(&byte))
++        || request.previous_owner_epoch == 0
++        || request.previous_generation == 0
++        || request.previous_revision == 0
++        || request.successor_owner_epoch <= request.previous_owner_epoch
++        || request.previous_generation.checked_add(1) != Some(request.successor_generation)
++        || request.previous_revision.checked_add(1) != Some(request.successor_revision)
++    {
++        return Err(SipEffectStoreError::InvalidConfiguration);
++    }
++    let pair_binding_sha256 = sha256_lower_hex(
++        format!(
++            "matched-cancel-capability\0{}\0{}\0{}\0{}",
++            request.tenant_id,
++            request.protocol_session_id,
++            request.previous_generation,
++            request.transaction_key,
++        )
++        .as_bytes(),
++    );
++    let predecessor_effect_ids = [
++        format!("sip-cancel-ok-{pair_binding_sha256}"),
++        format!("sip-invite-487-{pair_binding_sha256}"),
++    ];
++    let transaction_key_sha256 = sha256_lower_hex(request.transaction_key.as_bytes());
++    let request_sha256 = canonical_json_sha256(&serde_json::json!({
++        "schema_id": "converact.sip-capability-recovery-request",
++        "schema_version": "1.0.0",
++        "tenant_id": request.tenant_id,
++        "protocol_session_id": request.protocol_session_id,
++        "provider_call_id": request.provider_call_id,
++        "predecessor_binding_sha256": request.predecessor_binding_sha256,
++        "transaction_key_sha256": transaction_key_sha256,
++        "previous_owner_epoch": request.previous_owner_epoch.to_string(),
++        "previous_generation": request.previous_generation.to_string(),
++        "previous_revision": request.previous_revision.to_string(),
++        "successor_owner_epoch": request.successor_owner_epoch.to_string(),
++        "successor_generation": request.successor_generation.to_string(),
++        "successor_revision": request.successor_revision.to_string(),
++        "predecessor_effect_ids": predecessor_effect_ids,
++    }))?;
++    Ok(FrozenSipCapabilityRecoveryFenceRequest {
++        tenant_id: request.tenant_id.into(),
++        protocol_session_id: request.protocol_session_id.into(),
++        provider_call_id: request.provider_call_id.into(),
++        predecessor_binding_sha256: request.predecessor_binding_sha256.into(),
++        transaction_key_sha256: transaction_key_sha256.into_boxed_str(),
++        previous_owner_epoch: request.previous_owner_epoch,
++        previous_generation: request.previous_generation,
++        previous_revision: request.previous_revision,
++        successor_owner_epoch: request.successor_owner_epoch,
++        successor_generation: request.successor_generation,
++        successor_revision: request.successor_revision,
++        predecessor_effect_ids,
++        request_sha256: request_sha256.into_boxed_str(),
++    })
++}
++
++fn effect_session_fence_matches(
++    stored_owner_epoch: u64,
++    stored_generation: u64,
++    expected_owner_epoch: u64,
++    expected_generation: &str,
++) -> Result<bool, SipEffectStoreError> {
++    let expected_generation = canonical_u64(expected_generation, true)?;
++    Ok(stored_owner_epoch == expected_owner_epoch && stored_generation == expected_generation)
++}
++
++fn capability_recovery_state_is_visible_or_ambiguous(state: SipEffectState) -> bool {
++    !matches!(
++        state,
++        SipEffectState::Prepared | SipEffectState::DurableDecision
++    )
++}
++
++fn capability_recovery_receipt_sha256(
++    request: &FrozenSipCapabilityRecoveryFenceRequest,
++    outcome: &str,
++) -> Result<String, SipEffectStoreError> {
++    if !matches!(outcome, "no_visible_effect" | "visible_or_ambiguous") {
++        return Err(SipEffectStoreError::SchemaIncompatible);
++    }
++    canonical_json_sha256(&serde_json::json!({
++        "schema_id": "converact.sip-capability-recovery-receipt",
++        "schema_version": "1.0.0",
++        "recovery_request_sha256": request.request_sha256.as_ref(),
++        "tenant_id": request.tenant_id.as_ref(),
++        "protocol_session_id": request.protocol_session_id.as_ref(),
++        "provider_call_id": request.provider_call_id.as_ref(),
++        "predecessor_binding_sha256": request.predecessor_binding_sha256.as_ref(),
++        "transaction_key_sha256": request.transaction_key_sha256.as_ref(),
++        "previous_owner_epoch": request.previous_owner_epoch.to_string(),
++        "previous_generation": request.previous_generation.to_string(),
++        "previous_revision": request.previous_revision.to_string(),
++        "successor_owner_epoch": request.successor_owner_epoch.to_string(),
++        "successor_generation": request.successor_generation.to_string(),
++        "successor_revision": request.successor_revision.to_string(),
++        "predecessor_effect_ids": &request.predecessor_effect_ids,
++        "outcome": outcome,
++    }))
++    .map_err(Into::into)
++}
++
++fn capability_recovery_outcome(
++    outcome: &str,
++    receipt_sha256: &str,
++) -> Result<SipCapabilityRecoveryFenceOutcome, SipEffectStoreError> {
++    if !is_sha256_lower_hex(receipt_sha256) {
++        return Err(SipEffectStoreError::SchemaIncompatible);
++    }
++    match outcome {
++        "no_visible_effect" => Ok(SipCapabilityRecoveryFenceOutcome::NoVisibleEffect {
++            successor_fence_receipt_sha256: receipt_sha256.into(),
++        }),
++        "visible_or_ambiguous" => Ok(SipCapabilityRecoveryFenceOutcome::VisibleOrAmbiguous),
++        _ => Err(SipEffectStoreError::SchemaIncompatible),
++    }
++}
++
++async fn select_capability_recovery_receipt(
++    transaction: &mut Transaction<'_, Postgres>,
++    request: &FrozenSipCapabilityRecoveryFenceRequest,
++) -> Result<Option<PgRow>, SipEffectStoreError> {
++    sqlx::query(CAPABILITY_RECOVERY_RECEIPT_SELECT_SQL)
++        .bind(request.tenant_id.as_ref())
++        .bind(request.request_sha256.as_ref())
++        .fetch_optional(&mut **transaction)
++        .await
++        .map_err(map_sqlx_error)
++}
++
++fn decode_capability_recovery_receipt(
++    row: &PgRow,
++    request: &FrozenSipCapabilityRecoveryFenceRequest,
++) -> Result<SipCapabilityRecoveryFenceOutcome, SipEffectStoreError> {
++    let outcome: String = schema_field(row, "outcome")?;
++    let receipt_sha256: String = schema_field(row, "successor_fence_receipt_sha256")?;
++    let stored_effect_ids = [
++        schema_field::<String>(row, "cancel_ok_effect_id")?,
++        schema_field::<String>(row, "invite_terminated_effect_id")?,
++    ];
++    let stored_matches = schema_field::<String>(row, "tenant_id")? == request.tenant_id.as_ref()
++        && schema_field::<String>(row, "protocol_session_id")?
++            == request.protocol_session_id.as_ref()
++        && schema_field::<String>(row, "provider_call_id")? == request.provider_call_id.as_ref()
++        && schema_field::<String>(row, "predecessor_binding_sha256")?
++            == request.predecessor_binding_sha256.as_ref()
++        && schema_field::<String>(row, "transaction_key_sha256")?
++            == request.transaction_key_sha256.as_ref()
++        && canonical_u64(&schema_field::<String>(row, "previous_owner_epoch")?, true)?
++            == request.previous_owner_epoch
++        && canonical_u64(&schema_field::<String>(row, "previous_generation")?, true)?
++            == request.previous_generation
++        && canonical_u64(&schema_field::<String>(row, "previous_revision")?, true)?
++            == request.previous_revision
++        && canonical_u64(&schema_field::<String>(row, "successor_owner_epoch")?, true)?
++            == request.successor_owner_epoch
++        && canonical_u64(&schema_field::<String>(row, "successor_generation")?, true)?
++            == request.successor_generation
++        && canonical_u64(&schema_field::<String>(row, "successor_revision")?, true)?
++            == request.successor_revision
++        && stored_effect_ids == request.predecessor_effect_ids;
++    let expected_receipt_sha256 = capability_recovery_receipt_sha256(request, &outcome)?;
++    if !stored_matches || receipt_sha256 != expected_receipt_sha256 {
++        return Err(SipEffectError::ReceiptConflict.into());
++    }
++    capability_recovery_outcome(&outcome, &receipt_sha256)
++}
++
++fn is_sha256_lower_hex(value: &str) -> bool {
++    value.len() == 64
++        && value
++            .bytes()
++            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
++}
++
+ fn validate_repair_batch_identity(
+     tenant_id: &str,
+     repair_owner_id: &str,
+@@ -2538,8 +3090,124 @@
+     use rsipstack::transport::{SipAddr, SipConnection, udp::UdpConnection};
+     use std::sync::Arc;
+     use std::time::Duration;
++
++    fn recovery_request<'a>() -> SipCapabilityRecoveryFenceRequest<'a> {
++        SipCapabilityRecoveryFenceRequest {
++            tenant_id: "tenant-recovery-a",
++            protocol_session_id: "call_recovery_a",
++            provider_call_id: "provider-recovery-a@example.test",
++            predecessor_binding_sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++            transaction_key: "z9hG4bK-recovery-a:INVITE:server",
++            previous_owner_epoch: 7,
++            previous_generation: 11,
++            previous_revision: 19,
++            successor_owner_epoch: 8,
++            successor_generation: 12,
++            successor_revision: 20,
++        }
++    }
++
++    #[test]
++    fn capability_recovery_request_freezes_two_exact_predecessor_effect_ids() {
++        let frozen = freeze_capability_recovery_request(&recovery_request()).unwrap();
++
++        assert_eq!(frozen.previous_owner_epoch, 7);
++        assert_eq!(frozen.previous_generation, 11);
++        assert_eq!(frozen.successor_owner_epoch, 8);
++        assert_eq!(frozen.successor_generation, 12);
++        assert_eq!(
++            frozen.predecessor_effect_ids,
++            [
++                "sip-cancel-ok-9d3a916c0dc54043c956b1f08473066986c8566c3427ec730f2e1164ebbfece6",
++                "sip-invite-487-9d3a916c0dc54043c956b1f08473066986c8566c3427ec730f2e1164ebbfece6",
++            ]
++        );
++        assert_eq!(frozen.request_sha256.len(), 64);
++        assert_eq!(frozen.transaction_key_sha256.len(), 64);
++
++        let mut invalid_generation = recovery_request();
++        invalid_generation.successor_generation = 13;
++        assert_eq!(
++            freeze_capability_recovery_request(&invalid_generation).unwrap_err(),
++            SipEffectStoreError::InvalidConfiguration,
++        );
++        let mut invalid_transaction = recovery_request();
++        invalid_transaction.transaction_key = "forged\r\ntransaction";
++        assert_eq!(
++            freeze_capability_recovery_request(&invalid_transaction).unwrap_err(),
++            SipEffectStoreError::InvalidConfiguration,
++        );
++    }
++
++    #[test]
++    fn capability_recovery_sql_is_exact_key_fenced_and_replayable() {
++        assert!(SIP_EFFECT_SESSION_FENCE_SEED_SQL.contains("ON CONFLICT DO NOTHING"));
++        assert!(SIP_EFFECT_SESSION_FENCE_LOCK_SQL.contains("FOR UPDATE"));
++        assert!(
++            CAPABILITY_RECOVERY_EFFECT_VISIBILITY_SQL
++                .contains("protocol_effect_id = ANY($2::text[])")
++        );
++        assert!(!CAPABILITY_RECOVERY_EFFECT_VISIBILITY_SQL.contains(" LIKE "));
++        assert!(CAPABILITY_RECOVERY_FENCE_UPDATE_SQL.contains("owner_epoch_high_watermark"));
++        assert!(CAPABILITY_RECOVERY_FENCE_UPDATE_SQL.contains("generation_high_watermark"));
++        assert!(CAPABILITY_RECOVERY_RECEIPT_SELECT_SQL.contains("recovery_request_sha256"));
++        assert!(CAPABILITY_RECOVERY_RECEIPT_INSERT_SQL.contains("ON CONFLICT DO NOTHING"));
++        assert!(!CAPABILITY_RECOVERY_EFFECT_VISIBILITY_SQL.contains("FOR SHARE"));
++    }
++
++    #[test]
++    fn capability_recovery_replay_requires_the_current_successor_fence() {
++        let current = EffectSessionFence {
++            owner_epoch: 8,
++            generation: 12,
++            revision: Some(20),
++        };
++
++        assert!(capability_recovery_replay_fence_matches(current, 8, 12, 20));
++        assert!(!capability_recovery_replay_fence_matches(
++            current, 9, 13, 21
++        ));
++        assert!(!capability_recovery_replay_fence_matches(
++            EffectSessionFence {
++                owner_epoch: 9,
++                generation: 13,
++                revision: Some(21),
++            },
++            8,
++            12,
++            20,
++        ));
++    }
++
++    #[test]
++    fn capability_recovery_visibility_fails_closed_after_any_wire_attempt() {
++        for state in [SipEffectState::Prepared, SipEffectState::DurableDecision] {
++            assert!(!capability_recovery_state_is_visible_or_ambiguous(state));
++        }
++        for state in [
++            SipEffectState::SendAttempted,
++            SipEffectState::TransportAccepted,
++            SipEffectState::TransportCompleted,
++            SipEffectState::ProtocolObserved,
++            SipEffectState::Failed,
++            SipEffectState::Unknown,
++        ] {
++            assert!(capability_recovery_state_is_visible_or_ambiguous(state));
++        }
++    }
+ 
+     #[test]
++    fn effect_writer_requires_the_exact_session_fence() {
++        assert!(effect_session_fence_matches(7, 11, 7, "11").unwrap());
++        assert!(!effect_session_fence_matches(8, 11, 7, "11").unwrap());
++        assert!(!effect_session_fence_matches(7, 12, 7, "11").unwrap());
++        assert_eq!(
++            effect_session_fence_matches(7, 11, 7, "011").unwrap_err(),
++            SipEffectStoreError::SchemaIncompatible,
++        );
++    }
++
++    #[test]
+     fn ledger_reader_accepts_exact_v1_and_v2_schema_identities_only() {
+         assert_eq!(
+             SipEffectLedgerSchema::from_fields(
+@@ -3223,6 +3891,141 @@
+ 
+     #[tokio::test]
+     #[ignore = "requires an isolated migrated PostgreSQL database"]
++    async fn postgres_capability_recovery_fence_is_atomic_replayable_and_blocks_old_writer() {
++        let database_url = std::env::var("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL")
++            .expect("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL must be set");
++        let run_id = std::env::var("CONVERACT_SIP_EFFECT_TEST_RUN_ID")
++            .expect("CONVERACT_SIP_EFFECT_TEST_RUN_ID must be set");
++        let tenant_id = format!("rust-pg-{run_id}-recovery-clean");
++        let session_id = format!("call-{run_id}-recovery-clean");
++        let provider_call_id = format!("provider-{run_id}-recovery-clean@example.test");
++        let transaction_key = format!("z9hG4bK-{run_id}-recovery-clean:INVITE:server");
++        prepare_postgres_test_tenant(&tenant_id).await;
++        let store = PostgresSipEffectStore::connect(
++            &database_url,
++            PostgresSipEffectStoreOptions {
++                max_in_flight: 2,
++                max_queue_depth: 2,
++                wait_timeout: Duration::from_millis(250),
++            },
++        )
++        .await
++        .unwrap();
++        let request = SipCapabilityRecoveryFenceRequest {
++            tenant_id: &tenant_id,
++            protocol_session_id: &session_id,
++            provider_call_id: &provider_call_id,
++            predecessor_binding_sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++            transaction_key: &transaction_key,
++            previous_owner_epoch: 7,
++            previous_generation: 11,
++            previous_revision: 19,
++            successor_owner_epoch: 8,
++            successor_generation: 12,
++            successor_revision: 20,
++        };
++
++        let first = store
++            .fence_predecessor_and_probe_capabilities(request)
++            .await
++            .unwrap();
++        assert!(matches!(
++            first,
++            SipCapabilityRecoveryFenceOutcome::NoVisibleEffect { .. }
++        ));
++        assert_eq!(
++            store
++                .fence_predecessor_and_probe_capabilities(request)
++                .await
++                .unwrap(),
++            first,
++        );
++
++        let predecessor = postgres_recovery_effect_fixture(
++            &format!("{run_id}-fenced-old-writer"),
++            &tenant_id,
++            &session_id,
++            7,
++            11,
++            "effect-fenced-old-writer",
++        );
++        assert_eq!(
++            store.prepare_for_send(predecessor).await.unwrap_err(),
++            SipEffectStoreError::Domain(SipEffectError::FenceLost),
++        );
++        store.pool.close().await;
++    }
++
++    #[tokio::test]
++    #[ignore = "requires an isolated migrated PostgreSQL database"]
++    async fn postgres_capability_recovery_reports_exact_predecessor_wire_attempt_as_ambiguous() {
++        let database_url = std::env::var("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL")
++            .expect("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL must be set");
++        let run_id = std::env::var("CONVERACT_SIP_EFFECT_TEST_RUN_ID")
++            .expect("CONVERACT_SIP_EFFECT_TEST_RUN_ID must be set");
++        let tenant_id = format!("rust-pg-{run_id}-recovery-visible");
++        let session_id = format!("call-{run_id}-recovery-visible");
++        let provider_call_id = format!("provider-{run_id}-recovery-visible@example.test");
++        let transaction_key = format!("z9hG4bK-{run_id}-recovery-visible:INVITE:server");
++        let request = SipCapabilityRecoveryFenceRequest {
++            tenant_id: &tenant_id,
++            protocol_session_id: &session_id,
++            provider_call_id: &provider_call_id,
++            predecessor_binding_sha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
++            transaction_key: &transaction_key,
++            previous_owner_epoch: 7,
++            previous_generation: 11,
++            previous_revision: 19,
++            successor_owner_epoch: 8,
++            successor_generation: 12,
++            successor_revision: 20,
++        };
++        let frozen = freeze_capability_recovery_request(&request).unwrap();
++        let attempted = postgres_recovery_effect_fixture(
++            &format!("{run_id}-visible-predecessor"),
++            &tenant_id,
++            &session_id,
++            7,
++            11,
++            &frozen.predecessor_effect_ids[0],
++        );
++        prepare_postgres_test_tenant(&tenant_id).await;
++        let store = PostgresSipEffectStore::connect(
++            &database_url,
++            PostgresSipEffectStoreOptions {
++                max_in_flight: 2,
++                max_queue_depth: 2,
++                wait_timeout: Duration::from_millis(250),
++            },
++        )
++        .await
++        .unwrap();
++        assert_eq!(
++            store
++                .prepare_for_send(attempted)
++                .await
++                .unwrap()
++                .record
++                .state,
++            SipEffectState::SendAttempted,
++        );
++        let first = store
++            .fence_predecessor_and_probe_capabilities(request)
++            .await
++            .unwrap();
++        assert_eq!(first, SipCapabilityRecoveryFenceOutcome::VisibleOrAmbiguous,);
++        assert_eq!(
++            store
++                .fence_predecessor_and_probe_capabilities(request)
++                .await
++                .unwrap(),
++            first,
++        );
++        store.pool.close().await;
++    }
++
++    #[tokio::test]
++    #[ignore = "requires an isolated migrated PostgreSQL database"]
+     async fn postgres_repair_batch_exhausts_after_eight_bounded_attempts() {
+         let database_url = std::env::var("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL")
+             .expect("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL must be set");
+@@ -3580,6 +4383,38 @@
+         postgres_effect_fixture_with_scope(run_id, "transaction_peer_observation")
+     }
+ 
++    fn postgres_recovery_effect_fixture(
++        run_id: &str,
++        tenant_id: &str,
++        session_id: &str,
++        owner_epoch: u64,
++        generation: u64,
++        effect_id: &str,
++    ) -> PreparedSipEffect {
++        let mut effect = postgres_effect_fixture(run_id);
++        effect.identity.tenant_id = tenant_id.to_string();
++        effect.identity.protocol_effect_id = effect_id.to_string();
++        effect.identity.protocol_session_id = session_id.to_string();
++        effect.identity.protocol_session_generation = generation.to_string();
++        effect.identity.owner_epoch = owner_epoch;
++        effect.identity.decision_id = format!("decision-{effect_id}");
++        effect.identity.idempotency_key = format!("{tenant_id}/{session_id}/{effect_id}");
++        effect.identity.command_id = format!("command-{effect_id}");
++        effect.wire_attempt_facts["lineage"]["attempt_id"] = Value::String(effect_id.to_string());
++        effect.wire_attempt_facts["lineage"]["transaction_lineage_id"] =
++            Value::String(effect_id.to_string());
++        effect.identity.wire_attempt_facts_hash =
++            canonical_json_sha256(&effect.wire_attempt_facts).unwrap();
++        effect.identity.wire_freeze_sha256 = sip_wire_freeze_sha256(
++            &effect.identity.route_binding_hash,
++            &effect.identity.wire_attempt_facts_hash,
++            &effect.identity.wire_bytes_hash,
++            effect.identity.wire_length_bytes,
++        )
++        .unwrap();
++        effect
++    }
++
+     fn postgres_effect_fixture_with_scope(
+         run_id: &str,
+         completion_scope: &str,

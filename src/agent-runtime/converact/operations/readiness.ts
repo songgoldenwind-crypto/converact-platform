@@ -320,7 +320,8 @@ export const REQUIRED_MIGRATIONS = [
   '112_converact_platform_history_receipt_integrity',
   '113_converact_sip_effect_transport_completed',
   '114_converact_sip_effect_transport_completed_validate',
-  '115_converact_sip_effect_stale_nonterminal_recovery'
+  '115_converact_sip_effect_stale_nonterminal_recovery',
+  '116_converact_sip_capability_recovery_fence'
 ] as const;
 
 function configurationCheck(env: NodeJS.ProcessEnv): ConveractFabricReadinessResult['checks']['configuration'] {

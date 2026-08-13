@@ -42,7 +42,7 @@ test("ivekit.76 applies recovery after cleanup fencing", () => {
   );
 
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.76"/);
+  assert.match(build, /PATCHSET="ivekit\.77"/);
   assert.match(
     build,
     /rustpbx-converact-native-call-cleanup-fence\.patch"[\s\S]*rustpbx-converact-native-call-capability-recovery\.patch"/,
@@ -109,7 +109,7 @@ test("recovery remains component-only while durable and live gates are not_run",
       durable_postgresql_oracle: string;
       live_recovery_wiring: string;
       local_functional_verification: Record<string, string>;
-      server_functional_verification: string;
+      server_functional_verification: Record<string, string>;
       performance_verification: string;
       performance_policy: string;
       activation_blockers: string[];
@@ -119,10 +119,10 @@ test("recovery remains component-only while durable and live gates are not_run",
     entries: Array<{ evidence_id: string; status: string }>;
   };
 
-  assert.equal(contract.source_identity.patchset, "ivekit.76");
+  assert.equal(contract.source_identity.patchset, "ivekit.77");
   assert.equal(
     contract.native_matched_cancel_effects.capability_restart_rebuild,
-    "component_seam_implemented_durable_PostgreSQL_oracle_and_live_wiring_not_run",
+    "durable_PostgreSQL_oracle_component_implemented_default_disabled_live_wiring_not_run",
   );
   assert.equal(
     contract.native_call_capability_recovery.implementation_status,
@@ -150,17 +150,32 @@ test("recovery remains component-only while durable and live gates are not_run",
   );
   assert.equal(
     contract.native_call_capability_recovery.durable_postgresql_oracle,
-    "not_implemented",
+    "component_implemented_exact_key_session_fenced_physical_SQL_verified_Rust_adapter_physical_tests_not_run",
   );
   assert.equal(contract.native_call_capability_recovery.live_recovery_wiring, "not_run");
   assert.equal(
     contract.native_call_capability_recovery.local_functional_verification
       .native_sip_effect_capabilities,
-    "25_passed_0_failed",
+    "121_sip_effect_tests_passed_0_failed_10_physical_tests_ignored",
   );
-  assert.equal(
+  assert.deepEqual(
     contract.native_call_capability_recovery.server_functional_verification,
-    "not_run",
+    {
+      status:
+        "isolated_postgresql_migration_and_contract_passed_Rust_adapter_physical_tests_not_run",
+      campaign_id: "converact-g03-77-204f4d5-physical",
+      base_source_commit: "204f4d562299",
+      candidate_patchset: "ivekit.77",
+      evidence_uri:
+        "architecture-foundation/execution/goal-03/evidence/raw/capability-recovery-oracle-204f4d5-17/README.md",
+      migration_chain: "through_116_passed_isolated_PostgreSQL_16",
+      physical_contract:
+        "session_fence_exact_two_key_probe_receipt_replay_stale_insert_and_prepared_send_attempt_rejection_and_tenant_RLS_passed",
+      rust_adapter_physical_tests: "not_run",
+      server_rust_compile: "not_run_safe_disk_and_memory_floor",
+      existing_service_state: "unchanged_running_healthy",
+      test_container_and_tmpfs_after_cleanup: "absent",
+    },
   );
   assert.equal(contract.native_call_capability_recovery.performance_verification, "not_run");
   assert.equal(
@@ -168,9 +183,10 @@ test("recovery remains component-only while durable and live gates are not_run",
     "deferred_to_final_performance_goal",
   );
   assert.deepEqual(contract.native_call_capability_recovery.activation_blockers, [
-    "durable_PostgreSQL_predecessor_fence_and_effect_absence_oracle_not_implemented",
     "recovered_capability_live_wiring_not_implemented",
-    "physical_PostgreSQL_restart_and_ambiguity_verification_not_run",
+    "Rust_adapter_physical_PostgreSQL_ignored_tests_not_run",
+    "real_process_restart_and_ambiguity_recovery_not_run",
+    "live_endpoint_activation_not_run",
   ]);
   assert.equal(contract.native_matched_cancel_effects.live_server_activation, "not_run");
   assert.equal(contract.native_matched_cancel_effects.performance_verification, "not_run");

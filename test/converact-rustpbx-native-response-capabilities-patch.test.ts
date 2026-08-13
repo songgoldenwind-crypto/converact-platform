@@ -45,7 +45,7 @@ test("ivekit.74 applies the Native Call response capability after matched CANCEL
   );
 
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.76"/);
+  assert.match(build, /PATCHSET="ivekit\.77"/);
   assert.match(
     build,
     /rustpbx-converact-native-matched-cancel-capabilities\.patch"[\s\S]*rustpbx-converact-native-response-capabilities\.patch"/,
@@ -112,7 +112,7 @@ test("response lifecycle remains default-disabled and claims no server or perfor
       call_revision_race_after_durable_prepare: string;
       local_functional_verification: Record<string, string>;
       live_server_activation: string;
-      server_functional_verification: string;
+      server_functional_verification: Record<string, string>;
       performance_verification: string;
       performance_policy: string;
     };
@@ -163,14 +163,25 @@ test("response lifecycle remains default-disabled and claims no server or perfor
     native_response_capabilities: "19_passed_0_failed",
     native_call_domain: "13_passed_0_failed",
     active_call_registry: "24_passed_0_failed",
-    durable_sip_effect_gate: "39_passed_0_failed",
+    durable_sip_effect_gate:
+      "121_sip_effect_tests_passed_0_failed_10_physical_tests_ignored",
     rustfmt_changed_sources: "passed",
     locked_library_check: "passed",
-    full_rustpbx_library:
-      "2082_passed_0_failed_9_external_prerequisites_ignored",
+    full_rustpbx_library: "not_run_for_ivekit_77",
   });
   assert.equal(responses.live_server_activation, "not_run");
-  assert.equal(responses.server_functional_verification, "not_run");
+  assert.equal(
+    responses.server_functional_verification.status,
+    "isolated_postgresql_migration_and_contract_passed_Rust_adapter_physical_tests_not_run",
+  );
+  assert.equal(
+    responses.server_functional_verification.evidence_uri,
+    "architecture-foundation/execution/goal-03/evidence/raw/capability-recovery-oracle-204f4d5-17/README.md",
+  );
+  assert.equal(
+    responses.server_functional_verification.existing_service_state,
+    "unchanged_running_healthy",
+  );
   assert.equal(responses.performance_verification, "not_run");
   assert.equal(
     responses.performance_policy,

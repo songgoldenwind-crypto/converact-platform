@@ -45,7 +45,7 @@ test("ivekit.74 retains the matched-CANCEL pair before response capabilities", (
   }
 
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.76"/);
+  assert.match(build, /PATCHSET="ivekit\.77"/);
   assert.match(
     build,
     /rsipstack-converact-uas-2xx-owner-retention\.patch"[\s\S]*rsipstack-converact-transaction-local-matched-cancel-pair\.patch"/,
@@ -116,6 +116,7 @@ test("the functional slice does not claim server activation or performance evide
       invite_termination_precondition: string;
       late_cancel_after_existing_final: string;
       local_functional_verification: {
+        capability_recovery_oracle: string;
         rsipstack_library: string;
         rustpbx_library: string;
         affected_static_contract_tests: string;
@@ -125,28 +126,29 @@ test("the functional slice does not claim server activation or performance evide
       server_functional_verification: {
         status: string;
         campaign_id: string;
-        source_commit: string;
+        base_source_commit: string;
+        candidate_patchset: string;
         evidence_uri: string;
-        rsipstack_server_transactions: string;
-        rustpbx_focused_targets: string;
-        campaign_exit: number;
+        migration_chain: string;
+        physical_contract: string;
+        rust_adapter_physical_tests: string;
+        server_rust_compile: string;
         existing_service_state: string;
-        retained_lower_source_state: string;
-        test_container_and_mounts_after_cleanup: string;
+        test_container_and_tmpfs_after_cleanup: string;
       };
       performance_verification: string;
     };
   };
   const matchedCancel = contract.native_matched_cancel_effects;
-  assert.match(readme, /ivekit\.74/);
+  assert.match(readme, /ivekit\.77/);
   assert.match(readme, /default-disabled/i);
-  assert.match(readme, /server functional verification\s+remain[s]?\s+`not_run`/i);
+  assert.match(readme, /live Endpoint activation[\s\S]*remain[s]?[\s\S]*`not_run`/i);
   assert.match(readme, /performance[^\n]*remain[^\n]*`not_run`/i);
   assert.deepEqual(matchedCancel.activation_blockers, [
-    "durable_PostgreSQL_predecessor_fence_and_effect_absence_oracle_not_implemented",
     "recovered_capability_live_wiring_not_implemented",
-    "physical_postgresql_path_not_verified",
-    "rustpbx_isolated_server_functional_verification_not_run_under_safe_memory_ceiling",
+    "Rust_adapter_physical_PostgreSQL_ignored_tests_not_run",
+    "live_endpoint_activation_not_run",
+    "rustpbx_isolated_server_functional_verification_not_run_under_safe_disk_and_memory_floor",
   ]);
   assert.equal(
     matchedCancel.adapter_source_identity,
@@ -166,7 +168,7 @@ test("the functional slice does not claim server activation or performance evide
   );
   assert.equal(
     matchedCancel.capability_restart_rebuild,
-    "component_seam_implemented_durable_PostgreSQL_oracle_and_live_wiring_not_run",
+    "durable_PostgreSQL_oracle_component_implemented_default_disabled_live_wiring_not_run",
   );
   assert.equal(
     matchedCancel.format_scope_exception,
@@ -181,25 +183,30 @@ test("the functional slice does not claim server activation or performance evide
     "200_CANCEL_only_no_487_capability",
   );
   assert.deepEqual(matchedCancel.local_functional_verification, {
+    capability_recovery_oracle:
+      "121_sip_effect_tests_passed_0_failed_10_physical_tests_ignored",
     rsipstack_library: "314_passed_0_failed",
-    rustpbx_library: "2082_passed_0_failed_9_external_prerequisites_ignored",
-    affected_static_contract_tests: "205_passed_0_failed",
+    rustpbx_library: "not_run_for_ivekit_77",
+    affected_static_contract_tests:
+      "targeted_contract_and_migration_suite_passed",
     repository_typecheck: "passed",
   });
   assert.equal(matchedCancel.live_server_activation, "not_run");
   assert.deepEqual(matchedCancel.server_functional_verification, {
-    status: "partial_component_verification",
-    campaign_id: "converact-g03-73-4431270-functional",
-    source_commit: "4431270bb775458803a2252cb892254afc7aaae7",
+    status:
+      "isolated_postgresql_migration_and_contract_passed_Rust_adapter_physical_tests_not_run",
+    campaign_id: "converact-g03-77-204f4d5-physical",
+    base_source_commit: "204f4d562299",
+    candidate_patchset: "ivekit.77",
     evidence_uri:
-      "architecture-foundation/execution/goal-03/evidence/raw/isolated-server-matched-cancel-4431270-15/README.md",
-    rsipstack_server_transactions: "32_passed_0_failed",
-    rustpbx_focused_targets:
-      "not_run_test_binary_compile_sigkill_at_2560MiB_isolated_memory_ceiling",
-    campaign_exit: 101,
+      "architecture-foundation/execution/goal-03/evidence/raw/capability-recovery-oracle-204f4d5-17/README.md",
+    migration_chain: "through_116_passed_isolated_PostgreSQL_16",
+    physical_contract:
+      "session_fence_exact_two_key_probe_receipt_replay_stale_insert_and_prepared_send_attempt_rejection_and_tenant_RLS_passed",
+    rust_adapter_physical_tests: "not_run",
+    server_rust_compile: "not_run_safe_disk_and_memory_floor",
     existing_service_state: "unchanged_running_healthy",
-    retained_lower_source_state: "unchanged_sha256_identical",
-    test_container_and_mounts_after_cleanup: "absent",
+    test_container_and_tmpfs_after_cleanup: "absent",
   });
   assert.equal(matchedCancel.performance_verification, "not_run");
   assert.equal(

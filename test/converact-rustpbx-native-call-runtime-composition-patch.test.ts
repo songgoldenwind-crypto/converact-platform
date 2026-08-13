@@ -60,7 +60,7 @@ test("the existing active registry composes one bounded native Call authority", 
 
 test("the exact build applies runtime composition after the native model", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.76"/);
+  assert.match(build, /PATCHSET="ivekit\.77"/);
   assert.match(
     build,
     /rustpbx-converact-native-call-leg-model\.patch"[\s\S]*rustpbx-converact-native-call-runtime-composition\.patch"/,

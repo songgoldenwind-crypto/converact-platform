@@ -190,7 +190,7 @@
           "const": "166c6d22984429eb6b509920c14fcd69f974f0b3"
         },
         "patchset": {
-          "const": "ivekit.76"
+          "const": "ivekit.77"
         },
         "current_adapter": {
           "const": "rsipstack"
@@ -467,7 +467,7 @@
           "const": "implemented_identity_and_native_cell_pointer_fence"
         },
         "capability_restart_rebuild": {
-          "const": "component_seam_implemented_durable_PostgreSQL_oracle_and_live_wiring_not_run"
+          "const": "durable_PostgreSQL_oracle_component_implemented_default_disabled_live_wiring_not_run"
         },
         "format_scope_exception": {
           "const": "test_auth_constructor_compiled_and_full_tested_rustfmt_excluded_due_unrelated_upstream_drift"
@@ -510,20 +510,24 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "capability_recovery_oracle",
             "rsipstack_library",
             "rustpbx_library",
             "affected_static_contract_tests",
             "repository_typecheck"
           ],
           "properties": {
+            "capability_recovery_oracle": {
+              "const": "121_sip_effect_tests_passed_0_failed_10_physical_tests_ignored"
+            },
             "rsipstack_library": {
               "const": "314_passed_0_failed"
             },
             "rustpbx_library": {
-              "const": "2082_passed_0_failed_9_external_prerequisites_ignored"
+              "const": "not_run_for_ivekit_77"
             },
             "affected_static_contract_tests": {
-              "const": "205_passed_0_failed"
+              "const": "targeted_contract_and_migration_suite_passed"
             },
             "repository_typecheck": {
               "const": "passed"
@@ -536,16 +540,16 @@
           "maxItems": 4,
           "prefixItems": [
             {
-              "const": "durable_PostgreSQL_predecessor_fence_and_effect_absence_oracle_not_implemented"
-            },
-            {
               "const": "recovered_capability_live_wiring_not_implemented"
             },
             {
-              "const": "physical_postgresql_path_not_verified"
+              "const": "Rust_adapter_physical_PostgreSQL_ignored_tests_not_run"
             },
             {
-              "const": "rustpbx_isolated_server_functional_verification_not_run_under_safe_memory_ceiling"
+              "const": "live_endpoint_activation_not_run"
+            },
+            {
+              "const": "rustpbx_isolated_server_functional_verification_not_run_under_safe_disk_and_memory_floor"
             }
           ],
           "items": false
@@ -559,44 +563,48 @@
           "required": [
             "status",
             "campaign_id",
-            "source_commit",
+            "base_source_commit",
+            "candidate_patchset",
             "evidence_uri",
-            "rsipstack_server_transactions",
-            "rustpbx_focused_targets",
-            "campaign_exit",
+            "migration_chain",
+            "physical_contract",
+            "rust_adapter_physical_tests",
+            "server_rust_compile",
             "existing_service_state",
-            "retained_lower_source_state",
-            "test_container_and_mounts_after_cleanup"
+            "test_container_and_tmpfs_after_cleanup"
           ],
           "properties": {
             "status": {
-              "const": "partial_component_verification"
+              "const": "isolated_postgresql_migration_and_contract_passed_Rust_adapter_physical_tests_not_run"
             },
             "campaign_id": {
-              "const": "converact-g03-73-4431270-functional"
+              "const": "converact-g03-77-204f4d5-physical"
             },
-            "source_commit": {
-              "const": "4431270bb775458803a2252cb892254afc7aaae7"
+            "base_source_commit": {
+              "const": "204f4d562299"
+            },
+            "candidate_patchset": {
+              "const": "ivekit.77"
             },
             "evidence_uri": {
-              "const": "architecture-foundation/execution/goal-03/evidence/raw/isolated-server-matched-cancel-4431270-15/README.md"
+              "const": "architecture-foundation/execution/goal-03/evidence/raw/capability-recovery-oracle-204f4d5-17/README.md"
             },
-            "rsipstack_server_transactions": {
-              "const": "32_passed_0_failed"
+            "migration_chain": {
+              "const": "through_116_passed_isolated_PostgreSQL_16"
             },
-            "rustpbx_focused_targets": {
-              "const": "not_run_test_binary_compile_sigkill_at_2560MiB_isolated_memory_ceiling"
+            "physical_contract": {
+              "const": "session_fence_exact_two_key_probe_receipt_replay_stale_insert_and_prepared_send_attempt_rejection_and_tenant_RLS_passed"
             },
-            "campaign_exit": {
-              "const": 101
+            "rust_adapter_physical_tests": {
+              "const": "not_run"
+            },
+            "server_rust_compile": {
+              "const": "not_run_safe_disk_and_memory_floor"
             },
             "existing_service_state": {
               "const": "unchanged_running_healthy"
             },
-            "retained_lower_source_state": {
-              "const": "unchanged_sha256_identical"
-            },
-            "test_container_and_mounts_after_cleanup": {
+            "test_container_and_tmpfs_after_cleanup": {
               "const": "absent"
             }
           }
@@ -772,7 +780,7 @@
               "const": "24_passed_0_failed"
             },
             "durable_sip_effect_gate": {
-              "const": "39_passed_0_failed"
+              "const": "121_sip_effect_tests_passed_0_failed_10_physical_tests_ignored"
             },
             "rustfmt_changed_sources": {
               "const": "passed"
@@ -781,29 +789,26 @@
               "const": "passed"
             },
             "full_rustpbx_library": {
-              "const": "2082_passed_0_failed_9_external_prerequisites_ignored"
+              "const": "not_run_for_ivekit_77"
             }
           }
         },
         "activation_blockers": {
           "type": "array",
-          "minItems": 5,
-          "maxItems": 5,
+          "minItems": 4,
+          "maxItems": 4,
           "prefixItems": [
-            {
-              "const": "durable_PostgreSQL_predecessor_fence_and_effect_absence_oracle_not_implemented"
-            },
             {
               "const": "recovered_capability_live_wiring_not_implemented"
             },
             {
-              "const": "physical_postgresql_path_not_verified"
+              "const": "Rust_adapter_physical_PostgreSQL_ignored_tests_not_run"
             },
             {
               "const": "live_endpoint_activation_not_run"
             },
             {
-              "const": "rustpbx_isolated_server_functional_verification_not_run"
+              "const": "rustpbx_isolated_server_functional_verification_not_run_under_safe_disk_and_memory_floor"
             }
           ],
           "items": false
@@ -812,7 +817,56 @@
           "const": "not_run"
         },
         "server_functional_verification": {
-          "const": "not_run"
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "campaign_id",
+            "base_source_commit",
+            "candidate_patchset",
+            "evidence_uri",
+            "migration_chain",
+            "physical_contract",
+            "rust_adapter_physical_tests",
+            "server_rust_compile",
+            "existing_service_state",
+            "test_container_and_tmpfs_after_cleanup"
+          ],
+          "properties": {
+            "status": {
+              "const": "isolated_postgresql_migration_and_contract_passed_Rust_adapter_physical_tests_not_run"
+            },
+            "campaign_id": {
+              "const": "converact-g03-77-204f4d5-physical"
+            },
+            "base_source_commit": {
+              "const": "204f4d562299"
+            },
+            "candidate_patchset": {
+              "const": "ivekit.77"
+            },
+            "evidence_uri": {
+              "const": "architecture-foundation/execution/goal-03/evidence/raw/capability-recovery-oracle-204f4d5-17/README.md"
+            },
+            "migration_chain": {
+              "const": "through_116_passed_isolated_PostgreSQL_16"
+            },
+            "physical_contract": {
+              "const": "session_fence_exact_two_key_probe_receipt_replay_stale_insert_and_prepared_send_attempt_rejection_and_tenant_RLS_passed"
+            },
+            "rust_adapter_physical_tests": {
+              "const": "not_run"
+            },
+            "server_rust_compile": {
+              "const": "not_run_safe_disk_and_memory_floor"
+            },
+            "existing_service_state": {
+              "const": "unchanged_running_healthy"
+            },
+            "test_container_and_tmpfs_after_cleanup": {
+              "const": "absent"
+            }
+          }
         },
         "performance_verification": {
           "const": "not_run"
@@ -1051,7 +1105,7 @@
           "const": "fail_closed_no_successor_mutation_no_new_effect"
         },
         "durable_postgresql_oracle": {
-          "const": "not_implemented"
+          "const": "component_implemented_exact_key_session_fenced_physical_SQL_verified_Rust_adapter_physical_tests_not_run"
         },
         "live_recovery_wiring": {
           "const": "not_run"
@@ -1067,7 +1121,7 @@
           ],
           "properties": {
             "native_sip_effect_capabilities": {
-              "const": "25_passed_0_failed"
+              "const": "121_sip_effect_tests_passed_0_failed_10_physical_tests_ignored"
             },
             "locked_library_check": {
               "const": "passed"
@@ -1076,12 +1130,61 @@
               "const": "passed"
             },
             "full_rustpbx_library": {
-              "const": "2082_passed_0_failed_9_external_prerequisites_ignored"
+              "const": "not_run_for_ivekit_77"
             }
           }
         },
         "server_functional_verification": {
-          "const": "not_run"
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "campaign_id",
+            "base_source_commit",
+            "candidate_patchset",
+            "evidence_uri",
+            "migration_chain",
+            "physical_contract",
+            "rust_adapter_physical_tests",
+            "server_rust_compile",
+            "existing_service_state",
+            "test_container_and_tmpfs_after_cleanup"
+          ],
+          "properties": {
+            "status": {
+              "const": "isolated_postgresql_migration_and_contract_passed_Rust_adapter_physical_tests_not_run"
+            },
+            "campaign_id": {
+              "const": "converact-g03-77-204f4d5-physical"
+            },
+            "base_source_commit": {
+              "const": "204f4d562299"
+            },
+            "candidate_patchset": {
+              "const": "ivekit.77"
+            },
+            "evidence_uri": {
+              "const": "architecture-foundation/execution/goal-03/evidence/raw/capability-recovery-oracle-204f4d5-17/README.md"
+            },
+            "migration_chain": {
+              "const": "through_116_passed_isolated_PostgreSQL_16"
+            },
+            "physical_contract": {
+              "const": "session_fence_exact_two_key_probe_receipt_replay_stale_insert_and_prepared_send_attempt_rejection_and_tenant_RLS_passed"
+            },
+            "rust_adapter_physical_tests": {
+              "const": "not_run"
+            },
+            "server_rust_compile": {
+              "const": "not_run_safe_disk_and_memory_floor"
+            },
+            "existing_service_state": {
+              "const": "unchanged_running_healthy"
+            },
+            "test_container_and_tmpfs_after_cleanup": {
+              "const": "absent"
+            }
+          }
         },
         "performance_verification": {
           "const": "not_run"
@@ -1091,17 +1194,20 @@
         },
         "activation_blockers": {
           "type": "array",
-          "minItems": 3,
-          "maxItems": 3,
+          "minItems": 4,
+          "maxItems": 4,
           "prefixItems": [
-            {
-              "const": "durable_PostgreSQL_predecessor_fence_and_effect_absence_oracle_not_implemented"
-            },
             {
               "const": "recovered_capability_live_wiring_not_implemented"
             },
             {
-              "const": "physical_PostgreSQL_restart_and_ambiguity_verification_not_run"
+              "const": "Rust_adapter_physical_PostgreSQL_ignored_tests_not_run"
+            },
+            {
+              "const": "real_process_restart_and_ambiguity_recovery_not_run"
+            },
+            {
+              "const": "live_endpoint_activation_not_run"
             }
           ],
           "items": false

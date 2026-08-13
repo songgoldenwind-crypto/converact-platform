@@ -949,16 +949,18 @@ test('Converact Fabric delivery bundle contains only curated handoff artifacts w
       '112_converact_platform_history_receipt_integrity.sql',
       '113_converact_sip_effect_transport_completed.sql',
       '114_converact_sip_effect_transport_completed_validate.sql',
-      '115_converact_sip_effect_stale_nonterminal_recovery.sql'
+      '115_converact_sip_effect_stale_nonterminal_recovery.sql',
+      '116_converact_sip_capability_recovery_fence.sql'
     ]) assert.equal(files.includes(`database/migrations/${migration}`), true, migration);
     const migrationManifest = JSON.parse(readFileSync(
       join(outputDir, 'service', 'migration-manifest.json'),
       'utf8'
     )) as { migrations: Array<{ file: string; sha256: string }> };
-    assert.equal(migrationManifest.migrations.length, 99);
+    assert.equal(migrationManifest.migrations.length, 100);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '041_tinode_inbound_sync.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '042_ivekit_tenant_events.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '043_ivekit_intelligence_translation.sql'), true);
+    assert.equal(migrationManifest.migrations.some((entry) => entry.file === '116_converact_sip_capability_recovery_fence.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '044_quality_review_policy_routing.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '045_translation_worker_routing.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '046_ivekit_voice_foundation.sql'), true);

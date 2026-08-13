@@ -249,10 +249,12 @@ test('standalone migration order includes RLS and communication overlays but exc
       migrations.indexOf('113_converact_sip_effect_transport_completed.sql') <
       migrations.indexOf('114_converact_sip_effect_transport_completed_validate.sql') &&
       migrations.indexOf('114_converact_sip_effect_transport_completed_validate.sql') <
-      migrations.indexOf('115_converact_sip_effect_stale_nonterminal_recovery.sql'),
+      migrations.indexOf('115_converact_sip_effect_stale_nonterminal_recovery.sql') &&
+      migrations.indexOf('115_converact_sip_effect_stale_nonterminal_recovery.sql') <
+      migrations.indexOf('116_converact_sip_capability_recovery_fence.sql'),
     true
   );
-  assert.equal(migrations.at(-1), '115_converact_sip_effect_stale_nonterminal_recovery.sql');
+  assert.equal(migrations.at(-1), '116_converact_sip_capability_recovery_fence.sql');
   const runtimeSecurity = readFileSync(
     'services/converact-service/migrations/090_ivekit_runtime_security.sql',
     'utf8'
