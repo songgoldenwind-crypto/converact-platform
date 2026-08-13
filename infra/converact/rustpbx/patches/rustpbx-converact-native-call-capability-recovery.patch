@@ -1,0 +1,853 @@
+--- a/src/call/adapters/native_sip_effect_capabilities.rs
++++ b/src/call/adapters/native_sip_effect_capabilities.rs
+@@ -2,6 +2,8 @@
+     DurableRsipstackEgressGate, SipEffectGateError, SipEffectIntent, SipEffectIntentLease,
+     SipEffectIntentRegistry,
+ };
++use crate::call::domain::foundation_identity::{NativeCallIdentity, NativeCallRecoveryBinding};
++use crate::call::domain::sip_effect::canonical_json_sha256;
+ use crate::proxy::active_call_registry::{
+     ActiveCallRegistryError, ActiveProxyCallRegistry, NativeCallCleanupFence,
+     NativeMatchedCancelCapabilityFacts, NativeOrdinaryResponseCapabilityFacts,
+@@ -43,13 +45,63 @@
+     UnsupportedSecureTransport,
+     #[error("transaction-local durable SIP effect gate installation failed")]
+     TransactionGate(#[source] rsipstack::Error),
++    #[error("native SIP effect recovery oracle is unavailable")]
++    RecoveryUnavailable,
++    #[error("native SIP effect recovery requires durable reconciliation")]
++    RecoveryReconciliationRequired,
++    #[error("native SIP effect recovery fence receipt is invalid")]
++    RecoveryFenceInvalid,
+ }
+ 
++#[allow(
++    dead_code,
++    reason = "the durable recovery oracle remains default-disabled until its PostgreSQL slice"
++)]
++#[derive(Clone, Debug, Eq, PartialEq)]
++struct NativeSipRecoveryProbeRequest {
++    tenant_id: Box<str>,
++    protocol_session_id: Box<str>,
++    provider_call_id: Box<str>,
++    predecessor_binding_sha256: Box<str>,
++    transaction_key: Box<str>,
++    previous_owner_epoch: u64,
++    previous_generation: u64,
++    previous_revision: u64,
++    successor_owner_epoch: u64,
++    successor_generation: u64,
++    successor_revision: u64,
++}
++
++#[allow(
++    dead_code,
++    reason = "the durable recovery oracle remains default-disabled until its PostgreSQL slice"
++)]
++#[derive(Clone, Debug, Eq, PartialEq)]
++enum NativeSipRecoveryProbeOutcome {
++    NoVisibleEffect {
++        successor_fence_receipt_sha256: Box<str>,
++    },
++    VisibleOrAmbiguous,
++}
++
++#[allow(
++    dead_code,
++    reason = "the durable recovery oracle remains default-disabled until its PostgreSQL slice"
++)]
++#[async_trait]
++trait NativeSipCapabilityRecoveryOracle: Send + Sync {
++    async fn fence_predecessor_and_probe(
++        &self,
++        request: NativeSipRecoveryProbeRequest,
++    ) -> Result<NativeSipRecoveryProbeOutcome, NativeSipEffectCapabilityError>;
++}
++
+ pub(crate) struct NativeSipEffectRuntime {
+     gate: Arc<DurableRsipstackEgressGate>,
+     intents: Arc<SipEffectIntentRegistry>,
+     adapter_identity: Value,
+     audit_retention: Duration,
++    recovery_oracle: Option<Arc<dyn NativeSipCapabilityRecoveryOracle>>,
+ }
+ 
+ impl NativeSipEffectRuntime {
+@@ -84,9 +136,22 @@
+             intents,
+             adapter_identity,
+             audit_retention,
++            recovery_oracle: None,
+         })
+     }
+ 
++    #[allow(
++        dead_code,
++        reason = "the durable recovery oracle remains default-disabled until its PostgreSQL slice"
++    )]
++    fn with_recovery_oracle(
++        mut self,
++        recovery_oracle: Arc<dyn NativeSipCapabilityRecoveryOracle>,
++    ) -> Self {
++        self.recovery_oracle = Some(recovery_oracle);
++        self
++    }
++
+     #[cfg(test)]
+     fn gate(&self) -> Arc<dyn EgressEffectGate> {
+         self.gate.clone()
+@@ -98,8 +163,31 @@
+         provider_call_id: &str,
+         transaction: &Transaction,
+     ) -> Result<NativeMatchedCancelCapabilityHolder, NativeSipEffectCapabilityError> {
+-        let reservation =
+-            active_calls.reserve_matched_cancel_capabilities(provider_call_id, transaction)?;
++        self.register_matched_cancel_capabilities_inner(
++            active_calls,
++            provider_call_id,
++            transaction,
++            None,
++        )
++    }
++
++    fn register_matched_cancel_capabilities_inner(
++        &self,
++        active_calls: &Arc<ActiveProxyCallRegistry>,
++        provider_call_id: &str,
++        transaction: &Transaction,
++        expected_identity: Option<&NativeCallIdentity>,
++    ) -> Result<NativeMatchedCancelCapabilityHolder, NativeSipEffectCapabilityError> {
++        let reservation = match expected_identity {
++            Some(expected) => active_calls.reserve_matched_cancel_capabilities_for_identity(
++                provider_call_id,
++                transaction,
++                expected,
++            )?,
++            None => {
++                active_calls.reserve_matched_cancel_capabilities(provider_call_id, transaction)?
++            }
++        };
+         let registration = (|| {
+             let facts = reservation.facts();
+             let route_binding = route_binding(transaction, facts)?;
+@@ -123,10 +211,12 @@
+         })();
+         match registration {
+             Ok((cancel_ok, invite_terminated, route_binding)) => {
++                let identity = reservation.facts().identity().clone();
+                 let cleanup_fence = reservation.commit();
+                 Ok(NativeMatchedCancelCapabilityHolder {
+                     _cancel_ok: cancel_ok,
+                     _invite_terminated: invite_terminated,
++                    identity,
+                     route_binding,
+                     cleanup_fence,
+                 })
+@@ -134,14 +224,88 @@
+             Err(error) => {
+                 reservation.rollback_call(active_calls);
+                 Err(error)
++            }
++        }
++    }
++
++    #[allow(
++        dead_code,
++        reason = "the durable recovery oracle remains default-disabled until its PostgreSQL slice"
++    )]
++    pub(crate) async fn install_recovered_unconsumed_call(
++        &self,
++        active_calls: &Arc<ActiveProxyCallRegistry>,
++        binding: &NativeCallRecoveryBinding,
++        provider_call_id: &str,
++        transaction: &mut Transaction,
++    ) -> Result<Option<NativeMatchedCancelCapabilityHolder>, NativeSipEffectCapabilityError> {
++        let recovery_oracle = self
++            .recovery_oracle
++            .as_ref()
++            .ok_or(NativeSipEffectCapabilityError::RecoveryUnavailable)?;
++        let (previous_owner_epoch, previous_generation, previous_revision) = binding
++            .validate()
++            .map_err(|_| ActiveCallRegistryError::AuthorityConflict)?;
++        let successor_identity = active_calls
++            .get_identity(provider_call_id)
++            .ok_or(ActiveCallRegistryError::SessionNotRegistered)?;
++        let expected_successor =
++            NativeCallIdentity::recover_from_binding(binding, successor_identity.owner_epoch())
++                .map_err(|_| ActiveCallRegistryError::AuthorityConflict)?;
++        validate_recovery_transaction(
++            binding,
++            provider_call_id,
++            transaction,
++            &successor_identity,
++            &expected_successor,
++        )?;
++        let predecessor_binding_sha256 = canonical_json_sha256(
++            &serde_json::to_value(binding)
++                .map_err(|_| NativeSipEffectCapabilityError::InvalidConfiguration)?,
++        )
++        .map_err(|_| NativeSipEffectCapabilityError::InvalidConfiguration)?;
++        let request = NativeSipRecoveryProbeRequest {
++            tenant_id: binding.tenant_id.clone().into_boxed_str(),
++            protocol_session_id: binding.call_id.as_str().into(),
++            provider_call_id: provider_call_id.into(),
++            predecessor_binding_sha256: predecessor_binding_sha256.into_boxed_str(),
++            transaction_key: transaction.key.to_string().into_boxed_str(),
++            previous_owner_epoch,
++            previous_generation,
++            previous_revision,
++            successor_owner_epoch: expected_successor.owner_epoch(),
++            successor_generation: expected_successor.generation(),
++            successor_revision: expected_successor.revision(),
++        };
++        let outcome = recovery_oracle.fence_predecessor_and_probe(request).await?;
++        let successor_fence_receipt_sha256 = match outcome {
++            NativeSipRecoveryProbeOutcome::VisibleOrAmbiguous => {
++                return Err(NativeSipEffectCapabilityError::RecoveryReconciliationRequired);
+             }
++            NativeSipRecoveryProbeOutcome::NoVisibleEffect {
++                successor_fence_receipt_sha256,
++            } => successor_fence_receipt_sha256,
++        };
++        if !is_sha256_lower_hex(&successor_fence_receipt_sha256) {
++            return Err(NativeSipEffectCapabilityError::RecoveryFenceInvalid);
+         }
++        if active_calls.get_identity(provider_call_id).as_ref() != Some(&expected_successor) {
++            return Err(ActiveCallRegistryError::AuthorityConflict.into());
++        }
++        install_for_admitted_native_call_inner(
++            self,
++            active_calls,
++            provider_call_id,
++            transaction,
++            Some(&expected_successor),
++        )
+     }
+ }
+ 
+ pub(crate) struct NativeMatchedCancelCapabilityHolder {
+     _cancel_ok: SipEffectIntentLease,
+     _invite_terminated: SipEffectIntentLease,
++    identity: NativeCallIdentity,
+     route_binding: Value,
+     cleanup_fence: NativeCallCleanupFence,
+ }
+@@ -151,10 +315,11 @@
+         let Self {
+             _cancel_ok,
+             _invite_terminated,
++            identity,
+             route_binding,
+             cleanup_fence,
+         } = self;
+-        drop((_cancel_ok, _invite_terminated, route_binding));
++        drop((_cancel_ok, _invite_terminated, identity, route_binding));
+         cleanup_fence.remove_original(active_calls);
+     }
+ }
+@@ -168,11 +333,35 @@
+     let Some(runtime) = runtime else {
+         return Ok(None);
+     };
+-    let holder = runtime.register_matched_cancel_capabilities(
++    install_for_admitted_native_call_inner(
++        runtime,
+         active_calls,
+         provider_call_id,
+         transaction,
+-    )?;
++        None,
++    )
++}
++
++fn install_for_admitted_native_call_inner(
++    runtime: &NativeSipEffectRuntime,
++    active_calls: &Arc<ActiveProxyCallRegistry>,
++    provider_call_id: &str,
++    transaction: &mut Transaction,
++    expected_identity: Option<&NativeCallIdentity>,
++) -> Result<Option<NativeMatchedCancelCapabilityHolder>, NativeSipEffectCapabilityError> {
++    let holder = match expected_identity {
++        Some(expected) => runtime.register_matched_cancel_capabilities_inner(
++            active_calls,
++            provider_call_id,
++            transaction,
++            Some(expected),
++        )?,
++        None => runtime.register_matched_cancel_capabilities(
++            active_calls,
++            provider_call_id,
++            transaction,
++        )?,
++    };
+     let response_transaction = match NativeResponseTransactionBinding::freeze(transaction) {
+         Ok(binding) => binding,
+         Err(error) => {
+@@ -185,6 +374,7 @@
+         intents: runtime.intents.clone(),
+         active_calls: active_calls.clone(),
+         provider_call_id: provider_call_id.into(),
++        identity: holder.identity.clone(),
+         transaction_key: transaction.key.clone(),
+         response_transaction,
+         route_binding: holder.route_binding.clone(),
+@@ -196,8 +386,46 @@
+         return Err(NativeSipEffectCapabilityError::TransactionGate(error));
+     }
+     Ok(Some(holder))
++}
++
++fn validate_recovery_transaction(
++    binding: &NativeCallRecoveryBinding,
++    provider_call_id: &str,
++    transaction: &Transaction,
++    successor_identity: &NativeCallIdentity,
++    expected_successor: &NativeCallIdentity,
++) -> Result<(), NativeSipEffectCapabilityError> {
++    if binding.provider_call_id.as_str() != provider_call_id
++        || successor_identity != expected_successor
++        || successor_identity.provider_call_id().as_str() != provider_call_id
++        || transaction.transaction_type != rsipstack::transaction::TransactionType::ServerInvite
++        || transaction.original.method != rsipstack::sip::Method::Invite
++        || transaction
++            .original
++            .call_id_header()
++            .ok()
++            .map(|header| header.value())
++            != Some(provider_call_id)
++        || TransactionKey::from_request(
++            &transaction.original,
++            rsipstack::transaction::key::TransactionRole::Server,
++        )
++        .ok()
++        .as_ref()
++            != Some(&transaction.key)
++    {
++        return Err(ActiveCallRegistryError::AuthorityConflict.into());
++    }
++    Ok(())
+ }
+ 
++fn is_sha256_lower_hex(value: &str) -> bool {
++    value.len() == 64
++        && value
++            .bytes()
++            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
++}
++
+ struct NativeResponseTransactionBinding {
+     call_id: Box<str>,
+     cseq_sequence: u32,
+@@ -317,11 +545,28 @@
+     intents: Arc<SipEffectIntentRegistry>,
+     active_calls: Arc<ActiveProxyCallRegistry>,
+     provider_call_id: Box<str>,
++    identity: NativeCallIdentity,
+     transaction_key: TransactionKey,
+     response_transaction: NativeResponseTransactionBinding,
+     route_binding: Value,
+     adapter_identity: Value,
+     audit_retention: Duration,
++}
++
++impl NativeCallEgressGate {
++    fn validate_bound_identity(&self) -> rsipstack::Result<()> {
++        if self
++            .active_calls
++            .get_identity(&self.provider_call_id)
++            .as_ref()
++            != Some(&self.identity)
++        {
++            return Err(rsipstack_gate_error(
++                ActiveCallRegistryError::AuthorityConflict.into(),
++            ));
++        }
++        Ok(())
++    }
+ }
+ 
+ #[async_trait]
+@@ -333,6 +578,7 @@
+         transport_binding: &EgressTransportBinding,
+         canonical_wire_bytes: &[u8],
+     ) -> rsipstack::Result<EgressEffectPermit> {
++        self.validate_bound_identity()?;
+         if transaction_key != &self.transaction_key {
+             return Err(rsipstack_gate_error(
+                 NativeSipEffectCapabilityError::InvalidConfiguration,
+@@ -343,11 +589,12 @@
+             .map_err(rsipstack_gate_error)?;
+         let mut reservation = self
+             .active_calls
+-            .reserve_ordinary_response_capability(
++            .reserve_ordinary_response_capability_for_identity(
+                 &self.provider_call_id,
+                 transaction_key,
+                 message,
+                 canonical_wire_bytes,
++                &self.identity,
+             )
+             .map_err(|error| rsipstack_gate_error(error.into()))?;
+         let intent = ordinary_response_intent(
+@@ -378,6 +625,11 @@
+             .await;
+         match prepare_result {
+             Ok(permit) => {
++                if let Err(error) = self.validate_bound_identity() {
++                    self.durable
++                        .observe_transport(permit, EgressEffectOutcome::TransportUnknown);
++                    return Err(error);
++                }
+                 if let Err(error) = reservation.commit_after_durable_prepare() {
+                     self.durable
+                         .observe_transport(permit, EgressEffectOutcome::TransportUnknown);
+@@ -408,6 +660,7 @@
+         transport_binding: &EgressTransportBinding,
+         canonical_wire_bytes: &[u8],
+     ) -> rsipstack::Result<EgressEffectPermit> {
++        self.validate_bound_identity()?;
+         self.durable
+             .prepare_derived(
+                 parent_permit,
+@@ -431,6 +684,7 @@
+         canonical_wire_bytes: &[u8],
+         ingress_proof: PeerIngressProof,
+     ) -> rsipstack::Result<EgressEffectPermit> {
++        self.validate_bound_identity()?;
+         self.durable
+             .prepare_peer_derived(
+                 kind,
+@@ -809,9 +1063,64 @@
+         ) -> Result<(), SipEffectStoreError> {
+             self.observations.lock().unwrap().push(observation);
+             Ok(())
++        }
++    }
++
++    struct TestRecoveryOracle {
++        outcome: std::sync::Mutex<NativeSipRecoveryProbeOutcome>,
++        requests: std::sync::Mutex<Vec<NativeSipRecoveryProbeRequest>>,
++        calls: AtomicUsize,
++        block: AtomicBool,
++        started: tokio::sync::Notify,
++        release: tokio::sync::Notify,
++    }
++
++    impl TestRecoveryOracle {
++        fn new(outcome: NativeSipRecoveryProbeOutcome) -> Self {
++            Self {
++                outcome: std::sync::Mutex::new(outcome),
++                requests: std::sync::Mutex::new(Vec::new()),
++                calls: AtomicUsize::new(0),
++                block: AtomicBool::new(false),
++                started: tokio::sync::Notify::new(),
++                release: tokio::sync::Notify::new(),
++            }
+         }
++
++        fn no_visible_effect() -> Self {
++            Self::new(NativeSipRecoveryProbeOutcome::NoVisibleEffect {
++                successor_fence_receipt_sha256:
++                    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".into(),
++            })
++        }
++
++        fn visible_or_ambiguous() -> Self {
++            Self::new(NativeSipRecoveryProbeOutcome::VisibleOrAmbiguous)
++        }
++
++        fn blocking(outcome: NativeSipRecoveryProbeOutcome) -> Self {
++            let oracle = Self::new(outcome);
++            oracle.block.store(true, Ordering::Release);
++            oracle
++        }
+     }
+ 
++    #[async_trait]
++    impl NativeSipCapabilityRecoveryOracle for TestRecoveryOracle {
++        async fn fence_predecessor_and_probe(
++            &self,
++            request: NativeSipRecoveryProbeRequest,
++        ) -> Result<NativeSipRecoveryProbeOutcome, NativeSipEffectCapabilityError> {
++            self.calls.fetch_add(1, Ordering::AcqRel);
++            self.requests.lock().unwrap().push(request);
++            self.started.notify_waiters();
++            if self.block.load(Ordering::Acquire) {
++                self.release.notified().await;
++            }
++            Ok(self.outcome.lock().unwrap().clone())
++        }
++    }
++
+     fn entry(session_id: &str) -> ActiveProxyCallEntry {
+         ActiveProxyCallEntry {
+             session_id: session_id.to_string(),
+@@ -943,6 +1252,27 @@
+         (runtime, intents, observers)
+     }
+ 
++    fn runtime_with_recovery_oracle(
++        oracle: Arc<TestRecoveryOracle>,
++    ) -> (NativeSipEffectRuntime, Arc<SipEffectIntentRegistry>) {
++        let (runtime, intents) = runtime();
++        (runtime.with_recovery_oracle(oracle), intents)
++    }
++
++    fn recovered_identity(
++        session_id: &str,
++        successor_owner_epoch: u64,
++    ) -> (
++        crate::call::domain::foundation_identity::NativeCallRecoveryBinding,
++        NativeCallIdentity,
++    ) {
++        let original = NativeCallIdentity::standalone(session_id).unwrap();
++        let binding = original.recovery_binding();
++        let recovered =
++            NativeCallIdentity::recover_from_binding(&binding, successor_owner_epoch).unwrap();
++        (binding, recovered)
++    }
++
+     #[tokio::test]
+     async fn admitted_native_call_registers_exactly_two_cancel_capabilities_once() {
+         let session_id = "native-cancel-call@example.test";
+@@ -1238,9 +1568,239 @@
+         assert!(registry.native_call_snapshot(&call_id).unwrap().is_none());
+         assert_eq!(registry.handles_by_dialog_count(), 0);
+         assert_eq!(registry.dialog_by_session_count(), 0);
++    }
++
++    #[tokio::test]
++    async fn recovered_unconsumed_call_fences_predecessor_before_rebuilding_capabilities() {
++        let session_id = "native-recovery-unconsumed@example.test";
++        let (binding, recovered) = recovered_identity(session_id, 2);
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(entry(session_id), handle(session_id), recovered.clone())
++            .unwrap();
++        let oracle = Arc::new(TestRecoveryOracle::no_visible_effect());
++        let (runtime, intents) = runtime_with_recovery_oracle(oracle.clone());
++        let mut transaction = transaction(session_id).await;
++
++        let holder = runtime
++            .install_recovered_unconsumed_call(&registry, &binding, session_id, &mut transaction)
++            .await
++            .expect("the fenced no-effect predecessor can rebuild")
++            .expect("recovery installs the transaction-local holder");
++
++        assert_eq!(oracle.calls.load(Ordering::Acquire), 1);
++        let requests = oracle.requests.lock().unwrap();
++        assert_eq!(requests.len(), 1);
++        assert_eq!(requests[0].previous_owner_epoch, 1);
++        assert_eq!(requests[0].previous_generation, 1);
++        assert_eq!(requests[0].successor_owner_epoch, 2);
++        assert_eq!(requests[0].successor_generation, 2);
++        assert_eq!(requests[0].provider_call_id.as_ref(), session_id);
++        assert_eq!(intents.snapshot().registered, 2);
++        assert_eq!(registry.get_identity(session_id), Some(recovered));
++
++        drop(requests);
++        drop(holder);
++        assert_eq!(intents.snapshot().registered, 0);
+     }
+ 
+     #[tokio::test]
++    async fn visible_or_ambiguous_predecessor_effect_blocks_rebuild_without_mutation() {
++        let session_id = "native-recovery-visible@example.test";
++        let (binding, recovered) = recovered_identity(session_id, 2);
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(entry(session_id), handle(session_id), recovered.clone())
++            .unwrap();
++        let before = registry
++            .native_call_snapshot(recovered.call_id())
++            .unwrap()
++            .unwrap();
++        let oracle = Arc::new(TestRecoveryOracle::visible_or_ambiguous());
++        let (runtime, intents) = runtime_with_recovery_oracle(oracle.clone());
++        let mut transaction = transaction(session_id).await;
++
++        assert!(matches!(
++            runtime
++                .install_recovered_unconsumed_call(
++                    &registry,
++                    &binding,
++                    session_id,
++                    &mut transaction,
++                )
++                .await,
++            Err(NativeSipEffectCapabilityError::RecoveryReconciliationRequired)
++        ));
++        assert_eq!(oracle.calls.load(Ordering::Acquire), 1);
++        assert_eq!(intents.snapshot().registered, 0);
++        assert_eq!(
++            registry
++                .native_call_snapshot(recovered.call_id())
++                .unwrap()
++                .unwrap(),
++            before
++        );
++        transaction
++            .install_egress_effect_gate(runtime.gate())
++            .expect("recovery rejection did not install a gate");
++    }
++
++    #[tokio::test]
++    async fn stale_recovery_binding_is_rejected_before_the_oracle() {
++        let session_id = "native-recovery-stale@example.test";
++        let original = NativeCallIdentity::standalone(session_id).unwrap();
++        let binding = original.recovery_binding();
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(entry(session_id), handle(session_id), original)
++            .unwrap();
++        let oracle = Arc::new(TestRecoveryOracle::no_visible_effect());
++        let (runtime, intents) = runtime_with_recovery_oracle(oracle.clone());
++        let mut transaction = transaction(session_id).await;
++
++        assert!(matches!(
++            runtime
++                .install_recovered_unconsumed_call(
++                    &registry,
++                    &binding,
++                    session_id,
++                    &mut transaction,
++                )
++                .await,
++            Err(NativeSipEffectCapabilityError::ActiveCall(
++                ActiveCallRegistryError::AuthorityConflict
++            ))
++        ));
++        assert_eq!(oracle.calls.load(Ordering::Acquire), 0);
++        assert_eq!(intents.snapshot().registered, 0);
++        assert!(registry.get(session_id).is_some());
++    }
++
++    #[tokio::test]
++    async fn successor_replacement_during_probe_cannot_receive_stale_capabilities() {
++        let session_id = "native-recovery-replaced@example.test";
++        let (binding, recovered) = recovered_identity(session_id, 2);
++        let replacement = NativeCallIdentity::recover_from_binding(&binding, 3).unwrap();
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(entry(session_id), handle(session_id), recovered)
++            .unwrap();
++        let oracle = Arc::new(TestRecoveryOracle::blocking(
++            NativeSipRecoveryProbeOutcome::NoVisibleEffect {
++                successor_fence_receipt_sha256:
++                    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".into(),
++            },
++        ));
++        let started = oracle.started.notified();
++        let (runtime, intents) = runtime_with_recovery_oracle(oracle.clone());
++        let runtime = Arc::new(runtime);
++        let task_registry = registry.clone();
++        let task_binding = binding.clone();
++        let task_runtime = runtime.clone();
++        let task = tokio::spawn(async move {
++            let mut transaction = transaction(session_id).await;
++            task_runtime
++                .install_recovered_unconsumed_call(
++                    &task_registry,
++                    &task_binding,
++                    session_id,
++                    &mut transaction,
++                )
++                .await
++        });
++        started.await;
++
++        registry.remove(session_id);
++        registry
++            .try_upsert_authoritative(entry(session_id), handle(session_id), replacement.clone())
++            .unwrap();
++        oracle.release.notify_waiters();
++
++        assert!(matches!(
++            task.await.unwrap(),
++            Err(NativeSipEffectCapabilityError::ActiveCall(
++                ActiveCallRegistryError::AuthorityConflict
++            ))
++        ));
++        assert_eq!(registry.get_identity(session_id), Some(replacement));
++        assert_eq!(intents.snapshot().registered, 0);
++    }
++
++    #[tokio::test]
++    async fn invalid_successor_fence_receipt_cannot_rebuild_capabilities() {
++        let session_id = "native-recovery-invalid-receipt@example.test";
++        let (binding, recovered) = recovered_identity(session_id, 2);
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(entry(session_id), handle(session_id), recovered)
++            .unwrap();
++        let oracle = Arc::new(TestRecoveryOracle::new(
++            NativeSipRecoveryProbeOutcome::NoVisibleEffect {
++                successor_fence_receipt_sha256: "not-a-sha256".into(),
++            },
++        ));
++        let (runtime, intents) = runtime_with_recovery_oracle(oracle);
++        let mut transaction = transaction(session_id).await;
++
++        assert!(matches!(
++            runtime
++                .install_recovered_unconsumed_call(
++                    &registry,
++                    &binding,
++                    session_id,
++                    &mut transaction,
++                )
++                .await,
++            Err(NativeSipEffectCapabilityError::RecoveryFenceInvalid)
++        ));
++        assert_eq!(intents.snapshot().registered, 0);
++        assert!(registry.get(session_id).is_some());
++    }
++
++    #[tokio::test]
++    async fn recovered_gate_cannot_mutate_a_later_same_provider_successor() {
++        let session_id = "native-recovery-later-successor@example.test";
++        let (binding, recovered) = recovered_identity(session_id, 2);
++        let replacement = NativeCallIdentity::recover_from_binding(&binding, 3).unwrap();
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(entry(session_id), handle(session_id), recovered)
++            .unwrap();
++        let writer = Arc::new(TestWriter::new());
++        let (runtime, intents, _observers) = runtime_with_writer(writer.clone());
++        let runtime =
++            runtime.with_recovery_oracle(Arc::new(TestRecoveryOracle::no_visible_effect()));
++        let mut transaction = transaction(session_id).await;
++        let holder = runtime
++            .install_recovered_unconsumed_call(&registry, &binding, session_id, &mut transaction)
++            .await
++            .unwrap()
++            .unwrap();
++
++        registry.remove(session_id);
++        registry
++            .try_upsert_authoritative(entry(session_id), handle(session_id), replacement.clone())
++            .unwrap();
++        let before = registry
++            .native_call_snapshot(replacement.call_id())
++            .unwrap()
++            .unwrap();
++
++        assert!(transaction.reply(StatusCode::Ringing).await.is_err());
++        assert_eq!(writer.prepared.load(Ordering::Acquire), 0);
++        assert_eq!(
++            registry
++                .native_call_snapshot(replacement.call_id())
++                .unwrap()
++                .unwrap(),
++            before,
++        );
++        assert_eq!(registry.get_identity(session_id), Some(replacement));
++        drop(holder);
++        assert_eq!(intents.snapshot().registered, 0);
++    }
++
++    #[tokio::test]
+     async fn runtime_rejects_an_unpinned_or_noncanonical_source_commit() {
+         let intents = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
+         let pool = PgPoolOptions::new()
+--- a/src/proxy/active_call_registry.rs
++++ b/src/proxy/active_call_registry.rs
+@@ -940,10 +940,32 @@
+     }
+ 
+     pub(crate) fn reserve_matched_cancel_capabilities(
++        self: &Arc<Self>,
++        provider_call_id: &str,
++        transaction: &rsipstack::transaction::transaction::Transaction,
++    ) -> Result<NativeMatchedCancelCapabilityReservation, ActiveCallRegistryError> {
++        self.reserve_matched_cancel_capabilities_inner(provider_call_id, transaction, None)
++    }
++
++    pub(crate) fn reserve_matched_cancel_capabilities_for_identity(
+         self: &Arc<Self>,
+         provider_call_id: &str,
+         transaction: &rsipstack::transaction::transaction::Transaction,
++        expected_identity: &NativeCallIdentity,
+     ) -> Result<NativeMatchedCancelCapabilityReservation, ActiveCallRegistryError> {
++        self.reserve_matched_cancel_capabilities_inner(
++            provider_call_id,
++            transaction,
++            Some(expected_identity),
++        )
++    }
++
++    fn reserve_matched_cancel_capabilities_inner(
++        self: &Arc<Self>,
++        provider_call_id: &str,
++        transaction: &rsipstack::transaction::transaction::Transaction,
++        expected_identity: Option<&NativeCallIdentity>,
++    ) -> Result<NativeMatchedCancelCapabilityReservation, ActiveCallRegistryError> {
+         use rsipstack::sip::prelude::HeadersExt;
+ 
+         if transaction.transaction_type != rsipstack::transaction::TransactionType::ServerInvite
+@@ -981,6 +1003,7 @@
+             (identity, binding)
+         };
+         if identity.provider_call_id().as_str() != provider_call_id
++            || expected_identity.is_some_and(|expected| expected != &identity)
+             || binding.direction != NativeLegDirection::Inbound
+         {
+             return Err(ActiveCallRegistryError::AuthorityConflict);
+@@ -1066,6 +1089,7 @@
+         })
+     }
+ 
++    #[cfg(test)]
+     pub(crate) fn reserve_ordinary_response_capability(
+         self: &Arc<Self>,
+         provider_call_id: &str,
+@@ -1073,6 +1097,40 @@
+         message: &rsipstack::sip::SipMessage,
+         canonical_wire_bytes: &[u8],
+     ) -> Result<NativeOrdinaryResponseCapabilityReservation, ActiveCallRegistryError> {
++        self.reserve_ordinary_response_capability_inner(
++            provider_call_id,
++            transaction_key,
++            message,
++            canonical_wire_bytes,
++            None,
++        )
++    }
++
++    pub(crate) fn reserve_ordinary_response_capability_for_identity(
++        self: &Arc<Self>,
++        provider_call_id: &str,
++        transaction_key: &rsipstack::transaction::key::TransactionKey,
++        message: &rsipstack::sip::SipMessage,
++        canonical_wire_bytes: &[u8],
++        expected_identity: &NativeCallIdentity,
++    ) -> Result<NativeOrdinaryResponseCapabilityReservation, ActiveCallRegistryError> {
++        self.reserve_ordinary_response_capability_inner(
++            provider_call_id,
++            transaction_key,
++            message,
++            canonical_wire_bytes,
++            Some(expected_identity),
++        )
++    }
++
++    fn reserve_ordinary_response_capability_inner(
++        self: &Arc<Self>,
++        provider_call_id: &str,
++        transaction_key: &rsipstack::transaction::key::TransactionKey,
++        message: &rsipstack::sip::SipMessage,
++        canonical_wire_bytes: &[u8],
++        expected_identity: Option<&NativeCallIdentity>,
++    ) -> Result<NativeOrdinaryResponseCapabilityReservation, ActiveCallRegistryError> {
+         use rsipstack::sip::prelude::HeadersExt;
+ 
+         let response = match message {
+@@ -1121,6 +1179,7 @@
+             (identity, binding)
+         };
+         if identity.provider_call_id().as_str() != provider_call_id
++            || expected_identity.is_some_and(|expected| expected != &identity)
+             || binding.direction != NativeLegDirection::Inbound
+         {
+             return Err(ActiveCallRegistryError::AuthorityConflict);
+

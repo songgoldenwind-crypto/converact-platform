@@ -45,7 +45,7 @@ test("ivekit.74 retains the matched-CANCEL pair before response capabilities", (
   }
 
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.75"/);
+  assert.match(build, /PATCHSET="ivekit\.76"/);
   assert.match(
     build,
     /rsipstack-converact-uas-2xx-owner-retention\.patch"[\s\S]*rsipstack-converact-transaction-local-matched-cancel-pair\.patch"/,
@@ -143,7 +143,8 @@ test("the functional slice does not claim server activation or performance evide
   assert.match(readme, /server functional verification\s+remain[s]?\s+`not_run`/i);
   assert.match(readme, /performance[^\n]*remain[^\n]*`not_run`/i);
   assert.deepEqual(matchedCancel.activation_blockers, [
-    "capability_rebuild_after_process_restart_not_implemented",
+    "durable_PostgreSQL_predecessor_fence_and_effect_absence_oracle_not_implemented",
+    "recovered_capability_live_wiring_not_implemented",
     "physical_postgresql_path_not_verified",
     "rustpbx_isolated_server_functional_verification_not_run_under_safe_memory_ceiling",
   ]);
@@ -165,7 +166,7 @@ test("the functional slice does not claim server activation or performance evide
   );
   assert.equal(
     matchedCancel.capability_restart_rebuild,
-    "not_implemented_activation_blocker",
+    "component_seam_implemented_durable_PostgreSQL_oracle_and_live_wiring_not_run",
   );
   assert.equal(
     matchedCancel.format_scope_exception,
@@ -181,8 +182,8 @@ test("the functional slice does not claim server activation or performance evide
   );
   assert.deepEqual(matchedCancel.local_functional_verification, {
     rsipstack_library: "314_passed_0_failed",
-    rustpbx_library: "2076_passed_0_failed_9_external_prerequisites_ignored",
-    affected_static_contract_tests: "202_passed_0_failed",
+    rustpbx_library: "2082_passed_0_failed_9_external_prerequisites_ignored",
+    affected_static_contract_tests: "205_passed_0_failed",
     repository_typecheck: "passed",
   });
   assert.equal(matchedCancel.live_server_activation, "not_run");

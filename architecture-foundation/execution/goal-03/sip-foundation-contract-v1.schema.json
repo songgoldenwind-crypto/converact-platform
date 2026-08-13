@@ -19,6 +19,7 @@
     "native_matched_cancel_effects",
     "native_ordinary_response_effects",
     "native_call_cleanup_fencing",
+    "native_call_capability_recovery",
     "ingress_events",
     "control_interface",
     "egress_events",
@@ -189,7 +190,7 @@
           "const": "166c6d22984429eb6b509920c14fcd69f974f0b3"
         },
         "patchset": {
-          "const": "ivekit.75"
+          "const": "ivekit.76"
         },
         "current_adapter": {
           "const": "rsipstack"
@@ -466,7 +467,7 @@
           "const": "implemented_identity_and_native_cell_pointer_fence"
         },
         "capability_restart_rebuild": {
-          "const": "not_implemented_activation_blocker"
+          "const": "component_seam_implemented_durable_PostgreSQL_oracle_and_live_wiring_not_run"
         },
         "format_scope_exception": {
           "const": "test_auth_constructor_compiled_and_full_tested_rustfmt_excluded_due_unrelated_upstream_drift"
@@ -519,10 +520,10 @@
               "const": "314_passed_0_failed"
             },
             "rustpbx_library": {
-              "const": "2076_passed_0_failed_9_external_prerequisites_ignored"
+              "const": "2082_passed_0_failed_9_external_prerequisites_ignored"
             },
             "affected_static_contract_tests": {
-              "const": "202_passed_0_failed"
+              "const": "205_passed_0_failed"
             },
             "repository_typecheck": {
               "const": "passed"
@@ -531,11 +532,14 @@
         },
         "activation_blockers": {
           "type": "array",
-          "minItems": 3,
-          "maxItems": 3,
+          "minItems": 4,
+          "maxItems": 4,
           "prefixItems": [
             {
-              "const": "capability_rebuild_after_process_restart_not_implemented"
+              "const": "durable_PostgreSQL_predecessor_fence_and_effect_absence_oracle_not_implemented"
+            },
+            {
+              "const": "recovered_capability_live_wiring_not_implemented"
             },
             {
               "const": "physical_postgresql_path_not_verified"
@@ -777,17 +781,20 @@
               "const": "passed"
             },
             "full_rustpbx_library": {
-              "const": "2076_passed_0_failed_9_external_prerequisites_ignored"
+              "const": "2082_passed_0_failed_9_external_prerequisites_ignored"
             }
           }
         },
         "activation_blockers": {
           "type": "array",
-          "minItems": 4,
-          "maxItems": 4,
+          "minItems": 5,
+          "maxItems": 5,
           "prefixItems": [
             {
-              "const": "capability_rebuild_after_process_restart_not_implemented"
+              "const": "durable_PostgreSQL_predecessor_fence_and_effect_absence_oracle_not_implemented"
+            },
+            {
+              "const": "recovered_capability_live_wiring_not_implemented"
             },
             {
               "const": "physical_postgresql_path_not_verified"
@@ -929,7 +936,7 @@
           ],
           "properties": {
             "native_sip_effect_capabilities": {
-              "const": "19_passed_0_failed"
+              "const": "25_passed_0_failed"
             },
             "active_call_registry": {
               "const": "24_passed_0_failed"
@@ -941,7 +948,7 @@
               "const": "passed"
             },
             "full_rustpbx_library": {
-              "const": "2076_passed_0_failed_9_external_prerequisites_ignored"
+              "const": "2082_passed_0_failed_9_external_prerequisites_ignored"
             }
           }
         },
@@ -950,6 +957,154 @@
         },
         "performance_verification": {
           "const": "not_run"
+        }
+      }
+    },
+    "native_call_capability_recovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority",
+        "implementation_status",
+        "scope",
+        "predecessor_binding",
+        "oracle_contract",
+        "probe_outcomes",
+        "visible_or_ambiguous_outcome",
+        "successor_fence_receipt",
+        "successor_revalidation",
+        "mutation_order",
+        "stale_successor_outcome",
+        "installed_gate_identity_fence",
+        "later_same_provider_successor_outcome",
+        "durable_postgresql_oracle",
+        "live_recovery_wiring",
+        "local_functional_verification",
+        "server_functional_verification",
+        "performance_verification",
+        "performance_policy",
+        "activation_blockers"
+      ],
+      "properties": {
+        "authority": {
+          "const": "Unified_RustPBX_Native_Call_registry"
+        },
+        "implementation_status": {
+          "const": "component_implemented_default_disabled"
+        },
+        "scope": {
+          "const": "rebuild_only_unconsumed_matched_CANCEL_capability_pair"
+        },
+        "predecessor_binding": {
+          "const": "NativeCallRecoveryBinding_exact_closed_v1"
+        },
+        "oracle_contract": {
+          "const": "atomically_fence_predecessor_owner_generation_then_prove_NoVisibleEffect"
+        },
+        "probe_outcomes": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "prefixItems": [
+            {
+              "const": "NoVisibleEffect"
+            },
+            {
+              "const": "VisibleOrAmbiguous"
+            }
+          ],
+          "items": false
+        },
+        "visible_or_ambiguous_outcome": {
+          "const": "fail_closed_RecoveryReconciliationRequired_no_registry_or_intent_mutation"
+        },
+        "successor_fence_receipt": {
+          "const": "required_64_byte_lowercase_sha256"
+        },
+        "successor_revalidation": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "prefixItems": [
+            {
+              "const": "provider_call_id"
+            },
+            {
+              "const": "NativeCallIdentity"
+            },
+            {
+              "const": "server_INVITE_transaction_key"
+            }
+          ],
+          "items": false
+        },
+        "mutation_order": {
+          "const": "validate_binding_and_transaction_then_await_oracle_then_revalidate_successor_then_reserve_and_install"
+        },
+        "stale_successor_outcome": {
+          "const": "fail_closed_AuthorityConflict_no_intent_installation"
+        },
+        "installed_gate_identity_fence": {
+          "const": "exact_NativeCallIdentity_checked_before_every_prepare_path_and_after_async_durable_prepare"
+        },
+        "later_same_provider_successor_outcome": {
+          "const": "fail_closed_no_successor_mutation_no_new_effect"
+        },
+        "durable_postgresql_oracle": {
+          "const": "not_implemented"
+        },
+        "live_recovery_wiring": {
+          "const": "not_run"
+        },
+        "local_functional_verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "native_sip_effect_capabilities",
+            "locked_library_check",
+            "rustfmt_changed_sources",
+            "full_rustpbx_library"
+          ],
+          "properties": {
+            "native_sip_effect_capabilities": {
+              "const": "25_passed_0_failed"
+            },
+            "locked_library_check": {
+              "const": "passed"
+            },
+            "rustfmt_changed_sources": {
+              "const": "passed"
+            },
+            "full_rustpbx_library": {
+              "const": "2082_passed_0_failed_9_external_prerequisites_ignored"
+            }
+          }
+        },
+        "server_functional_verification": {
+          "const": "not_run"
+        },
+        "performance_verification": {
+          "const": "not_run"
+        },
+        "performance_policy": {
+          "const": "deferred_to_final_performance_goal"
+        },
+        "activation_blockers": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "prefixItems": [
+            {
+              "const": "durable_PostgreSQL_predecessor_fence_and_effect_absence_oracle_not_implemented"
+            },
+            {
+              "const": "recovered_capability_live_wiring_not_implemented"
+            },
+            {
+              "const": "physical_PostgreSQL_restart_and_ambiguity_verification_not_run"
+            }
+          ],
+          "items": false
         }
       }
     },

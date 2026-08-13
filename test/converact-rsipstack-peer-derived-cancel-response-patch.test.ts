@@ -30,7 +30,7 @@ test("ivekit.62 applies peer-derived CANCEL response after sealed ingress", () =
   assert.equal(parsed.status, 0, parsed.stderr);
 
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.75"/);
+  assert.match(build, /PATCHSET="ivekit\.76"/);
   assert.match(
     build,
     /rsipstack-converact-peer-ingress-proof\.patch"[\s\S]*rsipstack-converact-peer-derived-cancel-response\.patch"[\s\S]*rustrtc-ivekit-udp-socket-capacity\.patch"/,

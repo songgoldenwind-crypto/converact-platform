@@ -882,6 +882,33 @@ activation, restart capability reconstruction, physical PostgreSQL, server
 functional verification and every performance/load/capacity/soak claim remain
 `not_run`; no running server service or deployed code is changed by this slice.
 
+ivekit.76 adds a conservative Rust recovery seam for that capability pair. It
+does not infer that a restarted call is safe to resend from an empty in-memory
+registry. The recovered `NativeCallRecoveryBinding`, provider Call-ID, exact
+server-INVITE transaction key, predecessor owner/generation/revision and the
+new Native Call identity are first frozen into one probe request. A durable
+oracle must atomically fence the predecessor and return either
+`NoVisibleEffect` with a valid successor fence receipt, or
+`VisibleOrAmbiguous`. The latter always fails closed with reconciliation
+required and performs no Call or intent mutation.
+
+After the asynchronous probe, RustPBX revalidates the exact successor identity
+before reserving the two one-use capabilities and installing the
+transaction-local gate. Replacement of the provider Call-ID during the probe
+therefore cannot transfer stale capabilities to the replacement Call. The gate
+also retains that full identity, checks it before every prepare path and checks
+again after asynchronous durable preparation; a later Call reusing the provider
+Call-ID cannot be mutated or receive a new effect from the stale gate. The
+focused Native capability suite passes `25/25`, the full local RustPBX library
+passes `2082/2082` with 9 external-prerequisite tests explicitly ignored, and
+the locked library check plus scoped Rust format check pass. The real
+PostgreSQL atomic oracle, live restart wiring, physical PostgreSQL
+crash/ambiguity verification, isolated server
+functional verification and every performance/load/capacity/soak claim remain
+`not_run`. This patchset does not start, stop, restart, overwrite, or modify any
+running server service, deployed code, configuration, data, container, or
+occupied port.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

@@ -290,6 +290,23 @@ independent review, restart capability reconstruction, physical
 PostgreSQL, live Endpoint, server functional verification and all deferred
 performance work remain `not_run`.
 
+The incremental `.76` candidate addresses only the next component boundary; it
+does not claim live restart recovery. Six RED/GREEN cases prove that RustPBX
+can reconstruct an unconsumed matched-CANCEL capability pair only after an
+Oracle atomically fences the predecessor and proves `NoVisibleEffect` for the
+exact recovery binding and server-INVITE transaction. `VisibleOrAmbiguous`, a
+stale binding, successor replacement during the Oracle wait, or an invalid
+fence receipt all fail closed before intent installation. The recovered gate
+also retains the exact successor identity: a later Call reusing the provider
+Call-ID is rejected before every prepare path and cannot be mutated or receive
+a new effect from the stale gate. Exact-source focused tests pass Native SIP
+capability `25/25`, Active Call registry `24/24`, full local RustPBX `2082/2082`
+with 9 external-prerequisite cases ignored, locked
+library check and scoped rustfmt. This remains an implementation self-review
+checkpoint. The real PostgreSQL atomic Oracle, live recovery holder, physical
+restart/ambiguity verification, isolated-server `.76` functional verification,
+final independent review and all deferred performance work remain `not_run`.
+
 ## Rejection history and remaining gate
 
 The earlier `6cbe1a3` evidence review was rejected with

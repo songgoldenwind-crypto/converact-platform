@@ -140,6 +140,18 @@ microbenchmark or citing rvoip upstream numbers cannot close that Gate.
    successor and exact cleanup removes every owned index. Process-restart
    reconstruction, physical dependencies, live Endpoint and server functional
    verification remain `not_run`; no performance command ran.
+10. `.76` prevents empty-memory restart state from being mistaken for proof that
+    no SIP effect was visible. A recovery request binds the closed predecessor
+    capsule, exact server-INVITE transaction and expected successor fences. Only
+    an atomic predecessor fence plus `NoVisibleEffect` permits reconstruction;
+    `VisibleOrAmbiguous`, invalid receipts and successor replacement fail closed
+    without intent mutation. An installed recovered gate is bound to the exact
+    successor identity and rechecks it before every prepare path and after
+    asynchronous durable preparation, so later reuse of the same provider
+    Call-ID cannot receive a stale effect. The Oracle is still a component trait: its real
+    PostgreSQL implementation, live holder, physical crash/restart verification
+    and server functional verification remain `not_run`. No performance command
+    ran and no server service or deployed code was changed.
 
-All nine remain visible in the G03 status artifacts and prevent production
+All ten remain visible in the G03 status artifacts and prevent production
 eligibility.

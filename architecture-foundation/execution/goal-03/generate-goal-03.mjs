@@ -26,7 +26,7 @@ const sourceIdentity = Object.freeze({
   rustpbx_commit: '6c49ee76baa54fdbf8f98020cc9bee158c7c15de',
   rsipstack_commit: '8318e97b1170de4e5245b120afec1cdf53e3d716',
   rustrtc_commit: '166c6d22984429eb6b509920c14fcd69f974f0b3',
-  patchset: 'ivekit.75',
+  patchset: 'ivekit.76',
   current_adapter: 'rsipstack',
   target_adapter: 'rvoip_low_level_slices_after_separate_gates',
   native_runtime_authority: 'Unified RustPBX process',
@@ -771,7 +771,8 @@ function sipFoundationContract() {
         'remove_exact_original_Call_authority_only',
       successor_replacement_cleanup_fence:
         'implemented_identity_and_native_cell_pointer_fence',
-      capability_restart_rebuild: 'not_implemented_activation_blocker',
+      capability_restart_rebuild:
+        'component_seam_implemented_durable_PostgreSQL_oracle_and_live_wiring_not_run',
       format_scope_exception:
         'test_auth_constructor_compiled_and_full_tested_rustfmt_excluded_due_unrelated_upstream_drift',
       endpoint_global_gate: 'forbidden',
@@ -779,12 +780,13 @@ function sipFoundationContract() {
       remaining_transport_verification: ['tcp', 'ws', 'tls', 'wss'],
       local_functional_verification: {
         rsipstack_library: '314_passed_0_failed',
-        rustpbx_library: '2076_passed_0_failed_9_external_prerequisites_ignored',
-        affected_static_contract_tests: '202_passed_0_failed',
+        rustpbx_library: '2082_passed_0_failed_9_external_prerequisites_ignored',
+        affected_static_contract_tests: '205_passed_0_failed',
         repository_typecheck: 'passed',
       },
       activation_blockers: [
-        'capability_rebuild_after_process_restart_not_implemented',
+        'durable_PostgreSQL_predecessor_fence_and_effect_absence_oracle_not_implemented',
+        'recovered_capability_live_wiring_not_implemented',
         'physical_postgresql_path_not_verified',
         'rustpbx_isolated_server_functional_verification_not_run_under_safe_memory_ceiling',
       ],
@@ -851,10 +853,11 @@ function sipFoundationContract() {
         rustfmt_changed_sources: 'passed',
         locked_library_check: 'passed',
         full_rustpbx_library:
-          '2076_passed_0_failed_9_external_prerequisites_ignored',
+          '2082_passed_0_failed_9_external_prerequisites_ignored',
       },
       activation_blockers: [
-        'capability_rebuild_after_process_restart_not_implemented',
+        'durable_PostgreSQL_predecessor_fence_and_effect_absence_oracle_not_implemented',
+        'recovered_capability_live_wiring_not_implemented',
         'physical_postgresql_path_not_verified',
         'live_endpoint_activation_not_run',
         'rustpbx_isolated_server_functional_verification_not_run',
@@ -891,16 +894,57 @@ function sipFoundationContract() {
       ],
       global_lock_or_scan: 'none',
       local_functional_verification: {
-        native_sip_effect_capabilities: '19_passed_0_failed',
+        native_sip_effect_capabilities: '25_passed_0_failed',
         active_call_registry: '24_passed_0_failed',
         rustfmt_changed_sources: 'passed',
         locked_library_check: 'passed',
         full_rustpbx_library:
-          '2076_passed_0_failed_9_external_prerequisites_ignored',
+          '2082_passed_0_failed_9_external_prerequisites_ignored',
       },
       server_functional_verification:
         'not_run_existing_host_cannot_link_RustPBX_lib_test_within_safe_isolated_memory_ceiling',
       performance_verification: 'not_run',
+    },
+    native_call_capability_recovery: {
+      authority: 'Unified_RustPBX_Native_Call_registry',
+      implementation_status: 'component_implemented_default_disabled',
+      scope: 'rebuild_only_unconsumed_matched_CANCEL_capability_pair',
+      predecessor_binding: 'NativeCallRecoveryBinding_exact_closed_v1',
+      oracle_contract:
+        'atomically_fence_predecessor_owner_generation_then_prove_NoVisibleEffect',
+      probe_outcomes: ['NoVisibleEffect', 'VisibleOrAmbiguous'],
+      visible_or_ambiguous_outcome:
+        'fail_closed_RecoveryReconciliationRequired_no_registry_or_intent_mutation',
+      successor_fence_receipt: 'required_64_byte_lowercase_sha256',
+      successor_revalidation: [
+        'provider_call_id',
+        'NativeCallIdentity',
+        'server_INVITE_transaction_key',
+      ],
+      mutation_order:
+        'validate_binding_and_transaction_then_await_oracle_then_revalidate_successor_then_reserve_and_install',
+      stale_successor_outcome: 'fail_closed_AuthorityConflict_no_intent_installation',
+      installed_gate_identity_fence:
+        'exact_NativeCallIdentity_checked_before_every_prepare_path_and_after_async_durable_prepare',
+      later_same_provider_successor_outcome:
+        'fail_closed_no_successor_mutation_no_new_effect',
+      durable_postgresql_oracle: 'not_implemented',
+      live_recovery_wiring: 'not_run',
+      local_functional_verification: {
+        native_sip_effect_capabilities: '25_passed_0_failed',
+        locked_library_check: 'passed',
+        rustfmt_changed_sources: 'passed',
+        full_rustpbx_library:
+          '2082_passed_0_failed_9_external_prerequisites_ignored',
+      },
+      server_functional_verification: 'not_run',
+      performance_verification: 'not_run',
+      performance_policy: 'deferred_to_final_performance_goal',
+      activation_blockers: [
+        'durable_PostgreSQL_predecessor_fence_and_effect_absence_oracle_not_implemented',
+        'recovered_capability_live_wiring_not_implemented',
+        'physical_PostgreSQL_restart_and_ambiguity_verification_not_run',
+      ],
     },
     ingress_events: [
       'request_received',
@@ -2030,6 +2074,7 @@ const sourceMaps = Object.freeze({
       'infra/converact/rustpbx/patches/rustpbx-converact-native-matched-cancel-capabilities.patch',
       'infra/converact/rustpbx/patches/rustpbx-converact-native-response-capabilities.patch',
       'infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch',
+      'infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch',
     ],
     test_paths: [
       'test/converact-sip-foundation.test.ts',
@@ -2038,6 +2083,7 @@ const sourceMaps = Object.freeze({
       'test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts',
       'test/converact-rustpbx-native-response-capabilities-patch.test.ts',
       'test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts',
+      'test/converact-rustpbx-native-call-capability-recovery-patch.test.ts',
     ],
   },
   call_leg: {
@@ -2050,6 +2096,7 @@ const sourceMaps = Object.freeze({
       'src/agent-runtime/converact/voice/dialog-owner-takeover.ts',
       'src/agent-runtime/converact/voice/cdr-convergence.ts',
       'infra/converact/rustpbx/patches/rustpbx-converact-native-call-cleanup-fence.patch',
+      'infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch',
     ],
     test_paths: [
       'test/converact-call-leg-foundation.test.ts',
@@ -2057,6 +2104,7 @@ const sourceMaps = Object.freeze({
       'test/converact-dialog-owner-takeover.test.ts',
       'test/converact-voice-cdr-convergence.test.ts',
       'test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts',
+      'test/converact-rustpbx-native-call-capability-recovery-patch.test.ts',
     ],
   },
   effect_receipt: {

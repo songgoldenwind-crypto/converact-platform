@@ -207,6 +207,24 @@ Run serially:
    9 external-prerequisite cases ignored, locked library check and scoped
    rustfmt. Restart reconstruction, physical PostgreSQL, live Endpoint, server
    functional verification and all performance work remain `not_run`.
+   The `.76` RED/GREEN slice then models restart reconstruction as an explicitly
+   default-disabled Rust Oracle boundary. RED first fixes five cases: a fenced
+   predecessor with no visible effect may rebuild; visible or ambiguous history
+   requires reconciliation; a stale recovery binding is rejected before the
+   Oracle; successor replacement during the asynchronous probe cannot inherit
+   capabilities; an invalid fence receipt cannot authorize mutation; and an
+   already-installed recovered gate cannot mutate a later Call reusing the
+   same provider Call-ID. GREEN
+   validates the exact closed recovery binding and server-INVITE transaction,
+   awaits one atomic predecessor-fence/no-visible-effect decision, validates the
+   lowercase SHA-256 receipt, rechecks the exact successor identity, and only
+   then reserves and installs the pair. The installed gate binds that exact
+   successor identity, checks it before all prepare paths and checks again after
+   asynchronous durable preparation. Focused Native SIP capability passes
+   `25/25`, registry remains `24/24`, full local RustPBX passes `2082/2082` with
+   9 external-prerequisite cases ignored, locked check and scoped rustfmt pass.
+   The PostgreSQL Oracle, live recovery holder, physical restart/ambiguity test,
+   server functional verification and all performance work remain `not_run`.
 6. repository typecheck.
 7. Generate raw output, command/source manifest and SHA-256 evidence with no
    secrets.
