@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-migration-tooling",
+  "generated_at": "2026-08-14T13:06:03Z",
+  "current_state": "implemented_offline",
+  "target_state": "bounded_dry_run_first_authority_migration_operator",
+  "production_eligible": false,
+  "checks": [
+    {
+      "id": "focused_rust_contracts",
+      "status": "passed",
+      "result": "12/12; three PostgreSQL tests intentionally ignored in ordinary runs"
+    },
+    {
+      "id": "postgresql_14_18_physical_tooling",
+      "status": "passed",
+      "result": "3/3 on isolated ephemeral cluster; includes concurrent held-lock unknown/reconcile path"
+    },
+    {
+      "id": "focused_clippy",
+      "status": "passed",
+      "result": "migration-tooling and migration-tool all targets with -D warnings"
+    },
+    {
+      "id": "affected_typescript_contract_and_typecheck",
+      "status": "passed",
+      "result": "8/8 authority migration/canonical/health contract checks plus TypeScript typecheck"
+    },
+    {
+      "id": "full_rust_workspace_current_exact_source",
+      "status": "passed",
+      "result": "66 passed, 6 PostgreSQL physical tests intentionally ignored in the ordinary workspace run; workspace clippy all targets/all features -D warnings and fmt check passed"
+    },
+    {
+      "id": "independent_tooling_review_final_round",
+      "status": "passed",
+      "result": "three rounds; 1 Critical and 3 Important findings corrected with regressions; final exact diff 0 Critical / 0 Important"
+    },
+    {
+      "id": "postgres_hba_peer_mapping",
+      "status": "not_run"
+    },
+    {
+      "id": "running_server_validation",
+      "status": "not_run"
+    },
+    {
+      "id": "fleet_fault_validation",
+      "status": "not_run"
+    },
+    {
+      "id": "performance_validation",
+      "status": "not_run"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+[package]
+name = "converact-migration-tool"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+converact-migration-store = { path = "../../crates/migration-store" }
+converact-migration-tooling = { path = "../../crates/migration-tooling" }
+rustix.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tokio-postgres = { workspace = true, features = ["runtime"] }
+
+[dev-dependencies]
+converact-kernel-ids = { path = "../../crates/kernel-ids" }
+converact-migration-routing = { path = "../../crates/migration-routing" }
+
+[lints]
+workspace = true
