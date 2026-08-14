@@ -19,7 +19,10 @@ const EXPECTED = [
 
 test('platform foundation migrations are additive and ordered immediately after 107', () => {
   const plan = readPostgresMigrationPlan(new URL('../src/migrations', import.meta.url).pathname);
-  assert.deepEqual(plan.slice(-10).map((entry) => entry.file), [
+  const files = plan.map((entry) => entry.file);
+  const sipOracleIndex = files.indexOf('107_ivekit_sip_effect_oracle.sql');
+  assert.notEqual(sipOracleIndex, -1);
+  assert.deepEqual(files.slice(sipOracleIndex, sipOracleIndex + 10), [
     '107_ivekit_sip_effect_oracle.sql', ...EXPECTED
   ]);
   for (const file of EXPECTED) {
@@ -118,7 +121,12 @@ test('standalone package and delivery allowlists include all platform migrations
   const sourcePolicy = JSON.parse(readFileSync(new URL(
     '../services/converact-service/source-policy.json', import.meta.url
   ), 'utf8')) as { migrations: string[] };
-  assert.deepEqual(sourcePolicy.migrations.slice(-EXPECTED.length), [...EXPECTED]);
+  const foundationIndex = sourcePolicy.migrations.indexOf(EXPECTED[0]);
+  assert.notEqual(foundationIndex, -1);
+  assert.deepEqual(
+    sourcePolicy.migrations.slice(foundationIndex, foundationIndex + EXPECTED.length),
+    [...EXPECTED]
+  );
   const delivery = readFileSync(new URL('../scripts/converact-delivery-bundle.ts', import.meta.url), 'utf8');
   for (const file of EXPECTED) assert.match(delivery, new RegExp(file.replace('.', '\\.')));
 });

@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-authority-routing",
+  "cycles": [
+    {
+      "behavior": "migration schema contract",
+      "red": "5 tests failed because migration 117 did not exist",
+      "green": "5/5 static schema, transition, fence and privilege tests passed"
+    },
+    {
+      "behavior": "database bootstrap and transition guards",
+      "red": "insert/tenant caller checks and generation-route consistency triggers were absent",
+      "green": "bootstrap, forward-only, deferred cross-row and caller-tenant checks passed"
+    },
+    {
+      "behavior": "retired migration metadata preserves current writer",
+      "red": "retired route retained predecessor and pure writer authorization failed",
+      "green": "predecessor cleared; current accepting generation remains authorized"
+    },
+    {
+      "behavior": "durable snapshot restore",
+      "red": "restore constructors did not exist",
+      "green": "invalid dual/missing generations fail closed; exact snapshots round-trip"
+    },
+    {
+      "behavior": "bounded store configuration and lease digest",
+      "red": "store configuration, digest and same-statement SQL contracts did not exist",
+      "green": "bounded TTL/window, lowercase SHA-256 and SQL contracts passed"
+    },
+    {
+      "behavior": "commit mutation ordering",
+      "red": "durable generation plan did not exist",
+      "green": "old generation drains before prepared generation activates"
+    },
+    {
+      "behavior": "PostgreSQL adapter API",
+      "red": "durable command and route store did not exist",
+      "green": "digest-only prepare and stateless explicit-client API passed"
+    },
+    {
+      "behavior": "real PostgreSQL installation and lifecycle",
+      "red": "fresh harness lacked the documented opc_admin prerequisite; a calibration run combined two command boundaries",
+      "green": "complete migrations and one-command-per-transaction lifecycle passed on an isolated PostgreSQL 14.18 cluster"
+    },
+    {
+      "behavior": "real Rust store replay and reconcile",
+      "red": "not previously exercised against PostgreSQL",
+      "green": "full lifecycle passed through PostgresRouteStore using a non-superuser migration executor login"
+    },
+    {
+      "behavior": "receipt scope and exact durable command binding",
+      "red": "a receipt could replay across a route key or command kind, and prepare capability changes were not bound",
+      "green": "route key, command kind and a store-owned canonical hash over every command field plus the lease commitment are required"
+    },
+    {
+      "behavior": "lease secrecy and expired-writer recovery",
+      "red": "the runtime role could read lease digests, expired leases could be revived and an expired current writer blocked prepare",
+      "green": "runtime has no generation-table SELECT, functions hash a raw token internally, renew rejects expiry and a higher owner epoch can prepare takeover"
+    },
+    {
+      "behavior": "active-zero claim accounting and crash reconciliation",
+      "red": "default zero counters had no fenced claim/release source and could permit premature active-zero",
+      "green": "idempotent claim ledger, O(1) fenced counter deltas, explicit tracking seal, active-claim absence and executor reconciliation reject active-zero until all claims are released"
+    },
+    {
+      "behavior": "concurrent claim and release lock ordering",
+      "red": "independent review found that taking a shared writer fence before updating the same generation permitted bilateral lock-upgrade deadlock; no parallel physical test existed",
+      "green": "both functions lock the exact route then exact generation before fencing; two concurrent claims and two concurrent releases passed on PostgreSQL 14.18"
+    },
+    {
+      "behavior": "bounded claim accounting and tombstone retention",
+      "red": "deferred aggregate count guards scanned a generation's full claim set on every mutation and released tombstones had no deletion gate",
+      "green": "claim/release uses constant-work counter deltas; tombstones remain until both their seven-day horizon and generation retirement, and tenant-fenced SKIP LOCKED purge rejects null/zero/oversize limits and deletes at most 256 rows"
+    },
+    {
+      "behavior": "multiple predecessor generation lifecycle",
+      "red": "a second commit replaced the route's single draining pointer and left the older draining generation without a store cleanup path",
+      "green": "bounded ledger query plus exact unreferenced active-zero and retire functions preserved both predecessors; the physical double-migration test retired generation 1 while generation 2 remained draining"
+    },
+    {
+      "behavior": "lease capability debug secrecy",
+      "red": "routing LeaseToken derived Debug, so nested GenerationRecord and WriterClaim debug output exposed the raw bearer capability",
+      "green": "a custom redacted Debug implementation removes the raw value from direct and nested debug output"
+    },
+    {
+      "behavior": "retired-only bounded claim tombstone purge",
+      "red": "a seven-day tombstone could be removed while its writer generation remained active, and NULL limit bypassed the numeric guard because PostgreSQL treats LIMIT NULL as unbounded",
+      "green": "purge requires an exact retired tenant/Authority/partition/generation, rejects null timestamp/generation/limit and 0/257 limits, and a physical test proves an expired tombstone remains while accepting but is removed after retirement"
+    },
+    {
+      "behavior": "unbounded predecessor count with bounded query work",
+      "red": "the 65th nonterminal predecessor changed the entire query into a permanent TooManyPredecessors error with no recovery cursor",
+      "green": "fixed 64-row pages use an exclusive generation cursor and a predicate/order-aligned partial index; PostgreSQL enumerated 66 mixed-state predecessors as 64 plus 2 and EXPLAIN showed the partial index without Sort"
+    },
+    {
+      "behavior": "bounded purge candidate discovery",
+      "red": "tenant-wide purge joined every expired tombstone to generation state, so many active-generation tombstones could be rescanned before the 256-row delete limit",
+      "green": "the API and partial index are exact-generation scoped and ordered by expiry plus claim identity, making both candidate discovery and deletion independently bounded per retired generation"
+    }
+  ]
+}

@@ -288,7 +288,8 @@ const STANDALONE_MIGRATIONS = [
   '113_converact_sip_effect_transport_completed.sql',
   '114_converact_sip_effect_transport_completed_validate.sql',
   '115_converact_sip_effect_stale_nonterminal_recovery.sql',
-  '116_converact_sip_capability_recovery_fence.sql'
+  '116_converact_sip_capability_recovery_fence.sql',
+  '117_converact_authority_migration_routes.sql'
 ];
 
 const CAPACITY_RUNTIME_SOURCE_PATHS = [

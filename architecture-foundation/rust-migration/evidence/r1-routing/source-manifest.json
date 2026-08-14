@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-14T12:01:26Z",
+  "rust_toolchain": "1.94.1-aarch64-apple-darwin",
+  "dependency": {
+    "name": "tokio-postgres",
+    "version": "0.7.18",
+    "license": "MIT OR Apache-2.0",
+    "repository": "https://github.com/rust-postgres/rust-postgres",
+    "documentation": "https://docs.rs/tokio-postgres/0.7.18/tokio_postgres/",
+    "production_default_features": false,
+    "test_runtime_feature": true
+  },
+  "files": [
+    { "path": "server-rs/Cargo.toml", "sha256": "1cea80045017a88df6043a3d1d2ad0637d82d5a37201e08187eeb21e64cf7b29" },
+    { "path": "server-rs/Cargo.lock", "sha256": "f7ff0a93a458abcc6fdff73685c241af9e329be13e34e42298903d2e99fb04f6" },
+    { "path": "server-rs/crates/migration-routing/Cargo.toml", "sha256": "85b60a2d308c94e6c1adbfe7c5951829a4ab4fb9d6645ed632fadadd81d7329b" },
+    { "path": "server-rs/crates/migration-routing/src/lib.rs", "sha256": "bef12c5b4fd84ef10a7e160bd3cd1b7bdbd59b03b395480bec0d9afbb5623b6e" },
+    { "path": "server-rs/crates/migration-routing/tests/drain.rs", "sha256": "178d83ba052ce01620682d4c389bf56ab1566f96a19d2b780caddb55a7befc41" },
+    { "path": "server-rs/crates/migration-routing/tests/persistence.rs", "sha256": "7bda541a4c2b7fc738abe6e317a109490bd7621a5b5bb8b8326715fd2e73d101" },
+    { "path": "server-rs/crates/migration-routing/tests/state_machine.rs", "sha256": "176ec10f591fe3519f75588fe5b048bd6f2196d4018461c2208270de780aa135" },
+    { "path": "server-rs/crates/migration-routing/tests/writer_fence.rs", "sha256": "1cff7367f544d624e601c9d6819b09b797ea0c0a3e17e117dce246093abe246d" },
+    { "path": "server-rs/crates/migration-store/Cargo.toml", "sha256": "9d280a3ee05891c8637cec9fb9059ba2fe1665f44a4804fe77fef4015a676c47" },
+    { "path": "server-rs/crates/migration-store/src/lib.rs", "sha256": "44ebe84bbf03490e866c94ea69e7d1018fa5368f09db33c0fec71d52e03d60bc" },
+    { "path": "server-rs/crates/migration-store/src/postgres.rs", "sha256": "1bdea5c3824d0daae9d0448d7e3f033cdfcbadef6b484112f29fc9c24f9ddb7e" },
+    { "path": "server-rs/crates/migration-store/tests/config.rs", "sha256": "886859ae08f60d3a7f9b76ac0e2efce476b43c84d49b89d5545e11500685020d" },
+    { "path": "server-rs/crates/migration-store/tests/plan.rs", "sha256": "b980b7ca3c9a16c9e1459be428bed3058660802cadf2d2f4becb12193ba474ba" },
+    { "path": "server-rs/crates/migration-store/tests/postgres.rs", "sha256": "892cab0bb3e1597f1c1f2b43e72d269a1fe085774e5a2cf38df081579e6974f2" },
+    { "path": "server-rs/crates/migration-store/tests/postgres_api.rs", "sha256": "d4f399e763886880ad670d69b1db055bcd7d54b84d1cc952269b1678f6f61d26" },
+    { "path": "server-rs/crates/migration-store/tests/snapshot.rs", "sha256": "ca560a219110b95b88be005651b2b5784dab2d96e0db4f58126bab79405f80a9" },
+    { "path": "server-rs/crates/migration-store/tests/support/mod.rs", "sha256": "13f1ebd59136e4e6dc504ac310a67589c3db72445aa1be2e94c655e479061250" },
+    { "path": "src/migrations/117_converact_authority_migration_routes.sql", "sha256": "979ceef33d1930fadbef8c0a8702dbcbd32bef96dce8dc030245f5bbce735703" },
+    { "path": "scripts/converact-delivery-bundle.ts", "sha256": "6436000b65c7bc7b6f0dc453f855c7f37402c174656ed89033b379e3e3674093" },
+    { "path": "services/converact-service/source-policy.json", "sha256": "3963583aeaa9648e39b945127b9d81567702332133142da981634a7b493b4674" },
+    { "path": "test/converact-authority-route-migration.test.ts", "sha256": "2d87b2365a551ce588ff4bf57b33b0d0b7972d1ee7c124957f83305386819ffd" },
+    { "path": "test/converact-platform-foundation-migration.test.ts", "sha256": "783b76e0d7eb130f50dad5eef0e1e752b54094dcba9423a5ec65e4695af382ea" },
+    { "path": "test/converact-delivery-bundle.test.ts", "sha256": "40ec538e8a85311a774717f37c3e2ff6f0e21b2e81654a78bfad8c77064ad62b" },
+    { "path": "test/converact-standalone-source-graph.test.ts", "sha256": "73f96ddd8cbe64e56417f59eec89e5a81b3e19b3d7c1619a9955d6c0e492153d" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-routing/postgres-lifecycle.sql", "sha256": "04a5a33acb5eb223138aa233cd66e14863ab7d04402d4f2eca1e416bed8a4694" }
+  ]
+}

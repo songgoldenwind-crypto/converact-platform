@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-authority-routing",
+  "generated_at": "2026-08-14T12:05:38Z",
+  "current_state": "implemented_offline",
+  "target_state": "durable_postgresql_fenced_route_store",
+  "production_eligible": false,
+  "checks": [
+    {
+      "id": "authority_route_machine_contract",
+      "status": "passed",
+      "result": "3/3"
+    },
+    {
+      "id": "migration_static_contract",
+      "status": "passed",
+      "result": "6/6"
+    },
+    {
+      "id": "affected_typescript_migration_readiness",
+      "status": "passed",
+      "result": "12/12 plus TypeScript typecheck"
+    },
+    {
+      "id": "delivery_and_source_graph",
+      "status": "passed",
+      "result": "16/16"
+    },
+    {
+      "id": "migration_routing_and_store_rust",
+      "status": "passed",
+      "result": "54 passed, 3 physical tests intentionally ignored in the ordinary workspace run; clippy --workspace --all-targets --all-features -D warnings passed"
+    },
+    {
+      "id": "postgres_complete_migration_plan",
+      "status": "passed",
+      "engine": "PostgreSQL 14.18",
+      "scope": "isolated_ephemeral_local_cluster"
+    },
+    {
+      "id": "postgres_sql_lifecycle",
+      "status": "passed",
+      "result": "retired:2:6; generation 1 retired; generation 2 accepting_new_work; expired takeover prepare:2; runtime generation SELECT false; receipt immutable"
+    },
+    {
+      "id": "postgres_rust_store_lifecycle",
+      "status": "passed",
+      "result": "3/3 under a non-superuser inheriting only opc_migration_executor and opc_runtime for product calls; exact replay, capability conflict, parallel claim/release, crash reconcile, retired-only bounded purge, double-migration cleanup and 66-predecessor pagination covered; admin access only backdated one ephemeral tombstone to exercise expiry"
+    },
+    {
+      "id": "independent_route_store_review",
+      "status": "passed",
+      "result": "five read-only rounds found and closed 1 Critical plus 14 Important; final review independently verified manifest 25/25, reran core crate tests and reported 0 Critical / 0 Important"
+    },
+    {
+      "id": "running_server_validation",
+      "status": "not_run"
+    },
+    {
+      "id": "fleet_fault_validation",
+      "status": "not_run"
+    },
+    {
+      "id": "performance_validation",
+      "status": "not_run"
+    }
+  ]
+}
