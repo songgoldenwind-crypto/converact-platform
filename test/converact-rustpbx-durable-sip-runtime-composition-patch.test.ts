@@ -26,7 +26,7 @@ test('ivekit.78 applies the Rust durable composition after the recovery oracle',
   assert.equal(createHash('sha256').update(patch).digest('hex'), PATCH_SHA256);
 
   const build = readFileSync(BUILD, 'utf8');
-  assert.match(build, /PATCHSET="ivekit\.81"/u);
+  assert.match(build, /PATCHSET="ivekit\.82"/u);
   assert.match(
     build,
     /rustpbx-converact-capability-recovery-oracle\.patch"[\s\S]*rustpbx-converact-durable-sip-runtime-composition\.patch"/u,

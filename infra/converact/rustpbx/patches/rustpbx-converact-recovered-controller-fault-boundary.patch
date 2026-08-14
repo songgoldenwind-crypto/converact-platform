@@ -1,0 +1,117 @@
+diff --git a/src/ivekit_dialog_shadow.rs b/src/ivekit_dialog_shadow.rs
+index 4263d82..e7c3a97 100644
+--- a/src/ivekit_dialog_shadow.rs
++++ b/src/ivekit_dialog_shadow.rs
+@@ -4,10 +4,12 @@ use async_trait::async_trait;
+ use base64::Engine as _;
+ use base64::engine::general_purpose::STANDARD;
+ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
++use futures::FutureExt;
+ use serde::de::DeserializeOwned;
+ use serde::{Deserialize, Serialize};
+ use sha2::{Digest, Sha256};
+ use std::collections::{HashMap, HashSet};
++use std::panic::AssertUnwindSafe;
+ use std::path::PathBuf;
+ use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
+ use std::sync::{Arc, OnceLock};
+@@ -2350,6 +2352,8 @@ struct RecoveredShadowPairContext {
+ 
+ const RECOVERED_DIALOG_REQUEST_TIMEOUT: Duration = Duration::from_secs(32);
+ const RECOVERED_DIALOG_TERMINATION_TIMEOUT: Duration = Duration::from_secs(2);
++const RECOVERED_MEDIA_TERMINATION_TIMEOUT: Duration = Duration::from_secs(2);
++const RECOVERED_CONTROLLER_PANIC_CLEANUP_TIMEOUT: Duration = Duration::from_secs(8);
+ const RECOVERED_DIALOG_GLARE_RETRIES: usize = 2;
+ const RECOVERED_DIALOG_EVENT_CAPACITY: usize = 64;
+ const RECOVERED_DIALOG_TERMINAL_ENQUEUE_TIMEOUT: Duration = Duration::from_millis(100);
+@@ -2669,11 +2673,46 @@ async fn spawn_recovered_dialog_controller(
+     Ok(())
+ }
+ 
++async fn recovered_controller_panicked<F>(future: F) -> bool
++where
++    F: std::future::Future<Output = ()>,
++{
++    AssertUnwindSafe(future).catch_unwind().await.is_err()
++}
++
+ impl RecoveredDialogController {
+     async fn run(
+         mut self,
+         mut receiver: tokio::sync::mpsc::Receiver<RecoveredDialogEvent>,
+         mut command_receiver: tokio::sync::mpsc::Receiver<crate::call::domain::CallCommand>,
++    ) {
++        if !recovered_controller_panicked(self.run_loop(&mut receiver, &mut command_receiver)).await
++        {
++            return;
++        }
++        tracing::error!(
++            call_session_ref = %self.context.call_session_ref,
++            owner_epoch = self.context.owner_epoch,
++            "recovered dialog controller panic contained in child fault domain"
++        );
++        let cleanup = AssertUnwindSafe(self.terminate_all("controller_panic")).catch_unwind();
++        match tokio::time::timeout(RECOVERED_CONTROLLER_PANIC_CLEANUP_TIMEOUT, cleanup).await {
++            Ok(Ok(())) => {}
++            Ok(Err(_)) => tracing::error!(
++                call_session_ref = %self.context.call_session_ref,
++                "recovered dialog controller panic cleanup also panicked"
++            ),
++            Err(_) => tracing::error!(
++                call_session_ref = %self.context.call_session_ref,
++                "recovered dialog controller panic cleanup reached its hard deadline"
++            ),
++        }
++    }
++
++    async fn run_loop(
++        &mut self,
++        receiver: &mut tokio::sync::mpsc::Receiver<RecoveredDialogEvent>,
++        command_receiver: &mut tokio::sync::mpsc::Receiver<crate::call::domain::CallCommand>,
+     ) {
+         let mut command_open = true;
+         loop {
+@@ -3123,12 +3162,22 @@ impl RecoveredDialogController {
+                     .await;
+             }
+         }
+-        if let Err(error) = self.media.close_media().await {
+-            tracing::warn!(
++        match tokio::time::timeout(
++            RECOVERED_MEDIA_TERMINATION_TIMEOUT,
++            self.media.close_media(),
++        )
++        .await
++        {
++            Ok(Ok(_)) => {}
++            Ok(Err(error)) => tracing::warn!(
+                 call_session_ref = %self.context.call_session_ref,
+                 error = %error,
+                 "recovered media close failed"
+-            );
++            ),
++            Err(_) => tracing::warn!(
++                call_session_ref = %self.context.call_session_ref,
++                "recovered media close reached its hard deadline"
++            ),
+         }
+         let previous_cdr_sequence = self
+             .payloads
+@@ -4276,6 +4325,17 @@ mod tests {
+         );
+     }
+ 
++    #[tokio::test]
++    async fn recovered_controller_panics_are_caught_at_the_child_fault_boundary() {
++        assert!(!recovered_controller_panicked(async {}).await);
++        assert!(
++            recovered_controller_panicked(async {
++                panic!("recovered controller fault injection");
++            })
++            .await
++        );
++    }
++
+     #[test]
+     fn capsule_v2_native_binding_must_match_aead_authority() {
+         let codec = DialogRecoveryCapsuleCodec::new(

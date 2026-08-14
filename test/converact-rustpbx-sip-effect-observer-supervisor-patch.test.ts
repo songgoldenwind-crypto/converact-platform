@@ -31,7 +31,7 @@ test("observer supervisor patch is a fixed-shard default-disabled component slic
 
 test("ivekit.71 applies and formats the supervisor after the .70 recovery tail", () => {
   const build = readFileSync("infra/converact/rustpbx/build.sh", "utf8");
-  assert.match(build, /PATCHSET="ivekit\.81"/u);
+  assert.match(build, /PATCHSET="ivekit\.82"/u);
   assert.match(
     build,
     /rustpbx-converact-stale-nonterminal-recovery-returning-alias\.patch"[\s\S]*rustpbx-converact-sip-effect-observer-supervisor\.patch"/u,

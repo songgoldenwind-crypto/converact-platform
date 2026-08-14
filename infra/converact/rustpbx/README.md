@@ -999,6 +999,22 @@ Docker or performance command ran. Real process restart, live peer behavior,
 controller-panic async media cleanup, original-INVITE Oracle activation, live
 Endpoint, production and performance remain `not_run`.
 
+ivekit.82 contains faults from that recovered controller inside its existing
+child task. An unwind is caught before it can escape the child domain; the
+controller then makes one best-effort exact-Call termination attempt. Cleanup
+has its own unwind guard and an 8-second total hard deadline, while each media
+close has a 2-second hard deadline. The existing exact Native Call
+identity/cell lease is still dropped when the child returns, preserving a
+replacement registry entry.
+
+Local exact-source verification passes the focused unwind regression `1/1`,
+dialog shadow `11/11`, and full RustPBX `2113/2113` with 12
+external-prerequisite tests ignored. Static repository contracts pass
+`229/229`. This is not a live controller fault-injection or external media
+reconciliation result. Real task/process panic, process abort/OOM, orphan-media
+reconciliation, real restart, live Endpoint, production and performance remain
+`not_run`. No server, Docker or running service was contacted or changed.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

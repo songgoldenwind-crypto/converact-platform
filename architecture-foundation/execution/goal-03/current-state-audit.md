@@ -14,7 +14,7 @@ claims and this audit does not mark G02 complete or production eligible.
 
 ## 2. Observed Baseline and Exact Candidate
 
-The table freezes the `.79` baseline retained by `.80` and `.81`; the exact
+The table freezes the `.79` baseline retained by `.80`, `.81` and `.82`; the exact
 candidate deltas immediately below are authoritative for changed status.
 
 | Slice | Exact current source | Observed status | G03 disposition |
@@ -77,6 +77,30 @@ restart into this component, live peer control, async media cleanup under task
 panic, two-node ambiguity recovery, original-INVITE Oracle activation, live
 Endpoint, Linux product-process execution, production and performance remain
 `not_run`.
+
+### Exact `.82` candidate delta
+
+The current additive candidate is `ivekit.82`. It retains the `.81` registry,
+Dialog and cleanup ownership model and adds a child fault boundary around the
+single recovered-dialog controller Future. An unwind is caught inside that
+existing child task rather than at process scope. The controller records the
+fault and makes one best-effort `terminate_all("controller_panic")` attempt for
+the exact recovered Call. That cleanup is independently unwind-contained and
+has an 8,000 ms total hard deadline. Media close inside normal or panic cleanup
+has its own 2,000 ms hard deadline, so a stuck media dependency cannot retain
+the controller forever. When the task returns, the existing exact identity and
+Native Call cell lease still owns registry teardown and cannot remove a
+replacement.
+
+The focused unwind regression passes `1/1`, dialog-shadow passes `11/11`, and
+the full RustPBX library passes `2113/2113` with 12 external-prerequisite tests
+ignored. Static repository contracts pass `229/229`. This is local functional
+and source evidence: it does not inject a panic through a live Endpoint or
+prove that external media resources are reconciled after the 8-second deadline.
+Real task/process panic, process abort/OOM, orphan-media reconciliation, live
+peer behavior, real restart, two-node recovery, original-INVITE Oracle
+activation, Linux product-process execution, production and performance remain
+`not_run`. No server, container or running program was contacted or changed.
 
 The TypeScript SipFoundation code arrived through commit `385521c` and its
 PostgreSQL boundary was retained/hardened in later commits including `6c5d998`.
@@ -301,7 +325,10 @@ The following remain `not_run`:
    pair and preserves its exact predecessor. `.81` then publishes the confirmed
    recovered Call through the sole Active Call registry with one confirmed
    inbound Leg, two exact Dialogs, bounded whole-Call Hangup and exact teardown.
-   Next prove a real process restart reaches that issuer and registry. Separately
+   `.82` contains unwind inside that recovered controller child and bounds media
+   cleanup to 2 seconds and the complete panic cleanup attempt to 8 seconds;
+   actual live-task fault injection and external media orphan reconciliation
+   remain unproved. Next prove a real process restart reaches that issuer and registry. Separately
    prove the capability Oracle on a recovery path that retains the original
    server-INVITE transaction facts; confirmed-dialog recovery must not invent
    those facts. Then close UAS-2xx and reconciliation resume.

@@ -26,7 +26,8 @@ Production eligibility: `false`
 | restart treats an empty in-memory capability holder as proof that no predecessor wire effect existed | `.76` freezes the exact recovery binding; `.77` advances the exact tenant/session owner-generation fence and probes only deterministic 200-CANCEL and 487-INVITE effect IDs in one PostgreSQL transaction; `.79` requires an authenticated `recovered` proof and routes that exact owner snapshot through the Oracle; visible or ambiguous state fails closed | isolated PostgreSQL 16 migration/SQL harness and historical `.78` Rust startup-contract adapter pass; `.79` invocation tests pass locally. Trusted recovered-proof production and real process restart remain `not_run` |
 | missing, forged or stale recovered admission silently downgrades to fresh, stale async cleanup closes a replacement owner/Active Call, or an old refresh task follows that replacement forever | closed authenticated `fresh`/`recovered` union; durable mode rejects absent and legacy proof; exact predecessor identity validation; one owner `Arc` feeds registry and Oracle; pre/post-async current-owner checks; owner pointer-fenced cleanup plus exact Native Call identity/cell cleanup fence; refresh loop bound to its original owner pointer | `.79` owner `11/11`, admission snapshot `3/3`, recovered-path `15/15` and full RustPBX `2109/2109`; trusted recovered-proof issuer, process restart and live Endpoint remain `not_run` |
 | recovered confirmed Dialogs exist outside the sole Active Call registry, publish only one leg, or leave a partial Dialog pair | `.81` reuses `ActiveProxyCallRegistry`; one confirmed inbound Native Leg and two distinct reciprocal Dialog IDs are installed as one slot, and any second-Dialog conflict rolls the complete slot back | local Active Call registry `25/25`, dialog shadow `10/10` and full RustPBX `2112/2112`; real restart/live peer/two-node remain `not_run` |
-| recovered control accepts an operation it cannot faithfully reconstruct, or stale controller teardown removes a successor | bounded recovered command scope accepts only whole-Call cascade-all Hangup before enqueue; controller owns one exact identity/native-cell cleanup lease | recovered handle `1/1` and cleanup regressions in the `25/25` registry suite; controller-panic async media cleanup and live Endpoint remain `not_run` |
+| recovered control accepts an operation it cannot faithfully reconstruct, or stale controller teardown removes a successor | bounded recovered command scope accepts only whole-Call cascade-all Hangup before enqueue; controller owns one exact identity/native-cell cleanup lease | recovered handle `1/1` and cleanup regressions in the `25/25` registry suite; live Endpoint remains `not_run` |
+| a recovered controller panic escapes its child domain, a second cleanup panic escapes, or a stuck media close retains the controller forever | `.82` catches unwind inside the existing child Future, catches the best-effort exact-Call cleanup separately, caps total panic cleanup at 8 s and every media close at 2 s; returning the child drops the exact fenced cleanup lease | focused unwind helper `1/1`, dialog shadow `11/11`, full RustPBX `2113/2113` and source contract review; actual live-controller fault injection, process abort/OOM and external media orphan reconciliation remain `not_run` |
 | confirmed-dialog recovery fabricates original INVITE transaction facts and invokes the matched-CANCEL Oracle on a guessed key | treat capsule scope as confirmed Dialog only; never synthesize a server-INVITE `TransactionKey`, Via lineage or matched-CANCEL capability; original-INVITE recovery is a separate durable path | `.81` source/static boundary and exact-source full suite pass; real original-INVITE Oracle invocation remains `not_run` |
 | product starts a second, in-memory or partially configured SIP effect authority | `.78` creates one default-disabled Rust composition before SIP startup, shares one PostgreSQL store across Gate/observation/recovery, owns the supervisor lifetime, rejects unknown/missing/non-PostgreSQL config, duplicate builder injection and live reload, and has no memory/TypeScript fallback. `.79` reuses that exact runtime and owner registry rather than constructing a recovery store or owner. The one-time cold catalog scan has a separate bounded 2 s deadline while per-Call store work stays at 250 ms | exact-source SipEffect `135/135`, native SIP effect `40/40`, full RustPBX `2109/2109`, historical exact isolated PostgreSQL adapter `1/1`, locked check and static contracts pass; live Endpoint remains `not_run` |
 | old binary bypasses a recovered session fence | migration 116 seeds and locks a durable owner/generation high-water mark, rejects stale inserts, and rejects the first `send_attempted` transition of an effect prepared before takeover while still accepting later real observations | isolated SQL harness observed SQLSTATE `55000` and atomic attempted-receipt rollback for both bypass shapes; rolling mixed-binary live activation remains `not_run` |
@@ -49,8 +50,10 @@ Production eligibility: `false`
 
 The `.80` candidate supersedes the `.79` issuer-status cell: local trusted proof
 issuance is implemented and verified from one reciprocal v2 capsule pair. The
-current `.81` candidate then installs the confirmed recovered projection in the
-sole Active Call registry. The remaining end-to-end risks are real restart into
+`.81` then installs the confirmed recovered projection in the sole Active Call
+registry, and current `.82` bounds its local controller-panic cleanup. The
+remaining end-to-end risks are live fault injection, external media orphan
+reconciliation, real restart into
 that registry and a separately scoped original-INVITE recovery reaching the
 Oracle with durable transaction facts; a confirmed-dialog capsule cannot prove
 the latter.
@@ -184,15 +187,19 @@ microbenchmark or citing rvoip upstream numbers cannot close that Gate.
     real process crash/restart. `.81` now installs the confirmed recovered Call
     in the sole Active Call registry, reconstructs one confirmed inbound Leg,
     publishes the exact Dialog pair or rolls back, exposes bounded whole-Call
-    Hangup and fences exact teardown. No performance command ran; `.79`–`.81`
+    Hangup and fences exact teardown. `.82` contains unwind in that same child,
+    bounds media close to 2 seconds and the complete panic cleanup to 8 seconds;
+    this is source/local component evidence, not a live controller fault or
+    orphan-media reconciliation campaign. No performance command ran; `.79`–`.82`
     did not contact the server.
 11. End-to-end recovered-call production is still absent. A real process
     restart has not proved that takeover reaches the capsule issuer and the
     recovered Active Call registry under a live peer. Separately, the confirmed-
     dialog capsule lacks the original server-INVITE transaction facts, so it
     cannot prove or invoke the PostgreSQL matched-CANCEL Oracle; that path needs
-    its own durable-key recovery evidence. Crash timing, task panic/media
-    cleanup, visible/ambiguous predecessor effects and two-node races therefore
+    its own durable-key recovery evidence. Crash timing, live task/process panic,
+    cleanup after an external media orphan, visible/ambiguous predecessor
+    effects and two-node races therefore
     remain fail-closed activation gates rather than inferred successes.
 
 All residual risks remain visible in the G03 status artifacts and prevent

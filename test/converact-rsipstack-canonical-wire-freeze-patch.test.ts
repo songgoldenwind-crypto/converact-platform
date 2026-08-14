@@ -22,7 +22,7 @@ test("ivekit.57 applies canonical wire freeze after the durable egress gate", ()
     encoding: "utf8",
   });
   assert.equal(parsed.status, 0, parsed.stderr);
-  assert.match(build, /PATCHSET="ivekit\.81"/);
+  assert.match(build, /PATCHSET="ivekit\.82"/);
   assert.match(
     build,
     /rsipstack-converact-durable-egress-effect-gate\.patch"[\s\S]*rsipstack-converact-canonical-wire-freeze\.patch"[\s\S]*rustrtc-ivekit-udp-socket-capacity\.patch"/,

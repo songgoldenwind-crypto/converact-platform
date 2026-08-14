@@ -312,6 +312,17 @@ Run serially:
    transaction key and Via lineage. Real restart, live peer control, panic-time
    async media cleanup, original-INVITE Oracle activation, live Endpoint,
    production and performance remain `not_run`.
+   The `.82` RED/GREEN slice adds the bounded recovered-controller fault
+   boundary. RED fails with `E0425` because
+   `recovered_controller_panicked` does not exist. GREEN catches unwind inside
+   the existing child Future, invokes exact-Call `terminate_all` after a fault,
+   catches any second cleanup unwind, gives the complete panic cleanup an
+   8-second hard deadline, and gives each media close a 2-second deadline. The
+   focused unwind regression passes `1/1`, dialog shadow `11/11`, and full
+   RustPBX `2113/2113` with 12 external prerequisites ignored. The source
+   contract suite passes `229/229`. This proves local control-flow and bounded
+   source composition only; live Endpoint task-panic injection, process
+   abort/OOM and orphan-media reconciliation remain `not_run`.
 6. repository typecheck.
 7. Generate raw output, command/source manifest and SHA-256 evidence with no
    secrets.

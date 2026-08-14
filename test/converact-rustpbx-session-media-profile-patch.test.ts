@@ -35,7 +35,7 @@ test('RustPBX retains the immutable per-session media profile in the current pat
   });
 
   assert.equal(parsed.status, 0, parsed.stderr);
-  assert.match(build, /PATCHSET="ivekit\.81"/);
+  assert.match(build, /PATCHSET="ivekit\.82"/);
   assert.match(
     build,
     /rustpbx-ivekit-inbound-admission-response-contract\.patch"[\s\S]*rustpbx-ivekit-session-media-profile\.patch"/

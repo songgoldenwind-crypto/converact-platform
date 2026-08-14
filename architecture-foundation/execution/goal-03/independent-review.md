@@ -430,6 +430,27 @@ restart/live peer execution, controller-panic async media cleanup, two-node
 recovery, original-INVITE Oracle activation, live Endpoint,
 `G03-E15/G03-E16`, production and performance remain `not_run`.
 
+The incremental `.82` candidate closes the unbounded local recovered-controller
+panic boundary identified after `.81`. Review confirms the existing child task,
+registry and Call authority are reused: no task, registry, unbounded channel,
+thread, blocking worker or media hot-path loop is added. Unwind is caught around
+the controller Future; a fault triggers one best-effort exact-Call termination
+whose own unwind is caught and whose total wait is capped at 8 seconds. Each
+media close is separately capped at 2 seconds. Returning the child still drops
+the exact identity/native-cell cleanup lease, so stale teardown cannot remove a
+replacement.
+
+RED fails with `E0425` for the missing fault-boundary helper. GREEN passes the
+focused unwind test `1/1`, dialog shadow `11/11`, full RustPBX `2113/2113` with
+12 external prerequisites ignored, locked check, scoped rustfmt, exact patch
+replay, repository typecheck, affected static contracts `229/229` and G03
+machine contracts `9/9`. This is an implementation self-review checkpoint, not
+final independent acceptance. The test injects the unwind into the helper, not
+a live Endpoint controller; real task/process panic, external media orphan
+reconciliation, restart/two-node recovery, original-INVITE Oracle activation,
+`G03-E15/G03-E16`, production and performance remain `not_run`. No server or
+container was contacted.
+
 ## Rejection history and remaining gate
 
 The earlier `6cbe1a3` evidence review was rejected with

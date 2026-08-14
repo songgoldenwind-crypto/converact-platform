@@ -45,7 +45,7 @@ test("ivekit.74 applies the Native Call response capability after matched CANCEL
   );
 
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.81"/);
+  assert.match(build, /PATCHSET="ivekit\.82"/);
   assert.match(
     build,
     /rustpbx-converact-native-matched-cancel-capabilities\.patch"[\s\S]*rustpbx-converact-native-response-capabilities\.patch"/,
@@ -167,7 +167,7 @@ test("response lifecycle remains default-disabled and claims no server or perfor
       "135_sip_effect_tests_passed_0_failed_11_physical_tests_ignored",
     rustfmt_changed_sources: "passed",
     locked_library_check: "passed",
-    full_rustpbx_library: "2112_passed_0_failed_12_external_prerequisites_ignored",
+    full_rustpbx_library: "2113_passed_0_failed_12_external_prerequisites_ignored",
   });
   assert.equal(responses.live_server_activation, "not_run");
   assert.equal(
