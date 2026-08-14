@@ -1,0 +1,21 @@
+{
+  "traceability_id": "CONVERACT-RUST-MIGRATION-RM01-TRACEABILITY-V1",
+  "version": 1,
+  "items": [
+    { "id": "RM01-T01", "requirement": "all_owned_online_runtime_converges_to_rust", "artifact": "server-runtime-migration-contract-v1.json", "evidence_status": "not_run" },
+    { "id": "RM01-T02", "requirement": "python_is_model_execution_only", "artifact": "2026-08-14-rust-server-runtime-cell-migration-r1.md#1-decision", "evidence_status": "not_run" },
+    { "id": "RM01-T03", "requirement": "multi_region_cell_architecture", "artifact": "2026-08-14-rust-server-runtime-cell-migration-r1.md#4-target-topology", "evidence_status": "not_run" },
+    { "id": "RM01-T04", "requirement": "one_cell_one_owner_generation_one_writer", "artifact": "2026-08-14-rust-server-runtime-cell-migration-r1.md#6-authority-and-write-ownership", "evidence_status": "not_run" },
+    { "id": "RM01-T05", "requirement": "no_synchronous_global_hot_path", "artifact": "server-runtime-migration-contract-v1.json", "evidence_status": "not_run" },
+    { "id": "RM01-T06", "requirement": "one_workspace_multiple_fault_isolated_binaries", "artifact": "2026-08-14-rust-server-runtime-cell-migration-r1.md#7-target-cargo-workspace", "evidence_status": "not_run" },
+    { "id": "RM01-T07", "requirement": "vertical_fenced_migration_state_machine", "artifact": "server-runtime-migration-contract-v1.json", "evidence_status": "not_run" },
+    { "id": "RM01-T08", "requirement": "no_durable_dual_write", "artifact": "2026-08-14-rust-server-runtime-cell-migration-r1.md#6-authority-and-write-ownership", "evidence_status": "not_run" },
+    { "id": "RM01-T09", "requirement": "human_communication_survives_optional_failures", "artifact": "2026-08-14-rust-server-runtime-cell-migration-r1.md#11-high-availability-and-disaster-behavior", "evidence_status": "not_run" },
+    { "id": "RM01-T10", "requirement": "functional_closure_before_final_performance", "artifact": "2026-08-14-rust-server-runtime-cell-migration-r1.md#10-concurrency-boundedness-and-performance-invariants", "evidence_status": "not_run" },
+    { "id": "RM01-T11", "requirement": "new_server_features_are_rust_first", "artifact": "2026-08-14-rust-server-runtime-cell-migration-r1.md#13-migration-order", "evidence_status": "not_run" },
+    { "id": "RM01-T12", "requirement": "legacy_runtime_deleted_only_after_active_zero", "artifact": "2026-08-14-rust-server-runtime-cell-migration-r1.md#15-completion-definition", "evidence_status": "not_run" },
+    { "id": "RM01-T13", "requirement": "running_server_unchanged", "artifact": "goal-rm01-server-runtime-cell-migration.md", "evidence_status": "not_run" },
+    { "id": "RM01-T14", "requirement": "final_runtime_reachability_scan", "artifact": "runtime-inventory-v1.json", "evidence_status": "not_run" },
+    { "id": "RM01-T15", "requirement": "independent_final_review", "artifact": "goal-rm01-server-runtime-cell-migration.md", "evidence_status": "not_run" }
+  ]
+}

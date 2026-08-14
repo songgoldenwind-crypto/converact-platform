@@ -1,0 +1,110 @@
+{
+  "$schema": "./server-runtime-migration-contract-v1.schema.json",
+  "contract_id": "CONVERACT-RUST-SERVER-RUNTIME-MIGRATION-V1",
+  "version": 1,
+  "frozen_at": "2026-08-14",
+  "source": {
+    "repository": "songgoldenwind-crypto/opc-platform",
+    "canonical_root": "/Users/songjinfeng/Projects/converact-worktrees/platform",
+    "branch": "codex/converact-platform-rename",
+    "baseline_commit": "43fcbefacbdae679090caed704c05ddc761f0361"
+  },
+  "target": {
+    "owned_online_runtime_language": "rust",
+    "architecture": "multi_region_cell_based",
+    "workspace": "one_cargo_workspace_multiple_fault_isolated_binaries",
+    "migration": "vertical_authority_slices",
+    "writer_policy": "one_cell_one_owner_generation_one_writer",
+    "cross_region_policy": "asynchronous_projection_no_synchronous_hot_path_dependency",
+    "performance_policy": "functional_closure_first_structural_boundedness_always_final_capacity_later"
+  },
+  "allowed_non_rust": {
+    "typescript": [
+      "browser_and_desktop_presentation",
+      "public_sdk",
+      "contract_generator",
+      "repository_verification",
+      "test_tooling",
+      "time_bounded_compatibility_adapter_with_deletion_gate"
+    ],
+    "python": [
+      "huggingface_and_gpu_model_loading_and_inference_behind_rust_speech_gateway"
+    ],
+    "third_party": [
+      "livekit",
+      "kamailio",
+      "rtpengine",
+      "tinode",
+      "postgresql",
+      "nats",
+      "valkey_or_redis",
+      "object_storage"
+    ]
+  },
+  "cell": {
+    "identity_fields": [
+      "tenant_id",
+      "cell_id",
+      "partition_key",
+      "owner_epoch",
+      "generation",
+      "schema_revision"
+    ],
+    "resource_pools": [
+      "api",
+      "realtime",
+      "durable_worker",
+      "communication",
+      "agent_runtime",
+      "ordinary_voice",
+      "decoded_media",
+      "livekit_av",
+      "speech_gpu",
+      "recording",
+      "connector"
+    ],
+    "global_hot_path_dependency": "forbidden",
+    "synchronous_cross_region_database": "forbidden",
+    "active_multi_writer": "forbidden"
+  },
+  "migration_state_machine": [
+    "inventory",
+    "contract_frozen",
+    "rust_shadow_read",
+    "rust_pure_replay_equal",
+    "prepare_writer_fence",
+    "commit_new_generation",
+    "route_new_work_to_rust",
+    "drain_typescript_generation",
+    "reconcile_unknown",
+    "active_zero",
+    "delete_typescript_runtime",
+    "retire_compatibility_schema"
+  ],
+  "hard_invariants": [
+    "no_second_business_authority",
+    "no_durable_dual_write",
+    "no_global_hot_lock",
+    "no_unbounded_queue_retry_fanout_or_batch",
+    "no_linear_global_scan_on_hot_path",
+    "no_database_http_nats_or_task_per_media_packet",
+    "optional_ai_recording_connector_or_storage_failure_cannot_interrupt_established_human_communication",
+    "stale_writer_rejected_by_durable_fence",
+    "unknown_external_effect_requires_query_reconcile",
+    "current_target_and_production_eligible_states_remain_distinct"
+  ],
+  "completion": [
+    "all_owned_online_entrypoints_are_rust_or_approved_python_model_executors",
+    "no_reachable_typescript_or_self_owned_go_python_online_runtime",
+    "all_authority_routes_are_rust_retired_or_external",
+    "legacy_writer_generations_are_active_zero",
+    "api_event_data_security_and_retention_compatibility_pass",
+    "failure_isolation_recovery_and_rolling_upgrade_pass",
+    "deployment_and_repository_reachability_scan_pass",
+    "final_exact_commit_independently_reviewed"
+  ],
+  "repository_runtime_implementation_authorized": true,
+  "running_server_change_authorized": false,
+  "performance_claim_authorized": false,
+  "production_eligible": false
+}

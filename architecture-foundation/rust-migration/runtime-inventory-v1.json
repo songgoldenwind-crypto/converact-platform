@@ -1,0 +1,34 @@
+{
+  "inventory_id": "CONVERACT-OWNED-ONLINE-RUNTIME-INVENTORY-V1",
+  "captured_at": "2026-08-14",
+  "baseline_commit": "43fcbefacbdae679090caed704c05ddc761f0361",
+  "counts": {
+    "tracked_typescript_files": 1977,
+    "tracked_rust_files": 175,
+    "tracked_src_typescript_files": 816,
+    "tracked_src_typescript_lines": 247038,
+    "tracked_agent_runtime_typescript_files": 732,
+    "tracked_agent_runtime_typescript_lines": 226836
+  },
+  "current_online_entrypoints": [
+    "src/server.ts",
+    "src/converact-server.ts",
+    "src/converact-worker.ts",
+    "src/converact-realtime-audio-tap-worker.ts",
+    "src/converact-dialog-shadow-agent.ts",
+    "src/converact-kamailio-route-agent.ts",
+    "src/converact-placement-snapshot-projector.ts",
+    "src/converact-rustpbx-route-snapshot.ts",
+    "scripts/rustdesk-edge-agent.ts",
+    "services/provider-gateway-go",
+    "services/ai-agent-py",
+    "services/ai-worker-py"
+  ],
+  "current_rust_runtime": [
+    "Unified RustPBX exact-source patchset",
+    "services/voice-media-rs",
+    "integrations/component-hook-rs"
+  ],
+  "inventory_status": "initial_source_inventory_requires_runtime_reachability_audit",
+  "production_eligible": false
+}

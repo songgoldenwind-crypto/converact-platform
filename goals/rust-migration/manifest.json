@@ -1,0 +1,26 @@
+{
+  "$schema": "./manifest.schema.json",
+  "program_id": "converact-rust-runtime-migration",
+  "version": 1,
+  "generated_date": "2026-08-14",
+  "canonical_root": "/Users/songjinfeng/Projects/converact-worktrees/platform",
+  "global_rules": {
+    "path": "goals/rust-migration/PROGRAM-RULES.md",
+    "sha256": "57ef5d1ad1f80c66f4d11427d9c2ddff4495c69716e57be19d4a809755f81f1a"
+  },
+  "goal": {
+    "id": "RM01",
+    "path": "goals/rust-migration/goal-rm01-server-runtime-cell-migration.md",
+    "sha256": "7fd8e9aaa49a934b23cb0b72c3b7a94b66e74481517b95ac21653fc7fdc74998",
+    "status": "not_run",
+    "entry_gate": "user_approved_rust_first_multi_region_cell_architecture",
+    "allowed_terminal_statuses": [
+      "completed",
+      "blocked_external",
+      "rejected"
+    ],
+    "does_not_start": [
+      "G04"
+    ]
+  }
+}

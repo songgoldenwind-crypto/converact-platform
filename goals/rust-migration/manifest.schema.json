@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://converact.local/schemas/rust-runtime-migration-manifest-v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "program_id", "version", "generated_date", "canonical_root", "global_rules", "goal"],
+  "properties": {
+    "$schema": { "const": "./manifest.schema.json" },
+    "program_id": { "const": "converact-rust-runtime-migration" },
+    "version": { "const": 1 },
+    "generated_date": { "const": "2026-08-14" },
+    "canonical_root": { "const": "/Users/songjinfeng/Projects/converact-worktrees/platform" },
+    "global_rules": { "$ref": "#/$defs/artifact" },
+    "goal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "path", "sha256", "status", "entry_gate", "allowed_terminal_statuses", "does_not_start"],
+      "properties": {
+        "id": { "const": "RM01" },
+        "path": { "const": "goals/rust-migration/goal-rm01-server-runtime-cell-migration.md" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "status": { "const": "not_run" },
+        "entry_gate": { "const": "user_approved_rust_first_multi_region_cell_architecture" },
+        "allowed_terminal_statuses": { "const": ["completed", "blocked_external", "rejected"] },
+        "does_not_start": { "const": ["G04"] }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}
