@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://converact.local/schemas/authority-route-contract-v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema", "contract_id", "version", "sources", "route_key", "route_states",
+    "generation_states", "implementations", "bounds", "commands", "idempotency",
+    "writer_fence", "transition_vectors", "current_state", "target_state",
+    "production_eligible", "server_validation", "performance_validation"
+  ],
+  "properties": {
+    "$schema": { "const": "./authority-route-contract-v1.schema.json" },
+    "contract_id": { "const": "CONVERACT-AUTHORITY-MIGRATION-ROUTE-V1" },
+    "version": { "const": 1 },
+    "sources": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": { "$ref": "#/$defs/source" }
+    },
+    "route_key": { "$ref": "#/$defs/nonEmptyUniqueStrings" },
+    "route_states": {
+      "type": "array",
+      "prefixItems": [
+        { "const": "shadow" }, { "const": "prepare" }, { "const": "committed" },
+        { "const": "draining" }, { "const": "active_zero" }, { "const": "retired" }
+      ],
+      "items": false,
+      "minItems": 6,
+      "maxItems": 6
+    },
+    "generation_states": {
+      "type": "array",
+      "prefixItems": [
+        { "const": "prepared" }, { "const": "accepting_new_work" },
+        { "const": "draining" }, { "const": "active_zero" }, { "const": "retired" }
+      ],
+      "items": false,
+      "minItems": 5,
+      "maxItems": 5
+    },
+    "implementations": {
+      "type": "array",
+      "prefixItems": [
+        { "const": "typescript" }, { "const": "rust" }, { "const": "external" }
+      ],
+      "items": false,
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "bounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identifier_bytes", "operation_id_bytes", "request_hash_hex_bytes", "query_limit", "generation", "owner_epoch", "schema_revision"],
+      "properties": {
+        "identifier_bytes": { "const": 255 },
+        "operation_id_bytes": { "const": 255 },
+        "request_hash_hex_bytes": { "const": 64 },
+        "query_limit": { "const": 256 },
+        "generation": { "const": "positive_uint64_decimal" },
+        "owner_epoch": { "const": "canonical_uint64_decimal" },
+        "schema_revision": { "const": "positive_uint64_decimal" }
+      }
+    },
+    "commands": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["prepare", "commit", "abort", "drain", "mark_active_zero", "retire", "query", "reconcile"],
+      "properties": {
+        "prepare": { "$ref": "#/$defs/command" },
+        "commit": { "$ref": "#/$defs/command" },
+        "abort": { "$ref": "#/$defs/command" },
+        "drain": { "$ref": "#/$defs/command" },
+        "mark_active_zero": { "$ref": "#/$defs/command" },
+        "retire": { "$ref": "#/$defs/command" },
+        "query": { "$ref": "#/$defs/command" },
+        "reconcile": { "$ref": "#/$defs/command" }
+      }
+    },
+    "idempotency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["receipt_key", "same_hash", "different_hash", "unknown_outcome"],
+      "properties": {
+        "receipt_key": { "$ref": "#/$defs/nonEmptyUniqueStrings" },
+        "same_hash": { "type": "string", "minLength": 1 },
+        "different_hash": { "type": "string", "minLength": 1 },
+        "unknown_outcome": { "type": "string", "minLength": 1 }
+      }
+    },
+    "writer_fence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fields", "new_object_mutation", "existing_object_mutation", "forbidden_generation_states", "clock", "enforcement"],
+      "properties": {
+        "fields": { "$ref": "#/$defs/nonEmptyUniqueStrings" },
+        "new_object_mutation": { "type": "string", "minLength": 1 },
+        "existing_object_mutation": { "type": "string", "minLength": 1 },
+        "forbidden_generation_states": { "$ref": "#/$defs/nonEmptyUniqueStrings" },
+        "clock": { "type": "string", "minLength": 1 },
+        "enforcement": { "const": "postgresql_atomic_predicate" }
+      }
+    },
+    "transition_vectors": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 64,
+      "items": { "$ref": "#/$defs/vector" }
+    },
+    "current_state": { "const": "contract_frozen_no_route_store" },
+    "target_state": { "const": "durable_postgresql_fenced_route_store" },
+    "production_eligible": { "const": false },
+    "server_validation": { "const": "not_run" },
+    "performance_validation": { "const": "not_run" }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "nonEmptyUniqueStrings": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 255 }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed_route_states", "requires", "effect"],
+      "properties": {
+        "allowed_route_states": { "$ref": "#/$defs/nonEmptyUniqueStrings" },
+        "requires": { "$ref": "#/$defs/nonEmptyUniqueStrings" },
+        "effect": { "type": "string", "minLength": 1, "maxLength": 255 }
+      }
+    },
+    "vector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "given", "command", "expected"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,127}$" },
+        "given": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,255}$" },
+        "command": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,255}$" },
+        "expected": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,255}$" }
+      }
+    }
+  }
+}

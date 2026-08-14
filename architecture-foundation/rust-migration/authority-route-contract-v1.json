@@ -1,0 +1,149 @@
+{
+  "$schema": "./authority-route-contract-v1.schema.json",
+  "contract_id": "CONVERACT-AUTHORITY-MIGRATION-ROUTE-V1",
+  "version": 1,
+  "sources": [
+    {
+      "path": "docs/architecture/2026-08-14-rust-server-runtime-cell-migration-r1.md",
+      "sha256": "f11bdbdcbcad88036358de59fde4c23a00597fedccbf744cbf922fd98fe7e779"
+    },
+    {
+      "path": "docs/plans/2026-08-14-rust-server-runtime-cell-migration-r1.md",
+      "sha256": "ad567d0a978391cb38c05039f5d3f2cccd1f30b004a658080ee9abd88164afb4"
+    },
+    {
+      "path": "architecture-foundation/rust-migration/server-runtime-migration-contract-v1.json",
+      "sha256": "e082c13ce9c6a278ccf6fc94690484d6d0ef0e35103b20560de764414bbe597f"
+    }
+  ],
+  "route_key": ["tenant_id", "authority_kind", "partition_key"],
+  "route_states": ["shadow", "prepare", "committed", "draining", "active_zero", "retired"],
+  "generation_states": ["prepared", "accepting_new_work", "draining", "active_zero", "retired"],
+  "implementations": ["typescript", "rust", "external"],
+  "bounds": {
+    "identifier_bytes": 255,
+    "operation_id_bytes": 255,
+    "request_hash_hex_bytes": 64,
+    "query_limit": 256,
+    "generation": "positive_uint64_decimal",
+    "owner_epoch": "canonical_uint64_decimal",
+    "schema_revision": "positive_uint64_decimal"
+  },
+  "commands": {
+    "prepare": {
+      "allowed_route_states": ["shadow", "committed", "draining", "active_zero"],
+      "requires": ["exact_route_key", "expected_generation", "expected_revision", "operation_id", "request_hash", "target_binding"],
+      "effect": "reserve_next_generation_without_changing_current_writer"
+    },
+    "commit": {
+      "allowed_route_states": ["prepare"],
+      "requires": ["matching_prepare_operation", "expected_generation", "expected_revision"],
+      "effect": "atomically_install_prepared_generation_for_new_work_and_drain_predecessor"
+    },
+    "abort": {
+      "allowed_route_states": ["prepare"],
+      "requires": ["matching_prepare_operation", "expected_generation", "expected_revision"],
+      "effect": "remove_prepared_generation_without_changing_current_writer"
+    },
+    "drain": {
+      "allowed_route_states": ["committed"],
+      "requires": ["exact_predecessor_generation", "expected_revision"],
+      "effect": "record_predecessor_drain_in_progress"
+    },
+    "mark_active_zero": {
+      "allowed_route_states": ["draining"],
+      "requires": ["exact_predecessor_generation", "durable_active_count_zero", "no_nonterminal_claims", "expected_revision"],
+      "effect": "seal_predecessor_generation_active_zero"
+    },
+    "retire": {
+      "allowed_route_states": ["active_zero"],
+      "requires": ["rollback_window_expired", "expected_revision"],
+      "effect": "seal_migration_metadata_and_compatibility_generation"
+    },
+    "query": {
+      "allowed_route_states": ["shadow", "prepare", "committed", "draining", "active_zero", "retired"],
+      "requires": ["exact_route_key"],
+      "effect": "read_only_bounded"
+    },
+    "reconcile": {
+      "allowed_route_states": ["shadow", "prepare", "committed", "draining", "active_zero", "retired"],
+      "requires": ["exact_route_key", "operation_id", "request_hash"],
+      "effect": "return_durable_receipt_without_blind_replay"
+    }
+  },
+  "idempotency": {
+    "receipt_key": ["tenant_id", "authority_kind", "partition_key", "operation_id"],
+    "same_hash": "return_exact_prior_result_without_revision_or_generation_change",
+    "different_hash": "reject_idempotency_conflict",
+    "unknown_outcome": "query_receipt_then_reconcile_never_blind_retry"
+  },
+  "writer_fence": {
+    "fields": ["tenant_id", "authority_kind", "partition_key", "generation", "owner_epoch", "lease_token"],
+    "new_object_mutation": "generation_must_be_route_current_and_accepting_new_work",
+    "existing_object_mutation": "generation_must_equal_object_starting_generation_and_be_accepting_new_work_or_draining",
+    "forbidden_generation_states": ["prepared", "active_zero", "retired"],
+    "clock": "postgres_transaction_time_not_caller_wall_clock",
+    "enforcement": "postgresql_atomic_predicate"
+  },
+  "transition_vectors": [
+    {
+      "name": "prepare_keeps_typescript_writer",
+      "given": "shadow_current_typescript_generation_1_revision_1",
+      "command": "prepare_rust_operation_migrate_1_expected_generation_1_revision_1",
+      "expected": "prepare_current_typescript_generation_1_prepared_rust_generation_2_revision_2"
+    },
+    {
+      "name": "duplicate_prepare_is_exact_replay",
+      "given": "prepare_receipt_migrate_1",
+      "command": "same_operation_and_request_hash",
+      "expected": "same_result_no_revision_or_generation_change"
+    },
+    {
+      "name": "abort_before_commit_keeps_writer",
+      "given": "prepare_current_typescript_generation_1",
+      "command": "abort_matching_prepare",
+      "expected": "shadow_current_typescript_generation_1_prepared_generation_removed"
+    },
+    {
+      "name": "commit_installs_one_new_work_writer",
+      "given": "prepare_current_typescript_generation_1_prepared_rust_generation_2",
+      "command": "commit_matching_prepare",
+      "expected": "committed_rust_generation_2_accepting_new_work_typescript_generation_1_draining"
+    },
+    {
+      "name": "stale_generation_fails_closed",
+      "given": "committed_rust_generation_2",
+      "command": "mutation_targeting_generation_1_as_new_work_writer",
+      "expected": "reject_stale_route_generation_no_effect"
+    },
+    {
+      "name": "active_zero_requires_durable_zero",
+      "given": "draining_typescript_generation_1_active_count_1",
+      "command": "mark_active_zero",
+      "expected": "reject_generation_not_quiescent_no_effect"
+    },
+    {
+      "name": "active_zero_seals_legacy_mutation",
+      "given": "draining_typescript_generation_1_active_count_0_no_nonterminal_claims",
+      "command": "mark_active_zero",
+      "expected": "active_zero_typescript_generation_1_reject_all_mutations"
+    },
+    {
+      "name": "rollback_is_new_generation",
+      "given": "rust_generation_2_current_and_prior_typescript_generation_1_draining",
+      "command": "prepare_then_commit_typescript_rollback",
+      "expected": "typescript_generation_3_accepting_new_work_rust_generation_2_draining"
+    },
+    {
+      "name": "retired_route_is_immutable",
+      "given": "retired_route",
+      "command": "any_mutating_command",
+      "expected": "reject_route_retired_no_effect"
+    }
+  ],
+  "current_state": "contract_frozen_no_route_store",
+  "target_state": "durable_postgresql_fenced_route_store",
+  "production_eligible": false,
+  "server_validation": "not_run",
+  "performance_validation": "not_run"
+}
