@@ -35,6 +35,21 @@ compatibility and verification, Python only for HF/GPU inference.
 
 ## 2. Program checkpoints
 
+The binding Goal uses coarse checkpoints while this plan uses smaller commit
+checkpoints. Goal checkpoint acceptance is authoritative; matching numbers in
+this plan are not equivalent. The mapping is:
+
+- Goal R0 closes only after plan R0 (workspace bootstrap) and plan R1
+  (compatible health slice) both close;
+- Goal R1 closes after plan R2 and R3;
+- Goal R2 closes after plan R4 and the communication-coordination parts of
+  plan R5;
+- Goal R3 closes after the remaining plan R5 work plus plan R6 and R7;
+- Goal R4 closes after plan R8 and R9;
+- Goal R5 closes after plan R10.
+
+An intermediate plan commit never promotes its enclosing Goal checkpoint.
+
 ### Checkpoint D0 — architecture and binding contracts
 
 **Create:**
