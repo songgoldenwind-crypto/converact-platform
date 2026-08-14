@@ -96,7 +96,7 @@ test("controlled PostgreSQL transition evidence is exact and remains scoped", ()
 
 test("exact build retains atomic transitions in ivekit.57", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.82"/);
+  assert.match(build, /PATCHSET="ivekit\.83"/);
   assert.match(
     build,
     /rustpbx-converact-postgres-sip-effect-store\.patch"[\s\S]*rustpbx-converact-postgres-sip-effect-transitions\.patch"/,

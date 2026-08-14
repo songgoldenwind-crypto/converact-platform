@@ -1015,6 +1015,21 @@ reconciliation result. Real task/process panic, process abort/OOM, orphan-media
 reconciliation, real restart, live Endpoint, production and performance remain
 `not_run`. No server, Docker or running service was contacted or changed.
 
+ivekit.83 applies that media deadline before returning a recovered Active Call
+admission error. Invalid recovered-controller input and registry rejection no
+longer await `close_media()` indefinitely: successful cleanup and dependency
+errors keep their prior behavior, while a stuck cleanup is cancelled after the
+same 2-second deadline and the original admission error continues to the outer
+Dialog/owner cleanup. No retry, worker, queue or second Authority is added.
+
+Local exact-source verification passes the cleanup deadline regression `1/1`,
+dialog shadow `12/12`, and full RustPBX `2114/2114` with 12
+external-prerequisite tests ignored. Static repository contracts pass
+`232/232`. This does not prove external media orphan reconciliation after
+cancellation. Real task/process fault/OOM, real restart, live Endpoint,
+production and performance remain `not_run`. No server, Docker or running
+service was contacted or changed.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

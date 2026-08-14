@@ -323,6 +323,17 @@ Run serially:
    contract suite passes `229/229`. This proves local control-flow and bounded
    source composition only; live Endpoint task-panic injection, process
    abort/OOM and orphan-media reconciliation remain `not_run`.
+   The `.83` RED/GREEN slice closes the separate recovered-admission rejection
+   wait. RED fails with `E0425` because
+   `recovered_media_cleanup_before_deadline` does not exist. GREEN routes both
+   admission-error cleanup and controller termination through that one private
+   deadline helper. The behavior test proves an immediate completion and a
+   pending Future cancelled at a short test deadline; production admission
+   cleanup uses the frozen 2-second media deadline. Focused cleanup passes
+   `1/1`, dialog shadow `12/12`, full RustPBX `2114/2114` with 12 external
+   prerequisites ignored, and static contracts `232/232`. External media
+   orphan reconciliation after cancellation, live Endpoint execution and
+   process fault/OOM remain `not_run`.
 6. repository typecheck.
 7. Generate raw output, command/source manifest and SHA-256 evidence with no
    secrets.

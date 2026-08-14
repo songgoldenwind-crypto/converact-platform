@@ -451,6 +451,25 @@ reconciliation, restart/two-node recovery, original-INVITE Oracle activation,
 `G03-E15/G03-E16`, production and performance remain `not_run`. No server or
 container was contacted.
 
+The incremental `.83` candidate closes the admission-error cleanup wait that
+remained outside `.82`. Review confirms both invalid recovered-controller input
+and Active Call registry rejection now pass `close_media()` through the same
+private deadline helper used by controller teardown. The production deadline
+remains 2 seconds; timeout logs the boundary and returns the original admission
+error, allowing outer Dialog and owner cleanup to continue. No retry, worker,
+queue, registry or alternate Authority is added.
+
+RED fails with `E0425` for the missing deadline helper. GREEN proves immediate
+completion and pending-Future timeout, and passes focused cleanup `1/1`, dialog
+shadow `12/12`, full RustPBX `2114/2114` with 12 external prerequisites
+ignored, locked check, scoped rustfmt, exact patch replay, repository typecheck,
+affected static contracts `232/232` and G03 machine contracts `9/9`. This is an
+implementation self-review checkpoint, not final independent acceptance.
+External media orphan reconciliation after cancellation, live Endpoint
+rejection, task/process fault/OOM, restart/two-node, `G03-E15/G03-E16`,
+production and performance remain `not_run`. No server or container was
+contacted.
+
 ## Rejection history and remaining gate
 
 The earlier `6cbe1a3` evidence review was rejected with

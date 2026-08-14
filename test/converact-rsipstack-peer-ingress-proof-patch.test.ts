@@ -30,7 +30,7 @@ test("ivekit.61 applies sealed peer ingress after derived ACK authority", () => 
   assert.equal(parsed.status, 0, parsed.stderr);
 
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.82"/);
+  assert.match(build, /PATCHSET="ivekit\.83"/);
   assert.match(
     build,
     /rsipstack-converact-derived-non-2xx-ack\.patch"[\s\S]*rsipstack-converact-peer-ingress-proof\.patch"[\s\S]*rustrtc-ivekit-udp-socket-capacity\.patch"/,

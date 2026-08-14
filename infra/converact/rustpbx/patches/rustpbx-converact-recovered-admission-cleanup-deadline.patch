@@ -1,0 +1,79 @@
+diff --git a/src/ivekit_dialog_shadow.rs b/src/ivekit_dialog_shadow.rs
+index e7c3a97..6b71a44 100644
+--- a/src/ivekit_dialog_shadow.rs
++++ b/src/ivekit_dialog_shadow.rs
+@@ -2540,17 +2540,37 @@ impl Drop for RecoveredActiveCallLease {
+     }
+ }
+ 
++async fn recovered_media_cleanup_before_deadline<F>(
++    deadline: Duration,
++    future: F,
++) -> Result<F::Output, tokio::time::error::Elapsed>
++where
++    F: std::future::Future,
++{
++    tokio::time::timeout(deadline, future).await
++}
++
+ async fn close_recovered_media_after_admission_error(
+     media: &mut crate::ivekit_media_lifecycle::IveKitMediaLifecycle,
+     call_session_ref: &str,
+     error: DialogShadowError,
+ ) -> DialogShadowError {
+-    if let Err(close_error) = media.close_media().await {
+-        tracing::warn!(
++    match recovered_media_cleanup_before_deadline(
++        RECOVERED_MEDIA_TERMINATION_TIMEOUT,
++        media.close_media(),
++    )
++    .await
++    {
++        Ok(Ok(_)) => {}
++        Ok(Err(close_error)) => tracing::warn!(
+             %call_session_ref,
+             error = %close_error,
+             "recovered media cleanup failed after Active Call admission rejection"
+-        );
++        ),
++        Err(_) => tracing::warn!(
++            %call_session_ref,
++            "recovered media cleanup reached its hard deadline after Active Call admission rejection"
++        ),
+     }
+     error
+ }
+@@ -3162,7 +3182,7 @@ impl RecoveredDialogController {
+                     .await;
+             }
+         }
+-        match tokio::time::timeout(
++        match recovered_media_cleanup_before_deadline(
+             RECOVERED_MEDIA_TERMINATION_TIMEOUT,
+             self.media.close_media(),
+         )
+@@ -4336,6 +4356,24 @@ mod tests {
+         );
+     }
+ 
++    #[tokio::test]
++    async fn recovered_media_cleanup_wait_is_bounded() {
++        assert_eq!(
++            recovered_media_cleanup_before_deadline(Duration::from_millis(10), async { 7 })
++                .await
++                .unwrap(),
++            7
++        );
++        assert!(
++            recovered_media_cleanup_before_deadline(
++                Duration::from_millis(1),
++                std::future::pending::<()>(),
++            )
++            .await
++            .is_err()
++        );
++    }
++
+     #[test]
+     fn capsule_v2_native_binding_must_match_aead_authority() {
+         let codec = DialogRecoveryCapsuleCodec::new(

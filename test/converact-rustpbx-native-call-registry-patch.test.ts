@@ -56,7 +56,7 @@ test("RustPBX binds native Call authority to bounded provider and Dialog indexes
 
 test("the exact build applies the native registry after native identity", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.82"/);
+  assert.match(build, /PATCHSET="ivekit\.83"/);
   assert.match(
     build,
     /rustpbx-converact-native-call-identity\.patch"[\s\S]*rustpbx-converact-native-call-registry\.patch"/,
