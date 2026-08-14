@@ -45,7 +45,7 @@ test("ivekit.74 applies the Native Call response capability after matched CANCEL
   );
 
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.77"/);
+  assert.match(build, /PATCHSET="ivekit\.78"/);
   assert.match(
     build,
     /rustpbx-converact-native-matched-cancel-capabilities\.patch"[\s\S]*rustpbx-converact-native-response-capabilities\.patch"/,
@@ -164,19 +164,19 @@ test("response lifecycle remains default-disabled and claims no server or perfor
     native_call_domain: "13_passed_0_failed",
     active_call_registry: "24_passed_0_failed",
     durable_sip_effect_gate:
-      "121_sip_effect_tests_passed_0_failed_10_physical_tests_ignored",
+      "133_sip_effect_tests_passed_0_failed_11_physical_tests_ignored",
     rustfmt_changed_sources: "passed",
     locked_library_check: "passed",
-    full_rustpbx_library: "not_run_for_ivekit_77",
+    full_rustpbx_library: "not_run_for_ivekit_78",
   });
   assert.equal(responses.live_server_activation, "not_run");
   assert.equal(
     responses.server_functional_verification.status,
-    "isolated_postgresql_migration_and_contract_passed_Rust_adapter_physical_tests_not_run",
+    "local_Rust_composition_and_isolated_PostgreSQL_adapter_passed_existing_service_unchanged",
   );
   assert.equal(
     responses.server_functional_verification.evidence_uri,
-    "architecture-foundation/execution/goal-03/evidence/raw/capability-recovery-oracle-204f4d5-17/README.md",
+    "architecture-foundation/execution/goal-03/evidence/raw/durable-sip-runtime-composition-2ecfb72-18/README.md",
   );
   assert.equal(
     responses.server_functional_verification.existing_service_state,

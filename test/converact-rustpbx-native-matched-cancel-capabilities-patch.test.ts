@@ -45,7 +45,7 @@ test("ivekit.74 retains the matched-CANCEL pair before response capabilities", (
   }
 
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.77"/);
+  assert.match(build, /PATCHSET="ivekit\.78"/);
   assert.match(
     build,
     /rsipstack-converact-uas-2xx-owner-retention\.patch"[\s\S]*rsipstack-converact-transaction-local-matched-cancel-pair\.patch"/,
@@ -145,10 +145,9 @@ test("the functional slice does not claim server activation or performance evide
   assert.match(readme, /live Endpoint activation[\s\S]*remain[s]?[\s\S]*`not_run`/i);
   assert.match(readme, /performance[^\n]*remain[^\n]*`not_run`/i);
   assert.deepEqual(matchedCancel.activation_blockers, [
-    "recovered_capability_live_wiring_not_implemented",
-    "Rust_adapter_physical_PostgreSQL_ignored_tests_not_run",
+    "recovered_Call_activation_and_recovery_invocation_not_run",
     "live_endpoint_activation_not_run",
-    "rustpbx_isolated_server_functional_verification_not_run_under_safe_disk_and_memory_floor",
+    "Linux_RustPBX_full_library_and_process_functional_verification_not_run_under_safe_disk_floor",
   ]);
   assert.equal(
     matchedCancel.adapter_source_identity,
@@ -168,7 +167,7 @@ test("the functional slice does not claim server activation or performance evide
   );
   assert.equal(
     matchedCancel.capability_restart_rebuild,
-    "durable_PostgreSQL_oracle_component_implemented_default_disabled_live_wiring_not_run",
+    "durable_PostgreSQL_composition_root_implemented_default_disabled_recovered_Call_invocation_not_run",
   );
   assert.equal(
     matchedCancel.format_scope_exception,
@@ -184,9 +183,11 @@ test("the functional slice does not claim server activation or performance evide
   );
   assert.deepEqual(matchedCancel.local_functional_verification, {
     capability_recovery_oracle:
-      "121_sip_effect_tests_passed_0_failed_10_physical_tests_ignored",
+      "133_sip_effect_tests_passed_0_failed_11_physical_tests_ignored",
+    durable_runtime_composition:
+      "38_native_sip_effect_tests_passed_0_failed_1_physical_test_ignored_plus_exact_physical_adapter_1_passed",
     rsipstack_library: "314_passed_0_failed",
-    rustpbx_library: "not_run_for_ivekit_77",
+    rustpbx_library: "not_run_for_ivekit_78",
     affected_static_contract_tests:
       "targeted_contract_and_migration_suite_passed",
     repository_typecheck: "passed",
@@ -194,19 +195,21 @@ test("the functional slice does not claim server activation or performance evide
   assert.equal(matchedCancel.live_server_activation, "not_run");
   assert.deepEqual(matchedCancel.server_functional_verification, {
     status:
-      "isolated_postgresql_migration_and_contract_passed_Rust_adapter_physical_tests_not_run",
-    campaign_id: "converact-g03-77-204f4d5-physical",
-    base_source_commit: "204f4d562299",
-    candidate_patchset: "ivekit.77",
+      "local_Rust_composition_and_isolated_PostgreSQL_adapter_passed_existing_service_unchanged",
+    campaign_id: "converact-g03-78-2ecfb72-functional",
+    base_source_commit: "2ecfb72f9618e8466814edd738769a2303d2085d",
+    candidate_patchset: "ivekit.78",
     evidence_uri:
-      "architecture-foundation/execution/goal-03/evidence/raw/capability-recovery-oracle-204f4d5-17/README.md",
-    migration_chain: "through_116_passed_isolated_PostgreSQL_16",
+      "architecture-foundation/execution/goal-03/evidence/raw/durable-sip-runtime-composition-2ecfb72-18/README.md",
+    migration_chain:
+      "through_116_passed_in_current_isolated_PostgreSQL_16_campaign",
     physical_contract:
-      "session_fence_exact_two_key_probe_receipt_replay_stale_insert_and_prepared_send_attempt_rejection_and_tenant_RLS_passed",
-    rust_adapter_physical_tests: "not_run",
-    server_rust_compile: "not_run_safe_disk_and_memory_floor",
+      "current_Rust_startup_contract_physical_test_passed",
+    rust_adapter_physical_tests: "exact_1_passed_0_failed",
+    server_rust_compile: "not_run_safe_4_1_GiB_disk_floor",
     existing_service_state: "unchanged_running_healthy",
-    test_container_and_tmpfs_after_cleanup: "absent",
+    test_container_and_tmpfs_after_cleanup:
+      "exact_ephemeral_PostgreSQL_16_destroyed_no_host_ports_tmpfs_only",
   });
   assert.equal(matchedCancel.performance_verification, "not_run");
   assert.equal(

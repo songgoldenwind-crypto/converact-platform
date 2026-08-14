@@ -1,0 +1,884 @@
+diff --git a/config.toml.example b/config.toml.example
+index 91f5e4e..598abfa 100644
+--- a/config.toml.example
++++ b/config.toml.example
+@@ -11,6 +11,11 @@ log_level = "debug"
+ media_cache_path = "./config/mediacache"
+ # SQLite database (default)
+ database_url = "sqlite://rustpbx.sqlite3"
++
++# The durable Native SIP effect runtime remains disabled unless explicitly
++# elected against a separately migrated PostgreSQL database.
++native_sip_effect = { enabled = false }
++# native_sip_effect = { enabled = true, database_url = "postgres://opc_runtime@postgres.internal/converact" }
+ # MySQL database example:
+ # database_url = "mysql://root@localhost:3306/rustpbx"
+ 
+diff --git a/src/config.rs b/src/config.rs
+index 635658d..d5d5a01 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -254,6 +254,37 @@ pub struct Config {
+     pub rwi_webhook: Option<LocatorWebhookConfig>,
+     #[serde(default)]
+     pub cluster: Option<ClusterConfig>,
++    #[serde(default)]
++    pub native_sip_effect: NativeSipEffectConfig,
++}
++
++#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
++#[serde(default, deny_unknown_fields)]
++pub struct NativeSipEffectConfig {
++    pub enabled: bool,
++    #[serde(skip_serializing_if = "Option::is_none")]
++    pub database_url: Option<String>,
++}
++
++impl NativeSipEffectConfig {
++    pub(crate) fn validated_database_url(&self) -> std::result::Result<Option<&str>, &'static str> {
++        if !self.enabled {
++            return Ok(None);
++        }
++        let database_url = self
++            .database_url
++            .as_deref()
++            .map(str::trim)
++            .filter(|database_url| !database_url.is_empty())
++            .ok_or("native SIP effect database URL is required")?;
++        let Some((scheme, destination)) = database_url.split_once("://") else {
++            return Err("native SIP effect database URL must use PostgreSQL");
++        };
++        if !matches!(scheme, "postgres" | "postgresql") || destination.is_empty() {
++            return Err("native SIP effect database URL must use PostgreSQL");
++        }
++        Ok(Some(database_url))
++    }
+ }
+ 
+ #[derive(Debug, Clone, Deserialize, Serialize)]
+@@ -1042,11 +1073,7 @@ fn available_parallelism() -> usize {
+ 
+ fn default_sip_worker_threads() -> usize {
+     let n = available_parallelism();
+-    if n >= 8 {
+-        4
+-    } else {
+-        (n + 1) / 2
+-    }
++    if n >= 8 { 4 } else { (n + 1) / 2 }
+ }
+ 
+ fn default_sip_max_active_transactions() -> usize {
+@@ -1068,11 +1095,7 @@ fn default_sip_max_transport_connections() -> usize {
+ fn default_media_worker_threads() -> usize {
+     let n = available_parallelism();
+     let sip = default_sip_worker_threads();
+-    if n > sip {
+-        n - sip
+-    } else {
+-        1
+-    }
++    if n > sip { n - sip } else { 1 }
+ }
+ 
+ fn default_auth_cache_size() -> usize {
+@@ -1490,6 +1513,7 @@ impl Default for Config {
+             licenses: None,
+             rwi_webhook: None,
+             cluster: None,
++            native_sip_effect: NativeSipEffectConfig::default(),
+         }
+     }
+ }
+@@ -1561,7 +1585,6 @@ impl Config {
+     pub fn static_path(&self) -> String {
+         "/static".to_string()
+     }
+-
+ }
+ 
+ // ===================================================================
+@@ -1703,6 +1726,32 @@ mod tests {
+         assert_eq!(rtp_config.external_ip.as_deref(), Some("203.0.113.10"));
+     }
+ 
++    #[test]
++    fn native_sip_effect_runtime_is_default_disabled() {
++        let config = Config::default();
++
++        assert!(!config.native_sip_effect.enabled);
++        assert!(config.native_sip_effect.database_url.is_none());
++    }
++
++    #[test]
++    fn native_sip_effect_runtime_configuration_is_closed_and_explicit() {
++        let parsed: NativeSipEffectConfig = toml::from_str(
++            r#"
++            enabled = true
++            database_url = "postgres://opc_runtime@db.internal/converact"
++            "#,
++        )
++        .unwrap();
++
++        assert!(parsed.enabled);
++        assert_eq!(
++            parsed.database_url.as_deref(),
++            Some("postgres://opc_runtime@db.internal/converact")
++        );
++        assert!(toml::from_str::<NativeSipEffectConfig>("enabled=true\nunknown=true").is_err());
++    }
++
+     #[cfg(feature = "commerce")]
+     #[test]
+     fn test_cluster_config_default_is_none() {
+diff --git a/src/app.rs b/src/app.rs
+index b71baab..6b11ea3 100644
+--- a/src/app.rs
++++ b/src/app.rs
+@@ -248,10 +248,12 @@ impl AppStateBuilder {
+ 
+     pub async fn build(self) -> Result<AppState> {
+         let config: Arc<Config> = Arc::new(self.config.unwrap_or_default());
++        let token = self.cancel_token.unwrap_or_default();
++        let native_sip_effect_runtime =
++            build_native_sip_effect_runtime(&config.native_sip_effect, token.child_token()).await?;
+         let storage_config = config.storage.clone().unwrap_or_default();
+         let storage = crate::storage::Storage::new(&storage_config)?;
+ 
+-        let token = self.cancel_token.unwrap_or_default();
+         let config_loaded_at = self.config_loaded_at.unwrap_or_else(Utc::now);
+         let config_path = self.config_path.clone();
+         let db_conn = if self.skip_migrate {
+@@ -384,7 +386,13 @@ impl AppStateBuilder {
+         });
+ 
+         let sip_server = match self.proxy_builder {
+-            Some(builder) => builder.build().await,
++            Some(builder) => {
++                let builder = match native_sip_effect_runtime.as_ref() {
++                    Some(runtime) => builder.try_with_native_sip_effect_runtime(runtime.clone())?,
++                    None => builder,
++                };
++                builder.build().await
++            }
+             None => {
+                 let mut proxy_config = config.proxy.clone();
+                 for backend in proxy_config.user_backends.iter_mut() {
+@@ -439,6 +447,9 @@ impl AppStateBuilder {
+                 if let Some(hook) = crate::ivekit_owner::session_hook()? {
+                     builder = builder.with_session_hook(hook);
+                 }
++                if let Some(runtime) = native_sip_effect_runtime.as_ref() {
++                    builder = builder.try_with_native_sip_effect_runtime(runtime.clone())?;
++                }
+ 
+                 // Apply addon proxy server hooks (including CC addon's AgentRegistry registration)
+                 builder = addon_registry.apply_proxy_server_hooks(builder, core.clone());
+@@ -574,6 +585,26 @@ impl AppStateBuilder {
+     }
+ }
+ 
++async fn build_native_sip_effect_runtime(
++    config: &crate::config::NativeSipEffectConfig,
++    parent_cancel: CancellationToken,
++) -> Result<
++    Option<Arc<crate::call::adapters::native_sip_effect_capabilities::NativeSipEffectRuntime>>,
++> {
++    let Some(database_url) = config
++        .validated_database_url()
++        .map_err(|message| anyhow::anyhow!(message))?
++    else {
++        return Ok(None);
++    };
++    let runtime = crate::call::adapters::native_sip_effect_capabilities::NativeSipEffectRuntime::connect_durable_postgres(
++        database_url,
++        parent_cancel,
++    )
++    .await?;
++    Ok(Some(Arc::new(runtime)))
++}
++
+ pub async fn run(state: AppState, mut router: Router) -> Result<()> {
+     let token = state.token().clone();
+     let addr: SocketAddr = state.config().http_addr.parse()?;
+@@ -937,3 +968,38 @@ pub fn create_router(state: AppState) -> Router {
+ 
+     router
+ }
++
++#[cfg(test)]
++mod native_sip_effect_composition_tests {
++    use super::build_native_sip_effect_runtime;
++    use crate::config::NativeSipEffectConfig;
++    use tokio_util::sync::CancellationToken;
++
++    #[tokio::test]
++    async fn disabled_native_sip_effect_runtime_performs_no_database_work() {
++        let config = NativeSipEffectConfig {
++            enabled: false,
++            database_url: Some("postgres://unused:unused@127.0.0.1:1/unused".to_string()),
++        };
++
++        let runtime = build_native_sip_effect_runtime(&config, CancellationToken::new())
++            .await
++            .expect("disabled configuration");
++
++        assert!(runtime.is_none());
++    }
++
++    #[tokio::test]
++    async fn enabled_native_sip_effect_runtime_requires_a_database_url() {
++        let config = NativeSipEffectConfig {
++            enabled: true,
++            database_url: None,
++        };
++
++        assert!(
++            build_native_sip_effect_runtime(&config, CancellationToken::new())
++                .await
++                .is_err()
++        );
++    }
++}
+diff --git a/src/preflight.rs b/src/preflight.rs
+index 804e96b..9b16b48 100644
+--- a/src/preflight.rs
++++ b/src/preflight.rs
+@@ -56,6 +56,11 @@ pub async fn validate_reload(state: &AppState, proposed: &Config) -> Result<(),
+     }
+ 
+     let current_config = state.config().as_ref();
++    issues.append(&mut native_sip_effect_config_issues(proposed));
++    issues.append(&mut native_sip_effect_reload_issues(
++        current_config,
++        proposed,
++    ));
+     let current_ports = current_port_keys(current_config);
+ 
+     let (targets, mut parse_issues) = bind_targets(proposed);
+@@ -71,7 +76,7 @@ pub async fn validate_reload(state: &AppState, proposed: &Config) -> Result<(),
+ }
+ 
+ pub async fn validate_start(config: &Config) -> Result<(), PreflightError> {
+-    let mut issues = Vec::new();
++    let mut issues = native_sip_effect_config_issues(config);
+ 
+     let (targets, mut parse_issues) = bind_targets(config);
+     issues.append(&mut parse_issues);
+@@ -86,6 +91,28 @@ pub async fn validate_start(config: &Config) -> Result<(), PreflightError> {
+     }
+ }
+ 
++fn native_sip_effect_config_issues(config: &Config) -> Vec<PreflightIssue> {
++    match config.native_sip_effect.validated_database_url() {
++        Ok(_) => Vec::new(),
++        Err(message) => vec![PreflightIssue {
++            field: "native_sip_effect.database_url".to_string(),
++            message: message.to_string(),
++        }],
++    }
++}
++
++fn native_sip_effect_reload_issues(current: &Config, proposed: &Config) -> Vec<PreflightIssue> {
++    if current.native_sip_effect == proposed.native_sip_effect {
++        Vec::new()
++    } else {
++        vec![PreflightIssue {
++            field: "native_sip_effect".to_string(),
++            message: "Durable Native SIP effect runtime changes require a process restart"
++                .to_string(),
++        }]
++    }
++}
++
+ async fn check_bind_targets(
+     targets: Vec<BindTarget>,
+     skip_ports: &HashSet<PortKey>,
+@@ -230,3 +257,46 @@ fn value_as_ip_addr(field: &str, value: &str) -> Result<IpAddr, PreflightIssue>
+         message: format!("Invalid {} `{}` ({})", field, value, err),
+     })
+ }
++
++#[cfg(test)]
++mod native_sip_effect_tests {
++    use super::{native_sip_effect_config_issues, native_sip_effect_reload_issues};
++    use crate::config::Config;
++
++    #[test]
++    fn native_sip_effect_preflight_rejects_missing_or_non_postgres_urls() {
++        let mut config = Config::default();
++        config.native_sip_effect.enabled = true;
++        assert_eq!(native_sip_effect_config_issues(&config).len(), 1);
++
++        config.native_sip_effect.database_url = Some("sqlite://effects.db".to_string());
++        assert_eq!(native_sip_effect_config_issues(&config).len(), 1);
++
++        config.native_sip_effect.database_url =
++            Some("postgres://opc_runtime@db.internal/converact".to_string());
++        assert!(native_sip_effect_config_issues(&config).is_empty());
++    }
++
++    #[test]
++    fn native_sip_effect_preflight_keeps_disabled_configuration_database_free() {
++        let mut config = Config::default();
++        config.native_sip_effect.database_url = Some("not-a-database-url".to_string());
++
++        assert!(native_sip_effect_config_issues(&config).is_empty());
++    }
++
++    #[test]
++    fn native_sip_effect_configuration_cannot_change_during_live_reload() {
++        let current = Config::default();
++        let mut proposed = current.clone();
++        proposed.native_sip_effect.enabled = true;
++        proposed.native_sip_effect.database_url =
++            Some("postgres://opc_runtime@db.internal/converact".to_string());
++
++        assert_eq!(
++            native_sip_effect_reload_issues(&current, &proposed).len(),
++            1
++        );
++        assert!(native_sip_effect_reload_issues(&current, &current).is_empty());
++    }
++}
+diff --git a/src/proxy/server.rs b/src/proxy/server.rs
+index e0d32c4..7dff909 100644
+--- a/src/proxy/server.rs
++++ b/src/proxy/server.rs
+@@ -392,12 +392,18 @@ impl SipServerBuilder {
+         dead_code,
+         reason = "the durable Native SIP runtime stays default-disabled until its activation gate"
+     )]
+-    pub(crate) fn with_native_sip_effect_runtime(
++    pub(crate) fn try_with_native_sip_effect_runtime(
+         mut self,
+         runtime: Arc<crate::call::adapters::native_sip_effect_capabilities::NativeSipEffectRuntime>,
+-    ) -> Self {
++    ) -> Result<
++        Self,
++        crate::call::adapters::native_sip_effect_capabilities::NativeSipEffectCapabilityError,
++    > {
++        if self.native_sip_effect_runtime.is_some() {
++            return Err(crate::call::adapters::native_sip_effect_capabilities::NativeSipEffectCapabilityError::InvalidConfiguration);
++        }
+         self.native_sip_effect_runtime = Some(runtime);
+-        self
++        Ok(self)
+     }
+ 
+     pub fn with_skip_migrate(mut self, skip: bool) -> Self {
+@@ -1574,9 +1580,19 @@ impl Drop for SipServerInner {
+ #[cfg(test)]
+ mod invite_owner_tests {
+     use super::{SipServer, SipServerBuilder};
++    use crate::call::adapters::native_sip_effect_capabilities::{
++        NativeSipEffectCapabilityError, NativeSipEffectRuntime,
++    };
++    use crate::call::adapters::postgres_sip_effect::{
++        PostgresSipEffectStore, PostgresSipEffectStoreOptions,
++    };
++    use crate::call::adapters::rsipstack_sip_effect_gate::{
++        DurableRsipstackEgressGate, SipEffectGateOptions, SipEffectIntentRegistry,
++    };
+     use crate::config::ProxyConfig;
+     use crate::proxy::tests::common::{create_test_request, create_transaction};
+     use rsipstack::sip::{Method, StatusCode};
++    use sqlx::postgres::PgPoolOptions;
+     use std::sync::Arc;
+     use std::time::Duration;
+     use tokio::time::timeout;
+@@ -1588,6 +1604,48 @@ mod invite_owner_tests {
+         assert!(builder.native_sip_effect_runtime.is_none());
+     }
+ 
++    #[tokio::test]
++    async fn durable_native_sip_effect_runtime_cannot_be_injected_twice() {
++        let intents = Arc::new(SipEffectIntentRegistry::try_new(8).unwrap());
++        let pool = PgPoolOptions::new()
++            .max_connections(1)
++            .connect_lazy("postgres://unused:unused@127.0.0.1:1/unused")
++            .expect("lazy PostgreSQL pool");
++        let store = Arc::new(
++            PostgresSipEffectStore::from_pool(pool, PostgresSipEffectStoreOptions::default())
++                .unwrap(),
++        );
++        let (gate, _observers) = DurableRsipstackEgressGate::new_postgres(
++            intents.clone(),
++            store,
++            SipEffectGateOptions {
++                observation_worker_shards: 1,
++                ..SipEffectGateOptions::default()
++            },
++        )
++        .unwrap();
++        let runtime = Arc::new(
++            NativeSipEffectRuntime::try_new(
++                gate,
++                intents,
++                serde_json::json!({
++                    "adapter_id": "rsipstack",
++                    "source_commit": "8318e97b1170de4e5245b120afec1cdf53e3d716",
++                }),
++                chrono::Duration::days(30),
++            )
++            .unwrap(),
++        );
++        let builder = SipServerBuilder::new(Arc::new(ProxyConfig::default()))
++            .try_with_native_sip_effect_runtime(runtime.clone())
++            .expect("first runtime injection");
++
++        assert!(matches!(
++            builder.try_with_native_sip_effect_runtime(runtime),
++            Err(NativeSipEffectCapabilityError::InvalidConfiguration)
++        ));
++    }
++
+     #[tokio::test]
+     async fn ivekit_server_invite_owner_survives_module_return_until_cancelled() {
+         let request = create_test_request(Method::Invite, "alice", None, "rustpbx.test", None);
+diff --git a/src/call/adapters/native_sip_effect_capabilities.rs b/src/call/adapters/native_sip_effect_capabilities.rs
+index da2578b..cc7beb1 100644
+--- a/src/call/adapters/native_sip_effect_capabilities.rs
++++ b/src/call/adapters/native_sip_effect_capabilities.rs
+@@ -6,6 +6,11 @@ use super::rsipstack_sip_effect_gate::{
+     DurableRsipstackEgressGate, SipEffectGateError, SipEffectIntent, SipEffectIntentLease,
+     SipEffectIntentRegistry,
+ };
++#[cfg(test)]
++use super::sip_effect_observer_supervisor::SipEffectObservationSupervisorSnapshot;
++use super::sip_effect_observer_supervisor::{
++    SipEffectObservationSupervisor, SipEffectObservationSupervisorOptions,
++};
+ use crate::call::domain::foundation_identity::{NativeCallIdentity, NativeCallRecoveryBinding};
+ use crate::call::domain::sip_effect::canonical_json_sha256;
+ use crate::proxy::active_call_registry::{
+@@ -27,6 +32,7 @@ use rsipstack::transport::connection::EgressTransportBinding;
+ use serde_json::Value;
+ use sha2::{Digest, Sha256};
+ use std::sync::Arc;
++use tokio_util::sync::CancellationToken;
+ 
+ #[allow(
+     dead_code,
+@@ -34,6 +40,8 @@ use std::sync::Arc;
+ )]
+ const MAX_AUDIT_RETENTION_DAYS: i64 = 365;
+ const PINNED_RSIPSTACK_SOURCE_COMMIT: &str = "8318e97b1170de4e5245b120afec1cdf53e3d716";
++const NATIVE_SIP_EFFECT_INTENT_CAPACITY: usize = 262_144;
++const NATIVE_SIP_EFFECT_AUDIT_RETENTION_DAYS: i64 = 30;
+ 
+ #[derive(Debug, thiserror::Error)]
+ pub(crate) enum NativeSipEffectCapabilityError {
+@@ -142,6 +150,12 @@ pub(crate) struct NativeSipEffectRuntime {
+     adapter_identity: Value,
+     audit_retention: Duration,
+     recovery_oracle: Option<Arc<dyn NativeSipCapabilityRecoveryOracle>>,
++    durable_postgres: Option<NativeSipEffectDurablePostgres>,
++}
++
++struct NativeSipEffectDurablePostgres {
++    _store: Arc<PostgresSipEffectStore>,
++    _observation_supervisor: SipEffectObservationSupervisor,
+ }
+ 
+ impl NativeSipEffectRuntime {
+@@ -177,9 +191,77 @@ impl NativeSipEffectRuntime {
+             adapter_identity,
+             audit_retention,
+             recovery_oracle: None,
++            durable_postgres: None,
+         })
+     }
+ 
++    pub(crate) async fn connect_durable_postgres(
++        database_url: &str,
++        parent_cancel: CancellationToken,
++    ) -> Result<Self, NativeSipEffectCapabilityError> {
++        let database_url = database_url.trim();
++        let Some((scheme, destination)) = database_url.split_once("://") else {
++            return Err(NativeSipEffectCapabilityError::InvalidConfiguration);
++        };
++        if !matches!(scheme, "postgres" | "postgresql")
++            || destination.trim().is_empty()
++            || parent_cancel.is_cancelled()
++        {
++            return Err(NativeSipEffectCapabilityError::InvalidConfiguration);
++        }
++        let store = Arc::new(
++            PostgresSipEffectStore::connect(
++                database_url,
++                super::postgres_sip_effect::PostgresSipEffectStoreOptions::default(),
++            )
++            .await?,
++        );
++        store.verify_runtime_contract().await?;
++        Self::try_new_durable_postgres(store, parent_cancel)
++    }
++
++    fn try_new_durable_postgres(
++        store: Arc<PostgresSipEffectStore>,
++        parent_cancel: CancellationToken,
++    ) -> Result<Self, NativeSipEffectCapabilityError> {
++        if parent_cancel.is_cancelled() {
++            return Err(NativeSipEffectCapabilityError::InvalidConfiguration);
++        }
++        let intents = Arc::new(SipEffectIntentRegistry::try_new(
++            NATIVE_SIP_EFFECT_INTENT_CAPACITY,
++        )?);
++        let (gate, observers) = DurableRsipstackEgressGate::new_postgres(
++            intents.clone(),
++            store.clone(),
++            super::rsipstack_sip_effect_gate::SipEffectGateOptions::default(),
++        )?;
++        let observation_supervisor = SipEffectObservationSupervisor::start(
++            gate.clone(),
++            observers,
++            parent_cancel.clone(),
++            SipEffectObservationSupervisorOptions::default(),
++        )?;
++        if parent_cancel.is_cancelled() {
++            return Err(NativeSipEffectCapabilityError::InvalidConfiguration);
++        }
++        let mut runtime = Self::try_new(
++            gate,
++            intents,
++            serde_json::json!({
++                "adapter_id": "rsipstack",
++                "source_commit": PINNED_RSIPSTACK_SOURCE_COMMIT,
++            }),
++            Duration::days(NATIVE_SIP_EFFECT_AUDIT_RETENTION_DAYS),
++        )?;
++        let recovery_oracle: Arc<dyn NativeSipCapabilityRecoveryOracle> = store.clone();
++        runtime.recovery_oracle = Some(recovery_oracle);
++        runtime.durable_postgres = Some(NativeSipEffectDurablePostgres {
++            _store: store,
++            _observation_supervisor: observation_supervisor,
++        });
++        Ok(runtime)
++    }
++
+     #[allow(
+         dead_code,
+         reason = "the durable recovery oracle remains default-disabled until its PostgreSQL slice"
+@@ -197,6 +279,39 @@ impl NativeSipEffectRuntime {
+         self.gate.clone()
+     }
+ 
++    #[cfg(test)]
++    fn uses_durable_postgres_store(&self, expected: &Arc<PostgresSipEffectStore>) -> bool {
++        self.durable_postgres
++            .as_ref()
++            .is_some_and(|durable| Arc::ptr_eq(&durable._store, expected))
++    }
++
++    #[cfg(test)]
++    fn recovery_oracle_uses_durable_postgres_store(&self) -> bool {
++        let Some(durable) = self.durable_postgres.as_ref() else {
++            return false;
++        };
++        let Some(oracle) = self.recovery_oracle.as_ref() else {
++            return false;
++        };
++        std::ptr::addr_eq(
++            Arc::as_ptr(oracle).cast::<()>(),
++            Arc::as_ptr(&durable._store).cast::<()>(),
++        )
++    }
++
++    #[cfg(test)]
++    fn observation_supervisor_snapshot(&self) -> Option<SipEffectObservationSupervisorSnapshot> {
++        self.durable_postgres
++            .as_ref()
++            .map(|durable| durable._observation_supervisor.snapshot())
++    }
++
++    #[cfg(test)]
++    fn has_durable_postgres_runtime(&self) -> bool {
++        self.durable_postgres.is_some()
++    }
++
+     pub(crate) fn register_matched_cancel_capabilities(
+         &self,
+         active_calls: &Arc<ActiveProxyCallRegistry>,
+@@ -1320,6 +1435,108 @@ mod tests {
+         assert_recovery_oracle::<PostgresSipEffectStore>();
+     }
+ 
++    #[tokio::test]
++    async fn durable_postgres_composition_uses_one_store_and_holds_observers() {
++        let pool = PgPoolOptions::new()
++            .max_connections(1)
++            .connect_lazy("postgres://unused:unused@127.0.0.1:1/unused")
++            .expect("lazy PostgreSQL pool");
++        let store = Arc::new(
++            PostgresSipEffectStore::from_pool(pool, PostgresSipEffectStoreOptions::default())
++                .unwrap(),
++        );
++        let parent_cancel = tokio_util::sync::CancellationToken::new();
++
++        let runtime =
++            NativeSipEffectRuntime::try_new_durable_postgres(store.clone(), parent_cancel.clone())
++                .expect("durable PostgreSQL composition");
++
++        assert!(runtime.uses_durable_postgres_store(&store));
++        assert!(runtime.recovery_oracle_uses_durable_postgres_store());
++        let snapshot = runtime
++            .observation_supervisor_snapshot()
++            .expect("owned observation supervisor");
++        assert_eq!(
++            snapshot.configured_shards,
++            SipEffectGateOptions::default().observation_worker_shards
++        );
++
++        tokio::time::timeout(std::time::Duration::from_secs(1), async {
++            loop {
++                if runtime
++                    .observation_supervisor_snapshot()
++                    .is_some_and(|snapshot| snapshot.running_shards == snapshot.configured_shards)
++                {
++                    break;
++                }
++                tokio::task::yield_now().await;
++            }
++        })
++        .await
++        .expect("all observer workers start while the runtime holder is alive");
++
++        parent_cancel.cancel();
++        tokio::time::timeout(std::time::Duration::from_secs(1), async {
++            loop {
++                if runtime
++                    .observation_supervisor_snapshot()
++                    .is_some_and(|snapshot| snapshot.running_shards == 0)
++                {
++                    break;
++                }
++                tokio::task::yield_now().await;
++            }
++        })
++        .await
++        .expect("observer workers stop with the parent lifecycle");
++    }
++
++    #[tokio::test]
++    async fn durable_postgres_composition_rejects_an_already_cancelled_parent() {
++        let pool = PgPoolOptions::new()
++            .max_connections(1)
++            .connect_lazy("postgres://unused:unused@127.0.0.1:1/unused")
++            .expect("lazy PostgreSQL pool");
++        let store = Arc::new(
++            PostgresSipEffectStore::from_pool(pool, PostgresSipEffectStoreOptions::default())
++                .unwrap(),
++        );
++        let parent_cancel = tokio_util::sync::CancellationToken::new();
++        parent_cancel.cancel();
++
++        assert!(matches!(
++            NativeSipEffectRuntime::try_new_durable_postgres(store, parent_cancel),
++            Err(NativeSipEffectCapabilityError::InvalidConfiguration)
++        ));
++    }
++
++    #[tokio::test]
++    async fn durable_postgres_connection_rejects_an_empty_destination_before_database_io() {
++        let parent_cancel = tokio_util::sync::CancellationToken::new();
++
++        assert!(matches!(
++            NativeSipEffectRuntime::connect_durable_postgres("postgres://", parent_cancel).await,
++            Err(NativeSipEffectCapabilityError::InvalidConfiguration)
++        ));
++    }
++
++    #[tokio::test]
++    #[ignore = "requires an isolated PostgreSQL 16 database with migrations 001-116 and elected v2 writer"]
++    async fn durable_postgres_composition_connects_to_a_verified_physical_contract() {
++        let database_url = std::env::var("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL")
++            .expect("CONVERACT_SIP_EFFECT_TEST_DATABASE_URL must be set");
++        let parent_cancel = tokio_util::sync::CancellationToken::new();
++
++        let runtime =
++            NativeSipEffectRuntime::connect_durable_postgres(&database_url, parent_cancel.clone())
++                .await
++                .expect("verified durable PostgreSQL composition");
++
++        assert!(runtime.has_durable_postgres_runtime());
++        assert!(runtime.recovery_oracle_uses_durable_postgres_store());
++        parent_cancel.cancel();
++    }
++
+     #[tokio::test]
+     async fn admitted_native_call_registers_exactly_two_cancel_capabilities_once() {
+         let session_id = "native-cancel-call@example.test";
+diff --git a/src/call/adapters/postgres_sip_effect.rs b/src/call/adapters/postgres_sip_effect.rs
+index 4853f45..af9d1e3 100644
+--- a/src/call/adapters/postgres_sip_effect.rs
++++ b/src/call/adapters/postgres_sip_effect.rs
+@@ -24,6 +24,7 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+ const MAX_STORE_IN_FLIGHT: usize = 256;
+ const MAX_STORE_QUEUE_DEPTH: usize = 1_024;
+ const MAX_STORE_WAIT: Duration = Duration::from_millis(250);
++const STARTUP_CONTRACT_WAIT: Duration = Duration::from_secs(2);
+ const MAX_REPAIR_LEASE: Duration = Duration::from_secs(30);
+ const MAX_REPAIR_BATCH_SIZE: usize = 100;
+ const MAX_REPAIR_TOKEN_PREFIX_BYTES: usize = 128;
+@@ -714,6 +715,146 @@ impl PostgresSipEffectStore {
+         self.admission.snapshot()
+     }
+ 
++    pub(crate) async fn verify_runtime_contract(&self) -> Result<(), SipEffectStoreError> {
++        run_with_store_deadline(STARTUP_CONTRACT_WAIT, async {
++            let (_admission, mut transaction) = self
++                .begin_tenant_transaction("sip-foundation-startup-contract")
++                .await?;
++            sqlx::query("SET LOCAL statement_timeout = '2s'")
++                .execute(&mut *transaction)
++                .await
++                .map_err(map_sqlx_error)?;
++            let recovery_contract_ready = sqlx::query_scalar::<_, bool>(
++                r#"
++                SELECT
++                  to_regclass('public.ivekit_sip_effect_session_fences') IS NOT NULL AND
++                  to_regclass('public.ivekit_sip_capability_recovery_receipts') IS NOT NULL AND
++                  to_regprocedure(
++                    'public.ivekit_sip_effect_session_insert_fence_guard()'
++                  ) IS NOT NULL AND
++                  to_regprocedure(
++                    'public.ivekit_sip_effect_send_attempt_fence_guard()'
++                  ) IS NOT NULL AND
++                  to_regprocedure(
++                    'public.ivekit_sip_effect_session_fence_guard()'
++                  ) IS NOT NULL AND
++                  to_regprocedure(
++                    'public.ivekit_sip_capability_recovery_receipt_immutable()'
++                  ) IS NOT NULL AND
++                  NOT EXISTS (
++                    SELECT 1
++                    FROM (VALUES
++                      (
++                        'ivekit_sip_effect_session_insert_fence',
++                        'ivekit_sip_protocol_effects'
++                      ),
++                      (
++                        'ivekit_sip_effect_send_attempt_fence',
++                        'ivekit_sip_protocol_effects'
++                      ),
++                      (
++                        'ivekit_sip_effect_session_fence_transition',
++                        'ivekit_sip_effect_session_fences'
++                      ),
++                      (
++                        'ivekit_sip_capability_recovery_receipt_immutable',
++                        'ivekit_sip_capability_recovery_receipts'
++                      )
++                    ) AS expected(trigger_name, relation_name)
++                    WHERE NOT EXISTS (
++                      SELECT 1
++                      FROM pg_catalog.pg_trigger AS trigger
++                      JOIN pg_catalog.pg_class AS relation
++                        ON relation.oid = trigger.tgrelid
++                      JOIN pg_catalog.pg_namespace AS namespace
++                        ON namespace.oid = relation.relnamespace
++                      WHERE namespace.nspname = 'public'
++                        AND relation.relname = expected.relation_name
++                        AND trigger.tgname = expected.trigger_name
++                        AND trigger.tgenabled <> 'D'
++                    )
++                  ) AND
++                  COALESCE((
++                    SELECT relation.relrowsecurity AND relation.relforcerowsecurity
++                    FROM pg_catalog.pg_class AS relation
++                    JOIN pg_catalog.pg_namespace AS namespace
++                      ON namespace.oid = relation.relnamespace
++                    WHERE namespace.nspname = 'public'
++                      AND relation.relname = 'ivekit_sip_effect_session_fences'
++                  ), FALSE) AND
++                  COALESCE((
++                    SELECT relation.relrowsecurity AND relation.relforcerowsecurity
++                    FROM pg_catalog.pg_class AS relation
++                    JOIN pg_catalog.pg_namespace AS namespace
++                      ON namespace.oid = relation.relnamespace
++                    WHERE namespace.nspname = 'public'
++                      AND relation.relname = 'ivekit_sip_capability_recovery_receipts'
++                  ), FALSE) AND
++                  NOT EXISTS (
++                    SELECT 1
++                    FROM (VALUES
++                      ('ivekit_sip_effect_session_fences'),
++                      ('ivekit_sip_capability_recovery_receipts')
++                    ) AS expected(relation_name)
++                    WHERE NOT EXISTS (
++                      SELECT 1
++                      FROM pg_catalog.pg_policies AS policy
++                      WHERE policy.schemaname = 'public'
++                        AND policy.tablename = expected.relation_name
++                        AND policy.policyname = 'tenant_isolation'
++                        AND policy.cmd = 'ALL'
++                    )
++                  ) AND
++                  has_table_privilege(
++                    current_user,
++                    'public.ivekit_sip_effect_session_fences',
++                    'SELECT'
++                  ) AND
++                  has_table_privilege(
++                    current_user,
++                    'public.ivekit_sip_effect_session_fences',
++                    'INSERT'
++                  ) AND
++                  NOT EXISTS (
++                    SELECT 1
++                    FROM (VALUES
++                      ('owner_epoch_high_watermark'),
++                      ('generation_high_watermark'),
++                      ('revision_high_watermark'),
++                      ('last_recovery_request_sha256'),
++                      ('updated_at')
++                    ) AS expected(column_name)
++                    WHERE NOT has_column_privilege(
++                      current_user,
++                      'public.ivekit_sip_effect_session_fences',
++                      expected.column_name,
++                      'UPDATE'
++                    )
++                  ) AND
++                  has_table_privilege(
++                    current_user,
++                    'public.ivekit_sip_capability_recovery_receipts',
++                    'SELECT'
++                  ) AND
++                  has_table_privilege(
++                    current_user,
++                    'public.ivekit_sip_capability_recovery_receipts',
++                    'INSERT'
++                  )
++                "#,
++            )
++            .fetch_one(&mut *transaction)
++            .await
++            .map_err(map_sqlx_error)?;
++            if !recovery_contract_ready {
++                return Err(SipEffectStoreError::SchemaIncompatible);
++            }
++            transaction.rollback().await.map_err(map_sqlx_error)?;
++            Ok(())
++        })
++        .await
++    }
++
+     pub async fn prepare(
+         &self,
+         effect: PreparedSipEffect,
+@@ -3139,6 +3280,13 @@ mod tests {
+         );
+     }
+ 
++    #[test]
++    fn startup_contract_budget_does_not_widen_the_call_store_slo() {
++        assert_eq!(MAX_STORE_WAIT, Duration::from_millis(250));
++        assert_eq!(STARTUP_CONTRACT_WAIT, Duration::from_secs(2));
++        assert!(STARTUP_CONTRACT_WAIT > MAX_STORE_WAIT);
++    }
++
+     #[test]
+     fn capability_recovery_sql_is_exact_key_fenced_and_replayable() {
+         assert!(SIP_EFFECT_SESSION_FENCE_SEED_SQL.contains("ON CONFLICT DO NOTHING"));

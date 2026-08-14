@@ -110,7 +110,7 @@ test("reconciler patch consumes only bounded exact-target authority grants", () 
 
 test("ivekit.72 applies and formats the reconciler after observer supervision", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.77"/u);
+  assert.match(build, /PATCHSET="ivekit\.78"/u);
   assert.match(
     build,
     /rustpbx-converact-sip-effect-observer-supervisor\.patch"[\s\S]*rustpbx-converact-sip-effect-reconciler-supervisor\.patch"/u,

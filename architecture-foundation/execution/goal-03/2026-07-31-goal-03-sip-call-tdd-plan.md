@@ -239,6 +239,23 @@ Run serially:
    resources were removed. This is functional component evidence only; live
    wiring, Rust-adapter physical tests, real process restart, Endpoint
    activation, production and all performance work remain `not_run`.
+   The `.78` RED/GREEN slice composes that Oracle into the Rust product runtime.
+   RED fixes the absent closed config, disabled-mode no-I/O behavior, duplicate
+   builder injection and unverified database startup. GREEN constructs exactly
+   one `Arc<PostgresSipEffectStore>` before SIP startup, uses it for the durable
+   Gate, observer supervisor and recovery Oracle, retains the supervisor for the
+   server lifetime, verifies elected schema/RLS/triggers/privileges and rejects
+   live reload. A physical RED run exposed that the 250 ms per-Call store
+   deadline was incorrectly reused for the one-time cold catalog scan. GREEN
+   retains 250 ms for Call work and gives only startup verification a bounded
+   2 s deadline. Exact-source SipEffect passes `133/133` with 11 physical tests
+   ignored; the native composition filter passes `38/38` with one physical test
+   ignored. That exact ignored test separately passes `1/1` through an SSH
+   tunnel to a newly created PostgreSQL 16 container with migrations 001–116,
+   tmpfs data and no host-published port. The exact temporary resource was
+   destroyed and the pre-existing container stayed healthy with zero restarts.
+   Recovered-Call invocation, live Endpoint, Linux product-process execution,
+   process restart/two-node, production and all performance work stay `not_run`.
 6. repository typecheck.
 7. Generate raw output, command/source manifest and SHA-256 evidence with no
    secrets.
@@ -297,6 +314,15 @@ or Rust adapter physical test. The temporary container had no network and no
 host port; the pre-existing container remained healthy before and after exact
 cleanup. No running service or deployed code changed, and no load, latency,
 CPS, concurrency, capacity, soak or 100K command ran.
+
+The `.78` component verification is functional-only. Rust unit and composition
+checks run locally. The ignored PostgreSQL adapter case passed against a newly
+created isolated server resource: PostgreSQL 16, migrations 001–116, tmpfs
+data, bounded CPU/memory, no host-published port and a local SSH tunnel to the
+container-private address. It never reused, restarted, modified or exposed the
+existing server workload, and cleanup left only the original healthy container.
+No load, latency, CPS, concurrency, capacity, soak or 100K command belongs to
+this slice.
 
 The retained harness includes both rolling-binary bypass shapes: a stale new
 effect insert and a pre-existing `durable_decision` effect attempting its first

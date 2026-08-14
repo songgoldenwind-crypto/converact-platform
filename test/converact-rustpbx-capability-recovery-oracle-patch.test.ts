@@ -24,13 +24,13 @@ function additions(contents: string): string {
     .join('\n');
 }
 
-test('ivekit.77 applies the PostgreSQL recovery oracle after the component seam', () => {
+test('ivekit.78 retains the PostgreSQL recovery oracle before durable composition', () => {
   assert.equal(existsSync(PATCH), true, `${PATCH} is required`);
   const patch = readFileSync(PATCH, 'utf8');
   assert.equal(createHash('sha256').update(patch).digest('hex'), PATCH_SHA256);
 
   const build = readFileSync(BUILD, 'utf8');
-  assert.match(build, /PATCHSET="ivekit\.77"/u);
+  assert.match(build, /PATCHSET="ivekit\.78"/u);
   assert.match(
     build,
     /rustpbx-converact-native-call-capability-recovery\.patch"[\s\S]*rustpbx-converact-capability-recovery-oracle\.patch"/u,

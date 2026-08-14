@@ -323,12 +323,41 @@ Local exact-source SipEffect tests pass `121 passed / 0 failed / 10 physical
 tests ignored`. The isolated PostgreSQL 16 migration/SQL harness passes exact
 fencing, visibility, replay/immutability, both stale-binary bypass shapes and
 tenant RLS.
-The temporary server container used `network=none`, no host ports and tmpfs;
-the pre-existing service remained healthy and only the exact test resources
-were removed. This remains an implementation review checkpoint, not final G03
-acceptance. Live recovery wiring, Rust-adapter physical tests, real process
-restart/two-node behavior, Endpoint activation, final independent review,
-production and every deferred performance item remain `not_run`.
+The `.77` temporary server container used `network=none`, no host ports and
+tmpfs; the pre-existing service remained healthy and only the exact test
+resources were removed. That historical bundle remains SQL-only evidence.
+
+The incremental `.78` candidate closes the next composition gap without
+activating production traffic. Review of the exact patch confirms that the Rust
+app constructs the durable runtime before SIP service startup, verifies the
+elected PostgreSQL writer plus recovery tables/functions/triggers, forced RLS,
+tenant policies and required privileges, and injects the runtime exactly once
+into either custom or default `SipServerBuilder`. One
+`Arc<PostgresSipEffectStore>` is used by the egress Gate, observation supervisor
+and capability-recovery Oracle; the runtime owns the supervisor lifetime.
+Disabled mode does no database work, while malformed or partial configuration,
+an already-cancelled lifecycle, duplicate injection and live reload fail closed.
+No in-memory or TypeScript server fallback is introduced.
+
+The first real `.78` adapter execution failed closed with `PoolTimeout`. Review
+traced this to reusing the 250 ms per-Call store deadline for a one-time cold
+catalog scan. The correction leaves every Call/store operation at 250 ms and
+adds a separate hard 2 s startup-contract deadline. It also checks `SELECT` and
+`INSERT` independently because PostgreSQL comma-separated privilege inquiry is
+an any-of check, not an all-of check.
+
+Exact-source SipEffect tests pass `133 passed / 0 failed / 11 physical tests
+ignored`; the native composition filter passes `38 / 0 / 1 ignored`, and the
+exact ignored PostgreSQL adapter case separately passes `1 / 0` against a fresh
+PostgreSQL 16 migration chain through 116. The test database used tmpfs, bounded
+CPU/memory, no host-published port and a local SSH tunnel to its private address;
+cleanup destroyed it. The pre-existing container retained its exact ID,
+healthy state and zero restart count. Locked library check, scoped rustfmt,
+exact patch replay, targeted static contracts and the G03 machine-contract
+suite pass. This is still an implementation review checkpoint. Recovered-Call
+invocation, live Endpoint, Linux product-process execution, real process
+restart/two-node recovery, final G03 review, production and all performance work
+remain `not_run`.
 
 ## Rejection history and remaining gate
 

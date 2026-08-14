@@ -23,7 +23,8 @@ Production eligibility: `false`
 | stale/split-brain owner | positive epoch, generation, expected revision and durable CAS | local logic/source tests; fleet partition `not_run` |
 | duplicate visible effect | idempotency key + exact prepared bytes + receipt replay | native isolated PostgreSQL transition/repair tests and restart verified; live SIP dispatch `not_run` |
 | unknown send blindly retried | unknown state, query, repair lease/token/revision fence | `.57` native gate and ledger tests; live endpoint activation `not_run` |
-| restart treats an empty in-memory capability holder as proof that no predecessor wire effect existed | `.76` freezes the exact recovery binding; `.77` advances the exact tenant/session owner-generation fence and probes only deterministic 200-CANCEL and 487-INVITE effect IDs in one PostgreSQL transaction; visible or ambiguous state fails closed | local Rust SipEffect `121/121`; isolated PostgreSQL 16 migration/SQL harness passed; Rust-adapter physical tests, real process restart and live holder remain `not_run` |
+| restart treats an empty in-memory capability holder as proof that no predecessor wire effect existed | `.76` freezes the exact recovery binding; `.77` advances the exact tenant/session owner-generation fence and probes only deterministic 200-CANCEL and 487-INVITE effect IDs in one PostgreSQL transaction; visible or ambiguous state fails closed | isolated PostgreSQL 16 migration/SQL harness and current `.78` Rust startup-contract adapter pass; real process restart, recovered-Call invocation and live holder remain `not_run` |
+| product starts a second, in-memory or partially configured SIP effect authority | `.78` creates one default-disabled Rust composition before SIP startup, shares one PostgreSQL store across Gate/observation/recovery, owns the supervisor lifetime, rejects unknown/missing/non-PostgreSQL config, duplicate builder injection and live reload, and has no memory/TypeScript fallback. The one-time cold catalog scan has a separate bounded 2 s deadline while per-Call store work stays at 250 ms | exact-source SipEffect `133/133`, native composition `38/38`, exact isolated PostgreSQL adapter `1/1`, locked check and static contracts pass; recovered-Call invocation and live Endpoint remain `not_run` |
 | old binary bypasses a recovered session fence | migration 116 seeds and locks a durable owner/generation high-water mark, rejects stale inserts, and rejects the first `send_attempted` transition of an effect prepared before takeover while still accepting later real observations | isolated SQL harness observed SQLSTATE `55000` and atomic attempted-receipt rollback for both bypass shapes; rolling mixed-binary live activation remains `not_run` |
 | recovery receipt is replayed with drift or leaks the raw SIP transaction key | receipt key/hash and result are immutable and replay-validated; only the transaction-key SHA-256 is durable | isolated replay, mutation rejection and schema review passed; live audit consumption remains `not_run` |
 | one pending-INVITE CANCEL is treated as one effect, allows an unowned 487, or a late CANCEL authorizes a second final | split only the sealed transaction-layer peer proof while INVITE is Trying/Proceeding; bind separate one-use capabilities, identities and completion scopes to `200 CANCEL` and `487 INVITE`; 487 waits for exact ACK; after an existing final, authorize only 200 CANCEL | `.73` local rsipstack `32/32`, durable gate `39/39` and Native capability `8/8`; isolated Linux rsipstack server target `32/32`; RustPBX host and restart/reconcile remain `not_run` |
@@ -156,9 +157,14 @@ microbenchmark or citing rvoip upstream numbers cannot close that Gate.
     harness proves session fencing, exact two-key visibility, immutable replay,
     old-binary rejection and tenant RLS. The pre-existing server container
     remained healthy and only the exact `network=none` temporary test resources
-    were removed. Rust-adapter physical tests, live holder, real process
-    crash/restart and Endpoint activation remain `not_run`. No performance
-    command ran and no server service or deployed code was changed.
+    were removed. `.78` connects this Oracle to the real Rust app and
+    `SipServerBuilder` lifecycle behind a default-disabled closed configuration.
+    Its exact physical startup adapter now passes against a fresh migration
+    001–116 PostgreSQL 16 instance with no host-published port and tmpfs data;
+    the temporary instance was destroyed and the original container remained
+    healthy/restart-zero. It does not yet invoke recovery for a reconstructed
+    Call, activate the Endpoint or prove real process crash/restart. No
+    performance command ran and no server service or deployed code was changed.
 
 All ten remain visible in the G03 status artifacts and prevent production
 eligibility.

@@ -252,9 +252,15 @@ Budgets are inherited exactly from Revision 4:
 | one durable transaction p99 | 20 ms |
 | cumulative setup-store p99 | 60 ms |
 | write/pool acquisition timeout | 250 ms |
+| one-time startup contract hard deadline | 2,000 ms |
 | pool size | 256 |
 | queue depth | 1,024 |
 | retry attempts | 3 |
+
+The 2 s startup ceiling is used only once before SIP service begins, for the
+cold schema/writer/RLS/trigger/privilege scan. It is never available to a Call
+transaction; every Call-path pool acquisition and write remains capped at
+250 ms.
 
 Store timeout, exhaustion, unavailability or schema incompatibility rejects new
 Call work as 503 with deterministic `Retry-After`. Established ordinary media
@@ -281,7 +287,7 @@ observation distinguishable even though both converge the effect record to
 | State | Meaning |
 | --- | --- |
 | current | RustPBX/rsipstack is the native runtime; TypeScript contains bounded conformance/reference models and a physical PostgreSQL reference ledger, but these are not a second live SIP/Call authority |
-| target | The complete interface and corpus are frozen; `.73` adds the default-disabled Rust matched-CANCEL pair, `.74` ordinary response authority, `.75` exact failure teardown and `.76` the conservative restart seam. `.77` supplies the seam's default-disabled Rust/PostgreSQL Oracle: one transaction advances the exact tenant/session fence, probes only deterministic 200-CANCEL/487-INVITE effect IDs and persists an immutable receipt; migration 116 rejects stale older-binary inserts and prevents a pre-existing old-owner effect from first entering `send_attempted` after takeover without blocking later real observations. Visible/ambiguous history, replacement during the probe and later same-provider-ID replacement fail closed without successor mutation or a new effect. Local exact-source SipEffect tests pass `121/121` with 10 physical tests ignored; an isolated PostgreSQL 16 migration/SQL harness passes fencing, visibility, replay/immutability, both stale-binary bypass shapes and tenant RLS without touching the existing server workload. Live recovery holder, Rust-adapter physical tests, real process restart/two-node, live Endpoint, remaining transports, Linux full, all performance work and Native Authority remain `not_run` |
+| target | The complete interface and corpus are frozen; `.73`–`.77` supply the matched-CANCEL/ordinary-response authority, exact teardown, conservative recovery seam and session-fenced PostgreSQL Oracle. `.78` adds the default-disabled Rust product composition root: before SIP startup one verified PostgreSQL store is shared by the send Gate, fixed observation workers and recovery Oracle, held for the server lifetime and injected exactly once into either builder path. Disabled mode performs no database work; partial/unknown/non-PostgreSQL config, contract drift, duplicate injection and live reload fail closed with no memory or TypeScript runtime fallback. The cold startup contract has a separate 2 s hard deadline and does not widen the 250 ms Call-store ceiling. Exact-source SipEffect passes `133/133` with 11 physical tests ignored, native composition passes `38/38` with one physical case ignored, and that exact physical case separately passes `1/1` against isolated PostgreSQL 16 through migration 116. Recovered-Call invocation, real process restart/two-node, live Endpoint, remaining transports, Linux full, all performance work and Native Authority remain `not_run` |
 | production eligible | `false` until long-run, fault/OOM, Native Authority, allocation and multi-core scaling evidence pass independent review |
 
 No rvoip benchmark, old server result or historical Wave result is inherited.

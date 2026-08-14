@@ -18,19 +18,20 @@ const manifestPath = 'goals/manifest.json';
 const manifestSha = '11b026b5014dc344d4e5b2459aafc0b251190075a212fc68f40dce62fbbda912';
 const capabilityRecoveryServerVerification = {
   status:
-    'isolated_postgresql_migration_and_contract_passed_Rust_adapter_physical_tests_not_run',
-  campaign_id: 'converact-g03-77-204f4d5-physical',
-  base_source_commit: '204f4d562299',
-  candidate_patchset: 'ivekit.77',
+    'local_Rust_composition_and_isolated_PostgreSQL_adapter_passed_existing_service_unchanged',
+  campaign_id: 'converact-g03-78-2ecfb72-functional',
+  base_source_commit: '2ecfb72f9618e8466814edd738769a2303d2085d',
+  candidate_patchset: 'ivekit.78',
   evidence_uri:
-    'architecture-foundation/execution/goal-03/evidence/raw/capability-recovery-oracle-204f4d5-17/README.md',
-  migration_chain: 'through_116_passed_isolated_PostgreSQL_16',
+    'architecture-foundation/execution/goal-03/evidence/raw/durable-sip-runtime-composition-2ecfb72-18/README.md',
+  migration_chain: 'through_116_passed_in_current_isolated_PostgreSQL_16_campaign',
   physical_contract:
-    'session_fence_exact_two_key_probe_receipt_replay_stale_insert_and_prepared_send_attempt_rejection_and_tenant_RLS_passed',
-  rust_adapter_physical_tests: 'not_run',
-  server_rust_compile: 'not_run_safe_disk_and_memory_floor',
+    'current_Rust_startup_contract_physical_test_passed',
+  rust_adapter_physical_tests: 'exact_1_passed_0_failed',
+  server_rust_compile: 'not_run_safe_4_1_GiB_disk_floor',
   existing_service_state: 'unchanged_running_healthy',
-  test_container_and_tmpfs_after_cleanup: 'absent',
+  test_container_and_tmpfs_after_cleanup:
+    'exact_ephemeral_PostgreSQL_16_destroyed_no_host_ports_tmpfs_only',
 };
 
 const documents = {
@@ -143,7 +144,7 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
     rustpbx_commit: '6c49ee76baa54fdbf8f98020cc9bee158c7c15de',
     rsipstack_commit: '8318e97b1170de4e5245b120afec1cdf53e3d716',
     rustrtc_commit: '166c6d22984429eb6b509920c14fcd69f974f0b3',
-    patchset: 'ivekit.77',
+    patchset: 'ivekit.78',
     current_adapter: 'rsipstack',
     target_adapter: 'rvoip_low_level_slices_after_separate_gates',
     native_runtime_authority: 'Unified RustPBX process',
@@ -182,10 +183,9 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
   assert.deepEqual(
     contract.native_matched_cancel_effects.activation_blockers,
     [
-      'recovered_capability_live_wiring_not_implemented',
-      'Rust_adapter_physical_PostgreSQL_ignored_tests_not_run',
+      'recovered_Call_activation_and_recovery_invocation_not_run',
       'live_endpoint_activation_not_run',
-      'rustpbx_isolated_server_functional_verification_not_run_under_safe_disk_and_memory_floor',
+      'Linux_RustPBX_full_library_and_process_functional_verification_not_run_under_safe_disk_floor',
     ],
   );
   assert.equal(
@@ -266,7 +266,20 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
   );
   assert.equal(
     contract.native_call_capability_recovery.durable_postgresql_oracle,
-    'component_implemented_exact_key_session_fenced_physical_SQL_verified_Rust_adapter_physical_tests_not_run',
+    'component_implemented_exact_key_session_fenced_physical_SQL_and_Rust_startup_contract_verified_composition_root_default_disabled',
+  );
+  assert.equal(
+    contract.native_call_capability_recovery.live_recovery_wiring,
+    'composition_root_implemented_default_disabled_recovered_Call_invocation_not_run',
+  );
+  assert.equal(
+    contract.native_matched_cancel_effects.capability_restart_rebuild,
+    'durable_PostgreSQL_composition_root_implemented_default_disabled_recovered_Call_invocation_not_run',
+  );
+  assert.equal(
+    contract.native_matched_cancel_effects.local_functional_verification
+      .durable_runtime_composition,
+    '38_native_sip_effect_tests_passed_0_failed_1_physical_test_ignored_plus_exact_physical_adapter_1_passed',
   );
   assert.deepEqual(
     contract.native_call_capability_recovery.server_functional_verification,
@@ -292,6 +305,7 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
   assert.equal(contract.admission_and_store_slo.trying_hard_deadline_ms, 200);
   assert.equal(contract.admission_and_store_slo.durable_transaction_p99_budget_ms, 20);
   assert.equal(contract.admission_and_store_slo.store_write_timeout_ms, 250);
+  assert.equal(contract.admission_and_store_slo.startup_contract_deadline_ms, 2000);
   assert.equal(contract.admission_and_store_slo.queue_depth_ceiling, 1024);
   assert.deepEqual(
     Object.keys(contract.control_interface.commands),
@@ -325,7 +339,7 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
   assert.match(build, /RUSTPBX_COMMIT="6c49ee76baa54fdbf8f98020cc9bee158c7c15de"/u);
   assert.match(build, /RSIPSTACK_COMMIT="8318e97b1170de4e5245b120afec1cdf53e3d716"/u);
   assert.match(build, /RUSTRTC_COMMIT="166c6d22984429eb6b509920c14fcd69f974f0b3"/u);
-  assert.match(build, /PATCHSET="ivekit\.77"/u);
+  assert.match(build, /PATCHSET="ivekit\.78"/u);
   assert.match(
     build,
     /rustpbx-converact-postgres-sip-effect-repair-batch\.patch/u,

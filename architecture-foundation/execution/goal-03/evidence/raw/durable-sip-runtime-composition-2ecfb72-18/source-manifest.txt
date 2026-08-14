@@ -1,0 +1,8 @@
+42281dbbd689f2c3dfc64b55724b723a90471e9540e9bed9056a37919b595ea7  infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch
+f05bf12d2ff8313e884aaeaba50067bd32c08ab1be6194dae18cc22705872255  infra/converact/rustpbx/build.sh
+1cea4d3044694cbf34912b60ffc04133b1e71fd9e98f3d818ca865fece0f0497  test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts
+c601f609300487529026c043a3bc0c9cf80f3a84cf5924adf0cb61b134b96543  architecture-foundation/execution/goal-03/generate-goal-03.mjs
+50e7abe3d1eba04068842b354f25ab536ff18663c546160f199466c235795611  architecture-foundation/execution/goal-03/goal-03-contract.test.mjs
+812c538b3a4819c2c254a9327a25d3a38e39426d8430f0fda4d5397e652e0451  architecture-foundation/execution/goal-03/sip-foundation-contract-v1.json
+090514ee79273a2e8db9171431f31793c020cefee4c268c518cff9bd6b5bdd10  architecture-foundation/execution/goal-03/sip-foundation-contract-v1.schema.json
+401d3e41781a91167a51763b00191e77181b4250d054e4764dd8289fe62179a8  architecture-foundation/execution/goal-03/traceability-v1.json
