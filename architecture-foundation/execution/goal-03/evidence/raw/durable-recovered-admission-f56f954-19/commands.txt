@@ -1,0 +1,16 @@
+(cd /private/tmp/converact-g03-79-recovered-admission.CCfajn/candidate && target/debug/deps/rustpbx-ec36ba560b2c1f26 sip_effect)
+(cd /private/tmp/converact-g03-79-recovered-admission.CCfajn/candidate && target/debug/deps/rustpbx-ec36ba560b2c1f26 native_sip_effect)
+(cd /private/tmp/converact-g03-79-recovered-admission.CCfajn/candidate && target/debug/deps/rustpbx-ec36ba560b2c1f26 ivekit_owner::tests)
+(cd /private/tmp/converact-g03-79-recovered-admission.CCfajn/candidate && target/debug/deps/rustpbx-ec36ba560b2c1f26 snapshot_admission)
+(cd /private/tmp/converact-g03-79-recovered-admission.CCfajn/candidate && target/debug/deps/rustpbx-ec36ba560b2c1f26 recovered_)
+(cd /private/tmp/converact-g03-79-recovered-admission.CCfajn/candidate && RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc /Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/cargo test --locked --lib --quiet)
+(cd /private/tmp/converact-g03-79-recovered-admission.CCfajn/candidate && RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc /Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/cargo check --locked --lib)
+(cd /private/tmp/converact-g03-79-recovered-admission.CCfajn/candidate && /Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/cargo fmt --all -- --check) # not applicable: pinned upstream optional src/addons/wholesale.rs is absent
+(cd /private/tmp/converact-g03-79-recovered-admission.CCfajn/candidate && /Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustfmt --edition 2024 --check --config skip_children=true src/ivekit_owner.rs src/call/adapters/native_sip_effect_capabilities.rs src/proxy/active_call_registry.rs src/proxy/proxy_call/sip_session.rs src/proxy/routing/http.rs)
+npm run typecheck
+node --import ./test/explicit-dev-auth.mjs --import tsx --test test/converact-voice-http.test.ts test/converact-rustpbx-recovered-call-admission-patch.test.ts test/converact-rustpbx-native-call-capability-recovery-patch.test.ts test/converact-rustpbx-native-matched-cancel-capabilities-patch.test.ts test/converact-rustpbx-native-response-capabilities-patch.test.ts test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts
+git status --porcelain -- test | awk '{print $2}' | xargs node --import ./test/explicit-dev-auth.mjs --import tsx --test
+node architecture-foundation/execution/goal-03/generate-goal-03.mjs
+node --test architecture-foundation/execution/goal-03/goal-03-contract.test.mjs
+(cd /private/tmp/converact-g03-79-recovered-admission.CCfajn/baseline && git apply --check --unsafe-paths /Users/songjinfeng/Projects/converact-worktrees/platform/infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch)
+git diff --check

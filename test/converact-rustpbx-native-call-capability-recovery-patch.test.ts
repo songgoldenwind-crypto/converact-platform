@@ -42,7 +42,7 @@ test("ivekit.76 applies recovery after cleanup fencing", () => {
   );
 
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.78"/);
+  assert.match(build, /PATCHSET="ivekit\.79"/);
   assert.match(
     build,
     /rustpbx-converact-native-call-cleanup-fence\.patch"[\s\S]*rustpbx-converact-native-call-capability-recovery\.patch"/,
@@ -107,9 +107,18 @@ test("recovery remains component-only while durable and live gates are not_run",
       installed_gate_identity_fence: string;
       later_same_provider_successor_outcome: string;
       durable_postgresql_oracle: string;
+      admission_contract: string;
+      missing_proof_policy: string;
+      fresh_proof_issuer: string;
+      recovered_proof_issuer: string;
+      owner_admission_snapshot: string;
+      stale_snapshot_cleanup: string;
+      stale_active_call_cleanup: string;
+      refresh_task_replacement_fence: string;
       live_recovery_wiring: string;
       local_functional_verification: Record<string, string>;
       server_functional_verification: Record<string, string>;
+      current_candidate_server_verification: string;
       performance_verification: string;
       performance_policy: string;
       activation_blockers: string[];
@@ -119,14 +128,14 @@ test("recovery remains component-only while durable and live gates are not_run",
     entries: Array<{ evidence_id: string; status: string }>;
   };
 
-  assert.equal(contract.source_identity.patchset, "ivekit.78");
+  assert.equal(contract.source_identity.patchset, "ivekit.79");
   assert.equal(
     contract.native_matched_cancel_effects.capability_restart_rebuild,
-    "durable_PostgreSQL_composition_root_implemented_default_disabled_recovered_Call_invocation_not_run",
+    "durable_PostgreSQL_composition_and_trusted_invocation_implemented_default_disabled_recovered_producer_not_run",
   );
   assert.equal(
     contract.native_call_capability_recovery.implementation_status,
-    "component_implemented_default_disabled",
+    "component_implemented_default_disabled_trusted_admission_invocation",
   );
   assert.equal(
     contract.native_call_capability_recovery.oracle_contract,
@@ -153,13 +162,45 @@ test("recovery remains component-only while durable and live gates are not_run",
     "component_implemented_exact_key_session_fenced_physical_SQL_and_Rust_startup_contract_verified_composition_root_default_disabled",
   );
   assert.equal(
+    contract.native_call_capability_recovery.admission_contract,
+    "authenticated_snapshot_response_closed_tagged_fresh_or_recovered_predecessor",
+  );
+  assert.equal(
+    contract.native_call_capability_recovery.missing_proof_policy,
+    "legacy_unspecified_fails_closed_when_durable_runtime_is_enabled",
+  );
+  assert.equal(
+    contract.native_call_capability_recovery.fresh_proof_issuer,
+    "control_plane_new_prepared_reservation_only",
+  );
+  assert.equal(
+    contract.native_call_capability_recovery.recovered_proof_issuer,
+    "not_run",
+  );
+  assert.equal(
+    contract.native_call_capability_recovery.owner_admission_snapshot,
+    "one_Arc_snapshot_identity_proof_and_guard_checked_before_and_after_async_oracle",
+  );
+  assert.equal(
+    contract.native_call_capability_recovery.stale_snapshot_cleanup,
+    "conditional_owner_pointer_fence_preserves_replacement_owner",
+  );
+  assert.equal(
+    contract.native_call_capability_recovery.stale_active_call_cleanup,
+    "NativeCallCleanupFence_exact_identity_and_cell_pointer_preserves_replacement_call",
+  );
+  assert.equal(
+    contract.native_call_capability_recovery.refresh_task_replacement_fence,
+    "original_owner_pointer_exit_on_replacement",
+  );
+  assert.equal(
     contract.native_call_capability_recovery.live_recovery_wiring,
-    "composition_root_implemented_default_disabled_recovered_Call_invocation_not_run",
+    "trusted_admission_invokes_PostgreSQL_oracle_default_disabled_recovered_proof_producer_not_run",
   );
   assert.equal(
     contract.native_call_capability_recovery.local_functional_verification
       .native_sip_effect_capabilities,
-    "133_sip_effect_tests_passed_0_failed_11_physical_tests_ignored_plus_exact_physical_adapter_1_passed",
+    "135_sip_effect_tests_passed_0_failed_11_physical_tests_ignored_plus_lower_layer_exact_physical_adapter_1_passed",
   );
   assert.deepEqual(
     contract.native_call_capability_recovery.server_functional_verification,
@@ -184,14 +225,18 @@ test("recovery remains component-only while durable and live gates are not_run",
   );
   assert.equal(contract.native_call_capability_recovery.performance_verification, "not_run");
   assert.equal(
+    contract.native_call_capability_recovery.current_candidate_server_verification,
+    "not_run_server_not_used_for_ivekit_79",
+  );
+  assert.equal(
     contract.native_call_capability_recovery.performance_policy,
     "deferred_to_final_performance_goal",
   );
   assert.deepEqual(contract.native_call_capability_recovery.activation_blockers, [
-    "recovered_Call_activation_and_recovery_invocation_not_run",
+    "trusted_recovered_Call_proof_producer_not_run",
     "real_process_restart_and_ambiguity_recovery_not_run",
     "live_endpoint_activation_not_run",
-    "Linux_RustPBX_full_library_and_process_functional_verification_not_run_under_safe_disk_floor",
+    "Linux_RustPBX_process_functional_verification_not_run",
   ]);
   assert.equal(contract.native_matched_cancel_effects.live_server_activation, "not_run");
   assert.equal(contract.native_matched_cancel_effects.performance_verification, "not_run");

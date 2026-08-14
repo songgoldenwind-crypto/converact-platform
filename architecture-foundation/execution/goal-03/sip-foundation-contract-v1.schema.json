@@ -190,7 +190,7 @@
           "const": "166c6d22984429eb6b509920c14fcd69f974f0b3"
         },
         "patchset": {
-          "const": "ivekit.78"
+          "const": "ivekit.79"
         },
         "current_adapter": {
           "const": "rsipstack"
@@ -467,7 +467,7 @@
           "const": "implemented_identity_and_native_cell_pointer_fence"
         },
         "capability_restart_rebuild": {
-          "const": "durable_PostgreSQL_composition_root_implemented_default_disabled_recovered_Call_invocation_not_run"
+          "const": "durable_PostgreSQL_composition_and_trusted_invocation_implemented_default_disabled_recovered_producer_not_run"
         },
         "format_scope_exception": {
           "const": "test_auth_constructor_compiled_and_full_tested_rustfmt_excluded_due_unrelated_upstream_drift"
@@ -519,16 +519,16 @@
           ],
           "properties": {
             "capability_recovery_oracle": {
-              "const": "133_sip_effect_tests_passed_0_failed_11_physical_tests_ignored"
+              "const": "135_sip_effect_tests_passed_0_failed_11_physical_tests_ignored"
             },
             "durable_runtime_composition": {
-              "const": "38_native_sip_effect_tests_passed_0_failed_1_physical_test_ignored_plus_exact_physical_adapter_1_passed"
+              "const": "40_native_sip_effect_tests_passed_0_failed_1_physical_test_ignored_plus_lower_layer_exact_physical_adapter_1_passed"
             },
             "rsipstack_library": {
               "const": "314_passed_0_failed"
             },
             "rustpbx_library": {
-              "const": "not_run_for_ivekit_78"
+              "const": "2109_passed_0_failed_12_external_prerequisites_ignored"
             },
             "affected_static_contract_tests": {
               "const": "targeted_contract_and_migration_suite_passed"
@@ -544,13 +544,13 @@
           "maxItems": 3,
           "prefixItems": [
             {
-              "const": "recovered_Call_activation_and_recovery_invocation_not_run"
+              "const": "trusted_recovered_Call_producer_and_real_process_invocation_not_run"
             },
             {
               "const": "live_endpoint_activation_not_run"
             },
             {
-              "const": "Linux_RustPBX_full_library_and_process_functional_verification_not_run_under_safe_disk_floor"
+              "const": "Linux_RustPBX_process_functional_verification_not_run"
             }
           ],
           "items": false
@@ -781,7 +781,7 @@
               "const": "24_passed_0_failed"
             },
             "durable_sip_effect_gate": {
-              "const": "133_sip_effect_tests_passed_0_failed_11_physical_tests_ignored"
+              "const": "135_sip_effect_tests_passed_0_failed_11_physical_tests_ignored"
             },
             "rustfmt_changed_sources": {
               "const": "passed"
@@ -790,7 +790,7 @@
               "const": "passed"
             },
             "full_rustpbx_library": {
-              "const": "not_run_for_ivekit_78"
+              "const": "2109_passed_0_failed_12_external_prerequisites_ignored"
             }
           }
         },
@@ -800,13 +800,13 @@
           "maxItems": 3,
           "prefixItems": [
             {
-              "const": "recovered_Call_activation_and_recovery_invocation_not_run"
+              "const": "trusted_recovered_Call_producer_and_real_process_invocation_not_run"
             },
             {
               "const": "live_endpoint_activation_not_run"
             },
             {
-              "const": "Linux_RustPBX_full_library_and_process_functional_verification_not_run_under_safe_disk_floor"
+              "const": "Linux_RustPBX_process_functional_verification_not_run"
             }
           ],
           "items": false
@@ -988,7 +988,7 @@
           ],
           "properties": {
             "native_sip_effect_capabilities": {
-              "const": "38_passed_0_failed_1_physical_test_ignored"
+              "const": "40_passed_0_failed_1_physical_test_ignored"
             },
             "active_call_registry": {
               "const": "24_passed_0_failed"
@@ -1000,7 +1000,7 @@
               "const": "passed"
             },
             "full_rustpbx_library": {
-              "const": "2082_passed_0_failed_9_external_prerequisites_ignored"
+              "const": "2109_passed_0_failed_12_external_prerequisites_ignored"
             }
           }
         },
@@ -1030,9 +1030,18 @@
         "installed_gate_identity_fence",
         "later_same_provider_successor_outcome",
         "durable_postgresql_oracle",
+        "admission_contract",
+        "missing_proof_policy",
+        "fresh_proof_issuer",
+        "recovered_proof_issuer",
+        "owner_admission_snapshot",
+        "stale_snapshot_cleanup",
+        "stale_active_call_cleanup",
+        "refresh_task_replacement_fence",
         "live_recovery_wiring",
         "local_functional_verification",
         "server_functional_verification",
+        "current_candidate_server_verification",
         "performance_verification",
         "performance_policy",
         "activation_blockers"
@@ -1042,7 +1051,7 @@
           "const": "Unified_RustPBX_Native_Call_registry"
         },
         "implementation_status": {
-          "const": "component_implemented_default_disabled"
+          "const": "component_implemented_default_disabled_trusted_admission_invocation"
         },
         "scope": {
           "const": "rebuild_only_unconsumed_matched_CANCEL_capability_pair"
@@ -1105,21 +1114,61 @@
         "durable_postgresql_oracle": {
           "const": "component_implemented_exact_key_session_fenced_physical_SQL_and_Rust_startup_contract_verified_composition_root_default_disabled"
         },
+        "admission_contract": {
+          "const": "authenticated_snapshot_response_closed_tagged_fresh_or_recovered_predecessor"
+        },
+        "missing_proof_policy": {
+          "const": "legacy_unspecified_fails_closed_when_durable_runtime_is_enabled"
+        },
+        "fresh_proof_issuer": {
+          "const": "control_plane_new_prepared_reservation_only"
+        },
+        "recovered_proof_issuer": {
+          "const": "not_run"
+        },
+        "owner_admission_snapshot": {
+          "const": "one_Arc_snapshot_identity_proof_and_guard_checked_before_and_after_async_oracle"
+        },
+        "stale_snapshot_cleanup": {
+          "const": "conditional_owner_pointer_fence_preserves_replacement_owner"
+        },
+        "stale_active_call_cleanup": {
+          "const": "NativeCallCleanupFence_exact_identity_and_cell_pointer_preserves_replacement_call"
+        },
+        "refresh_task_replacement_fence": {
+          "const": "original_owner_pointer_exit_on_replacement"
+        },
         "live_recovery_wiring": {
-          "const": "composition_root_implemented_default_disabled_recovered_Call_invocation_not_run"
+          "const": "trusted_admission_invokes_PostgreSQL_oracle_default_disabled_recovered_proof_producer_not_run"
         },
         "local_functional_verification": {
           "type": "object",
           "additionalProperties": false,
           "required": [
             "native_sip_effect_capabilities",
+            "native_sip_effect_adapter",
+            "ivekit_owner",
+            "snapshot_admission",
+            "recovered_admission",
             "locked_library_check",
             "rustfmt_changed_sources",
             "full_rustpbx_library"
           ],
           "properties": {
             "native_sip_effect_capabilities": {
-              "const": "133_sip_effect_tests_passed_0_failed_11_physical_tests_ignored_plus_exact_physical_adapter_1_passed"
+              "const": "135_sip_effect_tests_passed_0_failed_11_physical_tests_ignored_plus_lower_layer_exact_physical_adapter_1_passed"
+            },
+            "native_sip_effect_adapter": {
+              "const": "40_passed_0_failed_1_physical_test_ignored"
+            },
+            "ivekit_owner": {
+              "const": "11_passed_0_failed"
+            },
+            "snapshot_admission": {
+              "const": "3_passed_0_failed"
+            },
+            "recovered_admission": {
+              "const": "15_passed_0_failed"
             },
             "locked_library_check": {
               "const": "passed"
@@ -1128,7 +1177,7 @@
               "const": "passed"
             },
             "full_rustpbx_library": {
-              "const": "not_run_for_ivekit_78"
+              "const": "2109_passed_0_failed_12_external_prerequisites_ignored"
             }
           }
         },
@@ -1184,6 +1233,9 @@
             }
           }
         },
+        "current_candidate_server_verification": {
+          "const": "not_run_server_not_used_for_ivekit_79"
+        },
         "performance_verification": {
           "const": "not_run"
         },
@@ -1196,7 +1248,7 @@
           "maxItems": 4,
           "prefixItems": [
             {
-              "const": "recovered_Call_activation_and_recovery_invocation_not_run"
+              "const": "trusted_recovered_Call_proof_producer_not_run"
             },
             {
               "const": "real_process_restart_and_ambiguity_recovery_not_run"
@@ -1205,7 +1257,7 @@
               "const": "live_endpoint_activation_not_run"
             },
             {
-              "const": "Linux_RustPBX_full_library_and_process_functional_verification_not_run_under_safe_disk_floor"
+              "const": "Linux_RustPBX_process_functional_verification_not_run"
             }
           ],
           "items": false

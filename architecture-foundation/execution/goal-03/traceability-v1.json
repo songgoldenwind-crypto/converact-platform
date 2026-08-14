@@ -198,14 +198,16 @@
         "src/migrations/114_converact_sip_effect_transport_completed_validate.sql",
         "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql",
-        "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-effect-oracle.test.ts",
         "test/converact-sip-effect-postgres.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -229,14 +231,16 @@
         "src/migrations/114_converact_sip_effect_transport_completed_validate.sql",
         "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql",
-        "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-effect-oracle.test.ts",
         "test/converact-sip-effect-postgres.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -324,6 +328,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -335,7 +341,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -363,6 +371,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -374,7 +384,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -441,6 +453,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -451,7 +465,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -499,6 +515,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -510,7 +528,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -537,6 +557,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -547,7 +569,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -615,6 +639,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -626,7 +652,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -694,6 +722,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -705,7 +735,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -753,6 +785,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -764,7 +798,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -791,6 +827,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -801,7 +839,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -869,6 +909,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -880,7 +922,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -908,6 +952,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -919,7 +965,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -947,6 +995,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -958,7 +1008,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1102,14 +1154,16 @@
         "src/migrations/114_converact_sip_effect_transport_completed_validate.sql",
         "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql",
-        "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-effect-oracle.test.ts",
         "test/converact-sip-effect-postgres.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1137,6 +1191,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -1148,7 +1204,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1176,6 +1234,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -1187,7 +1247,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1215,6 +1277,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -1226,7 +1290,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1250,14 +1316,16 @@
         "src/migrations/114_converact_sip_effect_transport_completed_validate.sql",
         "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql",
-        "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-effect-oracle.test.ts",
         "test/converact-sip-effect-postgres.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1285,6 +1353,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -1296,7 +1366,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1343,14 +1415,16 @@
         "src/migrations/114_converact_sip_effect_transport_completed_validate.sql",
         "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql",
-        "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-effect-oracle.test.ts",
         "test/converact-sip-effect-postgres.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1378,7 +1452,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-role-scoped-fixture.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-db-clock-fixture.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-returning-alias.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-sip-effect-observer-supervisor.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-sip-effect-observer-supervisor.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
@@ -1387,7 +1462,8 @@
         "test/converact-rustpbx-dialog-recovery-patch.test.ts",
         "test/converact-rustpbx-bounded-control-mailboxes-patch.test.ts",
         "test/converact-rustpbx-stale-nonterminal-recovery-patch.test.ts",
-        "test/converact-rustpbx-sip-effect-observer-supervisor-patch.test.ts"
+        "test/converact-rustpbx-sip-effect-observer-supervisor-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1435,6 +1511,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -1446,7 +1524,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1474,6 +1554,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -1485,7 +1567,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1513,6 +1597,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -1524,7 +1610,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1552,6 +1640,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -1563,7 +1653,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1591,6 +1683,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -1602,7 +1696,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1630,6 +1726,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -1641,7 +1739,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1669,6 +1769,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -1680,7 +1782,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1708,6 +1812,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -1719,7 +1825,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1747,6 +1855,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -1758,7 +1868,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1786,6 +1898,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -1797,7 +1911,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1825,6 +1941,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -1836,7 +1954,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1864,6 +1984,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -1875,7 +1997,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1903,6 +2027,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -1914,7 +2040,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1942,6 +2070,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -1953,7 +2083,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -1981,6 +2113,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -1992,7 +2126,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2020,6 +2156,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -2031,7 +2169,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2058,6 +2198,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -2068,7 +2210,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2115,14 +2259,16 @@
         "src/migrations/114_converact_sip_effect_transport_completed_validate.sql",
         "src/migrations/115_converact_sip_effect_stale_nonterminal_recovery.sql",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql",
-        "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
         "test/converact-sip-effect-oracle.test.ts",
         "test/converact-sip-effect-postgres.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2193,6 +2339,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -2204,7 +2352,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2252,6 +2402,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -2263,7 +2415,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2291,6 +2445,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -2302,7 +2458,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2330,6 +2488,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -2341,7 +2501,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2369,6 +2531,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -2380,7 +2544,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2407,6 +2573,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -2417,7 +2585,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2444,6 +2614,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -2454,7 +2626,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2482,6 +2656,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -2493,7 +2669,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2521,6 +2699,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -2532,7 +2712,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2559,6 +2741,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -2569,7 +2753,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2596,6 +2782,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -2606,7 +2794,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2633,6 +2823,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -2643,7 +2835,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2670,6 +2864,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -2680,7 +2876,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2707,6 +2905,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -2717,7 +2917,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2744,6 +2946,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -2754,7 +2958,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2781,6 +2987,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -2791,7 +2999,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2818,6 +3028,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -2828,7 +3040,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2856,6 +3070,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -2867,7 +3083,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2894,6 +3112,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -2904,7 +3124,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2931,6 +3153,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -2941,7 +3165,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -2968,6 +3194,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -2978,7 +3206,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3005,6 +3235,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3015,7 +3247,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3042,6 +3276,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3052,7 +3288,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3079,6 +3317,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3089,7 +3329,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3116,6 +3358,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3126,7 +3370,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3153,6 +3399,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3163,7 +3411,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3190,6 +3440,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3200,7 +3452,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3227,6 +3481,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3237,7 +3493,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3264,6 +3522,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3274,7 +3534,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3302,6 +3564,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3313,7 +3577,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3340,6 +3606,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3350,7 +3618,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3378,6 +3648,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3389,7 +3661,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3416,6 +3690,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3426,7 +3702,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3453,6 +3731,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3463,7 +3743,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3490,6 +3772,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3500,7 +3784,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3527,6 +3813,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3537,7 +3825,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3565,6 +3855,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3576,7 +3868,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3604,6 +3898,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3615,7 +3911,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3643,6 +3941,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3654,7 +3954,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3681,6 +3983,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3691,7 +3995,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3718,6 +4024,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3728,7 +4036,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3755,6 +4065,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3765,7 +4077,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3793,6 +4107,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3804,7 +4120,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3832,6 +4150,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3843,7 +4163,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3870,6 +4192,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3880,7 +4204,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3907,6 +4233,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3917,7 +4245,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3944,6 +4274,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3954,7 +4286,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -3981,6 +4315,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -3991,7 +4327,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -4019,6 +4357,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -4030,7 +4370,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -4057,6 +4399,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -4067,7 +4411,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -4094,6 +4440,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -4104,7 +4452,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -4131,6 +4481,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -4141,7 +4493,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -4168,6 +4522,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -4178,7 +4534,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -4205,6 +4563,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -4215,7 +4575,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -4242,6 +4604,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -4252,7 +4616,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -4280,6 +4646,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -4291,7 +4659,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -4339,6 +4709,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -4350,7 +4722,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -4378,6 +4752,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -4389,7 +4765,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -4417,7 +4795,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-role-scoped-fixture.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-db-clock-fixture.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-stale-nonterminal-recovery-returning-alias.patch",
-        "infra/converact/rustpbx/patches/rustpbx-converact-sip-effect-observer-supervisor.patch"
+        "infra/converact/rustpbx/patches/rustpbx-converact-sip-effect-observer-supervisor.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch"
       ],
       "test_paths": [
         "test/converact-sip-receipt-drain.test.ts",
@@ -4426,7 +4805,8 @@
         "test/converact-rustpbx-dialog-recovery-patch.test.ts",
         "test/converact-rustpbx-bounded-control-mailboxes-patch.test.ts",
         "test/converact-rustpbx-stale-nonterminal-recovery-patch.test.ts",
-        "test/converact-rustpbx-sip-effect-observer-supervisor-patch.test.ts"
+        "test/converact-rustpbx-sip-effect-observer-supervisor-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -4594,6 +4974,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -4605,7 +4987,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -4633,6 +5017,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -4644,7 +5030,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],
@@ -4672,6 +5060,8 @@
         "infra/converact/rustpbx/patches/rustpbx-converact-native-call-capability-recovery.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-capability-recovery-oracle.patch",
         "infra/converact/rustpbx/patches/rustpbx-converact-durable-sip-runtime-composition.patch",
+        "infra/converact/rustpbx/patches/rustpbx-converact-recovered-call-admission.patch",
+        "src/agent-runtime/converact/voice/http.ts",
         "src/migrations/116_converact_sip_capability_recovery_fence.sql"
       ],
       "test_paths": [
@@ -4683,7 +5073,9 @@
         "test/converact-rustpbx-native-call-cleanup-fence-patch.test.ts",
         "test/converact-rustpbx-native-call-capability-recovery-patch.test.ts",
         "test/converact-rustpbx-capability-recovery-oracle-patch.test.ts",
-        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts"
+        "test/converact-rustpbx-durable-sip-runtime-composition-patch.test.ts",
+        "test/converact-rustpbx-recovered-call-admission-patch.test.ts",
+        "test/converact-voice-http.test.ts"
       ],
       "status": "not_run",
       "evidence_uris": [],

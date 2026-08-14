@@ -45,7 +45,7 @@ test("ivekit.74 retains the matched-CANCEL pair before response capabilities", (
   }
 
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.78"/);
+  assert.match(build, /PATCHSET="ivekit\.79"/);
   assert.match(
     build,
     /rsipstack-converact-uas-2xx-owner-retention\.patch"[\s\S]*rsipstack-converact-transaction-local-matched-cancel-pair\.patch"/,
@@ -145,9 +145,9 @@ test("the functional slice does not claim server activation or performance evide
   assert.match(readme, /live Endpoint activation[\s\S]*remain[s]?[\s\S]*`not_run`/i);
   assert.match(readme, /performance[^\n]*remain[^\n]*`not_run`/i);
   assert.deepEqual(matchedCancel.activation_blockers, [
-    "recovered_Call_activation_and_recovery_invocation_not_run",
+    "trusted_recovered_Call_producer_and_real_process_invocation_not_run",
     "live_endpoint_activation_not_run",
-    "Linux_RustPBX_full_library_and_process_functional_verification_not_run_under_safe_disk_floor",
+    "Linux_RustPBX_process_functional_verification_not_run",
   ]);
   assert.equal(
     matchedCancel.adapter_source_identity,
@@ -167,7 +167,7 @@ test("the functional slice does not claim server activation or performance evide
   );
   assert.equal(
     matchedCancel.capability_restart_rebuild,
-    "durable_PostgreSQL_composition_root_implemented_default_disabled_recovered_Call_invocation_not_run",
+    "durable_PostgreSQL_composition_and_trusted_invocation_implemented_default_disabled_recovered_producer_not_run",
   );
   assert.equal(
     matchedCancel.format_scope_exception,
@@ -183,11 +183,11 @@ test("the functional slice does not claim server activation or performance evide
   );
   assert.deepEqual(matchedCancel.local_functional_verification, {
     capability_recovery_oracle:
-      "133_sip_effect_tests_passed_0_failed_11_physical_tests_ignored",
+      "135_sip_effect_tests_passed_0_failed_11_physical_tests_ignored",
     durable_runtime_composition:
-      "38_native_sip_effect_tests_passed_0_failed_1_physical_test_ignored_plus_exact_physical_adapter_1_passed",
+      "40_native_sip_effect_tests_passed_0_failed_1_physical_test_ignored_plus_lower_layer_exact_physical_adapter_1_passed",
     rsipstack_library: "314_passed_0_failed",
-    rustpbx_library: "not_run_for_ivekit_78",
+    rustpbx_library: "2109_passed_0_failed_12_external_prerequisites_ignored",
     affected_static_contract_tests:
       "targeted_contract_and_migration_suite_passed",
     repository_typecheck: "passed",

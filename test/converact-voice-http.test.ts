@@ -7,6 +7,7 @@ import {
   VoiceError,
   routeConveractFabricVoiceApi,
   sipFoundation,
+  type RealtimeAudioTapRouteAuthorizationInput,
   type VoiceExtension,
   type VoiceHttpModule
 } from '../src/agent-runtime/converact/voice/index.js';
@@ -577,6 +578,46 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
     ivekit_owner_node_id: 'rustpbx-a',
     route_snapshot_revision: 42
   };
+  const webhookAuthenticator = {
+    async authenticate() {
+      return {
+        tenant_id: 'tenant-secure',
+        profile_id: 'profile-a',
+        adapter: 'rustpbx',
+        secret_refs: {},
+        method: 'service_key'
+      };
+    }
+  } as never;
+  const placement = {
+    async reconcileOne(input: Record<string, unknown>) {
+      reconciled.push(input);
+      return 'succeeded';
+    },
+    async resolveOwner() {
+      return {
+        interaction_kind: 'sip_voice',
+        owner_component: 'rustpbx',
+        region_id: 'region-a',
+        zone_id: 'zone-a',
+        cell_id: 'cell-a',
+        owner_node_id: 'rustpbx-a',
+        owner_epoch: '12884901889',
+        reservation_id: 'reservation-voice-a',
+        profile_id: 'cell-10k-v1',
+        snapshot_version: 7,
+        placement_generation: 3,
+        provider_endpoint: 'http://rustpbx-a.internal'
+      };
+    }
+  } as never;
+  const realtimeAudioTapAuthorizer = {
+    async authorize(input: RealtimeAudioTapRouteAuthorizationInput) {
+      order.push('authorize-audio-tap');
+      authorizations.push({ ...input });
+      return 'tap-token-snapshot-a-000000000000000000';
+    }
+  };
   const result = await routeConveractFabricVoiceApi(
     recordingPool(database, 42),
     'POST',
@@ -587,39 +628,8 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
     { 'x-pbx-key': 'service-key' },
     {
       create_module: () => module,
-      webhook_authenticator: {
-        async authenticate() {
-          return {
-            tenant_id: 'tenant-secure',
-            profile_id: 'profile-a',
-            adapter: 'rustpbx',
-            secret_refs: {},
-            method: 'service_key'
-          };
-        }
-      } as never,
-      placement: {
-        async reconcileOne(input) {
-          reconciled.push(input);
-          return 'succeeded';
-        },
-        async resolveOwner() {
-          return {
-            interaction_kind: 'sip_voice',
-            owner_component: 'rustpbx',
-            region_id: 'region-a',
-            zone_id: 'zone-a',
-            cell_id: 'cell-a',
-            owner_node_id: 'rustpbx-a',
-            owner_epoch: '12884901889',
-            reservation_id: 'reservation-voice-a',
-            profile_id: 'cell-10k-v1',
-            snapshot_version: 7,
-            placement_generation: 3,
-            provider_endpoint: 'http://rustpbx-a.internal'
-          };
-        }
-      } as never,
+      webhook_authenticator: webhookAuthenticator,
+      placement,
       prepared_call_placement: {
         source: 'rustpbx_inbound',
         tenant_id: 'tenant-secure',
@@ -633,13 +643,7 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
           method: 'service_key'
         }
       },
-      realtime_audio_tap_authorizer: {
-        async authorize(input) {
-          order.push('authorize-audio-tap');
-          authorizations.push({ ...input });
-          return 'tap-token-snapshot-a-000000000000000000';
-        }
-      }
+      realtime_audio_tap_authorizer: realtimeAudioTapAuthorizer
     }
   ) as {
     status: number;
@@ -666,6 +670,9 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
         leg_a_payload_type: number;
         leg_b_payload_type: number;
         packetization_ms: number;
+      };
+      native_call_admission: {
+        mode: 'fresh';
       };
     };
     afterCommit?: () => Promise<void>;
@@ -703,6 +710,9 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
       leg_a_payload_type: 0,
       leg_b_payload_type: 111,
       packetization_ms: 20
+    },
+    native_call_admission: {
+      mode: 'fresh'
     },
     audio_tap_token: 'tap-token-snapshot-a-000000000000000000'
   });
@@ -758,6 +768,36 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
   assert.equal(reconciled[0]?.tenant_id, 'tenant-secure');
   assert.equal(reconciled[0]?.interaction_id, 'vcall-snapshot-a');
   assert.match(String(reconciled[0]?.worker_id), /^voice:[a-f0-9]{32}$/);
+
+  const replay = await routeConveractFabricVoiceApi(
+    recordingPool([], 42),
+    'POST',
+    '/api/ivekit/voice/providers/profile-a/inbound-admission',
+    new URL('http://localhost/api/ivekit/voice/providers/profile-a/inbound-admission'),
+    body,
+    JSON.stringify(body),
+    { 'x-pbx-key': 'service-key' },
+    {
+      create_module: () => module,
+      webhook_authenticator: webhookAuthenticator,
+      placement,
+      prepared_call_placement: {
+        source: 'rustpbx_inbound',
+        tenant_id: 'tenant-secure',
+        call_id: 'vcall-snapshot-a',
+        reservation: null,
+        provider_authentication: {
+          tenant_id: 'tenant-secure',
+          profile_id: 'profile-a',
+          adapter: 'rustpbx',
+          secret_refs: {},
+          method: 'service_key'
+        }
+      },
+      realtime_audio_tap_authorizer: realtimeAudioTapAuthorizer
+    }
+  ) as { data: Record<string, unknown> };
+  assert.equal(Object.hasOwn(replay.data, 'native_call_admission'), false);
 });
 
 test('RustPBX snapshot admission rejects a stale route revision before creating the call', async () => {

@@ -932,6 +932,35 @@ physical PostgreSQL tests, real restart wiring, live Endpoint activation and
 all performance/load/CPS/concurrency/capacity/soak/100K verification remain
 `not_run`.
 
+ivekit.78 composes that Oracle into the one Rust product runtime without
+activating it. Before SIP startup, the app may construct one verified
+`Arc<PostgresSipEffectStore>` shared by the egress Gate, fixed observation
+workers and recovery Oracle, and retains the supervisor for the server lifetime.
+Disabled mode performs no database I/O. Missing, partial, unknown or
+non-PostgreSQL configuration, duplicate builder injection, startup contract
+drift and live reload fail closed; there is no memory or TypeScript runtime
+fallback. The one-time cold startup contract has a separate 2 s deadline and
+does not widen the 250 ms Call-store deadline.
+
+ivekit.79 adds authenticated Native Call admission to that same default-disabled
+runtime. The response is a closed tagged `fresh` or `recovered` proof. Durable
+mode rejects legacy/missing proof; recovered mode requires the exact predecessor
+binding and invokes the PostgreSQL Oracle instead of ordinary installation. One
+owner `Arc` snapshots identity, proof and guard for active-call registration and
+Oracle selection, is rechecked across the async boundary, and is conditionally
+removed only if it is still current. A separate exact Native Call identity/cell
+cleanup fence prevents stale session admission from deleting a replacement
+Active Call. The control plane currently emits `fresh` only
+from a newly prepared reservation and cannot emit `recovered`.
+
+Local exact-source verification passes SipEffect `135/135` with 11 physical
+tests ignored, native SIP effect `40/40` with one physical test ignored, owner
+`11/11`, admission snapshot `3/3`, recovered paths `15/15`, and full RustPBX
+`2109/2109` with 12 external prerequisites ignored. The `.79` slice did not
+contact the server and ran no performance command. Trusted recovered-proof
+production, real process restart, live Endpoint and production remain
+`not_run`.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

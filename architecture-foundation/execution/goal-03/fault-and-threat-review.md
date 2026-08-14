@@ -23,8 +23,9 @@ Production eligibility: `false`
 | stale/split-brain owner | positive epoch, generation, expected revision and durable CAS | local logic/source tests; fleet partition `not_run` |
 | duplicate visible effect | idempotency key + exact prepared bytes + receipt replay | native isolated PostgreSQL transition/repair tests and restart verified; live SIP dispatch `not_run` |
 | unknown send blindly retried | unknown state, query, repair lease/token/revision fence | `.57` native gate and ledger tests; live endpoint activation `not_run` |
-| restart treats an empty in-memory capability holder as proof that no predecessor wire effect existed | `.76` freezes the exact recovery binding; `.77` advances the exact tenant/session owner-generation fence and probes only deterministic 200-CANCEL and 487-INVITE effect IDs in one PostgreSQL transaction; visible or ambiguous state fails closed | isolated PostgreSQL 16 migration/SQL harness and current `.78` Rust startup-contract adapter pass; real process restart, recovered-Call invocation and live holder remain `not_run` |
-| product starts a second, in-memory or partially configured SIP effect authority | `.78` creates one default-disabled Rust composition before SIP startup, shares one PostgreSQL store across Gate/observation/recovery, owns the supervisor lifetime, rejects unknown/missing/non-PostgreSQL config, duplicate builder injection and live reload, and has no memory/TypeScript fallback. The one-time cold catalog scan has a separate bounded 2 s deadline while per-Call store work stays at 250 ms | exact-source SipEffect `133/133`, native composition `38/38`, exact isolated PostgreSQL adapter `1/1`, locked check and static contracts pass; recovered-Call invocation and live Endpoint remain `not_run` |
+| restart treats an empty in-memory capability holder as proof that no predecessor wire effect existed | `.76` freezes the exact recovery binding; `.77` advances the exact tenant/session owner-generation fence and probes only deterministic 200-CANCEL and 487-INVITE effect IDs in one PostgreSQL transaction; `.79` requires an authenticated `recovered` proof and routes that exact owner snapshot through the Oracle; visible or ambiguous state fails closed | isolated PostgreSQL 16 migration/SQL harness and historical `.78` Rust startup-contract adapter pass; `.79` invocation tests pass locally. Trusted recovered-proof production and real process restart remain `not_run` |
+| missing, forged or stale recovered admission silently downgrades to fresh, stale async cleanup closes a replacement owner/Active Call, or an old refresh task follows that replacement forever | closed authenticated `fresh`/`recovered` union; durable mode rejects absent and legacy proof; exact predecessor identity validation; one owner `Arc` feeds registry and Oracle; pre/post-async current-owner checks; owner pointer-fenced cleanup plus exact Native Call identity/cell cleanup fence; refresh loop bound to its original owner pointer | `.79` owner `11/11`, admission snapshot `3/3`, recovered-path `15/15` and full RustPBX `2109/2109`; trusted recovered-proof issuer, process restart and live Endpoint remain `not_run` |
+| product starts a second, in-memory or partially configured SIP effect authority | `.78` creates one default-disabled Rust composition before SIP startup, shares one PostgreSQL store across Gate/observation/recovery, owns the supervisor lifetime, rejects unknown/missing/non-PostgreSQL config, duplicate builder injection and live reload, and has no memory/TypeScript fallback. `.79` reuses that exact runtime and owner registry rather than constructing a recovery store or owner. The one-time cold catalog scan has a separate bounded 2 s deadline while per-Call store work stays at 250 ms | exact-source SipEffect `135/135`, native SIP effect `40/40`, full RustPBX `2109/2109`, historical exact isolated PostgreSQL adapter `1/1`, locked check and static contracts pass; live Endpoint remains `not_run` |
 | old binary bypasses a recovered session fence | migration 116 seeds and locks a durable owner/generation high-water mark, rejects stale inserts, and rejects the first `send_attempted` transition of an effect prepared before takeover while still accepting later real observations | isolated SQL harness observed SQLSTATE `55000` and atomic attempted-receipt rollback for both bypass shapes; rolling mixed-binary live activation remains `not_run` |
 | recovery receipt is replayed with drift or leaks the raw SIP transaction key | receipt key/hash and result are immutable and replay-validated; only the transaction-key SHA-256 is durable | isolated replay, mutation rejection and schema review passed; live audit consumption remains `not_run` |
 | one pending-INVITE CANCEL is treated as one effect, allows an unowned 487, or a late CANCEL authorizes a second final | split only the sealed transaction-layer peer proof while INVITE is Trying/Proceeding; bind separate one-use capabilities, identities and completion scopes to `200 CANCEL` and `487 INVITE`; 487 waits for exact ACK; after an existing final, authorize only 200 CANCEL | `.73` local rsipstack `32/32`, durable gate `39/39` and Native capability `8/8`; isolated Linux rsipstack server target `32/32`; RustPBX host and restart/reconcile remain `not_run` |
@@ -162,9 +163,19 @@ microbenchmark or citing rvoip upstream numbers cannot close that Gate.
     Its exact physical startup adapter now passes against a fresh migration
     001–116 PostgreSQL 16 instance with no host-published port and tmpfs data;
     the temporary instance was destroyed and the original container remained
-    healthy/restart-zero. It does not yet invoke recovery for a reconstructed
-    Call, activate the Endpoint or prove real process crash/restart. No
-    performance command ran and no server service or deployed code was changed.
+    healthy/restart-zero. `.79` now invokes recovery only from a closed
+    authenticated recovered proof and one current-owner snapshot; missing proof
+    under the durable runtime and stale owner replacement both fail closed.
+    It does not provide the trusted recovered-proof producer, activate the
+    Endpoint or prove real process crash/restart. No performance command ran;
+    `.79` did not contact the server.
+11. The current TypeScript control plane may issue only `fresh`, and only from
+    a newly prepared reservation. This prevents an untrusted caller or replay
+    from self-declaring recovery, but it also means end-to-end recovered-call
+    production remains absent. A future Rust-first recovery coordinator must
+    derive the exact predecessor binding from authenticated durable takeover
+    state, emit the closed proof idempotently, and prove crash/ambiguity cases;
+    until then activation remains `not_run`.
 
-All ten remain visible in the G03 status artifacts and prevent production
+All eleven remain visible in the G03 status artifacts and prevent production
 eligibility.

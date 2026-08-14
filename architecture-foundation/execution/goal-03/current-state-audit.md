@@ -18,9 +18,9 @@ claims and this audit does not mark G02 complete or production eligible.
 | --- | --- | --- | --- |
 | Product Call model | `src/agent-runtime/converact/voice/types.ts`; `state-machine.ts`; `call-service.ts` | `VoiceCall` is a durable Call intent/rebuildable control-plane projection with legacy string IDs | preserve product behavior, but never treat it or `provider_call_id` as native Call/Leg authority |
 | SipFoundation seam | `src/agent-runtime/converact/voice/sip-foundation/*` | Exported Converact-owned types, bounded Protocol Session model, capability selection, route/wire binding and rsipstack-named conformance Adapter exist | retain as conformance/migration harness; native SIP authority stays inside RustPBX |
-| Durable effect ledger | `effect-oracle.ts`; `postgres-effect-store.ts`; migrations `107`, `113`, `114`, `115` and `116`; native `.59` protocol-observation through `.72` exact-target reconciler supervision, `.77` capability-recovery Oracle and `.78` Rust composition root | Reference and native implementations use closed v1/v2 wire-attempt facts, separate transport and peer terminal meanings, atomic observation transactions, repair fences and bounded shards. `.72` retains its sealed exact-target repair grant. `.77` adds the Rust/PostgreSQL recovery Oracle and migration 116 session fence. `.78` creates one default-disabled Rust runtime before SIP startup, shares the same `Arc<PostgresSipEffectStore>` between send/observation and recovery, owns the fixed observer supervisor for the server lifetime, verifies the elected schema/RLS/trigger/privilege contract, rejects partial or duplicate configuration, and never falls back to memory or TypeScript. Its one-time cold-start contract has a separate bounded 2 s deadline; the per-Call store ceiling remains 250 ms | local exact-source SipEffect tests pass `133 passed / 0 failed / 11 physical tests ignored`; the native composition filter passes `38 / 0 / 1 ignored`, and the exact ignored physical adapter case passes `1 / 0` against an isolated PostgreSQL 16 migration chain through 116. `.78` evidence is under `evidence/raw/durable-sip-runtime-composition-2ecfb72-18/`; the existing service remained its exact healthy/restart-zero container and the temporary no-host-port tmpfs database was destroyed. This does not promote `G03-E16`. Recovered-Call invocation, live Endpoint, Linux full-process execution, real process-crash/two-node recovery, fault campaigns, production and every deferred performance item remain `not_run` |
+| Durable effect ledger | `effect-oracle.ts`; `postgres-effect-store.ts`; migrations `107`, `113`, `114`, `115` and `116`; native `.59` protocol-observation through `.72` exact-target reconciler supervision, `.77` capability-recovery Oracle, `.78` Rust composition root and `.79` authenticated admission invocation | Reference and native implementations use closed v1/v2 wire-attempt facts, separate transport and peer terminal meanings, atomic observation transactions, repair fences and bounded shards. `.72` retains its sealed exact-target repair grant. `.77` adds the Rust/PostgreSQL recovery Oracle and migration 116 session fence. `.78` creates one default-disabled Rust runtime before SIP startup and shares the same `Arc<PostgresSipEffectStore>` between send/observation and recovery. `.79` replaces implicit recovered-call inference with a closed authenticated `fresh`/`recovered` admission proof, snapshots owner identity/proof/guard in one `Arc`, invokes the PostgreSQL Oracle only for an exact recovered predecessor, revalidates before and after the async boundary, and conditionally removes only the exact owner and Native Call identity/cell pointers. Missing proof fails closed whenever the durable runtime is enabled; an old refresh loop exits when its original owner pointer is replaced | exact-source SipEffect tests pass `135 / 0 / 11 ignored`; native SIP effect tests pass `40 / 0 / 1 ignored`; owner, admission-snapshot and recovered-path filters pass `11/11`, `3/3` and `15/15`; full RustPBX passes `2109 / 0 / 12 ignored`. The `.78` physical PostgreSQL result remains historical component evidence. `.79` local evidence is under `evidence/raw/durable-recovered-admission-f56f954-19/`; the server was not contacted for `.79`. This does not promote `G03-E16`. A trusted recovered-proof producer, real process restart/two-node recovery, live Endpoint, Linux product-process execution, production and every deferred performance item remain `not_run` |
 | Recovery | `sip-foundation/recovery.ts`; reciprocal dialog shadow/takeover sources; `.65` Native Call recovery identity patch; `.66` stale SipEffect recovery patch; `.67` immutable-ledger fixture correction; `.68` role-scoped fixture correction; `.69` database-clock fixture; `.70` recovery SQL alias | The closed v2 capsule authenticates one canonical Native Call binding across both legs and advances owner/generation/revision fences exactly once. The stale-effect primitive uses a rolling partial index and one atomic bounded batch to preserve uncertainty as `unknown`; the physical case waits the real database stale window without mutating effect time or identity, and `.70` separates the unnest candidate id from the target table id before `RETURNING`; legacy v1 remains readable but cannot resume live authority | controlled `.70` stale-nonterminal pool-recreation recovery is under `evidence/raw/stale-nonterminal-recovery-6abf714-11/`; live owner fencing, real process-crash/two-node takeover, early-dialog and cross-Adapter recovery remain `not_run` |
-| RustPBX/rsipstack runtime | `infra/converact/rustpbx/build.sh` and patch queue | RustPBX `6c49ee76…`, rsipstack `8318e97b…`, rustrtc `166c6d22…`, patchset `.78` is pinned. `.73`–`.77` retain the matched-CANCEL pair, ordinary-response authority, exact cleanup fence, conservative restart seam and PostgreSQL Oracle. `.78` injects one durable runtime into both custom and default `SipServerBuilder` paths before normal app storage/migrations, keeps it default-disabled, and makes live reload or double injection fail closed. TypeScript remains contract/conformance only | exact-source SipEffect passes `133/133` with 11 physical cases ignored; the native composition filter passes `38/38` with one physical case ignored; the exact physical case separately passes `1/1`. Locked library check, scoped rustfmt and targeted static contracts pass. `evidence/raw/durable-sip-runtime-composition-2ecfb72-18/` records local and isolated-server checks. Recovered-Call invocation, live Endpoint, Linux full-process execution, real process restart and production remain `not_run`. No load, CPS, latency, concurrency, capacity, soak or 100K command ran |
+| RustPBX/rsipstack runtime | `infra/converact/rustpbx/build.sh` and patch queue | RustPBX `6c49ee76…`, rsipstack `8318e97b…`, rustrtc `166c6d22…`, patchset `.79` is pinned. `.73`–`.78` retain the matched-CANCEL pair, ordinary-response authority, exact cleanup fence, conservative restart seam, PostgreSQL Oracle and single durable composition root. `.79` carries one atomic Native Call owner admission snapshot from authenticated HTTP admission through registry registration and Oracle selection; owner and Active Call cleanup retain separate exact pointer fences, no second registry/store/task fan-out/memory fallback is introduced, and an old owner refresh task exits instead of following a replacement. The TypeScript control plane can mint `fresh` only from a newly prepared reservation and cannot mint `recovered` | exact-source functional verification passes SipEffect `135/135`, native SIP effect `40/40`, owner `11/11`, admission snapshot `3/3`, recovered filters `15/15`, full RustPBX `2109/2109` with 12 external prerequisites ignored, locked check, scoped rustfmt, repository typecheck and targeted TypeScript/static contracts. `.79` is local-only; no server or performance command ran. Trusted recovered-proof production, live Endpoint, Linux product-process execution, real process restart and production remain `not_run` |
 | Initial 100 Trying | `rsipstack-ivekit-single-trying.patch`; SIPp campaign sources | Exact `.53` image emitted exactly 100 Trying responses for 100 INVITEs; p99/max were 1/1 ms, with zero response retransmissions | `G03-E06` controlled evidence; no inherited `.42` promotion |
 | SIP wire tests | frozen 22-case corpus and exact dual-binary replay | `.53` matches all 18 accepted semantics and applies four versioned malformed-input tightenings with zero unexplained differences | `G03-E07` controlled evidence; future rvoip differential remains `not_run` |
 | rvoip runtime | no G03 runtime source dependency found | Not a parser, transaction, Dialog or transport production path | `not_run`; reserved for G06 layer-by-layer gates |
@@ -113,7 +113,31 @@ superseded grant and keep the healthy reconciler workers available. Exact-source
 formatting pass. The same two test counts and scoped formatting pass in the
 offline controlled Linux campaign retained under
 `evidence/raw/focused-linux-sip-effect-b3c9da0-14/`. No evidence entry is
-promoted by these component results. The following remain `not_run`:
+promoted by these component results.
+
+Incremental `.79` closes the in-process recovered-admission invocation gap but
+does not manufacture recovery authority. Its authenticated admission response
+is a closed tagged union: `fresh` carries no predecessor; `recovered` requires
+the exact closed `NativeCallRecoveryBinding`. With the durable runtime enabled,
+legacy/missing proof fails closed. One `Arc<OwnerEntry>` snapshot binds the
+Native Call identity, proof and guard used by the active-call registry and the
+Oracle decision. The session rechecks that snapshot before and after the async
+Oracle; failure cleanup conditionally removes only the same owner pointer and
+the exact Native Call identity/cell pointer, so neither owner nor Active Call
+replacement can be closed by stale work. The control plane
+currently mints `fresh` only for a newly prepared reservation and deliberately
+has no recovered-proof producer. Exact local tests pass SipEffect `135/135`
+with 11 physical cases ignored, native SIP effect `40/40` with one physical
+case ignored, owner `11/11`, snapshot `3/3`, recovered paths `15/15`, and the
+full RustPBX library `2109/2109` with 12 external-prerequisite cases ignored.
+The repository typecheck and focused 32-test TypeScript admission suite pass.
+The first aggregate TypeScript command omitted the repository's required
+explicit development-auth preload and exposed that harness error; the corrected
+canonical command passed without an implementation change. This local-only
+bundle is `evidence/raw/durable-recovered-admission-f56f954-19/`. The `.79`
+slice did not contact the server and ran no load or performance command.
+
+The following remain `not_run`:
 
 - native Call/Leg and effect-writer activation;
 - product activation of the `.73` Native Call capability runtime, RustPBX-host
@@ -191,9 +215,12 @@ promoted by these component results. The following remain `not_run`:
    PostgreSQL store backs the send Gate, observation workers and recovery Oracle,
    and the server owns their lifecycle. The exact physical Rust adapter case now
    passes against isolated PostgreSQL 16 after separating the bounded 2 s cold
-   startup scan from the unchanged 250 ms Call-store deadline. Next implement
-   recovered-Call invocation, then close UAS-2xx and
-   reconciliation resume.
+   startup scan from the unchanged 250 ms Call-store deadline. `.79` makes the
+   authenticated admission proof explicit, invokes that Oracle from the exact
+   recovered owner snapshot and fences stale cleanup, while the only current
+   control-plane issuer emits `fresh` from a newly prepared reservation. Next
+   build and prove the trusted recovered-proof producer against a real process
+   restart, then close UAS-2xx and reconciliation resume.
    Close parent-Unknown and stale-
    nonterminal/UAS-owner crash recovery before product activation. The v2
    recovery capsule must remain the only path that restores the existing

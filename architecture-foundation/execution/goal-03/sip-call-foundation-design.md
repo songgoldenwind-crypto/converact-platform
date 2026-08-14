@@ -201,8 +201,18 @@ recorded as `not_run`, not described as completed wiring.
    Native Call authority reserves both identities before a transaction-local
    gate is installed. The runtime is `None` by default; Endpoint-global gating,
    self-issued capabilities and partial-pair activation are forbidden.
-   `.75` provides successor-safe cleanup fencing; restart reconstruction of
-   unconsumed capabilities remains an explicit activation blocker.
+   `.75` provides successor-safe cleanup fencing. `.76`–`.78` require one
+   atomic PostgreSQL predecessor fence plus `NoVisibleEffect` before rebuilding
+   unconsumed capabilities and compose that Oracle into the one default-disabled
+   Rust runtime. `.79` admits the owner only from an authenticated closed
+   `fresh`/`recovered` proof, snapshots identity/proof/guard in one owner `Arc`,
+   invokes the Oracle only for the exact recovered predecessor, and rechecks
+   that same snapshot across the async boundary. Missing proof fails closed
+   when the durable runtime is enabled; stale cleanup can remove only the same
+   owner pointer and exact Native Call identity/cell pointer. The control plane
+   currently issues `fresh` only from a newly
+   prepared reservation. A trusted recovered-proof producer and real restart
+   reconstruction remain explicit activation blockers.
 7. Transaction retransmission replays the exact committed bytes/hash.
 8. `snapshot` carries protocol state only. `restore` accepts only a confirmed,
    transaction-quiescent, same-Adapter/runtime snapshot after outer Call-owner
@@ -287,7 +297,7 @@ observation distinguishable even though both converge the effect record to
 | State | Meaning |
 | --- | --- |
 | current | RustPBX/rsipstack is the native runtime; TypeScript contains bounded conformance/reference models and a physical PostgreSQL reference ledger, but these are not a second live SIP/Call authority |
-| target | The complete interface and corpus are frozen; `.73`–`.77` supply the matched-CANCEL/ordinary-response authority, exact teardown, conservative recovery seam and session-fenced PostgreSQL Oracle. `.78` adds the default-disabled Rust product composition root: before SIP startup one verified PostgreSQL store is shared by the send Gate, fixed observation workers and recovery Oracle, held for the server lifetime and injected exactly once into either builder path. Disabled mode performs no database work; partial/unknown/non-PostgreSQL config, contract drift, duplicate injection and live reload fail closed with no memory or TypeScript runtime fallback. The cold startup contract has a separate 2 s hard deadline and does not widen the 250 ms Call-store ceiling. Exact-source SipEffect passes `133/133` with 11 physical tests ignored, native composition passes `38/38` with one physical case ignored, and that exact physical case separately passes `1/1` against isolated PostgreSQL 16 through migration 116. Recovered-Call invocation, real process restart/two-node, live Endpoint, remaining transports, Linux full, all performance work and Native Authority remain `not_run` |
+| target | The complete interface and corpus are frozen; `.73`–`.78` supply the matched-CANCEL/ordinary-response authority, exact teardown, conservative recovery seam, session-fenced PostgreSQL Oracle and one default-disabled Rust product composition root. `.79` adds trusted invocation through one authenticated closed admission proof and one atomic owner snapshot; durable mode rejects missing proof, recovered mode invokes the exact PostgreSQL Oracle, and pre/post-async owner checks plus separate owner and Native Call identity/cell pointer fences preserve any replacement. Each refresh loop is bound to its original owner pointer and exits on replacement. The control plane emits `fresh` only for a newly prepared reservation and has no recovered-proof producer. Disabled mode performs no database work; partial/unknown/non-PostgreSQL config, contract drift, duplicate injection and live reload fail closed with no memory or TypeScript runtime fallback. The cold startup contract has a separate 2 s hard deadline and does not widen the 250 ms Call-store ceiling. Exact-source SipEffect passes `135/135` with 11 physical tests ignored, native SIP effect passes `40/40` with one physical case ignored, focused owner/admission/recovery filters pass `11/11`, `3/3` and `15/15`, and the full RustPBX library passes `2109/2109` with 12 external prerequisites ignored. The historical `.78` exact physical adapter separately passed `1/1` against isolated PostgreSQL 16 through migration 116; `.79` used no server. Trusted recovered-proof production, real process restart/two-node, live Endpoint, remaining transports, Linux process execution, all performance work and Native Authority remain `not_run` |
 | production eligible | `false` until long-run, fault/OOM, Native Authority, allocation and multi-core scaling evidence pass independent review |
 
 No rvoip benchmark, old server result or historical Wave result is inherited.

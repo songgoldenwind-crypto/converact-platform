@@ -256,6 +256,29 @@ Run serially:
    destroyed and the pre-existing container stayed healthy with zero restarts.
    Recovered-Call invocation, live Endpoint, Linux product-process execution,
    process restart/two-node, production and all performance work stay `not_run`.
+   The `.79` RED/GREEN slice closes only the trusted in-process invocation gap.
+   RED first requires a closed authenticated `fresh`/`recovered` response,
+   rejects absent proof under the durable runtime, rejects implicit recovery,
+   proves exact predecessor binding, and demonstrates that an owner replaced
+   during the async Oracle cannot be closed by stale cleanup. GREEN stores
+   identity, proof and guard in one `Arc<OwnerEntry>` snapshot, uses that exact
+   snapshot for registry registration and Oracle selection, rechecks it before
+   and after the Oracle, conditionally closes only that same owner pointer, and
+   retains the exact Native Call identity/cell cleanup fence so stale session
+   teardown cannot remove a replacement Active Call. It dispatches recovered
+   admission to the PostgreSQL recovery path without an ordinary-install
+   fallback. The control plane emits `fresh` only when it has
+   just prepared a reservation; it has no code path that emits `recovered`.
+   Exact-source tests pass SipEffect `135/135` with 11 physical cases ignored,
+   native SIP effect `40/40` with one physical case ignored, owner `11/11`,
+   admission snapshot `3/3`, recovered filters `15/15`, and full RustPBX
+   `2109/2109` with 12 external prerequisites ignored. Locked check, scoped
+   rustfmt, repository typecheck, the canonical 32-test TypeScript admission
+   suite and exact patch/static contracts pass. The first aggregate TypeScript
+   command omitted the required explicit development-auth preload; the corrected
+   canonical command passed with no implementation change. The server was not
+   contacted and all production, restart, external dependency and performance
+   claims remain `not_run`.
 6. repository typecheck.
 7. Generate raw output, command/source manifest and SHA-256 evidence with no
    secrets.

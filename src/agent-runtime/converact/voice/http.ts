@@ -1046,6 +1046,9 @@ async function routeProviderWebhook(input: {
             media_control_profile: mediaControlProfile,
             route_snapshot_revision: routeSnapshotRevision,
             availability_profile: availability,
+            ...(inboundPlacement.reservation
+              ? { native_call_admission: { mode: 'fresh' as const } }
+              : {}),
             ...(authContextRef
               ? { auth_context_ref: authContextRef }
               : {}),

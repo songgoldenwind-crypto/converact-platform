@@ -359,6 +359,33 @@ invocation, live Endpoint, Linux product-process execution, real process
 restart/two-node recovery, final G03 review, production and all performance work
 remain `not_run`.
 
+The incremental `.79` candidate closes the trusted invocation seam without
+claiming an end-to-end restart producer. Review confirms that the authenticated
+admission payload is a closed tagged union: `fresh` has no predecessor and
+`recovered` requires the exact closed recovery binding. With the durable SIP
+runtime enabled, a legacy or absent proof is rejected rather than silently
+downgraded. One `Arc<OwnerEntry>` atomically snapshots Native Call identity,
+proof and guard; the same snapshot supplies active-call registration and
+recovery-Oracle selection and is checked before and after the asynchronous
+Oracle. Separate conditional owner and Native Call identity/cell pointer fences
+preserve replacement owner and Active Call state.
+Recovered admission cannot fall back to ordinary installation when the runtime
+is absent. The control-plane producer emits `fresh` only after a newly prepared
+reservation and contains no `recovered` emitter.
+
+Exact-source verification passes SipEffect `135/135` with 11 physical tests
+ignored, native SIP effect `40/40` with one physical test ignored, owner
+`11/11`, admission snapshot `3/3`, recovered filters `15/15`, and full RustPBX
+`2109/2109` with 12 external prerequisites ignored. Locked library check,
+scoped rustfmt, exact patch replay, repository typecheck, canonical focused
+TypeScript admission tests and G03 machine contracts pass. The first aggregate
+TypeScript attempt omitted the required explicit development-auth preload; the
+canonical rerun passed without an implementation change. This is an
+implementation self-review checkpoint, not final independent acceptance. The
+server was not contacted, no performance command ran, and the trusted
+recovered-proof producer, real process restart, live Endpoint, production and
+`G03-E15/G03-E16` remain `not_run`.
+
 ## Rejection history and remaining gate
 
 The earlier `6cbe1a3` evidence review was rejected with

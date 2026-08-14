@@ -1,0 +1,1056 @@
+diff --git a/src/call/adapters/native_sip_effect_capabilities.rs b/src/call/adapters/native_sip_effect_capabilities.rs
+index cc7beb1..fa18ea6 100644
+--- a/src/call/adapters/native_sip_effect_capabilities.rs
++++ b/src/call/adapters/native_sip_effect_capabilities.rs
+@@ -497,6 +497,27 @@ pub(crate) fn install_for_admitted_native_call(
+     )
+ }
+ 
++pub(crate) async fn install_for_admitted_or_recovered_native_call(
++    runtime: Option<&NativeSipEffectRuntime>,
++    recovery_binding: Option<&NativeCallRecoveryBinding>,
++    active_calls: &Arc<ActiveProxyCallRegistry>,
++    provider_call_id: &str,
++    transaction: &mut Transaction,
++) -> Result<Option<NativeMatchedCancelCapabilityHolder>, NativeSipEffectCapabilityError> {
++    let Some(binding) = recovery_binding else {
++        return install_for_admitted_native_call(
++            runtime,
++            active_calls,
++            provider_call_id,
++            transaction,
++        );
++    };
++    let runtime = runtime.ok_or(NativeSipEffectCapabilityError::RecoveryUnavailable)?;
++    runtime
++        .install_recovered_unconsumed_call(active_calls, binding, provider_call_id, transaction)
++        .await
++}
++
+ fn install_for_admitted_native_call_inner(
+     runtime: &NativeSipEffectRuntime,
+     active_calls: &Arc<ActiveProxyCallRegistry>,
+@@ -1435,6 +1456,58 @@ mod tests {
+         assert_recovery_oracle::<PostgresSipEffectStore>();
+     }
+ 
++    #[tokio::test]
++    async fn recovered_admission_cannot_downgrade_when_the_runtime_is_absent() {
++        let session_id = "native-recovery-runtime-required@example.test";
++        let (binding, recovered) = recovered_identity(session_id, 2);
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(entry(session_id), handle(session_id), recovered.clone())
++            .unwrap();
++        let mut transaction = transaction(session_id).await;
++
++        assert!(matches!(
++            install_for_admitted_or_recovered_native_call(
++                None,
++                Some(&binding),
++                &registry,
++                session_id,
++                &mut transaction,
++            )
++            .await,
++            Err(NativeSipEffectCapabilityError::RecoveryUnavailable)
++        ));
++        assert_eq!(registry.get_identity(session_id), Some(recovered));
++    }
++
++    #[tokio::test]
++    async fn recovered_admission_invokes_the_oracle_instead_of_ordinary_installation() {
++        let session_id = "native-recovery-invocation@example.test";
++        let (binding, recovered) = recovered_identity(session_id, 2);
++        let registry = Arc::new(ActiveProxyCallRegistry::new());
++        registry
++            .try_upsert_authoritative(entry(session_id), handle(session_id), recovered)
++            .unwrap();
++        let oracle = Arc::new(TestRecoveryOracle::no_visible_effect());
++        let (runtime, intents) = runtime_with_recovery_oracle(oracle.clone());
++        let mut transaction = transaction(session_id).await;
++
++        let holder = install_for_admitted_or_recovered_native_call(
++            Some(&runtime),
++            Some(&binding),
++            &registry,
++            session_id,
++            &mut transaction,
++        )
++        .await
++        .expect("trusted recovered admission")
++        .expect("the recovered capability holder");
++
++        assert_eq!(oracle.calls.load(Ordering::Acquire), 1);
++        assert_eq!(intents.snapshot().registered, 2);
++        drop(holder);
++    }
++
+     #[tokio::test]
+     async fn durable_postgres_composition_uses_one_store_and_holds_observers() {
+         let pool = PgPoolOptions::new()
+@@ -1784,11 +1857,9 @@ mod tests {
+         registry
+             .try_upsert_authoritative(entry(session_id), handle(session_id), identity.clone())
+             .unwrap();
+-        let transaction = transaction(session_id).await;
+-        let reservation = registry
+-            .reserve_matched_cancel_capabilities(session_id, &transaction)
++        let cleanup_fence = registry
++            .cleanup_fence_for_identity(session_id, &identity)
+             .unwrap();
+-        let cleanup_fence = reservation.commit();
+ 
+         registry.remove(session_id);
+         registry
+diff --git a/src/ivekit_owner.rs b/src/ivekit_owner.rs
+index 7374532..b8b6d2e 100644
+--- a/src/ivekit_owner.rs
++++ b/src/ivekit_owner.rs
+@@ -187,12 +187,98 @@ impl Authorizer for DisabledAuthorizer {
+     }
+ }
+ 
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub(crate) enum NativeCallOwnerProof {
++    LegacyUnspecified,
++    Fresh,
++    Recovered(crate::call::domain::foundation_identity::NativeCallRecoveryBinding),
++}
++
++impl NativeCallOwnerProof {
++    pub(crate) fn recovery_binding_for_runtime(
++        &self,
++        runtime_enabled: bool,
++    ) -> Result<Option<&crate::call::domain::foundation_identity::NativeCallRecoveryBinding>> {
++        match self {
++            Self::LegacyUnspecified if runtime_enabled => Err(anyhow!(
++                "durable native call admission requires explicit fresh or recovered proof"
++            )),
++            Self::LegacyUnspecified | Self::Fresh => Ok(None),
++            Self::Recovered(binding) => Ok(Some(binding)),
++        }
++    }
++}
++
+ struct OwnerEntry {
+     contract: OwnerContract,
+     native_identity: Option<crate::call::domain::foundation_identity::NativeCallIdentity>,
++    native_call_proof: NativeCallOwnerProof,
+     guard: Guard<DisabledAuthorizer>,
+ }
+ 
++#[derive(Clone)]
++pub(crate) struct NativeCallOwnerAdmission {
++    pub(crate) identity: crate::call::domain::foundation_identity::NativeCallIdentity,
++    pub(crate) proof: NativeCallOwnerProof,
++    entry: Arc<OwnerEntry>,
++}
++
++impl NativeCallOwnerAdmission {
++    pub(crate) fn recovery_binding_for_runtime(
++        &self,
++        runtime_enabled: bool,
++    ) -> Result<Option<&crate::call::domain::foundation_identity::NativeCallRecoveryBinding>> {
++        self.proof.recovery_binding_for_runtime(runtime_enabled)
++    }
++
++    pub(crate) fn assert_current(&self, provider_call_id: &str) -> Result<()> {
++        let current = owners()
++            .get(provider_call_id)
++            .ok_or_else(|| anyhow!("native call owner admission is no longer current"))?;
++        if !Arc::ptr_eq(current.value(), &self.entry)
++            || current.native_identity.as_ref() != Some(&self.identity)
++            || current.native_call_proof != self.proof
++        {
++            return Err(anyhow!(
++                "native call owner admission was replaced during admission"
++            ));
++        }
++        current
++            .guard
++            .assert_mutation(&current.contract.owner_epoch, now_unix_ms())
++            .map_err(|error| anyhow!("native call owner admission rejected: {error}"))
++    }
++
++    pub(crate) async fn close_if_current(&self, provider_call_id: &str) -> bool {
++        let removed = match owners().entry(provider_call_id.to_string()) {
++            dashmap::mapref::entry::Entry::Occupied(entry)
++                if Arc::ptr_eq(entry.get(), &self.entry) =>
++            {
++                Some(entry.remove())
++            }
++            _ => None,
++        };
++        let Some(entry) = removed else {
++            return false;
++        };
++        close_owner_entry(provider_call_id, entry).await;
++        true
++    }
++}
++
++pub(crate) fn native_call_recovery_binding_for_runtime(
++    admission: Option<&NativeCallOwnerAdmission>,
++    runtime_enabled: bool,
++) -> Result<Option<&crate::call::domain::foundation_identity::NativeCallRecoveryBinding>> {
++    match admission {
++        Some(admission) => admission.recovery_binding_for_runtime(runtime_enabled),
++        None if runtime_enabled => Err(anyhow!(
++            "durable native call admission requires an authenticated owner proof"
++        )),
++        None => Ok(None),
++    }
++}
++
+ #[derive(Clone)]
+ struct OwnerConfig {
+     endpoint: reqwest::Url,
+@@ -231,7 +317,14 @@ static CONFIG: OnceLock<std::result::Result<Option<OwnerConfig>, String>> = Once
+ static OWNERS: OnceLock<DashMap<String, Arc<OwnerEntry>>> = OnceLock::new();
+ 
+ pub async fn ensure_owner(provider_call_id: &str, contract: OwnerContract) -> Result<bool> {
+-    ensure_owner_inner(provider_call_id, contract, None, false).await
++    ensure_owner_inner(
++        provider_call_id,
++        contract,
++        None,
++        NativeCallOwnerProof::LegacyUnspecified,
++        false,
++    )
++    .await
+ }
+ 
+ pub async fn ensure_owner_with_identity(
+@@ -239,21 +332,61 @@ pub async fn ensure_owner_with_identity(
+     contract: OwnerContract,
+     native_identity: crate::call::domain::foundation_identity::NativeCallIdentity,
+ ) -> Result<bool> {
+-    if native_identity.provider_call_id().as_str() != provider_call_id
+-        || native_identity.tenant_id() != contract.tenant_id
+-        || native_identity.owner_epoch().to_string() != contract.owner_epoch
+-    {
++    validate_owner_identity(provider_call_id, &contract, &native_identity)?;
++    ensure_owner_inner(
++        provider_call_id,
++        contract,
++        Some(native_identity),
++        NativeCallOwnerProof::LegacyUnspecified,
++        true,
++    )
++    .await
++}
++
++pub async fn ensure_fresh_owner_with_identity(
++    provider_call_id: &str,
++    contract: OwnerContract,
++    native_identity: crate::call::domain::foundation_identity::NativeCallIdentity,
++) -> Result<bool> {
++    validate_owner_identity(provider_call_id, &contract, &native_identity)?;
++    ensure_owner_inner(
++        provider_call_id,
++        contract,
++        Some(native_identity),
++        NativeCallOwnerProof::Fresh,
++        true,
++    )
++    .await
++}
++
++pub async fn ensure_recovered_owner_with_identity(
++    provider_call_id: &str,
++    contract: OwnerContract,
++    native_identity: crate::call::domain::foundation_identity::NativeCallIdentity,
++    recovery_binding: crate::call::domain::foundation_identity::NativeCallRecoveryBinding,
++) -> Result<bool> {
++    if contract.availability_profile != "VOICE-HA-T1" {
+         return Err(anyhow!(
+-            "native call identity does not match owner contract"
++            "native call recovery requires the VOICE-HA-T1 profile"
+         ));
+     }
+-    ensure_owner_inner(provider_call_id, contract, Some(native_identity), true).await
++    validate_recovered_owner_identity(&native_identity, &recovery_binding)?;
++    validate_owner_identity(provider_call_id, &contract, &native_identity)?;
++    ensure_owner_inner(
++        provider_call_id,
++        contract,
++        Some(native_identity),
++        NativeCallOwnerProof::Recovered(recovery_binding),
++        true,
++    )
++    .await
+ }
+ 
+ async fn ensure_owner_inner(
+     provider_call_id: &str,
+     contract: OwnerContract,
+     native_identity: Option<crate::call::domain::foundation_identity::NativeCallIdentity>,
++    native_call_proof: NativeCallOwnerProof,
+     require_config: bool,
+ ) -> Result<bool> {
+     valid_provider_call_id(provider_call_id)?;
+@@ -266,7 +399,10 @@ async fn ensure_owner_inner(
+     };
+     let owners = owners();
+     if let Some(existing) = owners.get(provider_call_id) {
+-        if existing.contract != contract || existing.native_identity != native_identity {
++        if existing.contract != contract
++            || existing.native_identity != native_identity
++            || existing.native_call_proof != native_call_proof
++        {
+             return Err(anyhow!("owner contract conflict"));
+         }
+         existing
+@@ -285,12 +421,16 @@ async fn ensure_owner_inner(
+     let entry = Arc::new(OwnerEntry {
+         contract: contract.clone(),
+         native_identity: native_identity.clone(),
++        native_call_proof: native_call_proof.clone(),
+         guard,
+     });
+     match owners.entry(provider_call_id.to_string()) {
+         dashmap::mapref::entry::Entry::Occupied(existing) => {
+             let current = existing.get();
+-            if current.contract != contract || current.native_identity != native_identity {
++            if current.contract != contract
++                || current.native_identity != native_identity
++                || current.native_call_proof != native_call_proof
++            {
+                 return Err(anyhow!("owner contract conflict"));
+             }
+             current
+@@ -300,8 +440,9 @@ async fn ensure_owner_inner(
+             Ok(false)
+         }
+         dashmap::mapref::entry::Entry::Vacant(vacant) => {
++            let refresh_entry = entry.clone();
+             vacant.insert(entry);
+-            start_refresh(provider_call_id.to_string());
++            start_refresh(provider_call_id.to_string(), refresh_entry);
+             Ok(true)
+         }
+     }
+@@ -327,9 +468,57 @@ pub fn owner_contract(provider_call_id: &str) -> Option<OwnerContract> {
+ pub fn owner_identity(
+     provider_call_id: &str,
+ ) -> Option<crate::call::domain::foundation_identity::NativeCallIdentity> {
+-    owners()
+-        .get(provider_call_id)
+-        .and_then(|entry| entry.native_identity.clone())
++    owner_native_call_admission(provider_call_id).map(|admission| admission.identity)
++}
++
++pub(crate) fn owner_native_call_admission(
++    provider_call_id: &str,
++) -> Option<NativeCallOwnerAdmission> {
++    owners().get(provider_call_id).and_then(|entry| {
++        let entry = entry.value().clone();
++        entry
++            .native_identity
++            .clone()
++            .map(|identity| NativeCallOwnerAdmission {
++                identity,
++                proof: entry.native_call_proof.clone(),
++                entry,
++            })
++    })
++}
++
++fn validate_owner_identity(
++    provider_call_id: &str,
++    contract: &OwnerContract,
++    native_identity: &crate::call::domain::foundation_identity::NativeCallIdentity,
++) -> Result<()> {
++    if native_identity.provider_call_id().as_str() != provider_call_id
++        || native_identity.tenant_id() != contract.tenant_id
++        || native_identity.owner_epoch().to_string() != contract.owner_epoch
++    {
++        return Err(anyhow!(
++            "native call identity does not match owner contract"
++        ));
++    }
++    Ok(())
++}
++
++fn validate_recovered_owner_identity(
++    native_identity: &crate::call::domain::foundation_identity::NativeCallIdentity,
++    recovery_binding: &crate::call::domain::foundation_identity::NativeCallRecoveryBinding,
++) -> Result<()> {
++    let expected =
++        crate::call::domain::foundation_identity::NativeCallIdentity::recover_from_binding(
++            recovery_binding,
++            native_identity.owner_epoch(),
++        )
++        .map_err(|_| anyhow!("native call recovery binding is invalid"))?;
++    if &expected != native_identity {
++        return Err(anyhow!(
++            "native call recovery binding does not match successor identity"
++        ));
++    }
++    Ok(())
+ }
+ 
+ pub fn session_hook() -> Result<Option<Arc<dyn CallSessionHook>>> {
+@@ -354,6 +543,10 @@ pub(crate) async fn close_owner(provider_call_id: &str) {
+     let Some((_, entry)) = owners().remove(provider_call_id) else {
+         return;
+     };
++    close_owner_entry(provider_call_id, entry).await;
++}
++
++async fn close_owner_entry(provider_call_id: &str, entry: Arc<OwnerEntry>) {
+     let Ok(config) = required_config() else {
+         return;
+     };
+@@ -377,14 +570,22 @@ pub(crate) async fn close_owner(provider_call_id: &str) {
+     }
+ }
+ 
+-fn start_refresh(provider_call_id: String) {
++fn current_owner_entry(
++    provider_call_id: &str,
++    expected_entry: &Arc<OwnerEntry>,
++) -> Option<Arc<OwnerEntry>> {
++    let current = owners().get(provider_call_id).map(|entry| entry.clone())?;
++    Arc::ptr_eq(&current, expected_entry).then_some(current)
++}
++
++fn start_refresh(provider_call_id: String, expected_entry: Arc<OwnerEntry>) {
+     crate::utils::spawn(async move {
+         loop {
+             let Ok(config) = required_config() else {
+                 return;
+             };
+             tokio::time::sleep(config.refresh_interval).await;
+-            let Some(entry) = owners().get(&provider_call_id).map(|value| value.clone()) else {
++            let Some(entry) = current_owner_entry(&provider_call_id, &expected_entry) else {
+                 return;
+             };
+             match authorize(config, &entry.contract, Operation::Mutate).await {
+@@ -649,6 +850,177 @@ mod tests {
+         assert!(valid_node_identifier("rustpbx@node").is_err());
+     }
+ 
++    #[test]
++    fn recovered_owner_requires_the_exact_predecessor_successor_pair() {
++        let predecessor = crate::call::domain::foundation_identity::NativeCallIdentity::standalone(
++            "owner-recovery@example.test",
++        )
++        .unwrap();
++        let binding = predecessor.recovery_binding();
++        let successor =
++            crate::call::domain::foundation_identity::NativeCallIdentity::recover_from_binding(
++                &binding, 2,
++            )
++            .unwrap();
++
++        assert!(validate_recovered_owner_identity(&successor, &binding).is_ok());
++
++        let replacement =
++            crate::call::domain::foundation_identity::NativeCallIdentity::from_canonical(
++                successor.tenant_id(),
++                successor.call_id().clone(),
++                successor.interaction_id().clone(),
++                successor.provider_call_id().clone(),
++                3,
++                successor.generation() + 1,
++                successor.revision(),
++            )
++            .unwrap();
++        assert!(validate_recovered_owner_identity(&replacement, &binding).is_err());
++    }
++
++    #[test]
++    fn recovered_owner_rejects_cross_call_binding_confusion() {
++        let first = crate::call::domain::foundation_identity::NativeCallIdentity::standalone(
++            "owner-recovery-first@example.test",
++        )
++        .unwrap();
++        let second = crate::call::domain::foundation_identity::NativeCallIdentity::standalone(
++            "owner-recovery-second@example.test",
++        )
++        .unwrap();
++        let successor =
++            crate::call::domain::foundation_identity::NativeCallIdentity::recover_from_binding(
++                &first.recovery_binding(),
++                2,
++            )
++            .unwrap();
++
++        assert!(validate_recovered_owner_identity(&successor, &second.recovery_binding()).is_err());
++    }
++
++    #[test]
++    fn durable_runtime_requires_explicit_native_call_owner_proof() {
++        let predecessor = crate::call::domain::foundation_identity::NativeCallIdentity::standalone(
++            "owner-proof@example.test",
++        )
++        .unwrap();
++        let binding = predecessor.recovery_binding();
++
++        assert!(
++            NativeCallOwnerProof::LegacyUnspecified
++                .recovery_binding_for_runtime(true)
++                .is_err()
++        );
++        assert_eq!(
++            NativeCallOwnerProof::LegacyUnspecified
++                .recovery_binding_for_runtime(false)
++                .unwrap(),
++            None
++        );
++        assert_eq!(
++            NativeCallOwnerProof::Fresh
++                .recovery_binding_for_runtime(true)
++                .unwrap(),
++            None
++        );
++        assert_eq!(
++            NativeCallOwnerProof::Recovered(binding.clone())
++                .recovery_binding_for_runtime(true)
++                .unwrap(),
++            Some(&binding)
++        );
++        assert!(native_call_recovery_binding_for_runtime(None, true).is_err());
++        assert_eq!(
++            native_call_recovery_binding_for_runtime(None, false).unwrap(),
++            None
++        );
++    }
++
++    #[tokio::test]
++    async fn stale_native_call_admission_cannot_close_a_replacement_owner() {
++        let provider_call_id = "owner-close-fence@example.test";
++        let identity = crate::call::domain::foundation_identity::NativeCallIdentity::standalone(
++            provider_call_id,
++        )
++        .unwrap();
++        let contract = OwnerContract {
++            reservation_id: "reservation-close-fence".to_string(),
++            interaction_id: "interaction-close-fence".to_string(),
++            owner_epoch: identity.owner_epoch().to_string(),
++            route_snapshot_revision: 1,
++            availability_profile: "VOICE-ORDINARY".to_string(),
++            auth_context_ref: None,
++            tenant_id: identity.tenant_id().to_string(),
++            cell_id: "cell-close-fence".to_string(),
++            owner_node_id: "node-close-fence".to_string(),
++            media_control_profile: MediaControlProfile::G711Relay,
++        };
++        let original = Arc::new(OwnerEntry {
++            contract: contract.clone(),
++            native_identity: Some(identity.clone()),
++            native_call_proof: NativeCallOwnerProof::Fresh,
++            guard: Guard::new(DisabledAuthorizer),
++        });
++        owners().insert(provider_call_id.to_string(), original);
++        let stale = owner_native_call_admission(provider_call_id).unwrap();
++        let replacement = Arc::new(OwnerEntry {
++            contract,
++            native_identity: Some(identity),
++            native_call_proof: NativeCallOwnerProof::Fresh,
++            guard: Guard::new(DisabledAuthorizer),
++        });
++        owners().insert(provider_call_id.to_string(), replacement.clone());
++
++        assert!(!stale.close_if_current(provider_call_id).await);
++        assert!(Arc::ptr_eq(
++            owners().get(provider_call_id).unwrap().value(),
++            &replacement
++        ));
++        owners().remove(provider_call_id);
++    }
++
++    #[test]
++    fn stale_refresh_identity_cannot_follow_a_replacement_owner() {
++        let provider_call_id = "owner-refresh-fence@example.test";
++        let identity = crate::call::domain::foundation_identity::NativeCallIdentity::standalone(
++            provider_call_id,
++        )
++        .unwrap();
++        let contract = OwnerContract {
++            reservation_id: "reservation-refresh-fence".to_string(),
++            interaction_id: "interaction-refresh-fence".to_string(),
++            owner_epoch: identity.owner_epoch().to_string(),
++            route_snapshot_revision: 1,
++            availability_profile: "VOICE-ORDINARY".to_string(),
++            auth_context_ref: None,
++            tenant_id: identity.tenant_id().to_string(),
++            cell_id: "cell-refresh-fence".to_string(),
++            owner_node_id: "node-refresh-fence".to_string(),
++            media_control_profile: MediaControlProfile::G711Relay,
++        };
++        let original = Arc::new(OwnerEntry {
++            contract: contract.clone(),
++            native_identity: Some(identity.clone()),
++            native_call_proof: NativeCallOwnerProof::Fresh,
++            guard: Guard::new(DisabledAuthorizer),
++        });
++        owners().insert(provider_call_id.to_string(), original.clone());
++        assert!(current_owner_entry(provider_call_id, &original).is_some());
++
++        let replacement = Arc::new(OwnerEntry {
++            contract,
++            native_identity: Some(identity),
++            native_call_proof: NativeCallOwnerProof::Fresh,
++            guard: Guard::new(DisabledAuthorizer),
++        });
++        owners().insert(provider_call_id.to_string(), replacement.clone());
++
++        assert!(current_owner_entry(provider_call_id, &original).is_none());
++        assert!(current_owner_entry(provider_call_id, &replacement).is_some());
++        owners().remove(provider_call_id);
++    }
++
+     #[test]
+     fn owner_contract_rejects_partial_processing_profile() {
+         let result = serde_json::from_value::<OwnerContract>(json!({
+diff --git a/src/proxy/active_call_registry.rs b/src/proxy/active_call_registry.rs
+index e8acbf2..dbd0a3a 100644
+--- a/src/proxy/active_call_registry.rs
++++ b/src/proxy/active_call_registry.rs
+@@ -908,6 +908,28 @@ impl ActiveProxyCallRegistry {
+         })
+     }
+ 
++    pub(crate) fn cleanup_fence_for_identity(
++        &self,
++        provider_call_id: &str,
++        expected_identity: &NativeCallIdentity,
++    ) -> Result<NativeCallCleanupFence, ActiveCallRegistryError> {
++        let slot = self
++            .slots
++            .get(provider_call_id)
++            .ok_or(ActiveCallRegistryError::SessionNotRegistered)?;
++        if slot.identity.as_ref() != Some(expected_identity) {
++            return Err(ActiveCallRegistryError::AuthorityConflict);
++        }
++        let binding = slot
++            .native_binding
++            .as_ref()
++            .ok_or(ActiveCallRegistryError::NativeCallUnavailable)?;
++        Ok(NativeCallCleanupFence {
++            identity: expected_identity.clone(),
++            cell: binding.cell.clone(),
++        })
++    }
++
+     pub fn remove(&self, session_id: &str) {
+         self.remove_slot_if(session_id, |_| true);
+     }
+@@ -1323,6 +1345,25 @@ impl ActiveProxyCallRegistry {
+         &self,
+         session_id: String,
+         handle: SipSessionHandle,
++    ) -> Result<bool, ActiveCallRegistryError> {
++        let identity = live_native_identity(&session_id)?;
++        self.register_handle_with_identity(session_id, handle, identity)
++    }
++
++    pub(crate) fn register_handle_with_cleanup_fence(
++        &self,
++        session_id: String,
++        handle: SipSessionHandle,
++    ) -> Result<(bool, NativeCallCleanupFence), ActiveCallRegistryError> {
++        let identity = live_native_identity(&session_id)?;
++        self.register_handle_with_identity_and_cleanup_fence(session_id, handle, identity)
++    }
++
++    pub(crate) fn register_handle_with_identity(
++        &self,
++        session_id: String,
++        handle: SipSessionHandle,
++        identity: NativeCallIdentity,
+     ) -> Result<bool, ActiveCallRegistryError> {
+         let entry = ActiveProxyCallEntry {
+             session_id: session_id.clone(),
+@@ -1333,10 +1374,21 @@ impl ActiveProxyCallRegistry {
+             answered_at: None,
+             status: ActiveProxyCallStatus::Ringing,
+         };
+-        let identity = live_native_identity(&session_id)?;
+         self.try_upsert_authoritative(entry, handle, identity)
+     }
+ 
++    pub(crate) fn register_handle_with_identity_and_cleanup_fence(
++        &self,
++        session_id: String,
++        handle: SipSessionHandle,
++        identity: NativeCallIdentity,
++    ) -> Result<(bool, NativeCallCleanupFence), ActiveCallRegistryError> {
++        let inserted =
++            self.register_handle_with_identity(session_id.clone(), handle, identity.clone())?;
++        let cleanup_fence = self.cleanup_fence_for_identity(&session_id, &identity)?;
++        Ok((inserted, cleanup_fence))
++    }
++
+     #[cfg(test)]
+     pub fn handles_by_dialog_count(&self) -> usize {
+         self.handles_by_dialog.len()
+diff --git a/src/proxy/proxy_call/sip_session.rs b/src/proxy/proxy_call/sip_session.rs
+index 3c429bf..73d0e20 100644
+--- a/src/proxy/proxy_call/sip_session.rs
++++ b/src/proxy/proxy_call/sip_session.rs
+@@ -104,6 +104,7 @@ async fn reject_active_call_admission(
+     tx: &mut rsipstack::transaction::transaction::Transaction,
+     session_id: &str,
+     close_owner: bool,
++    native_owner_admission: Option<&crate::ivekit_owner::NativeCallOwnerAdmission>,
+ ) -> Result<()> {
+     let code = StatusCode::ServiceUnavailable;
+     let reply = tx
+@@ -124,7 +125,12 @@ async fn reject_active_call_admission(
+         .await
+         .map_err(|error| anyhow!("active call rejection reply failed: {error}"));
+     if close_owner {
+-        crate::ivekit_owner::close_owner(session_id).await;
++        match native_owner_admission {
++            Some(admission) => {
++                admission.close_if_current(session_id).await;
++            }
++            None => crate::ivekit_owner::close_owner(session_id).await,
++        }
+     }
+     reply?;
+     Ok(())
+@@ -1232,13 +1238,50 @@ impl SipSession {
+         let (callee_state_tx, callee_state_rx) = server.dialog_layer.new_dialog_state_channel();
+         session.callee_event_tx = Some(callee_state_tx);
+ 
++        let native_owner_admission = crate::ivekit_owner::owner_native_call_admission(&session_id);
++        let native_call_recovery_binding =
++            match crate::ivekit_owner::native_call_recovery_binding_for_runtime(
++                native_owner_admission.as_ref(),
++                server.native_sip_effect_runtime.is_some(),
++            ) {
++                Ok(binding) => binding,
++                Err(error) => {
++                    warn!(
++                        %session_id,
++                        error = %error,
++                        "Native Call owner proof rejected before durable admission"
++                    );
++                    reject_active_call_admission(
++                        tx,
++                        &session_id,
++                        true,
++                        native_owner_admission.as_ref(),
++                    )
++                    .await?;
++                    return Ok(());
++                }
++            };
+         let mut remove_registered_call_on_rejection = false;
+-        let active_call_admission = match server
+-            .active_call_registry
+-            .register_handle(session_id.clone(), handle.clone())
+-        {
+-            Ok(_) => {
++        let register_handle = match native_owner_admission.as_ref() {
++            Some(admission) => match admission.assert_current(&session_id) {
++                Ok(()) => server
++                    .active_call_registry
++                    .register_handle_with_identity_and_cleanup_fence(
++                        session_id.clone(),
++                        handle.clone(),
++                        admission.identity.clone(),
++                    ),
++                Err(_) => Err(ActiveCallRegistryError::AuthorityConflict),
++            },
++            None => server
++                .active_call_registry
++                .register_handle_with_cleanup_fence(session_id.clone(), handle.clone()),
++        };
++        let mut active_call_cleanup_fence = None;
++        let active_call_admission = match register_handle {
++            Ok((_, cleanup_fence)) => {
+                 remove_registered_call_on_rejection = true;
++                active_call_cleanup_fence = Some(cleanup_fence);
+                 server
+                     .active_call_registry
+                     .try_register_dialog(server_dialog.id().to_string(), handle.clone())
+@@ -1252,21 +1295,32 @@ impl SipSession {
+                 "Active call admission rejected before session start"
+             );
+             if remove_registered_call_on_rejection {
+-                server.active_call_registry.remove(&session_id);
++                if let Some(cleanup_fence) = active_call_cleanup_fence.take() {
++                    cleanup_fence.remove_original(&server.active_call_registry);
++                }
+             }
+             let close_owner = remove_registered_call_on_rejection
+                 || error != ActiveCallRegistryError::ProviderAlreadyRegistered;
+-            reject_active_call_admission(tx, &session_id, close_owner).await?;
++            reject_active_call_admission(
++                tx,
++                &session_id,
++                close_owner,
++                native_owner_admission.as_ref(),
++            )
++            .await?;
+             return Ok(());
+         }
+ 
+-        let _native_sip_effect_capabilities = match crate::call::adapters::
+-            native_sip_effect_capabilities::install_for_admitted_native_call(
++        let native_sip_effect_capabilities = match crate::call::adapters::
++            native_sip_effect_capabilities::install_for_admitted_or_recovered_native_call(
+                 server.native_sip_effect_runtime.as_deref(),
++                native_call_recovery_binding,
+                 &server.active_call_registry,
+                 &session_id,
+                 tx,
+-            ) {
++            )
++            .await
++            {
+             Ok(holder) => holder,
+             Err(error) => {
+                 warn!(
+@@ -1274,11 +1328,36 @@ impl SipSession {
+                     error = %error,
+                     "Durable Native SIP effect capability admission failed"
+                 );
+-                server.active_call_registry.remove(&session_id);
+-                reject_active_call_admission(tx, &session_id, true).await?;
++                if let Some(cleanup_fence) = active_call_cleanup_fence.take() {
++                    cleanup_fence.remove_original(&server.active_call_registry);
++                }
++                reject_active_call_admission(
++                    tx,
++                    &session_id,
++                    true,
++                    native_owner_admission.as_ref(),
++                )
++                .await?;
+                 return Ok(());
+             }
+         };
++        if native_owner_admission
++            .as_ref()
++            .is_some_and(|admission| admission.assert_current(&session_id).is_err())
++        {
++            warn!(
++                %session_id,
++                "Native Call owner changed during durable capability admission"
++            );
++            drop(native_sip_effect_capabilities);
++            if let Some(cleanup_fence) = active_call_cleanup_fence.take() {
++                cleanup_fence.remove_original(&server.active_call_registry);
++            }
++            reject_active_call_admission(tx, &session_id, true, native_owner_admission.as_ref())
++                .await?;
++            return Ok(());
++        }
++        let _native_sip_effect_capabilities = native_sip_effect_capabilities;
+ 
+         // Emit CallIncoming event via RWI gateway if configured.
+         let incoming_sip_headers = {
+diff --git a/src/proxy/routing/http.rs b/src/proxy/routing/http.rs
+index 0efe08d..d49683f 100644
+--- a/src/proxy/routing/http.rs
++++ b/src/proxy/routing/http.rs
+@@ -349,24 +349,46 @@ impl HttpCallRouter {
+                 status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
+                 extensions: None,
+             })?;
+-        crate::ivekit_owner::ensure_owner_with_identity(
+-            call_id,
+-            crate::ivekit_owner::OwnerContract {
+-                reservation_id: admitted.reservation_id,
+-                interaction_id: admitted.placement_interaction_id,
+-                owner_epoch: admitted.owner_epoch,
+-                route_snapshot_revision: admitted.route_snapshot_revision,
+-                availability_profile: admitted.availability_profile,
+-                auth_context_ref: admitted.auth_context_ref,
+-                tenant_id: admitted.tenant_id,
+-                cell_id: admitted.cell_id,
+-                owner_node_id: admitted.owner_node_id,
+-                media_control_profile: admitted.media_control_profile,
+-            },
+-            native_identity,
+-        )
+-        .await
+-        .map_err(|error| RouteError {
++        let owner_contract = crate::ivekit_owner::OwnerContract {
++            reservation_id: admitted.reservation_id,
++            interaction_id: admitted.placement_interaction_id,
++            owner_epoch: admitted.owner_epoch,
++            route_snapshot_revision: admitted.route_snapshot_revision,
++            availability_profile: admitted.availability_profile,
++            auth_context_ref: admitted.auth_context_ref,
++            tenant_id: admitted.tenant_id,
++            cell_id: admitted.cell_id,
++            owner_node_id: admitted.owner_node_id,
++            media_control_profile: admitted.media_control_profile,
++        };
++        let owner_admission = match admitted.native_call_admission {
++            Some(HttpNativeCallAdmission::Fresh) => {
++                crate::ivekit_owner::ensure_fresh_owner_with_identity(
++                    call_id,
++                    owner_contract,
++                    native_identity,
++                )
++                .await
++            }
++            Some(HttpNativeCallAdmission::Recovered { predecessor }) => {
++                crate::ivekit_owner::ensure_recovered_owner_with_identity(
++                    call_id,
++                    owner_contract,
++                    native_identity,
++                    predecessor,
++                )
++                .await
++            }
++            None => {
++                crate::ivekit_owner::ensure_owner_with_identity(
++                    call_id,
++                    owner_contract,
++                    native_identity,
++                )
++                .await
++            }
++        };
++        owner_admission.map_err(|error| RouteError {
+             error: anyhow!("snapshot owner authorization failed: {error}"),
+             status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
+             extensions: None,
+@@ -463,6 +485,15 @@ struct HttpSnapshotAdmissionPayload<'a> {
+     route_snapshot_revision: u64,
+ }
+ 
++#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
++#[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
++enum HttpNativeCallAdmission {
++    Fresh,
++    Recovered {
++        predecessor: crate::call::domain::foundation_identity::NativeCallRecoveryBinding,
++    },
++}
++
+ #[derive(Deserialize)]
+ struct HttpSnapshotAdmissionResponse {
+     accepted: bool,
+@@ -484,6 +515,8 @@ struct HttpSnapshotAdmissionResponse {
+     auth_context_ref: Option<String>,
+     #[serde(default)]
+     audio_tap_token: Option<String>,
++    #[serde(default)]
++    native_call_admission: Option<HttpNativeCallAdmission>,
+ }
+ 
+ impl HttpSnapshotAdmissionResponse {
+@@ -1098,7 +1131,10 @@ mod snapshot_tests {
+             "media_control_profile": {
+                 "media_profile_id": "g711-relay-v1"
+             },
+-            "route_snapshot_revision": 11
++            "route_snapshot_revision": 11,
++            "native_call_admission": {
++                "mode": "fresh"
++            }
+         }))
+         .unwrap();
+ 
+@@ -1115,6 +1151,100 @@ mod snapshot_tests {
+         );
+         assert_eq!(identity.generation(), 3);
+         assert_eq!(identity.revision(), 5);
++        assert!(matches!(
++            response.native_call_admission,
++            Some(HttpNativeCallAdmission::Fresh)
++        ));
+         assert!(response.native_identity("different-provider-id").is_err());
+     }
++
++    #[test]
++    fn snapshot_admission_accepts_only_an_exact_closed_recovery_binding() {
++        let predecessor =
++            crate::call::domain::foundation_identity::NativeCallIdentity::adopt_projection(
++                "tenant-a",
++                "vcall_abc",
++                "vcall_abc",
++                "provider-call-id@example.test",
++                6,
++                2,
++                4,
++            )
++            .unwrap();
++        let binding = predecessor.recovery_binding();
++        let mut value = serde_json::json!({
++            "accepted": true,
++            "call_projection_id": "vcall_abc",
++            "placement_interaction_id": "vcall_abc",
++            "provider_call_id": "provider-call-id@example.test",
++            "call_generation": 3,
++            "call_revision": 5,
++            "reservation_id": "reservation-a",
++            "owner_epoch": "7",
++            "tenant_id": "tenant-a",
++            "cell_id": "cell-a",
++            "owner_node_id": "rustpbx-a",
++            "media_control_profile": {
++                "media_profile_id": "g711-relay-v1"
++            },
++            "route_snapshot_revision": 11,
++            "availability_profile": "VOICE-HA-T1",
++            "auth_context_ref": "auth-context-a",
++            "native_call_admission": {
++                "mode": "recovered",
++                "predecessor": binding
++            }
++        });
++        let response: HttpSnapshotAdmissionResponse =
++            serde_json::from_value(value.clone()).unwrap();
++        let identity = response
++            .native_identity("provider-call-id@example.test")
++            .unwrap();
++        let Some(HttpNativeCallAdmission::Recovered { predecessor }) =
++            response.native_call_admission.as_ref()
++        else {
++            panic!("closed recovery admission");
++        };
++        let expected =
++            crate::call::domain::foundation_identity::NativeCallIdentity::recover_from_binding(
++                predecessor,
++                identity.owner_epoch(),
++            )
++            .unwrap();
++        assert_eq!(identity, expected);
++
++        let mut invalid_predecessor = value.clone();
++        invalid_predecessor["native_call_admission"]["predecessor"]["unexpected"] =
++            serde_json::json!(true);
++        assert!(
++            serde_json::from_value::<HttpSnapshotAdmissionResponse>(invalid_predecessor).is_err()
++        );
++
++        value["native_call_admission"]["unexpected"] = serde_json::json!(true);
++        assert!(serde_json::from_value::<HttpSnapshotAdmissionResponse>(value).is_err());
++    }
++
++    #[test]
++    fn snapshot_admission_has_no_implicit_recovery_binding() {
++        let response: HttpSnapshotAdmissionResponse = serde_json::from_value(serde_json::json!({
++            "accepted": true,
++            "call_projection_id": "vcall_abc",
++            "placement_interaction_id": "vcall_abc",
++            "provider_call_id": "provider-call-id@example.test",
++            "call_generation": 1,
++            "call_revision": 1,
++            "reservation_id": "reservation-a",
++            "owner_epoch": "1",
++            "tenant_id": "tenant-a",
++            "cell_id": "cell-a",
++            "owner_node_id": "rustpbx-a",
++            "media_control_profile": {
++                "media_profile_id": "g711-relay-v1"
++            },
++            "route_snapshot_revision": 11
++        }))
++        .unwrap();
++
++        assert!(response.native_call_admission.is_none());
++    }
+ }

@@ -144,7 +144,7 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
     rustpbx_commit: '6c49ee76baa54fdbf8f98020cc9bee158c7c15de',
     rsipstack_commit: '8318e97b1170de4e5245b120afec1cdf53e3d716',
     rustrtc_commit: '166c6d22984429eb6b509920c14fcd69f974f0b3',
-    patchset: 'ivekit.78',
+    patchset: 'ivekit.79',
     current_adapter: 'rsipstack',
     target_adapter: 'rvoip_low_level_slices_after_separate_gates',
     native_runtime_authority: 'Unified RustPBX process',
@@ -183,9 +183,9 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
   assert.deepEqual(
     contract.native_matched_cancel_effects.activation_blockers,
     [
-      'recovered_Call_activation_and_recovery_invocation_not_run',
+      'trusted_recovered_Call_producer_and_real_process_invocation_not_run',
       'live_endpoint_activation_not_run',
-      'Linux_RustPBX_full_library_and_process_functional_verification_not_run_under_safe_disk_floor',
+      'Linux_RustPBX_process_functional_verification_not_run',
     ],
   );
   assert.equal(
@@ -252,6 +252,10 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
     contract.native_call_capability_recovery.oracle_contract,
     'atomically_fence_predecessor_owner_generation_then_prove_NoVisibleEffect',
   );
+  assert.equal(
+    contract.native_call_capability_recovery.implementation_status,
+    'component_implemented_default_disabled_trusted_admission_invocation',
+  );
   assert.deepEqual(contract.native_call_capability_recovery.probe_outcomes, [
     'NoVisibleEffect',
     'VisibleOrAmbiguous',
@@ -270,16 +274,77 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
   );
   assert.equal(
     contract.native_call_capability_recovery.live_recovery_wiring,
-    'composition_root_implemented_default_disabled_recovered_Call_invocation_not_run',
+    'trusted_admission_invokes_PostgreSQL_oracle_default_disabled_recovered_proof_producer_not_run',
   );
   assert.equal(
     contract.native_matched_cancel_effects.capability_restart_rebuild,
-    'durable_PostgreSQL_composition_root_implemented_default_disabled_recovered_Call_invocation_not_run',
+    'durable_PostgreSQL_composition_and_trusted_invocation_implemented_default_disabled_recovered_producer_not_run',
   );
   assert.equal(
     contract.native_matched_cancel_effects.local_functional_verification
       .durable_runtime_composition,
-    '38_native_sip_effect_tests_passed_0_failed_1_physical_test_ignored_plus_exact_physical_adapter_1_passed',
+    '40_native_sip_effect_tests_passed_0_failed_1_physical_test_ignored_plus_lower_layer_exact_physical_adapter_1_passed',
+  );
+  assert.equal(
+    contract.native_call_capability_recovery.admission_contract,
+    'authenticated_snapshot_response_closed_tagged_fresh_or_recovered_predecessor',
+  );
+  assert.equal(
+    contract.native_call_capability_recovery.missing_proof_policy,
+    'legacy_unspecified_fails_closed_when_durable_runtime_is_enabled',
+  );
+  assert.equal(
+    contract.native_call_capability_recovery.fresh_proof_issuer,
+    'control_plane_new_prepared_reservation_only',
+  );
+  assert.equal(
+    contract.native_call_capability_recovery.recovered_proof_issuer,
+    'not_run',
+  );
+  assert.equal(
+    contract.native_call_capability_recovery.owner_admission_snapshot,
+    'one_Arc_snapshot_identity_proof_and_guard_checked_before_and_after_async_oracle',
+  );
+  assert.equal(
+    contract.native_call_capability_recovery.stale_snapshot_cleanup,
+    'conditional_owner_pointer_fence_preserves_replacement_owner',
+  );
+  assert.equal(
+    contract.native_call_capability_recovery.stale_active_call_cleanup,
+    'NativeCallCleanupFence_exact_identity_and_cell_pointer_preserves_replacement_call',
+  );
+  assert.equal(
+    contract.native_call_capability_recovery.refresh_task_replacement_fence,
+    'original_owner_pointer_exit_on_replacement',
+  );
+  assert.equal(
+    contract.native_call_capability_recovery.current_candidate_server_verification,
+    'not_run_server_not_used_for_ivekit_79',
+  );
+  assert.deepEqual(
+    contract.native_call_capability_recovery.local_functional_verification,
+    {
+      native_sip_effect_capabilities:
+        '135_sip_effect_tests_passed_0_failed_11_physical_tests_ignored_plus_lower_layer_exact_physical_adapter_1_passed',
+      native_sip_effect_adapter:
+        '40_passed_0_failed_1_physical_test_ignored',
+      ivekit_owner: '11_passed_0_failed',
+      snapshot_admission: '3_passed_0_failed',
+      recovered_admission: '15_passed_0_failed',
+      locked_library_check: 'passed',
+      rustfmt_changed_sources: 'passed',
+      full_rustpbx_library:
+        '2109_passed_0_failed_12_external_prerequisites_ignored',
+    },
+  );
+  assert.deepEqual(
+    contract.native_call_capability_recovery.activation_blockers,
+    [
+      'trusted_recovered_Call_proof_producer_not_run',
+      'real_process_restart_and_ambiguity_recovery_not_run',
+      'live_endpoint_activation_not_run',
+      'Linux_RustPBX_process_functional_verification_not_run',
+    ],
   );
   assert.deepEqual(
     contract.native_call_capability_recovery.server_functional_verification,
@@ -339,7 +404,7 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
   assert.match(build, /RUSTPBX_COMMIT="6c49ee76baa54fdbf8f98020cc9bee158c7c15de"/u);
   assert.match(build, /RSIPSTACK_COMMIT="8318e97b1170de4e5245b120afec1cdf53e3d716"/u);
   assert.match(build, /RUSTRTC_COMMIT="166c6d22984429eb6b509920c14fcd69f974f0b3"/u);
-  assert.match(build, /PATCHSET="ivekit\.78"/u);
+  assert.match(build, /PATCHSET="ivekit\.79"/u);
   assert.match(
     build,
     /rustpbx-converact-postgres-sip-effect-repair-batch\.patch/u,
@@ -391,6 +456,10 @@ test('SipFoundation freezes one authority, exact current pins and bounded SLOs',
   assert.match(
     build,
     /rustpbx-converact-stale-nonterminal-recovery-returning-alias\.patch[\s\S]*rustpbx-converact-sip-effect-observer-supervisor\.patch/u,
+  );
+  assert.match(
+    build,
+    /rustpbx-converact-durable-sip-runtime-composition\.patch[\s\S]*rustpbx-converact-recovered-call-admission\.patch/u,
   );
 });
 
