@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-postgres-store",
+  "reviewed_at": "2026-08-14T15:16:28Z",
+  "reviewer": "/root/r1_route_store_review",
+  "mode": "independent_read_only_exact_source",
+  "critical": 0,
+  "important": 0,
+  "verified": [
+    "ClientLease defaults to physical discard and recycles only after a known commit or rollback",
+    "raw Transaction and its runner are private and the external compile-fail boundary is effective",
+    "PostgreSQL 14.18 physical evidence is bound to the current three exact source hashes and passes 12 of 12",
+    "TypeScript exact-source fixture and replay, RLS, boundedness, cancellation, unknown/reconcile, backend replacement and Clean reset evidence agree",
+    "all six Cargo.lock packages newly introduced by this slice are recorded with matching checksums",
+    "num_cpus unsafe source was reviewed and wasm32-only getrandom plus Hermit-only hermit-abi are absent from supported macOS/Linux artifacts",
+    "focused Rust ordinary tests, compile-fail doctest, Clippy with warnings denied, formatting, TypeScript contract replay and typecheck pass",
+    "production TLS, server validation, performance and production eligibility remain not_run"
+  ],
+  "repository_or_server_mutation_by_reviewer": false
+}

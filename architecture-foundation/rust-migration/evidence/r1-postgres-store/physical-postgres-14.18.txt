@@ -1,0 +1,52 @@
+RM01-R1 PostgreSQL physical functional verification
+run_at_utc: 2026-08-14T15:09:51Z
+scope: local temporary cluster only; no Docker, server or network listener
+
+Harness:
+- mktemp data root under /private/tmp/converact-rm01-pg.*
+- PostgreSQL initdb --auth-local=trust --auth-host=reject --no-locale
+- postgres started with -F, Unix socket inside the temporary root and -h ''
+- admin role is the initdb owner
+- runtime role: opc_runtime_test LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
+  NOINHERIT NOBYPASSRLS
+- runtime role granted only USAGE, CREATE on the isolated public schema for
+  test fixture construction
+- trap always runs pg_ctl -m immediate stop and removes only the validated
+  /private/tmp/converact-rm01-pg.* root
+
+Exact test command after isolated-cluster setup:
+
+PATH=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin:$PATH \
+RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc \
+/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/cargo \
+test -p converact-postgres-store --lib -- --ignored --test-threads=1
+
+Exact source identity printed immediately before the command:
+
+postgres (PostgreSQL) 14.18 (Homebrew)
+0227e5564d93df0f6f4fd1da250f257116e1b9854f2bda30ef2b6b57e64d5502  crates/postgres-store/src/lib.rs
+0e018060762cc0b46e63ff779feed3d82e7b18decba2f404e199a52114321b9c  crates/postgres-store/src/tenant_transaction.rs
+0b90e201ba33b450b247cb7db1c62d0be5cbef5d2c74f8b9ba35a7452994b7eb  crates/postgres-store/src/physical_tests.rs
+
+Raw cargo result:
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/debug/deps/converact_postgres_store-391b0df8fb56d1e3)
+
+running 12 tests
+test tenant_transaction::physical_tests::admission_rejects_work_beyond_the_fixed_connection_and_waiter_bound ... ok
+test tenant_transaction::physical_tests::cancelling_a_pool_waiter_releases_its_bounded_admission_slot ... ok
+test tenant_transaction::physical_tests::clean_recycle_resets_session_state_before_reusing_a_connection ... ok
+test tenant_transaction::physical_tests::commit_error_is_unknown_and_discards_the_connection_without_retrying ... ok
+test tenant_transaction::physical_tests::database_rls_isolates_reads_writes_for_the_authoritative_tenant ... ok
+test tenant_transaction::physical_tests::database_statement_timeout_cancels_work_and_the_pool_recovers ... ok
+test tenant_transaction::physical_tests::exhausted_pool_fails_at_the_bounded_wait_deadline ... ok
+test tenant_transaction::physical_tests::external_commit_cancellation_discards_the_connection_for_reconciliation ... ok
+test tenant_transaction::physical_tests::external_work_cancellation_rolls_back_and_discards_the_connection ... ok
+test tenant_transaction::physical_tests::monotonic_transaction_deadline_rolls_back_and_releases_the_connection ... ok
+test tenant_transaction::physical_tests::rollback_failure_is_unknown_and_discards_the_connection ... ok
+test tenant_transaction::physical_tests::tenant_transaction_installs_local_scope_and_rolls_back_work_errors ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.84s
+
+process_exit: 0

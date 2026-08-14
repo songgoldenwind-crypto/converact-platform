@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "contract_id": "CONVERACT_POSTGRES_TENANT_TRANSACTION_V1",
+  "captured_at_commit": "3114ea8ca6ab473d7eea44fc69a0da83108b6a11",
+  "current_sources": [
+    {
+      "path": "src/db-pg-tenant.ts",
+      "sha256": "e2fc7ef24772959edefebfbc5c95e5c01940b26b81fc55df65b09e861ac4d2d1"
+    },
+    {
+      "path": "src/db-pg.ts",
+      "sha256": "67ce157b3d4db5479774d4554cdd2b8410c670bfc346ec5a0dc77eeeea581c55"
+    }
+  ],
+  "cases": [
+    {
+      "id": "success_commits_once",
+      "tenant_id": "tenant-a",
+      "work_sql": "SELECT 'work-success'",
+      "work_outcome": "ok",
+      "expected_trace": [
+        { "sql": "BEGIN", "params": [] },
+        {
+          "sql": "SELECT set_config('app.current_tenant', $1, true)",
+          "params": ["tenant-a"]
+        },
+        { "sql": "SELECT 'work-success'", "params": [] },
+        { "sql": "COMMIT", "params": [] }
+      ]
+    },
+    {
+      "id": "work_error_rolls_back_once",
+      "tenant_id": "tenant-b",
+      "work_sql": "SELECT 'work-error'",
+      "work_outcome": "error",
+      "expected_trace": [
+        { "sql": "BEGIN", "params": [] },
+        {
+          "sql": "SELECT set_config('app.current_tenant', $1, true)",
+          "params": ["tenant-b"]
+        },
+        { "sql": "SELECT 'work-error'", "params": [] },
+        { "sql": "ROLLBACK", "params": [] }
+      ]
+    }
+  ],
+  "shared_invariants": [
+    "tenant_id_required",
+    "tenant_scope_is_transaction_local",
+    "work_and_scope_share_one_transaction",
+    "successful_work_commits_once",
+    "work_error_rolls_back_once",
+    "connection_released_after_known_outcome"
+  ],
+  "rust_target_hardening": [
+    "bounded_pool_and_waiters",
+    "monotonic_transaction_deadline",
+    "database_statement_and_lock_deadlines",
+    "no_automatic_retry",
+    "commit_or_rollback_uncertainty_discards_connection",
+    "external_cancellation_discards_connection",
+    "raw_transaction_is_adapter_private"
+  ]
+}

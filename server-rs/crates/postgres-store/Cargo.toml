@@ -1,0 +1,16 @@
+[package]
+name = "converact-postgres-store"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+converact-kernel-ids = { path = "../kernel-ids" }
+deadpool-postgres.workspace = true
+tokio.workspace = true
+tokio-postgres.workspace = true
+
+[lints]
+workspace = true

@@ -9,6 +9,7 @@ members = [
   "crates/migration-store",
   "crates/migration-tooling",
   "crates/observability",
+  "crates/postgres-store",
   "crates/runtime-health",
   "crates/tenant-auth",
   "crates/testkit",
@@ -24,6 +25,7 @@ publish = false
 
 [workspace.dependencies]
 axum = "=0.8.9"
+deadpool-postgres = { version = "=0.14.1", default-features = false, features = ["rt_tokio_1"] }
 hex = "=0.4.3"
 ryu = "=1.0.23"
 rustix = { version = "=1.1.4", features = ["fs", "process"] }

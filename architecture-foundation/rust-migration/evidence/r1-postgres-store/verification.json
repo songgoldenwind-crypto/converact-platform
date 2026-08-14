@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-postgres-store",
+  "generated_at": "2026-08-14T15:17:49Z",
+  "current_state": "implemented_offline",
+  "target_state": "complete_shared_durable_platform_foundation",
+  "production_eligible": false,
+  "checks": [
+    {
+      "id": "active_typescript_exact_source_replay",
+      "status": "passed",
+      "result": "3/3 PostgreSQL contract tests plus 16/16 active tenant-context tests; exact db-pg-tenant.ts and db-pg.ts SHA-256 identities matched"
+    },
+    {
+      "id": "affected_typescript_typecheck",
+      "status": "passed"
+    },
+    {
+      "id": "focused_rust_ordinary",
+      "status": "passed",
+      "result": "4/4 ordinary tests and 1/1 external raw-transaction compile-fail doctest"
+    },
+    {
+      "id": "isolated_postgresql_14_18_functional",
+      "status": "passed",
+      "result": "12/12 physical tests over a temporary local Unix-socket cluster with non-superuser NOBYPASSRLS runtime role"
+    },
+    {
+      "id": "focused_clippy_and_format",
+      "status": "passed",
+      "result": "all targets/all features with -D warnings; cargo fmt check"
+    },
+    {
+      "id": "full_rust_workspace_current_exact_source",
+      "status": "passed",
+      "result": "76 passed, 18 physical tests intentionally ignored; workspace Clippy all targets/all features -D warnings and fmt check passed"
+    },
+    {
+      "id": "independent_review_final",
+      "status": "passed",
+      "result": "final exact-source read-only review reported 0 Critical and 0 Important"
+    },
+    {
+      "id": "production_tls_ca_hostname_secret_composition",
+      "status": "not_run"
+    },
+    {
+      "id": "domain_event_outbox_idempotency_adapters",
+      "status": "not_run"
+    },
+    {
+      "id": "running_server_validation",
+      "status": "not_run"
+    },
+    {
+      "id": "performance_validation",
+      "status": "not_run"
+    },
+    {
+      "id": "production_eligibility",
+      "status": "not_run"
+    }
+  ]
+}

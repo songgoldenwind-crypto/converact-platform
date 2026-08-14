@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-postgres-store",
+  "generated_at": "2026-08-14T15:04:54Z",
+  "cycles": [
+    {
+      "id": "bounded_settings_and_inert_pool",
+      "red": "the Rust workspace had no validated PostgreSQL limits, fixed pool or stable pool errors",
+      "green": "zero, oversized and inverted limits fail closed; construction is inert; connection and waiter capacity plus wait/create/recycle deadlines are fixed"
+    },
+    {
+      "id": "typescript_contract_freeze",
+      "red": "the Rust migration had no exact corpus bound to the active TypeScript tenant transaction source",
+      "green": "the checked-in corpus binds both source hashes and replays success, rollback, tenant scope, release and empty-tenant rejection"
+    },
+    {
+      "id": "tenant_transaction_and_rls",
+      "red": "the Rust runtime had no one-transaction tenant scope, monotonic deadline or physical RLS proof",
+      "green": "an isolated non-bypass role proves local tenant/search-path/timeouts, forced-RLS isolation, work rollback and cross-tenant write rejection"
+    },
+    {
+      "id": "commit_unknown_connection_discard",
+      "red": "a deterministic deferred-constraint commit failure returned CommitUnknown but the next operation reused the same backend PID",
+      "green": "the lifecycle returns a borrow-free disposition and physically discards every BEGIN, rollback or commit-unknown connection without retrying"
+    },
+    {
+      "id": "external_cancellation_safety",
+      "red": "cancelling a task during transaction work rolled back but recycled the same backend PID, leaving connection state dependent on implicit drop ordering",
+      "green": "a discard-on-drop ClientLease closes connections cancelled during work or commit; cancelled waiters release admission and known outcomes alone recycle"
+    },
+    {
+      "id": "reviewed_adapter_authority_boundary",
+      "red": "independent review found a public raw Transaction could rewrite app.current_tenant or issue COMMIT and bypass rollback semantics",
+      "green": "the raw runner is a private deep-module method, physical tests are its child, and an external compile-fail contract prevents transaction acquisition"
+    },
+    {
+      "id": "fault_and_recycle_completion",
+      "red": "initial physical coverage omitted rollback failure, connection replacement and Clean session-state reset",
+      "green": "12 physical tests cover rollback failure as RollbackUnknown, replacement backend PIDs, Clean RESET ALL and pool/work/commit cancellation paths"
+    }
+  ]
+}
