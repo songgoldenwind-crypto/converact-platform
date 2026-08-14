@@ -9,13 +9,20 @@ publish.workspace = true
 [dependencies]
 axum.workspace = true
 converact-config = { path = "../../crates/config" }
+converact-contracts = { path = "../../crates/contracts" }
 converact-observability = { path = "../../crates/observability" }
+converact-runtime-health = { path = "../../crates/runtime-health" }
 serde.workspace = true
+serde_json.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
 tower.workspace = true
+
+[[test]]
+name = "health_contract_replay"
+path = "../../tests/contract-replay/health.rs"
 
 [lints]
 workspace = true

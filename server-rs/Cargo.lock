@@ -87,7 +87,9 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "converact-config",
+ "converact-contracts",
  "converact-observability",
+ "converact-runtime-health",
  "serde",
  "serde_json",
  "tokio",
@@ -109,6 +111,7 @@ version = "0.1.0"
 dependencies = [
  "hex",
  "ryu",
+ "serde",
  "serde_json",
  "sha2",
 ]
@@ -121,8 +124,20 @@ version = "0.1.0"
 name = "converact-observability"
 version = "0.1.0"
 dependencies = [
+ "converact-kernel-ids",
+ "converact-runtime-health",
+ "serde_json",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "converact-runtime-health"
+version = "0.1.0"
+dependencies = [
+ "converact-contracts",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

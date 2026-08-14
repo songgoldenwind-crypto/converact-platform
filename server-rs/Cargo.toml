@@ -5,6 +5,7 @@ members = [
   "crates/contracts",
   "crates/kernel-ids",
   "crates/observability",
+  "crates/runtime-health",
   "crates/testkit",
 ]
 resolver = "3"

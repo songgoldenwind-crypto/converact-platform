@@ -1,0 +1,55 @@
+{
+  "evidence_id": "RM01-R0-HEALTH-INDEPENDENT-REVIEW-V1",
+  "scope": "uncommitted_checkpoint_r1_runtime_health_diff",
+  "initial_result": {
+    "critical": 0,
+    "important": 5
+  },
+  "dispositions": [
+    {
+      "finding": "runtime_task_group_not_composed_with_process_shutdown",
+      "status": "fixed",
+      "evidence": "serve_runtime owns HTTP and fixed-capacity child tasks under one deadline"
+    },
+    {
+      "finding": "runtime_config_was_source_identity_authority",
+      "status": "fixed",
+      "evidence": "runtime declaration must equal build-time CONVERACT_SOURCE_COMMIT"
+    },
+    {
+      "finding": "wire_diagnostics_allowed_free_text",
+      "status": "fixed",
+      "evidence": "field-specific migration/config/instance/error-code grammars and tests"
+    },
+    {
+      "finding": "wire_numbers_exceeded_typescript_safe_integer_domain",
+      "status": "fixed",
+      "evidence": "safe-integer, count and status-consistency validation tests"
+    },
+    {
+      "finding": "source_manifest_was_incomplete",
+      "status": "fixed",
+      "evidence": "process, config, observability and lifecycle source/tests are hashed"
+    },
+    {
+      "finding": "ready_snapshot_had_no_freshness_expiry",
+      "status": "fixed",
+      "evidence": "bounded monotonic publication TTL with injected-clock expiry test"
+    },
+    {
+      "finding": "tenant_and_cell_missing_from_startup_telemetry",
+      "status": "fixed",
+      "evidence": "validated tenant.id and cell.id fields are asserted in JSON telemetry"
+    },
+    {
+      "finding": "bootstrap_has_no_real_dependency_publisher",
+      "status": "deferred_by_checkpoint_boundary",
+      "evidence": "non-routed process intentionally remains fail-closed; real probes require the R3 durable foundation and no synthetic ready publisher was added"
+    }
+  ],
+  "final_result": {
+    "critical": 0,
+    "important": 0,
+    "verdict": "no_critical_or_important_findings"
+  }
+}

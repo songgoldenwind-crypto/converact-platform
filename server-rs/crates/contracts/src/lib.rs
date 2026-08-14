@@ -1,5 +1,7 @@
 //! Cross-language wire contracts shared by Converact Rust runtimes.
 
+pub mod health;
+
 use std::{error::Error, fmt};
 
 use serde_json::Value;

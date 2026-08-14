@@ -20,6 +20,8 @@ pub enum ConfigError {
     InvalidIdentity,
     /// The shutdown timeout is outside the fixed supported range.
     InvalidShutdownTimeout,
+    /// The source revision is not an exact lowercase Git commit.
+    InvalidSourceCommit,
     /// A required secret is empty, oversized or contains control bytes.
     InvalidSecret,
 }
@@ -31,6 +33,7 @@ impl fmt::Display for ConfigError {
             Self::InvalidBindAddress => "runtime_bind_address_invalid",
             Self::InvalidIdentity => "runtime_identity_invalid",
             Self::InvalidShutdownTimeout => "runtime_shutdown_timeout_invalid",
+            Self::InvalidSourceCommit => "runtime_source_commit_invalid",
             Self::InvalidSecret => "runtime_secret_invalid",
         })
     }
@@ -68,6 +71,7 @@ pub struct RuntimeConfig {
     bind_address: SocketAddr,
     tenant_id: TenantId,
     cell_id: CellId,
+    source_commit: Box<str>,
     shutdown_timeout: Duration,
     service_token: SecretString,
 }
@@ -89,6 +93,18 @@ impl RuntimeConfig {
             1..=MAX_SHUTDOWN_TIMEOUT_MS => Duration::from_millis(raw.shutdown_timeout_ms),
             _ => return Err(ConfigError::InvalidShutdownTimeout),
         };
+        if raw.source_commit.len() != 40
+            || !raw
+                .source_commit
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit())
+            || raw
+                .source_commit
+                .bytes()
+                .any(|byte| byte.is_ascii_uppercase())
+        {
+            return Err(ConfigError::InvalidSourceCommit);
+        }
         Ok(Self {
             bind_address: raw
                 .bind_address
@@ -96,6 +112,7 @@ impl RuntimeConfig {
                 .map_err(|_| ConfigError::InvalidBindAddress)?,
             tenant_id: TenantId::parse(raw.tenant_id).map_err(|_| ConfigError::InvalidIdentity)?,
             cell_id: CellId::parse(raw.cell_id).map_err(|_| ConfigError::InvalidIdentity)?,
+            source_commit: raw.source_commit.into_boxed_str(),
             shutdown_timeout,
             service_token: SecretString::parse(raw.service_token)?,
         })
@@ -119,6 +136,12 @@ impl RuntimeConfig {
         &self.cell_id
     }
 
+    /// Returns the exact lowercase source commit for this process image.
+    #[must_use]
+    pub fn source_commit(&self) -> &str {
+        &self.source_commit
+    }
+
     /// Returns the bounded graceful-shutdown deadline.
     #[must_use]
     pub const fn shutdown_timeout(&self) -> Duration {
@@ -139,6 +162,7 @@ impl fmt::Debug for RuntimeConfig {
             .field("bind_address", &self.bind_address)
             .field("tenant_id", &self.tenant_id)
             .field("cell_id", &self.cell_id)
+            .field("source_commit", &self.source_commit)
             .field("shutdown_timeout", &self.shutdown_timeout)
             .field("service_token", &self.service_token)
             .finish()
@@ -151,6 +175,7 @@ struct RawRuntimeConfig {
     bind_address: String,
     tenant_id: String,
     cell_id: String,
+    source_commit: String,
     shutdown_timeout_ms: u64,
     service_token: String,
 }

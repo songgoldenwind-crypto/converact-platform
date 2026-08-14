@@ -1,0 +1,114 @@
+{
+  "contract_version": 1,
+  "sources": [
+    "src/agent-runtime/converact/http-server.ts",
+    "src/agent-runtime/converact/operations/readiness.ts"
+  ],
+  "request_id": "health-vector-1",
+  "cases": [
+    {
+      "name": "live_without_probe",
+      "path": "/livez",
+      "state": null,
+      "status": 200,
+      "body_bytes": "{\"status\":\"alive\"}",
+      "probe_count_delta": 0,
+      "headers": {
+        "cache-control": "no-store",
+        "content-type": "application/json; charset=utf-8",
+        "x-request-id": "health-vector-1"
+      }
+    },
+    {
+      "name": "ready",
+      "path": "/readyz",
+      "state": "ready",
+      "status": 200,
+      "body_bytes": "{\"status\":\"ready\",\"checks\":{\"database\":{\"status\":\"ok\"},\"migrations\":{\"status\":\"ok\",\"missing\":[]},\"configuration\":{\"status\":\"ok\",\"missing_or_invalid\":[]},\"notification_providers\":{\"status\":\"not_configured\",\"active\":0,\"unhealthy\":0,\"blocking\":false},\"runtime_heartbeat\":{\"status\":\"disabled\",\"instance_id\":\"\"},\"placement_snapshot\":{\"status\":\"disabled\",\"snapshot_version\":0,\"error_code\":\"\"}}}",
+      "probe_count_delta": 1,
+      "headers": {
+        "cache-control": "no-store",
+        "content-type": "application/json; charset=utf-8",
+        "x-request-id": "health-vector-1"
+      }
+    },
+    {
+      "name": "health_alias",
+      "path": "/health",
+      "state": "ready",
+      "status": 200,
+      "body_bytes": "{\"status\":\"ready\",\"checks\":{\"database\":{\"status\":\"ok\"},\"migrations\":{\"status\":\"ok\",\"missing\":[]},\"configuration\":{\"status\":\"ok\",\"missing_or_invalid\":[]},\"notification_providers\":{\"status\":\"not_configured\",\"active\":0,\"unhealthy\":0,\"blocking\":false},\"runtime_heartbeat\":{\"status\":\"disabled\",\"instance_id\":\"\"},\"placement_snapshot\":{\"status\":\"disabled\",\"snapshot_version\":0,\"error_code\":\"\"}}}",
+      "probe_count_delta": 1,
+      "headers": {
+        "cache-control": "no-store",
+        "content-type": "application/json; charset=utf-8",
+        "x-request-id": "health-vector-1"
+      }
+    },
+    {
+      "name": "database_failed",
+      "path": "/readyz",
+      "state": "database_failed",
+      "status": 503,
+      "body_bytes": "{\"status\":\"not_ready\",\"checks\":{\"database\":{\"status\":\"failed\"},\"migrations\":{\"status\":\"failed\",\"missing\":[\"116_converact_sip_capability_recovery_fence\"]},\"configuration\":{\"status\":\"ok\",\"missing_or_invalid\":[]},\"notification_providers\":{\"status\":\"unknown\",\"active\":0,\"unhealthy\":0,\"blocking\":false},\"runtime_heartbeat\":{\"status\":\"disabled\",\"instance_id\":\"\"},\"placement_snapshot\":{\"status\":\"disabled\",\"snapshot_version\":0,\"error_code\":\"\"}}}",
+      "probe_count_delta": 1,
+      "headers": {
+        "cache-control": "no-store",
+        "content-type": "application/json; charset=utf-8",
+        "x-request-id": "health-vector-1"
+      }
+    },
+    {
+      "name": "heartbeat_stale",
+      "path": "/readyz",
+      "state": "heartbeat_stale",
+      "status": 503,
+      "body_bytes": "{\"status\":\"not_ready\",\"checks\":{\"database\":{\"status\":\"ok\"},\"migrations\":{\"status\":\"ok\",\"missing\":[]},\"configuration\":{\"status\":\"ok\",\"missing_or_invalid\":[]},\"notification_providers\":{\"status\":\"not_configured\",\"active\":0,\"unhealthy\":0,\"blocking\":false},\"runtime_heartbeat\":{\"status\":\"stale\",\"instance_id\":\"node-a\"},\"placement_snapshot\":{\"status\":\"disabled\",\"snapshot_version\":0,\"error_code\":\"\"}}}",
+      "probe_count_delta": 1,
+      "headers": {
+        "cache-control": "no-store",
+        "content-type": "application/json; charset=utf-8",
+        "x-request-id": "health-vector-1"
+      }
+    },
+    {
+      "name": "heartbeat_draining",
+      "path": "/readyz",
+      "state": "heartbeat_draining",
+      "status": 503,
+      "body_bytes": "{\"status\":\"not_ready\",\"checks\":{\"database\":{\"status\":\"ok\"},\"migrations\":{\"status\":\"ok\",\"missing\":[]},\"configuration\":{\"status\":\"ok\",\"missing_or_invalid\":[]},\"notification_providers\":{\"status\":\"not_configured\",\"active\":0,\"unhealthy\":0,\"blocking\":false},\"runtime_heartbeat\":{\"status\":\"draining\",\"instance_id\":\"node-a\"},\"placement_snapshot\":{\"status\":\"disabled\",\"snapshot_version\":0,\"error_code\":\"\"}}}",
+      "probe_count_delta": 1,
+      "headers": {
+        "cache-control": "no-store",
+        "content-type": "application/json; charset=utf-8",
+        "x-request-id": "health-vector-1"
+      }
+    },
+    {
+      "name": "placement_failed",
+      "path": "/readyz",
+      "state": "placement_failed",
+      "status": 503,
+      "body_bytes": "{\"status\":\"not_ready\",\"checks\":{\"database\":{\"status\":\"ok\"},\"migrations\":{\"status\":\"ok\",\"missing\":[]},\"configuration\":{\"status\":\"ok\",\"missing_or_invalid\":[]},\"notification_providers\":{\"status\":\"not_configured\",\"active\":0,\"unhealthy\":0,\"blocking\":false},\"runtime_heartbeat\":{\"status\":\"disabled\",\"instance_id\":\"\"},\"placement_snapshot\":{\"status\":\"failed\",\"snapshot_version\":0,\"error_code\":\"placement_snapshot_unavailable\"}}}",
+      "probe_count_delta": 1,
+      "headers": {
+        "cache-control": "no-store",
+        "content-type": "application/json; charset=utf-8",
+        "x-request-id": "health-vector-1"
+      }
+    },
+    {
+      "name": "notification_blocking_unknown",
+      "path": "/readyz",
+      "state": "notification_blocking_unknown",
+      "status": 503,
+      "body_bytes": "{\"status\":\"not_ready\",\"checks\":{\"database\":{\"status\":\"ok\"},\"migrations\":{\"status\":\"ok\",\"missing\":[]},\"configuration\":{\"status\":\"ok\",\"missing_or_invalid\":[]},\"notification_providers\":{\"status\":\"unknown\",\"active\":0,\"unhealthy\":0,\"blocking\":true},\"runtime_heartbeat\":{\"status\":\"disabled\",\"instance_id\":\"\"},\"placement_snapshot\":{\"status\":\"disabled\",\"snapshot_version\":0,\"error_code\":\"\"}}}",
+      "probe_count_delta": 1,
+      "headers": {
+        "cache-control": "no-store",
+        "content-type": "application/json; charset=utf-8",
+        "x-request-id": "health-vector-1"
+      }
+    }
+  ]
+}

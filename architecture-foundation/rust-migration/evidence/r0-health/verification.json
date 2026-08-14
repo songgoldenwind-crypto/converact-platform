@@ -1,0 +1,61 @@
+{
+  "evidence_id": "RM01-R0-HEALTH-VERIFICATION-V1",
+  "environment": {
+    "rustc": "1.94.1 (e408947bf 2026-03-25)",
+    "cargo": "1.94.1 (29ea6fb6a 2026-03-24)",
+    "node": "v23.11.0",
+    "npm": "10.9.2",
+    "scope": "offline_local_functional"
+  },
+  "checks": [
+    {
+      "id": "current_typescript_health_capture",
+      "command": "node --import tsx --test test/converact-rust-runtime-health-contract.test.ts",
+      "status": "passed",
+      "summary": "1 passed, 0 failed"
+    },
+    {
+      "id": "rust_workspace_tests",
+      "command": "cargo test --locked --manifest-path server-rs/Cargo.toml",
+      "status": "passed",
+      "summary": "27 passed, 0 failed"
+    },
+    {
+      "id": "rust_clippy",
+      "command": "cargo clippy --locked --manifest-path server-rs/Cargo.toml --all-targets -- -D warnings",
+      "status": "passed",
+      "summary": "exit 0"
+    },
+    {
+      "id": "rust_format",
+      "command": "cargo fmt --manifest-path server-rs/Cargo.toml --all -- --check",
+      "status": "passed",
+      "summary": "exit 0"
+    },
+    {
+      "id": "repository_typecheck",
+      "command": "npm run typecheck",
+      "status": "passed",
+      "summary": "exit 0"
+    },
+    {
+      "id": "rm01_machine_contracts",
+      "command": "node --test goals/rust-migration/rm01-contract.test.mjs",
+      "status": "passed",
+      "summary": "6 passed, 0 failed"
+    },
+    {
+      "id": "patch_whitespace",
+      "command": "git diff --check",
+      "status": "passed",
+      "summary": "exit 0"
+    }
+  ],
+  "gates": [
+    { "id": "running_server_change", "status": "not_run" },
+    { "id": "production_route_change", "status": "not_run" },
+    { "id": "server_container_validation", "status": "not_run" },
+    { "id": "performance_capacity", "status": "not_run" },
+    { "id": "production_eligibility", "status": "not_run" }
+  ]
+}

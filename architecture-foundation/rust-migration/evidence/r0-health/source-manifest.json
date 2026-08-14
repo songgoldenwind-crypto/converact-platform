@@ -1,0 +1,25 @@
+{
+  "evidence_id": "RM01-R0-HEALTH-SOURCE-V1",
+  "base_commit": "83125cc1114e295e547bb07d59abc5ac8a4faee9",
+  "branch": "codex/converact-platform-rename",
+  "hash_algorithm": "sha256",
+  "sources": [
+    { "role": "current_typescript_http", "path": "src/agent-runtime/converact/http-server.ts", "sha256": "0486b8f4afaa8384a7bf5f1ffdb4d2e0992e428fc0422a1b035c040fe54dee40" },
+    { "role": "current_typescript_readiness", "path": "src/agent-runtime/converact/operations/readiness.ts", "sha256": "305632b15b74f27147f0cde2e197329ffa8ec5aa215ba70b85326950afeb8585" },
+    { "role": "cross_runtime_capture", "path": "test/converact-rust-runtime-health-contract.test.ts", "sha256": "88188eaf63a4927118dd57bc7019182c7d3538bd158cb43594bcf0c58b5e48b3" },
+    { "role": "frozen_wire_vectors", "path": "server-rs/tests/fixtures/runtime-health-v1.json", "sha256": "2bbc6e1cb7994659d642422cf620320ce9e7a809db6bd3109dd34e987b7d0ca0" },
+    { "role": "rust_wire_contract", "path": "server-rs/crates/contracts/src/health.rs", "sha256": "fb7fd8d1543d0d9dbca1847086ba083c6f838d6a1f5ded04e111c5a140457b09" },
+    { "role": "rust_health_model", "path": "server-rs/crates/runtime-health/src/lib.rs", "sha256": "2127b67fd44548a01f9ee5e824552a2c0a8c95d5aae551b179ca0455523967b1" },
+    { "role": "rust_health_model_tests", "path": "server-rs/crates/runtime-health/tests/readiness.rs", "sha256": "87ee10624322716bae532d7a7e29576327eb3eb0bc020a14ef78a099d8fd3176" },
+    { "role": "rust_task_lifecycle_tests", "path": "server-rs/crates/runtime-health/tests/task_group.rs", "sha256": "1ce660d49e7eaa8e7c68e26c4761d9787cb929c7639060806e991d952359c3c4" },
+    { "role": "rust_http_adapter", "path": "server-rs/apps/converact-api/src/http.rs", "sha256": "28d744f5b22e4749d535e73bbca35f74a72ebc0db89bac2f6ecc6388d41f81b2" },
+    { "role": "rust_process_lifecycle", "path": "server-rs/apps/converact-api/src/lib.rs", "sha256": "64434a640167ec39c652aa3b80f6c5da9b6e322318311dc76e8dc910204cfc43" },
+    { "role": "rust_process_composition", "path": "server-rs/apps/converact-api/src/main.rs", "sha256": "0b52e534660b728ebd521d201943b4ff534da0638aef2b64ffec6a0fd71088b1" },
+    { "role": "rust_process_lifecycle_tests", "path": "server-rs/apps/converact-api/tests/runtime.rs", "sha256": "d0b3ca9770999b9f129528ebfe7321edcabbf722d0bc1e659229b098b0424cc4" },
+    { "role": "rust_contract_replay", "path": "server-rs/tests/contract-replay/health.rs", "sha256": "c825dd9a8ee0d3d8cc02ec273f2d07fd33f19f778aae2407987e648bcc2a1dc3" },
+    { "role": "rust_runtime_config", "path": "server-rs/crates/config/src/lib.rs", "sha256": "14c6e6fa2a1b0e71616acbc0ac68a3e1af61c4010bc0bdff0afa73d99eea7553" },
+    { "role": "rust_runtime_config_tests", "path": "server-rs/crates/config/tests/runtime_config.rs", "sha256": "5e825bdae1b8094efa5db0040171ca84af1465f65735897864a6919c96f667f2" },
+    { "role": "rust_observability", "path": "server-rs/crates/observability/src/lib.rs", "sha256": "8232478c6a2b355fa93e14e9f1d6f65bf231a4eb05832c0bb591cb9c4b1a6cd0" },
+    { "role": "rust_observability_tests", "path": "server-rs/crates/observability/tests/runtime_identity.rs", "sha256": "88a48aab5b520176a56672d7df24adc758a4cd9fc3377549d00eb349d940f367" }
+  ]
+}
