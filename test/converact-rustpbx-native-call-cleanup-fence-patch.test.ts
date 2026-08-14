@@ -42,7 +42,7 @@ test("ivekit.75 applies cleanup fencing after ordinary response authority", () =
   );
 
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.80"/);
+  assert.match(build, /PATCHSET="ivekit\.81"/);
   assert.match(
     build,
     /rustpbx-converact-native-response-capabilities\.patch"[\s\S]*rustpbx-converact-native-call-cleanup-fence\.patch"/,
@@ -115,7 +115,7 @@ test("cleanup closure is functional-only and leaves activation claims not_run", 
     entries: Array<{ evidence_id: string; status: string }>;
   };
 
-  assert.equal(contract.source_identity.patchset, "ivekit.80");
+  assert.equal(contract.source_identity.patchset, "ivekit.81");
   assert.equal(
     contract.native_matched_cancel_effects.successor_replacement_cleanup_fence,
     "implemented_identity_and_native_cell_pointer_fence",
@@ -179,11 +179,11 @@ test("cleanup closure is functional-only and leaves activation claims not_run", 
     {
       native_sip_effect_capabilities:
         "40_passed_0_failed_1_physical_test_ignored",
-      active_call_registry: "24_passed_0_failed",
+      active_call_registry: "25_passed_0_failed",
       rustfmt_changed_sources: "passed",
       locked_library_check: "passed",
       full_rustpbx_library:
-        "2109_passed_0_failed_12_external_prerequisites_ignored",
+        "2112_passed_0_failed_12_external_prerequisites_ignored",
     },
   );
   assert.match(

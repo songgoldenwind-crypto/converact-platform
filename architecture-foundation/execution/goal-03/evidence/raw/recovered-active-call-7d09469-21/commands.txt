@@ -1,0 +1,15 @@
+git apply --check --unsafe-paths infra/converact/rustpbx/patches/rustpbx-converact-recovered-active-call.patch
+cmp each of the four exact working candidate files against the reconstructed ivekit.81 candidate
+rustfmt --edition 2024 --check --config skip_children=true src/proxy/proxy_call/sip_session.rs src/proxy/active_call_registry.rs src/proxy/call.rs src/ivekit_dialog_shadow.rs
+RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc /Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/cargo check --locked --lib
+target/debug/deps/rustpbx-ec36ba560b2c1f26 proxy::proxy_call::sip_session::tests::recovered_dialog_handle_accepts_only_whole_call_hangup --exact
+target/debug/deps/rustpbx-ec36ba560b2c1f26 ivekit_dialog_shadow::tests::recovered_active_call_projection_preserves_confirmed_identity_and_clock --exact
+target/debug/deps/rustpbx-ec36ba560b2c1f26 proxy::active_call_registry::tests::recovered_call_registration_publishes_or_rolls_back_the_exact_dialog_pair --exact
+target/debug/deps/rustpbx-ec36ba560b2c1f26 ivekit_dialog_shadow::tests
+target/debug/deps/rustpbx-ec36ba560b2c1f26 proxy::active_call_registry::tests
+RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc /Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/cargo test --locked --lib --quiet
+node architecture-foundation/execution/goal-03/generate-goal-03.mjs
+node --test architecture-foundation/execution/goal-03/goal-03-contract.test.mjs
+node --import ./test/explicit-dev-auth.mjs --import tsx --test <57 exact current-patch static test paths>
+npm run typecheck
+git diff --check

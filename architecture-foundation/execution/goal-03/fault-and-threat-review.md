@@ -25,6 +25,9 @@ Production eligibility: `false`
 | unknown send blindly retried | unknown state, query, repair lease/token/revision fence | `.57` native gate and ledger tests; live endpoint activation `not_run` |
 | restart treats an empty in-memory capability holder as proof that no predecessor wire effect existed | `.76` freezes the exact recovery binding; `.77` advances the exact tenant/session owner-generation fence and probes only deterministic 200-CANCEL and 487-INVITE effect IDs in one PostgreSQL transaction; `.79` requires an authenticated `recovered` proof and routes that exact owner snapshot through the Oracle; visible or ambiguous state fails closed | isolated PostgreSQL 16 migration/SQL harness and historical `.78` Rust startup-contract adapter pass; `.79` invocation tests pass locally. Trusted recovered-proof production and real process restart remain `not_run` |
 | missing, forged or stale recovered admission silently downgrades to fresh, stale async cleanup closes a replacement owner/Active Call, or an old refresh task follows that replacement forever | closed authenticated `fresh`/`recovered` union; durable mode rejects absent and legacy proof; exact predecessor identity validation; one owner `Arc` feeds registry and Oracle; pre/post-async current-owner checks; owner pointer-fenced cleanup plus exact Native Call identity/cell cleanup fence; refresh loop bound to its original owner pointer | `.79` owner `11/11`, admission snapshot `3/3`, recovered-path `15/15` and full RustPBX `2109/2109`; trusted recovered-proof issuer, process restart and live Endpoint remain `not_run` |
+| recovered confirmed Dialogs exist outside the sole Active Call registry, publish only one leg, or leave a partial Dialog pair | `.81` reuses `ActiveProxyCallRegistry`; one confirmed inbound Native Leg and two distinct reciprocal Dialog IDs are installed as one slot, and any second-Dialog conflict rolls the complete slot back | local Active Call registry `25/25`, dialog shadow `10/10` and full RustPBX `2112/2112`; real restart/live peer/two-node remain `not_run` |
+| recovered control accepts an operation it cannot faithfully reconstruct, or stale controller teardown removes a successor | bounded recovered command scope accepts only whole-Call cascade-all Hangup before enqueue; controller owns one exact identity/native-cell cleanup lease | recovered handle `1/1` and cleanup regressions in the `25/25` registry suite; controller-panic async media cleanup and live Endpoint remain `not_run` |
+| confirmed-dialog recovery fabricates original INVITE transaction facts and invokes the matched-CANCEL Oracle on a guessed key | treat capsule scope as confirmed Dialog only; never synthesize a server-INVITE `TransactionKey`, Via lineage or matched-CANCEL capability; original-INVITE recovery is a separate durable path | `.81` source/static boundary and exact-source full suite pass; real original-INVITE Oracle invocation remains `not_run` |
 | product starts a second, in-memory or partially configured SIP effect authority | `.78` creates one default-disabled Rust composition before SIP startup, shares one PostgreSQL store across Gate/observation/recovery, owns the supervisor lifetime, rejects unknown/missing/non-PostgreSQL config, duplicate builder injection and live reload, and has no memory/TypeScript fallback. `.79` reuses that exact runtime and owner registry rather than constructing a recovery store or owner. The one-time cold catalog scan has a separate bounded 2 s deadline while per-Call store work stays at 250 ms | exact-source SipEffect `135/135`, native SIP effect `40/40`, full RustPBX `2109/2109`, historical exact isolated PostgreSQL adapter `1/1`, locked check and static contracts pass; live Endpoint remains `not_run` |
 | old binary bypasses a recovered session fence | migration 116 seeds and locks a durable owner/generation high-water mark, rejects stale inserts, and rejects the first `send_attempted` transition of an effect prepared before takeover while still accepting later real observations | isolated SQL harness observed SQLSTATE `55000` and atomic attempted-receipt rollback for both bypass shapes; rolling mixed-binary live activation remains `not_run` |
 | recovery receipt is replayed with drift or leaks the raw SIP transaction key | receipt key/hash and result are immutable and replay-validated; only the transaction-key SHA-256 is durable | isolated replay, mutation rejection and schema review passed; live audit consumption remains `not_run` |
@@ -44,10 +47,13 @@ Production eligibility: `false`
 | Adapter callback reenters open/drain | reserve ID/capacity before callback; opening reservation counts as active; same-ID reentry fails closed | G03 local reentrancy tests; host fault campaign `not_run` |
 | schema downgrade or shadow writer | schema/writer registries disabled until activation receipt; exact writer role | source/migration tests; physical activation `not_run` |
 
-The `.80` candidate supersedes the two `.79` issuer-status cells above: local
-trusted proof issuance is implemented and verified from one reciprocal v2
-capsule pair. The remaining risk is real restart-to-issuer-to-Oracle execution,
-not the existence of a client-callable recovered proof emitter.
+The `.80` candidate supersedes the `.79` issuer-status cell: local trusted proof
+issuance is implemented and verified from one reciprocal v2 capsule pair. The
+current `.81` candidate then installs the confirmed recovered projection in the
+sole Active Call registry. The remaining end-to-end risks are real restart into
+that registry and a separately scoped original-INVITE recovery reaching the
+Oracle with durable transaction facts; a confirmed-dialog capsule cannot prove
+the latter.
 
 ## 3. Failure-domain Truth Table
 
@@ -175,14 +181,19 @@ microbenchmark or citing rvoip upstream numbers cannot close that Gate.
     v1, missing or split bindings before claim, and Rust opens the reciprocal
     A256GCM pair, retains the exact predecessor and registers recovered owner
     proof on resume and finalization. It does not activate the Endpoint or prove
-    real process crash/restart. No performance command ran; `.79` and `.80` did
-    not contact the server.
-11. The issuer is now Rust-owned, but end-to-end recovered-call production is
-    still absent. A real process restart has not proved that takeover reaches
-    the capsule issuer, installs the recovered Active Call and invokes the
-    PostgreSQL capability Oracle with the exact predecessor. Crash timing,
-    visible/ambiguous predecessor effects and two-node races therefore remain
-    fail-closed activation gates rather than inferred successes.
+    real process crash/restart. `.81` now installs the confirmed recovered Call
+    in the sole Active Call registry, reconstructs one confirmed inbound Leg,
+    publishes the exact Dialog pair or rolls back, exposes bounded whole-Call
+    Hangup and fences exact teardown. No performance command ran; `.79`–`.81`
+    did not contact the server.
+11. End-to-end recovered-call production is still absent. A real process
+    restart has not proved that takeover reaches the capsule issuer and the
+    recovered Active Call registry under a live peer. Separately, the confirmed-
+    dialog capsule lacks the original server-INVITE transaction facts, so it
+    cannot prove or invoke the PostgreSQL matched-CANCEL Oracle; that path needs
+    its own durable-key recovery evidence. Crash timing, task panic/media
+    cleanup, visible/ambiguous predecessor effects and two-node races therefore
+    remain fail-closed activation gates rather than inferred successes.
 
 All residual risks remain visible in the G03 status artifacts and prevent
 production eligibility.

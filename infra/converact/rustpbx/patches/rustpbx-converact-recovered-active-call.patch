@@ -1,0 +1,790 @@
+diff --git a/src/proxy/proxy_call/sip_session.rs b/src/proxy/proxy_call/sip_session.rs
+index 73d0e20..be99cfd 100644
+--- a/src/proxy/proxy_call/sip_session.rs
++++ b/src/proxy/proxy_call/sip_session.rs
+@@ -275,6 +275,13 @@ pub struct SipSessionHandle {
+     cmd_tx: mpsc::Sender<CallCommand>,
+     snapshot_cache: Arc<RwLock<Option<SessionSnapshot>>>,
+     app_event_bridge: Arc<RwLock<Option<crate::proxy::proxy_call::state::SipSessionHandle>>>,
++    command_scope: SipSessionCommandScope,
++}
++
++#[derive(Clone, Copy, Eq, PartialEq)]
++enum SipSessionCommandScope {
++    Full,
++    RecoveredDialog,
+ }
+ 
+ const CMD_CHANNEL_CAPACITY: usize = 256;
+@@ -286,6 +293,7 @@ const RUSTPBX_COMMAND_CT: &str = "application/vnd.rustpbx+json";
+ 
+ impl SipSessionHandle {
+     pub fn send_command(&self, cmd: CallCommand) -> anyhow::Result<()> {
++        self.validate_command(&cmd)?;
+         self.cmd_tx
+             .try_send(cmd)
+             .map_err(|e| {
+@@ -295,6 +303,7 @@ impl SipSessionHandle {
+     }
+ 
+     pub async fn send_command_async(&self, cmd: CallCommand) -> anyhow::Result<()> {
++        self.validate_command(&cmd)?;
+         self.cmd_tx
+             .send(cmd)
+             .await
+@@ -323,6 +332,47 @@ impl SipSessionHandle {
+             handle.set_app_event_sender(sender);
+         }
+     }
++
++    fn validate_command(&self, cmd: &CallCommand) -> anyhow::Result<()> {
++        if self.command_scope == SipSessionCommandScope::Full
++            || matches!(
++                cmd,
++                CallCommand::Hangup(command)
++                    if command.leg_id.is_none() && command.cascade == HangupCascade::All
++            )
++        {
++            return Ok(());
++        }
++        Err(anyhow::anyhow!(
++            "recovered dialog supports only whole-call hangup"
++        ))
++    }
++
++    pub(crate) fn new_recovered(session_id: &str) -> (Self, mpsc::Receiver<CallCommand>) {
++        let id = SessionId::from(session_id);
++        let (cmd_tx, cmd_rx) = mpsc::channel(CMD_CHANNEL_CAPACITY);
++        let snapshot = SessionSnapshot {
++            id: id.clone(),
++            state: SessionState::Active,
++            leg_count: 2,
++            bridge_active: true,
++            caller_gate_open: true,
++            media_path: MediaPathMode::Anchored,
++            processing_media: false,
++            answer_sdp: None,
++            callee_dialogs: Vec::new(),
++        };
++        (
++            Self {
++                session_id: id,
++                cmd_tx,
++                snapshot_cache: Arc::new(RwLock::new(Some(snapshot))),
++                app_event_bridge: Arc::new(RwLock::new(None)),
++                command_scope: SipSessionCommandScope::RecoveredDialog,
++            },
++            cmd_rx,
++        )
++    }
+ }
+ 
+ impl SipSessionHandle {
+@@ -337,6 +387,7 @@ impl SipSessionHandle {
+             cmd_tx,
+             snapshot_cache: Arc::new(RwLock::new(None)),
+             app_event_bridge: Arc::new(RwLock::new(None)),
++            command_scope: SipSessionCommandScope::Full,
+         }
+     }
+ }
+@@ -936,6 +987,7 @@ impl SipSession {
+             cmd_tx,
+             snapshot_cache,
+             app_event_bridge: Arc::new(RwLock::new(None)),
++            command_scope: SipSessionCommandScope::Full,
+         };
+ 
+         (handle, cmd_rx)
+@@ -978,6 +1030,7 @@ impl SipSession {
+             cmd_tx: cmd_tx.clone(),
+             snapshot_cache: snapshot_cache.clone(),
+             app_event_bridge: app_event_bridge.clone(),
++            command_scope: SipSessionCommandScope::Full,
+         };
+ 
+         // Build ApplicationContext for call apps (IVR, voicemail, etc.)
+@@ -12958,6 +13011,36 @@ mod tests {
+         drop(handle);
+     }
+ 
++    #[tokio::test]
++    async fn recovered_dialog_handle_accepts_only_whole_call_hangup() {
++        let (handle, mut cmd_rx) = SipSessionHandle::new_recovered("recovered-call@example.test");
++
++        assert!(
++            handle
++                .send_command(CallCommand::Hold {
++                    leg_id: LegId::from("caller"),
++                    music: None,
++                })
++                .is_err()
++        );
++        assert!(cmd_rx.try_recv().is_err());
++
++        let mut partial = HangupCommand::local("test", None, Some(200));
++        partial.leg_id = Some(LegId::from("caller"));
++        assert!(handle.send_command(CallCommand::Hangup(partial)).is_err());
++        assert!(cmd_rx.try_recv().is_err());
++
++        handle
++            .send_command_async(CallCommand::Hangup(HangupCommand::local(
++                "test",
++                None,
++                Some(200),
++            )))
++            .await
++            .expect("whole recovered call hangup must reach the controller");
++        assert!(matches!(cmd_rx.recv().await, Some(CallCommand::Hangup(_))));
++    }
++
+     #[tokio::test]
+     async fn test_cancel_token_propagation() {
+         let cancel_token = CancellationToken::new();
+diff --git a/src/proxy/active_call_registry.rs b/src/proxy/active_call_registry.rs
+index dbd0a3a..e2a80a6 100644
+--- a/src/proxy/active_call_registry.rs
++++ b/src/proxy/active_call_registry.rs
+@@ -1389,6 +1389,104 @@ impl ActiveProxyCallRegistry {
+         Ok((inserted, cleanup_fence))
+     }
+ 
++    pub(crate) fn register_recovered_call(
++        &self,
++        entry: ActiveProxyCallEntry,
++        handle: SipSessionHandle,
++        identity: NativeCallIdentity,
++        dialog_ids: [String; 2],
++    ) -> Result<NativeCallCleanupFence, ActiveCallRegistryError> {
++        if dialog_ids[0] == dialog_ids[1] {
++            return Err(ActiveCallRegistryError::InvalidDialogIdentifier);
++        }
++        let session_id = entry.session_id.clone();
++        self.try_upsert_authoritative(entry, handle.clone(), identity.clone())?;
++        let cleanup_fence = self.cleanup_fence_for_identity(&session_id, &identity)?;
++        if let Err(error) = self.restore_recovered_native_call_confirmed(&session_id, &identity) {
++            cleanup_fence.remove_original(self);
++            return Err(error);
++        }
++        for dialog_id in dialog_ids {
++            if let Err(error) = self.try_register_dialog(dialog_id, handle.clone()) {
++                cleanup_fence.remove_original(self);
++                return Err(error);
++            }
++        }
++        Ok(cleanup_fence)
++    }
++
++    fn restore_recovered_native_call_confirmed(
++        &self,
++        provider_call_id: &str,
++        expected_identity: &NativeCallIdentity,
++    ) -> Result<(), ActiveCallRegistryError> {
++        let binding = {
++            let slot = self
++                .slots
++                .get(provider_call_id)
++                .ok_or(ActiveCallRegistryError::SessionNotRegistered)?;
++            if slot.identity.as_ref() != Some(expected_identity) {
++                return Err(ActiveCallRegistryError::AuthorityConflict);
++            }
++            slot.native_binding
++                .clone()
++                .ok_or(ActiveCallRegistryError::NativeCallUnavailable)?
++        };
++        if binding.direction != NativeLegDirection::Inbound {
++            return Err(ActiveCallRegistryError::InvalidDirection);
++        }
++        let mut state = binding
++            .cell
++            .state
++            .lock()
++            .map_err(|_| ActiveCallRegistryError::NativeCallUnavailable)?;
++        if state.closed || !state.call.matches_authority(expected_identity) {
++            return Err(ActiveCallRegistryError::AuthorityConflict);
++        }
++        let recovery_hash = sha256_lower_hex(
++            format!(
++                "recovered-confirmed-call\0{}\0{}\0{}\0{}\0{}",
++                expected_identity.tenant_id(),
++                expected_identity.call_id(),
++                expected_identity.provider_call_id(),
++                expected_identity.owner_epoch(),
++                expected_identity.generation(),
++            )
++            .as_bytes(),
++        );
++        for (suffix, event) in [
++            ("invite", NativeLegEvent::InboundInviteObserved),
++            ("answer", NativeLegEvent::Final2xx),
++            ("ack", NativeLegEvent::Invite2xxAckObserved),
++        ] {
++            let event_hash = sha256_lower_hex(format!("{recovery_hash}\0{suffix}").as_bytes());
++            let fence = state.call.fence();
++            let receipt = state
++                .call
++                .apply_leg_event(
++                    &fence,
++                    &binding.leg_id,
++                    &format!("recovered-{suffix}-{recovery_hash}"),
++                    &event_hash,
++                    event,
++                )
++                .map_err(map_native_leg_registration_error)?;
++            if receipt.required_effect != NativeRequiredEffect::None {
++                return Err(ActiveCallRegistryError::NativeCallStateConflict);
++            }
++        }
++        if state
++            .call
++            .leg(&binding.leg_id)
++            .map_err(map_native_leg_registration_error)?
++            .state
++            != NativeLegState::Confirmed
++        {
++            return Err(ActiveCallRegistryError::NativeCallStateConflict);
++        }
++        Ok(())
++    }
++
+     #[cfg(test)]
+     pub fn handles_by_dialog_count(&self) -> usize {
+         self.handles_by_dialog.len()
+@@ -2338,4 +2436,83 @@ mod tests {
+         assert!(registry.get_identity(session).is_none());
+         assert!(registry.is_empty());
+     }
++
++    #[test]
++    fn recovered_call_registration_publishes_or_rolls_back_the_exact_dialog_pair() {
++        let registry = ActiveProxyCallRegistry::with_limits(4, 16);
++        let blocker = "provider-call-blocker@example.test";
++        let blocker_handle = make_handle(blocker);
++        registry
++            .try_upsert_authoritative(
++                make_entry(blocker),
++                blocker_handle.clone(),
++                native_identity("vcall_blocker", blocker),
++            )
++            .unwrap();
++        registry
++            .try_register_dialog("dialog-b".to_string(), blocker_handle)
++            .unwrap();
++
++        let recovered = "provider-call-recovered@example.test";
++        let recovered_identity = native_identity("vcall_recovered", recovered);
++        let error = match registry.register_recovered_call(
++            ActiveProxyCallEntry {
++                session_id: recovered.to_string(),
++                caller: Some("sip:caller@example.test".to_string()),
++                callee: Some("sip:callee@example.test".to_string()),
++                direction: "inbound".to_string(),
++                started_at: Utc::now(),
++                answered_at: Some(Utc::now()),
++                status: ActiveProxyCallStatus::Talking,
++            },
++            make_handle(recovered),
++            recovered_identity.clone(),
++            ["dialog-a".to_string(), "dialog-b".to_string()],
++        ) {
++            Ok(_) => panic!("split recovered dialog ownership must be rejected"),
++            Err(error) => error,
++        };
++
++        assert_eq!(error, ActiveCallRegistryError::DialogAuthorityConflict);
++        assert!(registry.get(recovered).is_none());
++        assert!(registry.get_identity(recovered).is_none());
++        assert!(registry.get_handle_by_dialog("dialog-a").is_none());
++        assert_eq!(
++            registry
++                .get_handle_by_dialog("dialog-b")
++                .expect("pre-existing owner must survive rollback")
++                .session_id(),
++            blocker
++        );
++
++        let cleanup = registry
++            .register_recovered_call(
++                ActiveProxyCallEntry {
++                    session_id: recovered.to_string(),
++                    caller: Some("sip:caller@example.test".to_string()),
++                    callee: Some("sip:callee@example.test".to_string()),
++                    direction: "inbound".to_string(),
++                    started_at: Utc::now(),
++                    answered_at: Some(Utc::now()),
++                    status: ActiveProxyCallStatus::Talking,
++                },
++                make_handle(recovered),
++                recovered_identity.clone(),
++                ["dialog-a".to_string(), "dialog-c".to_string()],
++            )
++            .unwrap();
++        assert_eq!(registry.protocol_dialog_history(recovered).len(), 2);
++        assert_eq!(registry.count(), 2);
++        let snapshot = registry
++            .native_call_snapshot(recovered_identity.call_id())
++            .unwrap()
++            .expect("recovered Native Call must be reconstructed");
++        assert_eq!(snapshot.legs.len(), 1);
++        assert_eq!(snapshot.legs[0].state, NativeLegState::Confirmed);
++        assert!(cleanup.remove_original(&registry));
++        assert!(registry.get(recovered).is_none());
++        assert!(registry.get_handle_by_dialog("dialog-a").is_none());
++        assert!(registry.get_handle_by_dialog("dialog-c").is_none());
++        assert!(registry.get(blocker).is_some());
++    }
+ }
+diff --git a/src/proxy/call.rs b/src/proxy/call.rs
+index 340e401..23aa5bb 100644
+--- a/src/proxy/call.rs
++++ b/src/proxy/call.rs
+@@ -1727,6 +1727,7 @@ impl CallModule {
+                 );
+                 let recovered_id = match crate::ivekit_dialog_shadow::recover_dialog_pair(
+                     &self.inner.dialog_layer,
++                    &self.inner.server.active_call_registry,
+                     &stable_id,
+                 )
+                 .await
+diff --git a/src/ivekit_dialog_shadow.rs b/src/ivekit_dialog_shadow.rs
+index ce90a28..4263d82 100644
+--- a/src/ivekit_dialog_shadow.rs
++++ b/src/ivekit_dialog_shadow.rs
+@@ -2066,6 +2066,7 @@ fn recovered_native_call_authority(
+ 
+ pub async fn recover_dialog_pair(
+     dialog_layer: &Arc<rsipstack::dialog::dialog_layer::DialogLayer>,
++    active_calls: &Arc<crate::proxy::active_call_registry::ActiveProxyCallRegistry>,
+     requested_dialog_id: &str,
+ ) -> Result<rsipstack::dialog::DialogId, DialogShadowError> {
+     let config = dialog_shadow_runtime_config()
+@@ -2296,7 +2297,7 @@ pub async fn recover_dialog_pair(
+             owner_node_id: owner_node_id.clone(),
+             media_control_profile: callee.media_control_profile.clone(),
+         },
+-        native_call_identity,
++        native_call_identity.clone(),
+         predecessor_native_call_binding,
+     )
+     .await
+@@ -2305,8 +2306,10 @@ pub async fn recover_dialog_pair(
+         remove_restored_dialogs(dialog_layer, &restored_ids);
+         return Err(DialogShadowError::Unavailable);
+     }
+-    spawn_recovered_dialog_controller(
++    if let Err(error) = spawn_recovered_dialog_controller(
+         dialog_layer.clone(),
++        active_calls.clone(),
++        native_call_identity,
+         restored_receivers,
+         payloads,
+         recovered_media,
+@@ -2318,12 +2321,18 @@ pub async fn recover_dialog_pair(
+             owner_fault_domain,
+             owner_epoch: claim.owner_epoch,
+             takeover_id: claim.takeover_id,
+-            call_session_ref,
++            call_session_ref: call_session_ref.clone(),
+             auth_context_ref,
+         },
+         config.executor.clone(),
+         config.recovery_codec.clone(),
+-    )?;
++    )
++    .await
++    {
++        remove_restored_dialogs(dialog_layer, &restored_ids);
++        crate::ivekit_owner::close_owner(&call_session_ref).await;
++        return Err(error);
++    }
+     Ok(requested_rsip_dialog_id)
+ }
+ 
+@@ -2380,40 +2389,74 @@ struct RecoveredDialogEvent {
+     state: rsipstack::dialog::dialog::DialogState,
+ }
+ 
++type RecoveredDialogReceiver = (
++    RecoveredDialogSide,
++    rsipstack::dialog::DialogId,
++    rsipstack::dialog::dialog::DialogStateReceiver,
++);
++
+ enum RecoveredControllerFlow {
+     Continue,
+     Stop,
+ }
+ 
+-struct RecoveredDialogController {
+-    dialog_layer: Arc<rsipstack::dialog::dialog_layer::DialogLayer>,
+-    caller_dialog_id: rsipstack::dialog::DialogId,
+-    callee_dialog_id: rsipstack::dialog::DialogId,
+-    payloads: Vec<DialogRecoveryCapsulePayload>,
+-    media: crate::ivekit_media_lifecycle::IveKitMediaLifecycle,
+-    sequence: u32,
+-    context: RecoveredShadowPairContext,
+-    executor: Arc<dyn DialogShadowCommitExecutor>,
+-    codec: Arc<DialogRecoveryCapsuleCodec>,
+-    frozen: bool,
++fn recovered_active_call_entry(
++    payloads: &[DialogRecoveryCapsulePayload],
++    fallback_started_at: &str,
++) -> Result<crate::proxy::active_call_registry::ActiveProxyCallEntry, DialogShadowError> {
++    if payloads.len() != 2 {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    let caller = payloads
++        .iter()
++        .find(|payload| payload.leg == "caller" && payload.dialog_role == "uas")
++        .ok_or(DialogShadowError::InvalidRecord)?;
++    let callee = payloads
++        .iter()
++        .find(|payload| payload.leg == "callee" && payload.dialog_role == "uac")
++        .ok_or(DialogShadowError::InvalidRecord)?;
++    if caller.call_session_ref != callee.call_session_ref
++        || caller.started_at != callee.started_at
++        || caller.answered_at != callee.answered_at
++    {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    let parse_clock = |value: &str| {
++        chrono::DateTime::parse_from_rfc3339(value)
++            .map(|clock| clock.with_timezone(&chrono::Utc))
++            .map_err(|_| DialogShadowError::InvalidRecord)
++    };
++    let started_at = parse_clock(caller.started_at.as_deref().unwrap_or(fallback_started_at))?;
++    let answered_at = caller.answered_at.as_deref().map(parse_clock).transpose()?;
++    if answered_at.is_some_and(|answered| answered < started_at) {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    Ok(crate::proxy::active_call_registry::ActiveProxyCallEntry {
++        session_id: caller.call_session_ref.clone(),
++        caller: Some(caller.from_uri.clone()),
++        callee: Some(caller.to_uri.clone()),
++        direction: "inbound".to_string(),
++        started_at,
++        answered_at,
++        status: crate::proxy::active_call_registry::ActiveProxyCallStatus::Talking,
++    })
+ }
+ 
+-#[allow(clippy::too_many_arguments)]
+-fn spawn_recovered_dialog_controller(
+-    dialog_layer: Arc<rsipstack::dialog::dialog_layer::DialogLayer>,
+-    receivers: Vec<(
+-        RecoveredDialogSide,
++fn prepare_recovered_controller_admission(
++    receivers: &[RecoveredDialogReceiver],
++    payloads: &[DialogRecoveryCapsulePayload],
++    active_records: &[DialogShadowRecord; 2],
++    context: &RecoveredShadowPairContext,
++    native_call_identity: &NativeCallIdentity,
++) -> Result<
++    (
+         rsipstack::dialog::DialogId,
+-        rsipstack::dialog::dialog::DialogStateReceiver,
+-    )>,
+-    payloads: Vec<DialogRecoveryCapsulePayload>,
+-    media: crate::ivekit_media_lifecycle::IveKitMediaLifecycle,
+-    active_records: [DialogShadowRecord; 2],
+-    context: RecoveredShadowPairContext,
+-    executor: Arc<dyn DialogShadowCommitExecutor>,
+-    codec: Arc<DialogRecoveryCapsuleCodec>,
+-) -> Result<(), DialogShadowError> {
+-    validate_shadow_pair(&active_records)?;
++        rsipstack::dialog::DialogId,
++        crate::proxy::active_call_registry::ActiveProxyCallEntry,
++    ),
++    DialogShadowError,
++> {
++    validate_shadow_pair(active_records)?;
+     if receivers.len() != 2
+         || active_records[0].sequence == 0
+         || active_records[0].sequence != active_records[1].sequence
+@@ -2425,7 +2468,7 @@ fn spawn_recovered_dialog_controller(
+     }
+     let mut caller_dialog_id = None;
+     let mut callee_dialog_id = None;
+-    for (side, dialog_id, _) in &receivers {
++    for (side, dialog_id, _) in receivers {
+         let target = match side {
+             RecoveredDialogSide::Caller => &mut caller_dialog_id,
+             RecoveredDialogSide::Callee => &mut callee_dialog_id,
+@@ -2447,10 +2490,135 @@ fn spawn_recovered_dialog_controller(
+         }
+         *target = Some(dialog_id.clone());
+     }
++    let caller_dialog_id = caller_dialog_id.ok_or(DialogShadowError::InvalidRecord)?;
++    let callee_dialog_id = callee_dialog_id.ok_or(DialogShadowError::InvalidRecord)?;
++    let entry = recovered_active_call_entry(payloads, &active_records[0].recorded_at)?;
++    if entry.session_id != context.call_session_ref
++        || native_call_identity.provider_call_id().as_str() != context.call_session_ref
++    {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    Ok((caller_dialog_id, callee_dialog_id, entry))
++}
++
++fn recovered_active_call_error(
++    error: crate::proxy::active_call_registry::ActiveCallRegistryError,
++) -> DialogShadowError {
++    use crate::proxy::active_call_registry::ActiveCallRegistryError;
++
++    match error {
++        ActiveCallRegistryError::InvalidProviderIdentifier
++        | ActiveCallRegistryError::HandleMismatch
++        | ActiveCallRegistryError::InvalidDialogIdentifier
++        | ActiveCallRegistryError::InvalidDirection => DialogShadowError::InvalidRecord,
++        ActiveCallRegistryError::CapacityExhausted
++        | ActiveCallRegistryError::LegCapacityExhausted
++        | ActiveCallRegistryError::DialogCapacityExhausted => DialogShadowError::Unavailable,
++        ActiveCallRegistryError::ProviderAlreadyRegistered
++        | ActiveCallRegistryError::AuthorityConflict
++        | ActiveCallRegistryError::SessionNotRegistered
++        | ActiveCallRegistryError::DialogAuthorityConflict
++        | ActiveCallRegistryError::NativeCallStateConflict
++        | ActiveCallRegistryError::NativeCallUnavailable => DialogShadowError::ReconcileRequired,
++    }
++}
++
++struct RecoveredActiveCallLease {
++    registry: Arc<crate::proxy::active_call_registry::ActiveProxyCallRegistry>,
++    cleanup_fence: Option<crate::proxy::active_call_registry::NativeCallCleanupFence>,
++}
++
++impl Drop for RecoveredActiveCallLease {
++    fn drop(&mut self) {
++        if let Some(cleanup_fence) = self.cleanup_fence.take() {
++            cleanup_fence.remove_original(&self.registry);
++        }
++    }
++}
++
++async fn close_recovered_media_after_admission_error(
++    media: &mut crate::ivekit_media_lifecycle::IveKitMediaLifecycle,
++    call_session_ref: &str,
++    error: DialogShadowError,
++) -> DialogShadowError {
++    if let Err(close_error) = media.close_media().await {
++        tracing::warn!(
++            %call_session_ref,
++            error = %close_error,
++            "recovered media cleanup failed after Active Call admission rejection"
++        );
++    }
++    error
++}
++
++struct RecoveredDialogController {
++    dialog_layer: Arc<rsipstack::dialog::dialog_layer::DialogLayer>,
++    caller_dialog_id: rsipstack::dialog::DialogId,
++    callee_dialog_id: rsipstack::dialog::DialogId,
++    payloads: Vec<DialogRecoveryCapsulePayload>,
++    media: crate::ivekit_media_lifecycle::IveKitMediaLifecycle,
++    sequence: u32,
++    context: RecoveredShadowPairContext,
++    executor: Arc<dyn DialogShadowCommitExecutor>,
++    codec: Arc<DialogRecoveryCapsuleCodec>,
++    frozen: bool,
++    _active_call_lease: RecoveredActiveCallLease,
++}
++
++#[allow(clippy::too_many_arguments)]
++async fn spawn_recovered_dialog_controller(
++    dialog_layer: Arc<rsipstack::dialog::dialog_layer::DialogLayer>,
++    active_calls: Arc<crate::proxy::active_call_registry::ActiveProxyCallRegistry>,
++    native_call_identity: NativeCallIdentity,
++    receivers: Vec<RecoveredDialogReceiver>,
++    payloads: Vec<DialogRecoveryCapsulePayload>,
++    mut media: crate::ivekit_media_lifecycle::IveKitMediaLifecycle,
++    active_records: [DialogShadowRecord; 2],
++    context: RecoveredShadowPairContext,
++    executor: Arc<dyn DialogShadowCommitExecutor>,
++    codec: Arc<DialogRecoveryCapsuleCodec>,
++) -> Result<(), DialogShadowError> {
++    let (caller_dialog_id, callee_dialog_id, entry) = match prepare_recovered_controller_admission(
++        &receivers,
++        &payloads,
++        &active_records,
++        &context,
++        &native_call_identity,
++    ) {
++        Ok(prepared) => prepared,
++        Err(error) => {
++            return Err(close_recovered_media_after_admission_error(
++                &mut media,
++                &context.call_session_ref,
++                error,
++            )
++            .await);
++        }
++    };
++    let (handle, command_receiver) =
++        crate::proxy::proxy_call::sip_session::SipSessionHandle::new_recovered(
++            &context.call_session_ref,
++        );
++    let cleanup_fence = match active_calls.register_recovered_call(
++        entry,
++        handle,
++        native_call_identity,
++        [caller_dialog_id.to_string(), callee_dialog_id.to_string()],
++    ) {
++        Ok(cleanup_fence) => cleanup_fence,
++        Err(error) => {
++            return Err(close_recovered_media_after_admission_error(
++                &mut media,
++                &context.call_session_ref,
++                recovered_active_call_error(error),
++            )
++            .await);
++        }
++    };
+     let controller = RecoveredDialogController {
+         dialog_layer,
+-        caller_dialog_id: caller_dialog_id.ok_or(DialogShadowError::InvalidRecord)?,
+-        callee_dialog_id: callee_dialog_id.ok_or(DialogShadowError::InvalidRecord)?,
++        caller_dialog_id,
++        callee_dialog_id,
+         payloads,
+         media,
+         sequence: active_records[0].sequence,
+@@ -2458,6 +2626,10 @@ fn spawn_recovered_dialog_controller(
+         executor,
+         codec,
+         frozen: false,
++        _active_call_lease: RecoveredActiveCallLease {
++            registry: active_calls,
++            cleanup_fence: Some(cleanup_fence),
++        },
+     };
+     let (event_sender, event_receiver) =
+         tokio::sync::mpsc::channel(RECOVERED_DIALOG_EVENT_CAPACITY);
+@@ -2493,41 +2665,68 @@ fn spawn_recovered_dialog_controller(
+         });
+     }
+     drop(event_sender);
+-    tokio::spawn(controller.run(event_receiver));
++    tokio::spawn(controller.run(event_receiver, command_receiver));
+     Ok(())
+ }
+ 
+ impl RecoveredDialogController {
+-    async fn run(mut self, mut receiver: tokio::sync::mpsc::Receiver<RecoveredDialogEvent>) {
+-        while let Some(event) = receiver.recv().await {
+-            match self.handle_event(event).await {
+-                Ok(RecoveredControllerFlow::Continue) => {}
+-                Ok(RecoveredControllerFlow::Stop) => return,
+-                Err(
+-                    error @ (DialogShadowError::OutcomeUnknown
+-                    | DialogShadowError::ReconcileRequired),
+-                ) => {
+-                    self.frozen = true;
+-                    tracing::warn!(
+-                        call_session_ref = %self.context.call_session_ref,
+-                        owner_epoch = self.context.owner_epoch,
+-                        error = %error,
+-                        "recovered dialog controller froze mutations while preserving media"
+-                    );
++    async fn run(
++        mut self,
++        mut receiver: tokio::sync::mpsc::Receiver<RecoveredDialogEvent>,
++        mut command_receiver: tokio::sync::mpsc::Receiver<crate::call::domain::CallCommand>,
++    ) {
++        let mut command_open = true;
++        loop {
++            tokio::select! {
++                command = command_receiver.recv(), if command_open => {
++                    match command {
++                        Some(crate::call::domain::CallCommand::Hangup(_)) => {
++                            self.terminate_all("recovered_control_hangup").await;
++                            break;
++                        }
++                        Some(_) => {
++                            tracing::error!(
++                                call_session_ref = %self.context.call_session_ref,
++                                "unsupported command bypassed recovered-handle admission"
++                            );
++                        }
++                        None => command_open = false,
++                    }
+                 }
+-                Err(error) => {
+-                    tracing::warn!(
+-                        call_session_ref = %self.context.call_session_ref,
+-                        owner_epoch = self.context.owner_epoch,
+-                        error = %error,
+-                        "recovered dialog controller failed closed"
+-                    );
+-                    self.terminate_all("controller_failure").await;
+-                    return;
++                event = receiver.recv() => {
++                    let Some(event) = event else {
++                        self.terminate_all("dialog_state_channel_closed").await;
++                        break;
++                    };
++                    match self.handle_event(event).await {
++                        Ok(RecoveredControllerFlow::Continue) => {}
++                        Ok(RecoveredControllerFlow::Stop) => break,
++                        Err(
++                            error @ (DialogShadowError::OutcomeUnknown
++                            | DialogShadowError::ReconcileRequired),
++                        ) => {
++                            self.frozen = true;
++                            tracing::warn!(
++                                call_session_ref = %self.context.call_session_ref,
++                                owner_epoch = self.context.owner_epoch,
++                                error = %error,
++                                "recovered dialog controller froze mutations while preserving media"
++                            );
++                        }
++                        Err(error) => {
++                            tracing::warn!(
++                                call_session_ref = %self.context.call_session_ref,
++                                owner_epoch = self.context.owner_epoch,
++                                error = %error,
++                                "recovered dialog controller failed closed"
++                            );
++                            self.terminate_all("controller_failure").await;
++                            break;
++                        }
++                    }
+                 }
+             }
+         }
+-        self.terminate_all("dialog_state_channel_closed").await;
+     }
+ 
+     async fn handle_event(
+@@ -4051,6 +4250,32 @@ mod tests {
+         assert!(recovered_native_call_authority(&[caller, callee], 8).is_err());
+     }
+ 
++    #[test]
++    fn recovered_active_call_projection_preserves_confirmed_identity_and_clock() {
++        let mut caller = recovery_payload("dialog-a", "dialog-b", "caller", "uas");
++        caller.started_at = Some("2026-08-14T01:02:03.000Z".into());
++        caller.answered_at = Some("2026-08-14T01:02:05.000Z".into());
++        let mut callee = recovery_payload("dialog-b", "dialog-a", "callee", "uac");
++        callee.started_at = caller.started_at.clone();
++        callee.answered_at = caller.answered_at.clone();
++
++        let entry =
++            recovered_active_call_entry(&[caller, callee], "2026-08-14T01:03:00.000Z").unwrap();
++        assert_eq!(entry.session_id, "call-session-a");
++        assert_eq!(entry.caller.as_deref(), Some("sip:caller@example.invalid"));
++        assert_eq!(entry.callee.as_deref(), Some("sip:callee@example.invalid"));
++        assert_eq!(entry.direction, "inbound");
++        assert_eq!(entry.started_at.to_rfc3339(), "2026-08-14T01:02:03+00:00");
++        assert_eq!(
++            entry.answered_at.unwrap().to_rfc3339(),
++            "2026-08-14T01:02:05+00:00"
++        );
++        assert_eq!(
++            entry.status,
++            crate::proxy::active_call_registry::ActiveProxyCallStatus::Talking
++        );
++    }
++
+     #[test]
+     fn capsule_v2_native_binding_must_match_aead_authority() {
+         let codec = DialogRecoveryCapsuleCodec::new(

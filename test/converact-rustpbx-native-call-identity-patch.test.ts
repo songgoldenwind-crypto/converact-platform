@@ -52,7 +52,7 @@ test('RustPBX adopts projections into canonical native call identities', () => {
 
 test('the exact build applies native identity after bounded call mailboxes', () => {
   const build = readFileSync(BUILD, 'utf8');
-  assert.match(build, /PATCHSET="ivekit\.80"/);
+  assert.match(build, /PATCHSET="ivekit\.81"/);
   assert.match(
     build,
     /rustpbx-ivekit-bounded-call-mailboxes\.patch"[\s\S]*rustpbx-converact-native-call-identity\.patch"/

@@ -405,6 +405,31 @@ final G03 acceptance. Real process restart-to-issuer/Oracle execution,
 two-node ambiguity recovery, live Endpoint, Linux product process,
 `G03-E15/G03-E16`, production and performance remain `not_run`.
 
+The incremental `.81` candidate closes the local recovered Active Call
+composition gap left by `.80`. Review confirms that it reuses the existing
+`ActiveProxyCallRegistry`, installs exactly one confirmed inbound Native Leg
+and two distinct reciprocal Dialog IDs, and rolls the complete slot back if the
+pair cannot be published atomically. The Leg reaches `Confirmed` through the
+ordinary inbound Native Leg state machine and every reconstructed transition is
+required to emit no effect. The recovered session command channel remains
+bounded and rejects every operation except whole-Call cascade-all Hangup before
+enqueue. An exact identity/native-cell lease owns registry teardown, so a stale
+controller cannot delete a replacement.
+
+Review also confirms the negative boundary: this is confirmed-dialog recovery,
+not original server-INVITE recovery. The capsule has no transaction key or Via
+lineage, and `.81` neither fabricates them nor calls the matched-CANCEL Oracle.
+That Oracle remains a separate activation path requiring exact durable facts.
+RED first exposed the missing registry/handle/projection APIs and then caught a
+Leg left in `Planned`; GREEN passes the recovered handle `1/1`, dialog shadow
+`10/10`, Active Call registry `25/25`, and full RustPBX `2112/2112` with 12
+external prerequisites ignored. Exact patch replay, locked check, scoped
+rustfmt, affected static contracts and G03 machine contracts pass. This is an
+implementation self-review checkpoint, not final independent acceptance. Real
+restart/live peer execution, controller-panic async media cleanup, two-node
+recovery, original-INVITE Oracle activation, live Endpoint,
+`G03-E15/G03-E16`, production and performance remain `not_run`.
+
 ## Rejection history and remaining gate
 
 The earlier `6cbe1a3` evidence review was rejected with

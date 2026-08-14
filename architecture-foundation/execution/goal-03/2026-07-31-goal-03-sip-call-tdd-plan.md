@@ -293,6 +293,25 @@ Run serially:
    contracts pass. Real process restart-to-issuer/Oracle invocation, live
    Endpoint, Linux product execution, production and performance stay
    `not_run`.
+   The `.81` RED/GREEN slice closes the local recovered Active Call composition
+   gap without creating a second registry or inventing an original INVITE.
+   RED first fails because `register_recovered_call`,
+   `SipSessionHandle::new_recovered` and the recovered projection do not exist;
+   the next RED proves a reconstructed Leg that remains `Planned` is invalid.
+   GREEN reuses `ActiveProxyCallRegistry`, advances one inbound Native Leg
+   through `InboundInviteObserved` → `Final2xx` → `Invite2xxAckObserved`, and
+   requires all three transitions to emit no new effect. It publishes exactly
+   two reciprocal Dialog IDs or rolls back the complete slot. One bounded
+   recovered command channel accepts only whole-Call Hangup with cascade-all;
+   unsupported control fails before enqueue. Controller ownership of the exact
+   identity/native-cell cleanup lease makes stale teardown a no-op. Focused
+   GREEN passes the command handle `1/1`, dialog shadow `10/10`, Active Call
+   registry `25/25`, and full RustPBX `2112/2112` with 12 external prerequisites
+   ignored. Confirmed-dialog recovery deliberately does not invoke the matched-
+   CANCEL Oracle because its capsule lacks the original server-INVITE
+   transaction key and Via lineage. Real restart, live peer control, panic-time
+   async media cleanup, original-INVITE Oracle activation, live Endpoint,
+   production and performance remain `not_run`.
 6. repository typecheck.
 7. Generate raw output, command/source manifest and SHA-256 evidence with no
    secrets.

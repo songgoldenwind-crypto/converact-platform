@@ -980,6 +980,25 @@ restart through this issuer and the durable capability Oracle, live Endpoint,
 Linux product-process execution, production and all performance work remain
 `not_run`.
 
+ivekit.81 installs the trusted confirmed-dialog recovery in the sole existing
+Active Call registry. It reconstructs one inbound Native Leg to `Confirmed`
+through the ordinary inbound transition sequence and registers exactly the
+reciprocal caller/callee Dialog pair; partial pair registration rolls the whole
+slot back. Its recovered session handle uses a bounded command channel and
+accepts only whole-Call cascade-all Hangup. Controller teardown owns the exact
+Native Call identity/cell cleanup fence, so stale teardown cannot remove a
+replacement.
+
+This confirmed-dialog path does not contain the original server-INVITE
+transaction key or Via lineage. It therefore does not fabricate those facts or
+invoke the matched-CANCEL capability Oracle; original-INVITE recovery remains a
+separate durable activation Gate. Local exact-source verification passes the
+recovered handle `1/1`, dialog shadow `10/10`, Active Call registry `25/25`, and
+full RustPBX `2112/2112` with 12 external-prerequisite tests ignored. No server,
+Docker or performance command ran. Real process restart, live peer behavior,
+controller-panic async media cleanup, original-INVITE Oracle activation, live
+Endpoint, production and performance remain `not_run`.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

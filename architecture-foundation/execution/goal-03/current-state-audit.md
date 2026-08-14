@@ -14,8 +14,8 @@ claims and this audit does not mark G02 complete or production eligible.
 
 ## 2. Observed Baseline and Exact Candidate
 
-The table freezes the `.79` baseline that `.80` extends; the exact current
-candidate delta immediately below is authoritative for changed status.
+The table freezes the `.79` baseline retained by `.80` and `.81`; the exact
+candidate deltas immediately below are authoritative for changed status.
 
 | Slice | Exact current source | Observed status | G03 disposition |
 | --- | --- | --- | --- |
@@ -49,6 +49,34 @@ machine contracts pass. This proves only the local issuer component. A real
 process restart reaching that issuer and then invoking the recovered
 PostgreSQL capability Oracle, two-node ambiguity recovery, live Endpoint,
 Linux product-process execution, production and performance remain `not_run`.
+
+### Exact `.81` candidate delta
+
+The current additive candidate is `ivekit.81`. Once `.80` has authenticated and
+opened the reciprocal confirmed-dialog capsule pair, `.81` installs exactly one
+recovered entry in the existing `ActiveProxyCallRegistry`; it does not create a
+second Call registry. The entry projects one confirmed inbound Native Leg and
+the exact caller/callee `ProtocolDialogId` pair. Native Leg reconstruction uses
+the ordinary inbound transition sequence `InboundInviteObserved` → `Final2xx`
+→ `Invite2xxAckObserved`, and every transition is required to produce no new
+wire effect because the restored dialogs are already confirmed.
+
+The recovered session handle has one bounded command channel. It accepts only
+whole-Call `Hangup` with `cascade = all`; unsupported commands fail before
+enqueue. Dialog registration is all-or-nothing, and controller teardown owns an
+exact identity/native-cell cleanup lease so stale teardown cannot remove a
+replacement. The confirmed-dialog capsule contains no original server-INVITE
+transaction key or Via lineage, so this path neither fabricates those facts nor
+invokes the matched-CANCEL capability Oracle. That Oracle remains applicable
+only to an original server-INVITE recovery path with an exact durable key.
+
+Exact-source local verification passes the recovered command-handle regression
+`1/1`, dialog-shadow `10/10`, Active Call registry `25/25`, and full RustPBX
+library `2112/2112` with 12 external-prerequisite tests ignored. Real process
+restart into this component, live peer control, async media cleanup under task
+panic, two-node ambiguity recovery, original-INVITE Oracle activation, live
+Endpoint, Linux product-process execution, production and performance remain
+`not_run`.
 
 The TypeScript SipFoundation code arrived through commit `385521c` and its
 PostgreSQL boundary was retained/hardened in later commits including `6c5d998`.
@@ -173,6 +201,18 @@ missing or split bindings fail closed. Local exact-source verification is
 recorded under `evidence/raw/trusted-recovery-proof-d7e0b07-20/`. No server,
 Docker, load or performance command belongs to this slice.
 
+Incremental `.81` closes the next local composition gap: the trusted recovered
+owner is now published through the sole Active Call registry with one confirmed
+inbound Native Leg and the exact reciprocal Dialog pair. RED first proved the
+absence of `register_recovered_call`, `SipSessionHandle::new_recovered` and the
+projection helper; a second RED caught the Leg incorrectly remaining
+`Planned`. GREEN reconstructs the confirmed Leg through the ordinary inbound
+state machine, rolls back partial Dialog publication, exposes only bounded
+whole-Call Hangup, and drops an exact cleanup lease on controller exit. Local
+exact-source evidence is recorded under
+`evidence/raw/recovered-active-call-7d09469-21/`. No server, Docker, load or
+performance command belongs to this slice.
+
 The following remain `not_run`:
 
 - native Call/Leg and effect-writer activation;
@@ -215,7 +255,9 @@ The following remain `not_run`:
    through an explicit compatibility boundary.
 2. Keep the bounded TypeScript Leg model as conformance evidence, then bind the
    same semantics to the sole native RustPBX Call/Leg authority without a
-   second active registry.
+   second active registry. `.81` proves that binding for the local confirmed-
+   dialog recovery component only; fresh, early-dialog, fork and transfer
+   activation still require their own native evidence.
 3. Expose the receipt semantic difference between local acceptance, primary
    protocol completion and state observed after `unknown` reconciliation.
 4. Make Protocol Session drain reject new sessions, preserve old sessions and
@@ -256,9 +298,13 @@ The following remain `not_run`:
    recovered owner snapshot and fences stale cleanup, while the only current
    control-plane issuer emits `fresh` from a newly prepared reservation. `.80`
    now derives recovered proof only from one Rust-opened reciprocal v2 capsule
-   pair and preserves its exact predecessor. Next prove a real process restart
-   reaches that issuer and the capability Oracle, then close UAS-2xx and
-   reconciliation resume.
+   pair and preserves its exact predecessor. `.81` then publishes the confirmed
+   recovered Call through the sole Active Call registry with one confirmed
+   inbound Leg, two exact Dialogs, bounded whole-Call Hangup and exact teardown.
+   Next prove a real process restart reaches that issuer and registry. Separately
+   prove the capability Oracle on a recovery path that retains the original
+   server-INVITE transaction facts; confirmed-dialog recovery must not invent
+   those facts. Then close UAS-2xx and reconciliation resume.
    Close parent-Unknown and stale-
    nonterminal/UAS-owner crash recovery before product activation. The v2
    recovery capsule must remain the only path that restores the existing

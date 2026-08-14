@@ -190,7 +190,7 @@
           "const": "166c6d22984429eb6b509920c14fcd69f974f0b3"
         },
         "patchset": {
-          "const": "ivekit.80"
+          "const": "ivekit.81"
         },
         "current_adapter": {
           "const": "rsipstack"
@@ -282,6 +282,12 @@
         "provider_call_match",
         "maximum_plaintext_bytes",
         "cross_runtime_binding_sha256",
+        "recovered_active_call_installation",
+        "recovered_native_leg_reconstruction",
+        "recovered_dialog_registration",
+        "recovered_control_scope",
+        "recovered_cleanup_fence",
+        "confirmed_dialog_oracle_boundary",
         "hot_path_work_added",
         "current_status"
       ],
@@ -390,11 +396,29 @@
         "cross_runtime_binding_sha256": {
           "const": "aa731eba74f64cc5b2eb67d10ea8da044e87cb87b30e5b0550b8a7dfaf759871"
         },
+        "recovered_active_call_installation": {
+          "const": "one_existing_registry_slot_one_confirmed_inbound_native_leg_two_protocol_dialogs"
+        },
+        "recovered_native_leg_reconstruction": {
+          "const": "planned_to_confirmed_via_inbound_invite_final_2xx_remote_ack_no_required_effect"
+        },
+        "recovered_dialog_registration": {
+          "const": "exact_reciprocal_pair_or_full_slot_rollback"
+        },
+        "recovered_control_scope": {
+          "const": "bounded_whole_call_hangup_only_unsupported_commands_rejected_before_enqueue"
+        },
+        "recovered_cleanup_fence": {
+          "const": "controller_owned_identity_and_native_cell_pointer_lease_drop_removes_exact_original_only"
+        },
+        "confirmed_dialog_oracle_boundary": {
+          "const": "original_server_INVITE_transaction_facts_absent_do_not_fabricate_or_invoke_matched_CANCEL_Oracle"
+        },
         "hot_path_work_added": {
-          "const": "none"
+          "const": "none_to_ordinary_new_call_or_media_packet_path"
         },
         "current_status": {
-          "const": "component_implemented_host_requalified_live_takeover_not_run"
+          "const": "component_implemented_local_exact_source_requalified_real_restart_and_live_takeover_not_run"
         }
       }
     },
@@ -528,7 +552,7 @@
               "const": "314_passed_0_failed"
             },
             "rustpbx_library": {
-              "const": "2109_passed_0_failed_12_external_prerequisites_ignored"
+              "const": "2112_passed_0_failed_12_external_prerequisites_ignored"
             },
             "affected_static_contract_tests": {
               "const": "targeted_contract_and_migration_suite_passed"
@@ -778,7 +802,7 @@
               "const": "13_passed_0_failed"
             },
             "active_call_registry": {
-              "const": "24_passed_0_failed"
+              "const": "25_passed_0_failed"
             },
             "durable_sip_effect_gate": {
               "const": "135_sip_effect_tests_passed_0_failed_11_physical_tests_ignored"
@@ -790,7 +814,7 @@
               "const": "passed"
             },
             "full_rustpbx_library": {
-              "const": "2109_passed_0_failed_12_external_prerequisites_ignored"
+              "const": "2112_passed_0_failed_12_external_prerequisites_ignored"
             }
           }
         },
@@ -991,7 +1015,7 @@
               "const": "40_passed_0_failed_1_physical_test_ignored"
             },
             "active_call_registry": {
-              "const": "24_passed_0_failed"
+              "const": "25_passed_0_failed"
             },
             "rustfmt_changed_sources": {
               "const": "passed"
@@ -1000,7 +1024,7 @@
               "const": "passed"
             },
             "full_rustpbx_library": {
-              "const": "2109_passed_0_failed_12_external_prerequisites_ignored"
+              "const": "2112_passed_0_failed_12_external_prerequisites_ignored"
             }
           }
         },
@@ -1152,6 +1176,9 @@
             "recovered_admission",
             "trusted_recovery_proof_rust",
             "takeover_compatibility_gate",
+            "recovered_active_call_registry",
+            "recovered_dialog_shadow",
+            "recovered_control_handle",
             "locked_library_check",
             "rustfmt_changed_sources",
             "full_rustpbx_library"
@@ -1178,6 +1205,15 @@
             "takeover_compatibility_gate": {
               "const": "10_passed_0_failed"
             },
+            "recovered_active_call_registry": {
+              "const": "25_passed_0_failed"
+            },
+            "recovered_dialog_shadow": {
+              "const": "10_passed_0_failed"
+            },
+            "recovered_control_handle": {
+              "const": "1_passed_0_failed"
+            },
             "locked_library_check": {
               "const": "passed"
             },
@@ -1185,7 +1221,7 @@
               "const": "passed"
             },
             "full_rustpbx_library": {
-              "const": "2109_passed_0_failed_12_external_prerequisites_ignored"
+              "const": "2112_passed_0_failed_12_external_prerequisites_ignored"
             }
           }
         },
@@ -1242,7 +1278,7 @@
           }
         },
         "current_candidate_server_verification": {
-          "const": "not_run_server_not_used_for_ivekit_80"
+          "const": "not_run_server_not_used_for_ivekit_81"
         },
         "performance_verification": {
           "const": "not_run"
