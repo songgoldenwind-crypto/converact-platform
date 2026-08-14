@@ -37,7 +37,7 @@ test('processing IVR execution patch is ordered, reproducible, and release-bound
     build,
     /rustpbx-ivekit-processing-terminal-events\.patch"[\s\S]*rustpbx-ivekit-processing-ivr-execution\.patch"/
   );
-  assert.match(build, /PATCHSET="ivekit\.83"/);
+  assert.match(build, /PATCHSET="ivekit\.84"/);
 
   const manifest = JSON.parse(
     readFileSync('docs/capacity/forks/ivekit-forks-v1.json', 'utf8')

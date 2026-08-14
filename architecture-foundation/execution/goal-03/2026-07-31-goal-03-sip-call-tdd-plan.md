@@ -334,6 +334,18 @@ Run serially:
    prerequisites ignored, and static contracts `232/232`. External media
    orphan reconciliation after cancellation, live Endpoint execution and
    process fault/OOM remain `not_run`.
+   The `.84` RED/GREEN slice closes the silent recovered-Dialog worker-loss
+   path. RED fails because `RecoveredDialogWorkerExitKind` and
+   `report_recovered_dialog_worker_exit` do not exist. GREEN retains exactly
+   two workers and adds one capacity-2 exit channel. Unexpected receiver close,
+   forwarding stop or caught unwind reports once to the sole controller and
+   terminates only its exact recovered Call; intentional cancellation is
+   silent, every controller exit cancels both workers, and successful terminal
+   event forwarding returns as cancellation so it cannot race a worker-loss
+   reason. Focused supervision passes `1/1`, dialog shadow `13/13`, full
+   RustPBX `2115/2115` with 12 external prerequisites ignored, and static
+   contracts `236/236` across 60 files. Live Endpoint worker-fault injection,
+   process abort/OOM and external media orphan reconciliation remain `not_run`.
 6. repository typecheck.
 7. Generate raw output, command/source manifest and SHA-256 evidence with no
    secrets.

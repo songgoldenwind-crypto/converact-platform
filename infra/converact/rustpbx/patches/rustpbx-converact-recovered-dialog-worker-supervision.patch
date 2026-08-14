@@ -1,0 +1,323 @@
+diff --git a/src/ivekit_dialog_shadow.rs b/src/ivekit_dialog_shadow.rs
+index 6b71a44..d1963df 100644
+--- a/src/ivekit_dialog_shadow.rs
++++ b/src/ivekit_dialog_shadow.rs
+@@ -2356,6 +2356,7 @@ const RECOVERED_MEDIA_TERMINATION_TIMEOUT: Duration = Duration::from_secs(2);
+ const RECOVERED_CONTROLLER_PANIC_CLEANUP_TIMEOUT: Duration = Duration::from_secs(8);
+ const RECOVERED_DIALOG_GLARE_RETRIES: usize = 2;
+ const RECOVERED_DIALOG_EVENT_CAPACITY: usize = 64;
++const RECOVERED_DIALOG_WORKER_EXIT_CAPACITY: usize = 2;
+ const RECOVERED_DIALOG_TERMINAL_ENQUEUE_TIMEOUT: Duration = Duration::from_millis(100);
+ 
+ #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+@@ -2393,6 +2394,33 @@ struct RecoveredDialogEvent {
+     state: rsipstack::dialog::dialog::DialogState,
+ }
+ 
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++enum RecoveredDialogWorkerExitKind {
++    Cancelled,
++    ReceiverClosed,
++    ForwardingStopped,
++    Panicked,
++}
++
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++struct RecoveredDialogWorkerExit {
++    side: RecoveredDialogSide,
++    kind: RecoveredDialogWorkerExitKind,
++}
++
++impl RecoveredDialogWorkerExit {
++    fn termination_reason(self) -> &'static str {
++        match self.kind {
++            RecoveredDialogWorkerExitKind::ReceiverClosed => "dialog_event_worker_closed",
++            RecoveredDialogWorkerExitKind::ForwardingStopped => {
++                "dialog_event_worker_forwarding_stopped"
++            }
++            RecoveredDialogWorkerExitKind::Panicked => "dialog_event_worker_panicked",
++            RecoveredDialogWorkerExitKind::Cancelled => "dialog_event_worker_cancelled",
++        }
++    }
++}
++
+ type RecoveredDialogReceiver = (
+     RecoveredDialogSide,
+     rsipstack::dialog::DialogId,
+@@ -2586,6 +2614,7 @@ struct RecoveredDialogController {
+     executor: Arc<dyn DialogShadowCommitExecutor>,
+     codec: Arc<DialogRecoveryCapsuleCodec>,
+     frozen: bool,
++    worker_cancel: tokio_util::sync::CancellationToken,
+     _active_call_lease: RecoveredActiveCallLease,
+ }
+ 
+@@ -2639,6 +2668,7 @@ async fn spawn_recovered_dialog_controller(
+             .await);
+         }
+     };
++    let worker_cancel = tokio_util::sync::CancellationToken::new();
+     let controller = RecoveredDialogController {
+         dialog_layer,
+         caller_dialog_id,
+@@ -2650,6 +2680,7 @@ async fn spawn_recovered_dialog_controller(
+         executor,
+         codec,
+         frozen: false,
++        worker_cancel: worker_cancel.clone(),
+         _active_call_lease: RecoveredActiveCallLease {
+             registry: active_calls,
+             cleanup_fence: Some(cleanup_fence),
+@@ -2657,40 +2688,92 @@ async fn spawn_recovered_dialog_controller(
+     };
+     let (event_sender, event_receiver) =
+         tokio::sync::mpsc::channel(RECOVERED_DIALOG_EVENT_CAPACITY);
+-    for (side, _, mut receiver) in receivers {
++    let (worker_exit_sender, worker_exit_receiver) =
++        tokio::sync::mpsc::channel(RECOVERED_DIALOG_WORKER_EXIT_CAPACITY);
++    for (side, _, receiver) in receivers {
+         let sender = event_sender.clone();
+-        tokio::spawn(async move {
+-            while let Some(state) = receiver.recv().await {
+-                let event = RecoveredDialogEvent { side, state };
+-                match sender.try_send(event) {
+-                    Ok(()) => {}
+-                    Err(tokio::sync::mpsc::error::TrySendError::Full(event)) => {
+-                        if matches!(
+-                            &event.state,
+-                            rsipstack::dialog::dialog::DialogState::Terminated(_, _)
+-                        ) {
+-                            if !matches!(
+-                                tokio::time::timeout(
+-                                    RECOVERED_DIALOG_TERMINAL_ENQUEUE_TIMEOUT,
+-                                    sender.send(event),
+-                                )
+-                                .await,
+-                                Ok(Ok(()))
+-                            ) {
+-                                break;
+-                            }
+-                        } else {
+-                            reject_recovered_dialog_event(event).await;
+-                        }
++        let exit_sender = worker_exit_sender.clone();
++        let cancel = worker_cancel.clone();
++        tokio::spawn(report_recovered_dialog_worker_exit(
++            side,
++            run_recovered_dialog_worker(side, receiver, sender, cancel),
++            exit_sender,
++        ));
++    }
++    drop(event_sender);
++    drop(worker_exit_sender);
++    tokio::spawn(controller.run(event_receiver, command_receiver, worker_exit_receiver));
++    Ok(())
++}
++
++async fn run_recovered_dialog_worker(
++    side: RecoveredDialogSide,
++    mut receiver: rsipstack::dialog::dialog::DialogStateReceiver,
++    sender: tokio::sync::mpsc::Sender<RecoveredDialogEvent>,
++    cancel: tokio_util::sync::CancellationToken,
++) -> RecoveredDialogWorkerExitKind {
++    loop {
++        let state = tokio::select! {
++            _ = cancel.cancelled() => return RecoveredDialogWorkerExitKind::Cancelled,
++            state = receiver.recv() => state,
++        };
++        let Some(state) = state else {
++            return RecoveredDialogWorkerExitKind::ReceiverClosed;
++        };
++        let event = RecoveredDialogEvent { side, state };
++        let terminal = matches!(
++            &event.state,
++            rsipstack::dialog::dialog::DialogState::Terminated(_, _)
++        );
++        match sender.try_send(event) {
++            Ok(()) if terminal => return RecoveredDialogWorkerExitKind::Cancelled,
++            Ok(()) => {}
++            Err(tokio::sync::mpsc::error::TrySendError::Full(event)) => {
++                if terminal {
++                    if !matches!(
++                        tokio::time::timeout(
++                            RECOVERED_DIALOG_TERMINAL_ENQUEUE_TIMEOUT,
++                            sender.send(event),
++                        )
++                        .await,
++                        Ok(Ok(()))
++                    ) {
++                        return RecoveredDialogWorkerExitKind::ForwardingStopped;
+                     }
+-                    Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => break,
++                    return RecoveredDialogWorkerExitKind::Cancelled;
++                } else {
++                    reject_recovered_dialog_event(event).await;
+                 }
+             }
+-        });
++            Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
++                return RecoveredDialogWorkerExitKind::Cancelled;
++            }
++        }
++    }
++}
++
++async fn report_recovered_dialog_worker_exit<F>(
++    side: RecoveredDialogSide,
++    future: F,
++    exit_sender: tokio::sync::mpsc::Sender<RecoveredDialogWorkerExit>,
++) where
++    F: std::future::Future<Output = RecoveredDialogWorkerExitKind> + Send,
++{
++    let kind = match AssertUnwindSafe(future).catch_unwind().await {
++        Ok(RecoveredDialogWorkerExitKind::Cancelled) => return,
++        Ok(kind) => kind,
++        Err(_) => RecoveredDialogWorkerExitKind::Panicked,
++    };
++    if exit_sender
++        .try_send(RecoveredDialogWorkerExit { side, kind })
++        .is_err()
++    {
++        tracing::error!(
++            ?side,
++            ?kind,
++            "recovered dialog worker exit could not reach its controller"
++        );
+     }
+-    drop(event_sender);
+-    tokio::spawn(controller.run(event_receiver, command_receiver));
+-    Ok(())
+ }
+ 
+ async fn recovered_controller_panicked<F>(future: F) -> bool
+@@ -2705,38 +2788,65 @@ impl RecoveredDialogController {
+         mut self,
+         mut receiver: tokio::sync::mpsc::Receiver<RecoveredDialogEvent>,
+         mut command_receiver: tokio::sync::mpsc::Receiver<crate::call::domain::CallCommand>,
++        mut worker_exit_receiver: tokio::sync::mpsc::Receiver<RecoveredDialogWorkerExit>,
+     ) {
+-        if !recovered_controller_panicked(self.run_loop(&mut receiver, &mut command_receiver)).await
++        if recovered_controller_panicked(self.run_loop(
++            &mut receiver,
++            &mut command_receiver,
++            &mut worker_exit_receiver,
++        ))
++        .await
+         {
+-            return;
+-        }
+-        tracing::error!(
+-            call_session_ref = %self.context.call_session_ref,
+-            owner_epoch = self.context.owner_epoch,
+-            "recovered dialog controller panic contained in child fault domain"
+-        );
+-        let cleanup = AssertUnwindSafe(self.terminate_all("controller_panic")).catch_unwind();
+-        match tokio::time::timeout(RECOVERED_CONTROLLER_PANIC_CLEANUP_TIMEOUT, cleanup).await {
+-            Ok(Ok(())) => {}
+-            Ok(Err(_)) => tracing::error!(
+-                call_session_ref = %self.context.call_session_ref,
+-                "recovered dialog controller panic cleanup also panicked"
+-            ),
+-            Err(_) => tracing::error!(
++            tracing::error!(
+                 call_session_ref = %self.context.call_session_ref,
+-                "recovered dialog controller panic cleanup reached its hard deadline"
+-            ),
++                owner_epoch = self.context.owner_epoch,
++                "recovered dialog controller panic contained in child fault domain"
++            );
++            let cleanup = AssertUnwindSafe(self.terminate_all("controller_panic")).catch_unwind();
++            match tokio::time::timeout(RECOVERED_CONTROLLER_PANIC_CLEANUP_TIMEOUT, cleanup).await {
++                Ok(Ok(())) => {}
++                Ok(Err(_)) => tracing::error!(
++                    call_session_ref = %self.context.call_session_ref,
++                    "recovered dialog controller panic cleanup also panicked"
++                ),
++                Err(_) => tracing::error!(
++                    call_session_ref = %self.context.call_session_ref,
++                    "recovered dialog controller panic cleanup reached its hard deadline"
++                ),
++            }
+         }
++        self.worker_cancel.cancel();
+     }
+ 
+     async fn run_loop(
+         &mut self,
+         receiver: &mut tokio::sync::mpsc::Receiver<RecoveredDialogEvent>,
+         command_receiver: &mut tokio::sync::mpsc::Receiver<crate::call::domain::CallCommand>,
++        worker_exit_receiver: &mut tokio::sync::mpsc::Receiver<RecoveredDialogWorkerExit>,
+     ) {
+         let mut command_open = true;
++        let mut worker_exit_open = true;
+         loop {
+             tokio::select! {
++                worker_exit = worker_exit_receiver.recv(), if worker_exit_open => {
++                    let reason = match worker_exit {
++                        Some(exit) => {
++                            tracing::error!(
++                                call_session_ref = %self.context.call_session_ref,
++                                ?exit.side,
++                                ?exit.kind,
++                                "recovered dialog event worker exited before its controller"
++                            );
++                            exit.termination_reason()
++                        }
++                        None => {
++                            worker_exit_open = false;
++                            continue;
++                        }
++                    };
++                    self.terminate_all(reason).await;
++                    break;
++                }
+                 command = command_receiver.recv(), if command_open => {
+                     match command {
+                         Some(crate::call::domain::CallCommand::Hangup(_)) => {
+@@ -4374,6 +4484,46 @@ mod tests {
+         );
+     }
+ 
++    #[tokio::test]
++    async fn recovered_dialog_worker_exit_is_reported_without_unbounded_supervision() {
++        let (sender, mut receiver) = tokio::sync::mpsc::channel(2);
++        report_recovered_dialog_worker_exit(
++            RecoveredDialogSide::Caller,
++            async {
++                panic!("recovered dialog worker fault injection");
++                #[allow(unreachable_code)]
++                RecoveredDialogWorkerExitKind::ReceiverClosed
++            },
++            sender.clone(),
++        )
++        .await;
++        let exit = receiver.recv().await.unwrap();
++        assert_eq!(exit.side, RecoveredDialogSide::Caller);
++        assert_eq!(exit.kind, RecoveredDialogWorkerExitKind::Panicked);
++        assert_eq!(exit.termination_reason(), "dialog_event_worker_panicked");
++
++        report_recovered_dialog_worker_exit(
++            RecoveredDialogSide::Callee,
++            async { RecoveredDialogWorkerExitKind::Cancelled },
++            sender.clone(),
++        )
++        .await;
++        assert!(receiver.try_recv().is_err());
++
++        report_recovered_dialog_worker_exit(
++            RecoveredDialogSide::Callee,
++            async { RecoveredDialogWorkerExitKind::ReceiverClosed },
++            sender,
++        )
++        .await;
++        let exit = receiver.recv().await.unwrap();
++        assert_eq!(exit.side, RecoveredDialogSide::Callee);
++        assert_eq!(exit.kind, RecoveredDialogWorkerExitKind::ReceiverClosed);
++        assert_eq!(exit.termination_reason(), "dialog_event_worker_closed");
++
++        assert!(receiver.recv().await.is_none());
++    }
++
+     #[test]
+     fn capsule_v2_native_binding_must_match_aead_authority() {
+         let codec = DialogRecoveryCapsuleCodec::new(

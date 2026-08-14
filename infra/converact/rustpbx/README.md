@@ -1030,6 +1030,24 @@ cancellation. Real task/process fault/OOM, real restart, live Endpoint,
 production and performance remain `not_run`. No server, Docker or running
 service was contacted or changed.
 
+ivekit.84 supervises the two recovered Dialog event workers. One bounded
+capacity-2 exit channel accepts at most one result from each worker. Unexpected
+receiver close, forwarding stop or caught unwind reports to the sole recovered
+controller and terminates only its exact Call. Intentional cancellation stays
+silent, every controller exit cancels both workers, and a successfully
+forwarded terminal Dialog event cannot race a second worker-loss reason. No
+global registry, unbounded queue, blocking task, packet-path work or second
+Call authority is added.
+
+Local exact-source verification passes the focused supervision regression
+`1/1`, dialog shadow `13/13`, and full RustPBX `2115/2115` with 12
+external-prerequisite tests ignored. Static repository contracts pass
+`236/236` across 60 files and G03 machine contracts pass `9/9`. This does not
+inject an actual worker fault through a live Endpoint or prove process-level
+fault survival. Process abort/OOM, external media orphan reconciliation, real
+restart/two-node, live Endpoint, production and performance remain `not_run`.
+No server, Docker or running service was contacted or changed.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

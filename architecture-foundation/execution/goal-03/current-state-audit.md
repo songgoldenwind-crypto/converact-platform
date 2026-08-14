@@ -14,7 +14,7 @@ claims and this audit does not mark G02 complete or production eligible.
 
 ## 2. Observed Baseline and Exact Candidate
 
-The table freezes the `.79` baseline retained by `.80` through `.83`; the exact
+The table freezes the `.79` baseline retained by `.80` through `.84`; the exact
 candidate deltas immediately below are authoritative for changed status.
 
 | Slice | Exact current source | Observed status | G03 disposition |
@@ -123,6 +123,30 @@ after cancellation. Real task/process panic, process abort/OOM, external media
 orphan reconciliation, real restart/two-node, live peer/Endpoint, Linux product
 process, production and performance remain `not_run`. No server, container or
 running program was contacted or changed.
+
+### Exact `.84` candidate delta
+
+The current additive candidate is `ivekit.84`. It supervises the two existing
+recovered Dialog event forwarders without adding another Call authority or
+per-packet work. One capacity-2 worker-exit channel can hold at most one result
+from each worker. An unexpected receiver close, forwarding stop or caught
+unwind reports once to the sole recovered controller; intentional controller
+cancellation exits silently. The controller then terminates only its exact
+recovered Call and cancels both sibling workers on every exit path.
+
+A successfully forwarded terminal Dialog event returns as cancellation rather
+than also reporting worker loss. This preserves the normal terminal-event
+reason and prevents the worker-exit branch from racing it. RED fails because
+`RecoveredDialogWorkerExitKind` and
+`report_recovered_dialog_worker_exit` do not exist. GREEN passes the focused
+worker-supervision regression `1/1`, dialog-shadow `13/13`, and full RustPBX
+`2115/2115` with 12 external-prerequisite tests ignored. Static contracts pass
+`236/236` across 60 files and G03 machine contracts pass `9/9`. This is local
+functional/source evidence only: no fault was injected through a live
+Endpoint. Process abort/OOM, external media orphan reconciliation, real
+restart/two-node, live peer/Endpoint, Linux product process, production and
+performance remain `not_run`. No server, container or running program was
+contacted or changed.
 
 The TypeScript SipFoundation code arrived through commit `385521c` and its
 PostgreSQL boundary was retained/hardened in later commits including `6c5d998`.
@@ -350,7 +374,10 @@ The following remain `not_run`:
    `.82` contains unwind inside that recovered controller child and bounds media
    cleanup to 2 seconds and the complete panic cleanup attempt to 8 seconds;
    `.83` applies the same 2-second deadline before returning any recovered
-   Active Call admission error. Actual live-task fault injection and external
+   Active Call admission error. `.84` supervises both recovered Dialog event
+   workers through one bounded capacity-2 exit channel; unexpected exit or
+   panic terminates only the exact Call, while controller exit cancels both
+   workers. Actual live-task fault injection and external
    media orphan reconciliation remain unproved. Next prove a real process restart reaches that issuer and registry. Separately
    prove the capability Oracle on a recovery path that retains the original
    server-INVITE transaction facts; confirmed-dialog recovery must not invent

@@ -42,7 +42,7 @@ test('ivekit.79 applies exact recovered admission after durable composition', ()
   );
 
   const build = readFileSync(BUILD, 'utf8');
-  assert.match(build, /PATCHSET="ivekit\.83"/u);
+  assert.match(build, /PATCHSET="ivekit\.84"/u);
   assert.match(
     build,
     /rustpbx-converact-durable-sip-runtime-composition\.patch"[\s\S]*rustpbx-converact-recovered-call-admission\.patch"/u

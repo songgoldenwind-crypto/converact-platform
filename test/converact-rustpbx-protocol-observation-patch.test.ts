@@ -23,7 +23,7 @@ test("ivekit.59 applies the protocol observer after the durable rsipstack gate",
   });
   assert.equal(parsed.status, 0, parsed.stderr);
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.83"/);
+  assert.match(build, /PATCHSET="ivekit\.84"/);
   assert.match(
     build,
     /rustpbx-converact-rsipstack-sip-effect-gate\.patch"[\s\S]*rustpbx-converact-protocol-observation\.patch"/,

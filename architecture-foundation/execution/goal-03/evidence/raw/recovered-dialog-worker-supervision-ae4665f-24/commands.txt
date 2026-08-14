@@ -1,0 +1,15 @@
+sha256sum goals/goal-03-sip-call-durable-foundation.md
+git apply --check --cached --unsafe-paths infra/converact/rustpbx/patches/rustpbx-converact-recovered-dialog-worker-supervision.patch against the staged exact ivekit.83 predecessor
+git apply --numstat infra/converact/rustpbx/patches/rustpbx-converact-recovered-dialog-worker-supervision.patch
+cmp generated patch with repository patch
+cmp minimal ivekit.84 candidate source with exact full-candidate source
+rustfmt --edition 2024 --check --config skip_children=true src/ivekit_dialog_shadow.rs
+RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc cargo check --locked --lib
+RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc cargo test --locked --lib ivekit_dialog_shadow::tests::recovered_dialog_worker_exit_is_reported_without_unbounded_supervision -- --exact
+RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc cargo test --locked --lib ivekit_dialog_shadow::tests --quiet
+RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc cargo test --locked --lib --quiet
+node architecture-foundation/execution/goal-03/generate-goal-03.mjs
+node --test architecture-foundation/execution/goal-03/goal-03-contract.test.mjs
+node --import ./test/explicit-dev-auth.mjs --import tsx --test <60 exact current-patch static test paths>
+npm run typecheck
+git diff --check

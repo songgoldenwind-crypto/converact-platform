@@ -470,6 +470,28 @@ rejection, task/process fault/OOM, restart/two-node, `G03-E15/G03-E16`,
 production and performance remain `not_run`. No server or container was
 contacted.
 
+The incremental `.84` candidate closes the silent-loss path for either of the
+two recovered Dialog event forwarders. Review confirms there are still exactly
+two workers and one recovered Call controller. A capacity-2 channel holds at
+most one exit report per worker; unexpected receiver close, forwarding stop or
+caught unwind reports to that controller and terminates only its exact Call.
+Intentional cancellation does not self-report, every controller exit cancels
+both workers, and a successfully forwarded terminal Dialog event exits as
+cancellation so the normal terminal reason cannot race a second fault reason.
+No global registry, unbounded queue, blocking task, per-packet work or second
+Call authority is introduced.
+
+RED fails because `RecoveredDialogWorkerExitKind` and
+`report_recovered_dialog_worker_exit` are absent. GREEN passes focused worker
+supervision `1/1`, dialog shadow `13/13`, full RustPBX `2115/2115` with 12
+external prerequisites ignored, locked check, scoped rustfmt, exact patch
+replay, repository typecheck, affected static contracts `236/236` across 60
+files and G03 machine contracts `9/9`. This is an implementation self-review
+checkpoint, not final independent acceptance. No worker fault was injected
+through a live Endpoint; process abort/OOM, external media orphan
+reconciliation, restart/two-node, `G03-E15/G03-E16`, production and performance
+remain `not_run`. No server or container was contacted.
+
 ## Rejection history and remaining gate
 
 The earlier `6cbe1a3` evidence review was rejected with

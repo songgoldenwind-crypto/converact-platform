@@ -31,7 +31,7 @@ test('ivekit.80 applies trusted recovery proof after closed recovered admission'
   assert.equal(parsed.stdout, '19\t12\tsrc/ivekit_dialog_shadow.rs\n');
 
   const build = readFileSync(BUILD, 'utf8');
-  assert.match(build, /PATCHSET="ivekit\.83"/u);
+  assert.match(build, /PATCHSET="ivekit\.84"/u);
   assert.match(
     build,
     /rustpbx-converact-recovered-call-admission\.patch"[\s\S]*rustpbx-converact-trusted-recovery-proof\.patch"/u

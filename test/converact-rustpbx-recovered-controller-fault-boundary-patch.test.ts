@@ -30,7 +30,7 @@ test('ivekit.82 applies the recovered controller fault boundary after Active Cal
   assert.equal(parsed.stdout, '63\t3\tsrc/ivekit_dialog_shadow.rs\n');
 
   const build = readFileSync(BUILD, 'utf8');
-  assert.match(build, /PATCHSET="ivekit\.83"/u);
+  assert.match(build, /PATCHSET="ivekit\.84"/u);
   assert.match(
     build,
     /rustpbx-converact-recovered-active-call\.patch"[\s\S]*rustpbx-converact-recovered-controller-fault-boundary\.patch"/u

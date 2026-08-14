@@ -190,7 +190,7 @@
           "const": "166c6d22984429eb6b509920c14fcd69f974f0b3"
         },
         "patchset": {
-          "const": "ivekit.83"
+          "const": "ivekit.84"
         },
         "current_adapter": {
           "const": "rsipstack"
@@ -291,6 +291,9 @@
         "recovered_media_cleanup_deadline_ms",
         "recovered_controller_panic_cleanup_deadline_ms",
         "recovered_admission_rejection_cleanup",
+        "recovered_dialog_worker_exit_capacity",
+        "recovered_dialog_worker_supervision",
+        "recovered_dialog_worker_shutdown",
         "confirmed_dialog_oracle_boundary",
         "hot_path_work_added",
         "current_status"
@@ -426,6 +429,15 @@
         },
         "recovered_admission_rejection_cleanup": {
           "const": "bounded_by_recovered_media_cleanup_deadline_before_error_return"
+        },
+        "recovered_dialog_worker_exit_capacity": {
+          "const": 2
+        },
+        "recovered_dialog_worker_supervision": {
+          "const": "unexpected_exit_or_panic_reports_to_one_controller_then_terminates_exact_call"
+        },
+        "recovered_dialog_worker_shutdown": {
+          "const": "controller_exit_cancels_both_workers_without_exit_report"
         },
         "confirmed_dialog_oracle_boundary": {
           "const": "original_server_INVITE_transaction_facts_absent_do_not_fabricate_or_invoke_matched_CANCEL_Oracle"
@@ -568,7 +580,7 @@
               "const": "314_passed_0_failed"
             },
             "rustpbx_library": {
-              "const": "2114_passed_0_failed_12_external_prerequisites_ignored"
+              "const": "2115_passed_0_failed_12_external_prerequisites_ignored"
             },
             "affected_static_contract_tests": {
               "const": "targeted_contract_and_migration_suite_passed"
@@ -830,7 +842,7 @@
               "const": "passed"
             },
             "full_rustpbx_library": {
-              "const": "2114_passed_0_failed_12_external_prerequisites_ignored"
+              "const": "2115_passed_0_failed_12_external_prerequisites_ignored"
             }
           }
         },
@@ -1040,7 +1052,7 @@
               "const": "passed"
             },
             "full_rustpbx_library": {
-              "const": "2114_passed_0_failed_12_external_prerequisites_ignored"
+              "const": "2115_passed_0_failed_12_external_prerequisites_ignored"
             }
           }
         },
@@ -1197,6 +1209,7 @@
             "recovered_control_handle",
             "recovered_controller_panic_boundary",
             "recovered_media_cleanup_deadline",
+            "recovered_dialog_worker_supervision",
             "locked_library_check",
             "rustfmt_changed_sources",
             "full_rustpbx_library"
@@ -1227,7 +1240,7 @@
               "const": "25_passed_0_failed"
             },
             "recovered_dialog_shadow": {
-              "const": "12_passed_0_failed"
+              "const": "13_passed_0_failed"
             },
             "recovered_control_handle": {
               "const": "1_passed_0_failed"
@@ -1238,6 +1251,9 @@
             "recovered_media_cleanup_deadline": {
               "const": "1_passed_0_failed"
             },
+            "recovered_dialog_worker_supervision": {
+              "const": "1_passed_0_failed"
+            },
             "locked_library_check": {
               "const": "passed"
             },
@@ -1245,7 +1261,7 @@
               "const": "passed"
             },
             "full_rustpbx_library": {
-              "const": "2114_passed_0_failed_12_external_prerequisites_ignored"
+              "const": "2115_passed_0_failed_12_external_prerequisites_ignored"
             }
           }
         },
@@ -1302,7 +1318,7 @@
           }
         },
         "current_candidate_server_verification": {
-          "const": "not_run_server_not_used_for_ivekit_83"
+          "const": "not_run_server_not_used_for_ivekit_84"
         },
         "performance_verification": {
           "const": "not_run"

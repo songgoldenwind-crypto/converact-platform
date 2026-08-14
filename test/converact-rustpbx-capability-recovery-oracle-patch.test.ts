@@ -30,7 +30,7 @@ test('ivekit.78 retains the PostgreSQL recovery oracle before durable compositio
   assert.equal(createHash('sha256').update(patch).digest('hex'), PATCH_SHA256);
 
   const build = readFileSync(BUILD, 'utf8');
-  assert.match(build, /PATCHSET="ivekit\.83"/u);
+  assert.match(build, /PATCHSET="ivekit\.84"/u);
   assert.match(
     build,
     /rustpbx-converact-native-call-capability-recovery\.patch"[\s\S]*rustpbx-converact-capability-recovery-oracle\.patch"/u,
