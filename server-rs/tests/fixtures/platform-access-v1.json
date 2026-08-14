@@ -1,0 +1,220 @@
+{
+  "contract_version": 1,
+  "source": "src/agent-runtime/converact/platform-foundation/identity.ts#evaluatePlatformAccess",
+  "base_claims": {
+    "tenant_id": "tenant-a",
+    "identity_id": "user-a",
+    "identity_kind": "human",
+    "session_id": "session-a",
+    "token_id": "token-a",
+    "issuer": "https://identity.converact.internal",
+    "audience": ["converact-core"],
+    "key_id": "key-v7",
+    "issued_at": "2026-08-01T11:59:00.000Z",
+    "not_before": "2026-08-01T11:59:00.000Z",
+    "expires_at": "2026-08-01T12:05:00.000Z",
+    "policy_version": 12,
+    "revocation_epoch": 4,
+    "role": "operator",
+    "capabilities": ["recording.start"],
+    "purpose": ["support_evidence"],
+    "credential_strength": "signed_token"
+  },
+  "base_input": {
+    "resource_tenant_id": "tenant-a",
+    "required_audience": "converact-core",
+    "required_capability": "recording.start",
+    "required_purpose": "support_evidence",
+    "current_policy_version": 12,
+    "current_revocation_epoch": 4,
+    "wall_now": "2026-08-01T12:00:00.000Z"
+  },
+  "timestamp_source": "src/agent-runtime/converact/platform-foundation/identity.ts#canonicalTimestamp",
+  "timestamp_vectors": [
+    { "input": "1970-01-01T00:00:00.000Z", "expected_epoch_ms": 0 },
+    { "input": "2024-02-29T23:59:59.999Z", "expected_epoch_ms": 1709251199999 },
+    { "input": "-000001-01-01T00:00:00.000Z", "expected_epoch_ms": -62198755200000 },
+    { "input": "-009999-01-01T00:00:00.000Z", "expected_epoch_ms": -377705116800000 },
+    { "input": "+275760-09-13T00:00:00.000Z", "expected_epoch_ms": 8640000000000000 },
+    { "input": "-271821-04-20T00:00:00.000Z", "expected_epoch_ms": -8640000000000000 },
+    { "input": "+275760-09-13T00:00:00.001Z", "expected_epoch_ms": null },
+    { "input": "2026-08-01T11:59:00Z", "expected_epoch_ms": null },
+    { "input": "2025-02-29T00:00:00.000Z", "expected_epoch_ms": null }
+  ],
+  "safe_integer_vectors": [
+    { "input": "12", "expected": 12 },
+    { "input": "12.0", "expected": 12 },
+    { "input": "12e0", "expected": 12 },
+    { "input": "-0", "expected": 0 },
+    { "input": "9007199254740991.1", "expected": 9007199254740991 },
+    { "input": "9007199254740992", "expected": null },
+    { "input": "9007199254740993", "expected": null },
+    { "input": "0.1", "expected": null },
+    { "input": "-1", "expected": null },
+    { "input": "1e309", "expected": null }
+  ],
+  "cases": [
+    {
+      "name": "valid_human",
+      "claims_overrides": {},
+      "input_overrides": {},
+      "expected": { "allowed": true }
+    },
+    {
+      "name": "integral_float_policy_version",
+      "claims_overrides": { "policy_version": 12.0 },
+      "input_overrides": {},
+      "expected": { "allowed": true }
+    },
+    {
+      "name": "tenant_mismatch",
+      "claims_overrides": {},
+      "input_overrides": { "resource_tenant_id": "tenant-b" },
+      "expected": { "allowed": false, "reason": "tenant_mismatch" }
+    },
+    {
+      "name": "audience_mismatch",
+      "claims_overrides": { "audience": ["other-service"] },
+      "input_overrides": {},
+      "expected": { "allowed": false, "reason": "audience_mismatch" }
+    },
+    {
+      "name": "capability_denied",
+      "claims_overrides": { "capabilities": ["recording.read"] },
+      "input_overrides": {},
+      "expected": { "allowed": false, "reason": "capability_denied" }
+    },
+    {
+      "name": "purpose_denied",
+      "claims_overrides": { "purpose": ["quality_training"] },
+      "input_overrides": {},
+      "expected": { "allowed": false, "reason": "purpose_denied" }
+    },
+    {
+      "name": "not_yet_valid",
+      "claims_overrides": { "not_before": "2026-08-01T12:00:00.001Z" },
+      "input_overrides": {},
+      "expected": { "allowed": false, "reason": "not_yet_valid" }
+    },
+    {
+      "name": "expired_at_boundary",
+      "claims_overrides": { "expires_at": "2026-08-01T12:00:00.000Z" },
+      "input_overrides": {},
+      "expected": { "allowed": false, "reason": "expired" }
+    },
+    {
+      "name": "stale_policy",
+      "claims_overrides": { "policy_version": 11 },
+      "input_overrides": {},
+      "expected": { "allowed": false, "reason": "stale_policy" }
+    },
+    {
+      "name": "stale_revocation",
+      "claims_overrides": { "revocation_epoch": 3 },
+      "input_overrides": {},
+      "expected": { "allowed": false, "reason": "stale_revocation" }
+    },
+    {
+      "name": "service_requires_mtls",
+      "claims_overrides": { "identity_kind": "service" },
+      "input_overrides": {},
+      "expected": { "allowed": false, "reason": "strong_service_identity_required" }
+    },
+    {
+      "name": "service_with_mtls",
+      "claims_overrides": { "identity_kind": "service", "credential_strength": "mtls" },
+      "input_overrides": {},
+      "expected": { "allowed": true }
+    },
+    {
+      "name": "valid_negative_extended_year",
+      "claims_overrides": {
+        "issued_at": "-000002-12-31T00:00:00.000Z",
+        "not_before": "-000001-01-01T00:00:00.000Z",
+        "expires_at": "-000001-01-02T00:00:00.000Z"
+      },
+      "input_overrides": { "wall_now": "-000001-01-01T12:00:00.000Z" },
+      "expected": { "allowed": true }
+    },
+    {
+      "name": "lone_surrogate_identity_matches_current_policy",
+      "claims_overrides": {},
+      "claims_utf16_overrides": { "identity_id": [55296] },
+      "input_overrides": {},
+      "expected": { "allowed": true }
+    },
+    {
+      "name": "blank_claim",
+      "claims_overrides": { "issuer": "" },
+      "input_overrides": {},
+      "expected": { "allowed": false, "reason": "claims_invalid" }
+    },
+    {
+      "name": "unknown_identity_kind",
+      "claims_overrides": { "identity_kind": "root" },
+      "input_overrides": {},
+      "expected": { "allowed": false, "reason": "claims_invalid" }
+    },
+    {
+      "name": "duplicate_purpose",
+      "claims_overrides": { "purpose": ["support_evidence", "support_evidence"] },
+      "input_overrides": {},
+      "expected": { "allowed": false, "reason": "claims_invalid" }
+    },
+    {
+      "name": "noncanonical_timestamp",
+      "claims_overrides": { "issued_at": "2026-08-01T11:59:00Z" },
+      "input_overrides": {},
+      "expected": { "allowed": false, "reason": "claims_invalid" }
+    },
+    {
+      "name": "reversed_claim_clock",
+      "claims_overrides": { "issued_at": "2026-08-01T12:00:00.000Z" },
+      "input_overrides": {},
+      "expected": { "allowed": false, "reason": "claims_invalid" }
+    },
+    {
+      "name": "empty_required_input",
+      "claims_overrides": {},
+      "input_overrides": { "required_purpose": "" },
+      "expected": { "allowed": false, "reason": "claims_invalid" }
+    },
+    {
+      "name": "missing_identity_claim",
+      "claims_overrides": {},
+      "claims_remove": ["identity_id"],
+      "input_overrides": {},
+      "expected": { "allowed": false, "reason": "claims_invalid" }
+    },
+    {
+      "name": "wrong_identity_claim_type",
+      "claims_overrides": { "identity_id": 7 },
+      "input_overrides": {},
+      "expected": { "allowed": false, "reason": "claims_invalid" }
+    },
+    {
+      "name": "negative_policy_version",
+      "claims_overrides": { "policy_version": -1 },
+      "input_overrides": {},
+      "expected": { "allowed": false, "reason": "claims_invalid" }
+    },
+    {
+      "name": "fractional_policy_version",
+      "claims_overrides": { "policy_version": 1.5 },
+      "input_overrides": {},
+      "expected": { "allowed": false, "reason": "claims_invalid" }
+    },
+    {
+      "name": "wrong_audience_item_type",
+      "claims_overrides": { "audience": [7] },
+      "input_overrides": {},
+      "expected": { "allowed": false, "reason": "claims_invalid" }
+    },
+    {
+      "name": "projected_extra_field_is_currently_ignored",
+      "claims_overrides": { "future_field": "ignored-by-current-policy" },
+      "input_overrides": {},
+      "expected": { "allowed": true }
+    }
+  ]
+}

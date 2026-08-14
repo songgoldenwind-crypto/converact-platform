@@ -10,6 +10,7 @@ members = [
   "crates/migration-tooling",
   "crates/observability",
   "crates/runtime-health",
+  "crates/tenant-auth",
   "crates/testkit",
 ]
 resolver = "3"

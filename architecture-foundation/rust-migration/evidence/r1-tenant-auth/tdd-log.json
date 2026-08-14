@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-auth-policy",
+  "generated_at": "2026-08-14T13:56:55Z",
+  "cycles": [
+    {
+      "id": "typescript_contract_freeze",
+      "red": "the Rust migration had no exact tenant access corpus bound to the active TypeScript identity policy",
+      "green": "17 access decisions and seven JavaScript canonical timestamp cases are checked in and replayed by the active TypeScript source"
+    },
+    {
+      "id": "rust_policy_replay",
+      "red": "the Rust test failed to import AccessRequest, PlatformIdentityClaims, evaluate_platform_access and parse_canonical_timestamp_ms",
+      "green": "the bounded Rust policy reproduces every frozen TypeScript decision and timestamp result"
+    },
+    {
+      "id": "boundary_hardening",
+      "red": "the initial corpus did not directly cover UTF-16 length, ECMAScript trim, 64-item sets, safe integers and out-of-range wall clocks",
+      "green": "focused boundary tests fail closed with claims_invalid and Clippy passes with warnings denied"
+    },
+    {
+      "id": "independent_review_compatibility",
+      "red": "independent review found incorrect negative extended-year handling, no representation for the current lone-surrogate policy behavior, a potentially forgeable public policy input and missing raw-shape cases",
+      "green": "signed negative years and lone UTF-16 surrogates replay exactly; verified claims and access requests are externally unconstructible; malformed projections map to one stable error, five raw-shape cases map to claims_invalid, and internal extra-field compatibility is frozen separately from the future closed JWT wire boundary"
+    },
+    {
+      "id": "bounded_projection_and_javascript_number_semantics",
+      "red": "review found that projection JSON could allocate before a byte bound and that direct u64 deserialization rejected JavaScript-safe integral float/exponent forms; the first f64 implementation also produced a different decimal-rounding result immediately below 2^53",
+      "green": "projection input is capped at 512 KiB before parsing and validated through the bounded policy; raw number lexemes replay ten JSON.parse plus Number.isSafeInteger vectors including 12.0, 12e0, negative zero, overflow, infinity and the 2^53 boundary"
+    }
+  ]
+}

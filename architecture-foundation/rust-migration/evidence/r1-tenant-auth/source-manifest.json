@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-auth-policy",
+  "generated_at": "2026-08-14T13:58:40Z",
+  "base_commit": "564c618a5539e382af81f5d2e8d1904ad241f755",
+  "branch": "codex/converact-platform-rename",
+  "rust_toolchain": "1.94.1-aarch64-apple-darwin",
+  "hash_algorithm": "sha256",
+  "production_eligible": false,
+  "dependencies": [
+    {
+      "name": "serde",
+      "version": "1.0.228",
+      "license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/serde-rs/serde",
+      "use": "closed internal claims projection",
+      "native_library_linked": false
+    },
+    {
+      "name": "serde_json",
+      "version": "1.0.149",
+      "features": ["raw_value"],
+      "license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/serde-rs/json",
+      "use": "bounded projection parsing with raw JavaScript number lexemes",
+      "native_library_linked": false
+    }
+  ],
+  "files": [
+    { "path": "server-rs/Cargo.toml", "sha256": "c11d557332cb080644e633290cd542af5d9ee89dd7e99d7feb230c4572882988" },
+    { "path": "server-rs/Cargo.lock", "sha256": "e8a377746340198d72e8cdb538cd526dfb19e7bf76b8b137847184b4f340896b" },
+    { "path": "server-rs/crates/tenant-auth/Cargo.toml", "sha256": "ce7a44c301f4f2b63faa38e2c806f4d567f503a3328241b402e126aca44d4210" },
+    { "path": "server-rs/crates/tenant-auth/src/lib.rs", "sha256": "25f746c133096eb09860a9484f6bdc9990bdc9617c0b9c2209736972a8ad2f42" },
+    { "path": "server-rs/crates/tenant-auth/src/tests.rs", "sha256": "6e949b4f84d9d373b6a7fad0da93c996397c75e5bea1247b68a05f15605e6c88" },
+    { "path": "server-rs/tests/fixtures/platform-access-v1.json", "sha256": "5a3581e33d486d164eab574e959fc7bb130d73ffc98ca68bdf13225429422bac" },
+    { "path": "src/agent-runtime/converact/platform-foundation/identity.ts", "sha256": "9e28ac104cc10db4620fc7a37ee4dc8643a7170292fe6a43d760008ebc10cdcf" },
+    { "path": "test/converact-platform-identity-isolation.test.ts", "sha256": "eedfe16ab7f82b339d7289e8bf3b79e19cb4dd16fee8c65f0b2bd8d41afc2216" },
+    { "path": "test/converact-rust-tenant-auth-contract.test.ts", "sha256": "46c164f77bb37a877006e35a81ce4292fe638f95ffa9c3fd6184af7d71684e1f" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-auth/README.md", "sha256": "fbcb015a8b357502470564c1dcb73e99e484e745a73cef5f6aafeaf6f89fae98" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-auth/independent-review.json", "sha256": "66dd6504c42e65826bb592e3fd1fe99c6c1b10a32e00ae7f09e92569dfbfd2c3" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-auth/tdd-log.json", "sha256": "a2f8502d30fae9b3bd46932060722fd7995112dbafa276a4ee2c5bb9509f7808" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-auth/verification.json", "sha256": "5677d56092eaf627df66d2605a36409d4483143cff93271331c8176160f913ae" }
+  ]
+}

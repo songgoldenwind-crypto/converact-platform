@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-auth-policy",
+  "generated_at": "2026-08-14T13:58:40Z",
+  "reviewer_scope": "independent read-only review of the exact tenant access policy replay slice",
+  "rounds": [
+    {
+      "round": 1,
+      "critical": 0,
+      "important": 2,
+      "findings": [
+        "negative extended-year parsing did not match JavaScript Date semantics",
+        "the Rust string representation could not preserve the current lone-surrogate policy behavior"
+      ],
+      "status": "corrected_with_regressions"
+    },
+    {
+      "round": 2,
+      "critical": 0,
+      "important": 3,
+      "findings": [
+        "negative extended-year compatibility remained incomplete",
+        "public policy inputs could be forged without a credential verifier",
+        "malformed raw projection shapes were not directly covered"
+      ],
+      "status": "corrected_with_regressions"
+    },
+    {
+      "round": 3,
+      "critical": 0,
+      "important": 2,
+      "findings": [
+        "the projection parser had no pre-allocation document bound and validation did not apply bounded claim rules",
+        "direct u64 deserialization rejected JavaScript-safe integral decimal and exponent forms"
+      ],
+      "status": "corrected_with_regressions"
+    },
+    {
+      "round": 4,
+      "critical": 0,
+      "important": 2,
+      "findings": [
+        "JavaScript safe-integer lexical compatibility still required raw differential vectors",
+        "verification evidence contained stale focused and workspace counts"
+      ],
+      "status": "corrected"
+    },
+    {
+      "round": 5,
+      "critical": 0,
+      "important": 0,
+      "findings": [],
+      "status": "passed"
+    }
+  ],
+  "final_result": {
+    "critical": 0,
+    "important": 0,
+    "status": "passed"
+  },
+  "constraints": {
+    "jwt_signature_issuer_key_verification": "not_run",
+    "mtls_peer_certificate_mapping": "not_run",
+    "postgres_rls_physical": "not_run",
+    "running_server_validation": "not_run",
+    "performance_validation": "not_run",
+    "production_eligible": false
+  }
+}
