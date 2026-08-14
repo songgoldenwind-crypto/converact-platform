@@ -961,6 +961,25 @@ contact the server and ran no performance command. Trusted recovered-proof
 production, real process restart, live Endpoint and production remain
 `not_run`.
 
+ivekit.80 closes the trusted recovered-proof issuer component without adding a
+second Call authority. Before takeover, the TypeScript compatibility
+coordinator requires two authenticated schema-v2 capsule payloads with one
+identical canonical `NativeCallRecoveryBinding`; legacy, missing or split
+bindings fail closed. After claim, Rust opens both A256GCM capsules, preserves
+the exact predecessor binding, derives the higher-epoch successor and registers
+`NativeCallOwnerProof::Recovered` in both restored-call and
+finalization-only paths. Client request fields and ordinary placement replay
+cannot mint this proof.
+
+Local exact-source verification passes the takeover suite `10/10`, Rust
+dialog-shadow `9/9`, the focused proof regression `1/1`, and full RustPBX
+`2109/2109` with 12 external-prerequisite tests ignored. Exact patch replay,
+scoped rustfmt, locked check, repository typecheck, affected static tests and
+G03 machine contracts pass. No server or Docker command ran. Real process
+restart through this issuer and the durable capability Oracle, live Endpoint,
+Linux product-process execution, production and all performance work remain
+`not_run`.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

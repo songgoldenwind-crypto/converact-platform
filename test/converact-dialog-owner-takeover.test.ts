@@ -4,7 +4,8 @@ import test from 'node:test';
 
 import {
   DialogRecoveryCapsuleCodec,
-  type DialogRecoveryCapsulePayload
+  type DialogRecoveryCapsulePayload,
+  type NativeCallRecoveryBinding
 } from '../src/agent-runtime/converact/voice/dialog-recovery-capsule.js';
 import {
   DialogOwnerTakeoverCoordinator,
@@ -372,17 +373,18 @@ test('production discovery claim derives session and previous authority from dia
 });
 
 function payload(
-  leg: 'caller' | 'callee'
+  leg: 'caller' | 'callee',
+  nativeBinding: NativeCallRecoveryBinding | null = nativeCallBinding()
 ): DialogRecoveryCapsulePayload {
   const caller = leg === 'caller';
-  return {
-    schema_version: 1,
+  const dialogRole: 'uas' | 'uac' = caller ? 'uas' : 'uac';
+  const value = {
     call_session_ref: 'call-session-a',
     interaction_id: 'interaction-a',
     dialog_id: caller ? 'dialog-caller' : 'dialog-callee',
     peer_dialog_id: caller ? 'dialog-callee' : 'dialog-caller',
     leg,
-    dialog_role: caller ? 'uas' : 'uac',
+    dialog_role: dialogRole,
     raw_call_id: caller
       ? 'caller-call-id@example.invalid'
       : 'callee-call-id@example.invalid',
@@ -409,6 +411,50 @@ function payload(
     supports_100rel: true,
     media_reservation_id: caller ? 'reservation-caller' : 'reservation-callee',
     cdr_sequence: caller ? 12 : 13
+  };
+  return nativeBinding
+    ? {
+        schema_version: 2,
+        native_call_binding: nativeBinding,
+        ...value
+      }
+    : {
+        schema_version: 1,
+        ...value
+      };
+}
+
+function nativeCallBinding(
+  overrides: Partial<NativeCallRecoveryBinding> = {}
+): NativeCallRecoveryBinding {
+  return {
+    schema_id: 'converact.native-call-recovery-binding',
+    schema_version: '1.0.0',
+    tenant_id: 'tenant-a',
+    call_id: 'call_7f906e5acdb6ff58c90d54566ced341f',
+    interaction_id: 'interaction_2f76cfe99ecf8daf6972aa0734d860b4',
+    provider_call_id: 'call-session-a',
+    owner_epoch: '7',
+    generation: '11',
+    revision: '13',
+    ...overrides
+  };
+}
+
+function recordWithPayload(
+  leg: 'caller' | 'callee',
+  recoveryPayload: DialogRecoveryCapsulePayload
+): DialogShadowRecord {
+  const base = record(leg);
+  return {
+    ...base,
+    recovery_capsule: codec().seal(recoveryPayload, {
+      tenant_id: base.tenant_id,
+      cell_id: base.cell_id,
+      dialog_id: base.dialog_id,
+      owner_epoch: base.owner_epoch,
+      sequence: base.sequence
+    })
   };
 }
 
@@ -458,7 +504,11 @@ function preparedRecord(
   leg: 'caller' | 'callee',
   takeoverId = 'takeover-a'
 ): DialogShadowRecord {
-  const value = payload(leg);
+  const value = payload(leg, nativeCallBinding({
+    owner_epoch: '8',
+    generation: '12',
+    revision: '14'
+  }));
   return record(leg, {
     owner_node_id: 'rustpbx-b',
     owner_fault_domain: 'zone-b-rack-1',
@@ -711,6 +761,34 @@ test('takeover rejects incomplete capsule pairs and idempotency payload conflict
     })),
     (error) => code(error) === 'dialog_owner_takeover_idempotency_conflict'
   );
+});
+
+test('takeover claim requires one reciprocal v2 Native Call recovery proof', async () => {
+  {
+    const { coordinator: service, reader } = coordinator();
+    reader.records = [
+      recordWithPayload('caller', payload('caller', null)),
+      recordWithPayload('callee', payload('callee', null))
+    ];
+    await assert.rejects(
+      service.claimByDialog(claimInput()),
+      (error) => code(error) === 'dialog_owner_takeover_ineligible'
+    );
+  }
+
+  {
+    const { coordinator: service, reader } = coordinator();
+    reader.records = [
+      recordWithPayload('caller', payload('caller')),
+      recordWithPayload('callee', payload('callee', nativeCallBinding({
+          call_id: 'call_8f906e5acdb6ff58c90d54566ced341f'
+        })))
+    ];
+    await assert.rejects(
+      service.claimByDialog(claimInput()),
+      (error) => code(error) === 'dialog_owner_takeover_ineligible'
+    );
+  }
 });
 
 function code(error: unknown): string {

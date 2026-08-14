@@ -1,0 +1,121 @@
+diff --git a/src/ivekit_dialog_shadow.rs b/src/ivekit_dialog_shadow.rs
+index 4559071..ce90a28 100644
+--- a/src/ivekit_dialog_shadow.rs
++++ b/src/ivekit_dialog_shadow.rs
+@@ -2038,10 +2038,10 @@ pub fn open_recovery_pair(
+     Ok(payloads)
+ }
+ 
+-fn recovered_native_call_identity(
++fn recovered_native_call_authority(
+     payloads: &[DialogRecoveryCapsulePayload],
+     owner_epoch: u64,
+-) -> Result<NativeCallIdentity, DialogShadowError> {
++) -> Result<(NativeCallRecoveryBinding, NativeCallIdentity), DialogShadowError> {
+     if payloads.len() != 2 {
+         return Err(DialogShadowError::InvalidRecord);
+     }
+@@ -2059,8 +2059,9 @@ fn recovered_native_call_identity(
+     {
+         return Err(DialogShadowError::InvalidRecord);
+     }
+-    NativeCallIdentity::recover_from_binding(binding, owner_epoch)
+-        .map_err(|_| DialogShadowError::InvalidRecord)
++    let successor = NativeCallIdentity::recover_from_binding(binding, owner_epoch)
++        .map_err(|_| DialogShadowError::InvalidRecord)?;
++    Ok((binding.clone(), successor))
+ }
+ 
+ pub async fn recover_dialog_pair(
+@@ -2110,7 +2111,8 @@ pub async fn recover_dialog_pair(
+     let call_session_ref = requested_payload.call_session_ref.clone();
+     let interaction_id = requested_payload.interaction_id.clone();
+     let previous_owner_epoch = claim.shadow_records[0].owner_epoch;
+-    let native_call_identity = recovered_native_call_identity(&payloads, claim.owner_epoch)?;
++    let (predecessor_native_call_binding, native_call_identity) =
++        recovered_native_call_authority(&payloads, claim.owner_epoch)?;
+     let recovered_binding = native_call_identity.recovery_binding();
+     for payload in &mut payloads {
+         payload.schema_version = 2;
+@@ -2137,6 +2139,7 @@ pub async fn recover_dialog_pair(
+             &auth_context_ref,
+             &payloads,
+             &native_call_identity,
++            &predecessor_native_call_binding,
+         )
+         .await?;
+         return Err(DialogShadowError::AbsentOrTerminal);
+@@ -2279,7 +2282,7 @@ pub async fn recover_dialog_pair(
+         remove_restored_dialogs(dialog_layer, &restored_ids);
+         return Err(DialogShadowError::InvalidRecord);
+     }
+-    if crate::ivekit_owner::ensure_owner_with_identity(
++    if crate::ivekit_owner::ensure_recovered_owner_with_identity(
+         &call_session_ref,
+         crate::ivekit_owner::OwnerContract {
+             reservation_id,
+@@ -2294,6 +2297,7 @@ pub async fn recover_dialog_pair(
+             media_control_profile: callee.media_control_profile.clone(),
+         },
+         native_call_identity,
++        predecessor_native_call_binding,
+     )
+     .await
+     .is_err()
+@@ -3214,6 +3218,7 @@ async fn finalize_recovered_dialog_pair(
+     auth_context_ref: &str,
+     payloads: &[DialogRecoveryCapsulePayload],
+     native_call_identity: &NativeCallIdentity,
++    predecessor_native_call_binding: &NativeCallRecoveryBinding,
+ ) -> Result<(), DialogShadowError> {
+     commit_recovered_shadow_pair(
+         config,
+@@ -3270,7 +3275,7 @@ async fn finalize_recovered_dialog_pair(
+         .strip_suffix("/callee")
+         .ok_or(DialogShadowError::InvalidRecord)?
+         .to_string();
+-    if crate::ivekit_owner::ensure_owner_with_identity(
++    if crate::ivekit_owner::ensure_recovered_owner_with_identity(
+         call_session_ref,
+         crate::ivekit_owner::OwnerContract {
+             reservation_id,
+@@ -3285,6 +3290,7 @@ async fn finalize_recovered_dialog_pair(
+             media_control_profile: callee.media_control_profile.clone(),
+         },
+         native_call_identity.clone(),
++        predecessor_native_call_binding.clone(),
+     )
+     .await
+     .is_err()
+@@ -4011,10 +4017,11 @@ mod tests {
+         caller.native_call_binding = Some(binding.clone());
+         let mut callee = recovery_payload("dialog-b", "dialog-a", "callee", "uac");
+         callee.schema_version = 2;
+-        callee.native_call_binding = Some(binding);
++        callee.native_call_binding = Some(binding.clone());
+ 
+-        let recovered =
+-            recovered_native_call_identity(&[caller.clone(), callee.clone()], 8).unwrap();
++        let (predecessor, recovered) =
++            recovered_native_call_authority(&[caller.clone(), callee.clone()], 8).unwrap();
++        assert_eq!(predecessor, binding);
+         assert_eq!(recovered.tenant_id(), "tenant-a");
+         assert_eq!(recovered.provider_call_id().as_str(), "call-session-a");
+         assert_eq!(recovered.owner_epoch(), 8);
+@@ -4034,14 +4041,14 @@ mod tests {
+             .unwrap()
+             .recovery_binding(),
+         );
+-        assert!(recovered_native_call_identity(&[caller, callee], 8).is_err());
++        assert!(recovered_native_call_authority(&[caller, callee], 8).is_err());
+     }
+ 
+     #[test]
+     fn resume_capsule_v1_cannot_grant_native_call_authority() {
+         let caller = recovery_payload("dialog-a", "dialog-b", "caller", "uas");
+         let callee = recovery_payload("dialog-b", "dialog-a", "callee", "uac");
+-        assert!(recovered_native_call_identity(&[caller, callee], 8).is_err());
++        assert!(recovered_native_call_authority(&[caller, callee], 8).is_err());
+     }
+ 
+     #[test]

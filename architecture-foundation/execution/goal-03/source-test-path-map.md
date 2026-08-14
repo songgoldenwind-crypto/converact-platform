@@ -9,8 +9,13 @@ evidence is not promoted.
 
 ## 2. Current and Target Paths
 
+Current patchset is `.80`. Rows ending at `.79` describe its retained substrate;
+the first row below records the additive trusted-proof delta and does not
+promote live recovery or Native Authority.
+
 | Domain | Current/target implementation | Focused tests | Evidence ID |
 | --- | --- | --- | --- |
+| trusted recovered-proof issuer | TypeScript takeover compatibility coordinator requires one reciprocal schema-v2 `NativeCallRecoveryBinding`; Rust opens both A256GCM capsules, preserves the exact predecessor, derives the higher-epoch successor and registers recovered owner proof for resume/finalization | takeover `10/10`; Rust dialog-shadow `9/9`; exact proof test `1/1`; full RustPBX `2109/2109` with 12 ignored; static contract, typecheck, locked check, rustfmt and G03 machine contracts | local bundle `trusted-recovery-proof-d7e0b07-20/`; real restart-to-Oracle invocation, live Endpoint and `G03-E16` remain `not_run` |
 | owned ID types and projection-attested legacy import | `voice/foundation-identifiers.ts`; module-issued `VoiceCallProjectionIdAdapter` bound to exact `PostgresVoiceCallStore` with native-private composition and captured query method | `test/converact-call-leg-foundation.test.ts` including prototype/own-override rejection and role lock | `G03-E03-ID-STATE` |
 | Call product intent/projection | `voice/types.ts`; `voice/state-machine.ts`; `voice/call-service.ts` | Voice application/state tests | `G03-E03-ID-STATE`; native authority is `G03-E16/not_run` |
 | Leg/race conformance model | `voice/call-leg-state-machine.ts` covering pre-INVITE fork registration/CANCEL effects, terminating-winner 2xx retransmission, atomic transfer and fenced callback-free mailbox/timers | `test/converact-call-leg-foundation.test.ts` | `G03-E03-ID-STATE`; native binding is `G03-E16/not_run` |

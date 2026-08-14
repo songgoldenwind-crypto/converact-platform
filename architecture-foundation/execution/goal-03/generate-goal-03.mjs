@@ -26,7 +26,7 @@ const sourceIdentity = Object.freeze({
   rustpbx_commit: '6c49ee76baa54fdbf8f98020cc9bee158c7c15de',
   rsipstack_commit: '8318e97b1170de4e5245b120afec1cdf53e3d716',
   rustrtc_commit: '166c6d22984429eb6b509920c14fcd69f974f0b3',
-  patchset: 'ivekit.79',
+  patchset: 'ivekit.80',
   current_adapter: 'rsipstack',
   target_adapter: 'rvoip_low_level_slices_after_separate_gates',
   native_runtime_authority: 'Unified RustPBX process',
@@ -790,7 +790,7 @@ function sipFoundationContract() {
       successor_replacement_cleanup_fence:
         'implemented_identity_and_native_cell_pointer_fence',
       capability_restart_rebuild:
-        'durable_PostgreSQL_composition_and_trusted_invocation_implemented_default_disabled_recovered_producer_not_run',
+        'durable_PostgreSQL_composition_trusted_admission_and_v2_capsule_proof_issuer_implemented_default_disabled_real_process_invocation_not_run',
       format_scope_exception:
         'test_auth_constructor_compiled_and_full_tested_rustfmt_excluded_due_unrelated_upstream_drift',
       endpoint_global_gate: 'forbidden',
@@ -809,7 +809,7 @@ function sipFoundationContract() {
         repository_typecheck: 'passed',
       },
       activation_blockers: [
-        'trusted_recovered_Call_producer_and_real_process_invocation_not_run',
+        'real_process_restart_to_recovered_capability_invocation_not_run',
         'live_endpoint_activation_not_run',
         'Linux_RustPBX_process_functional_verification_not_run',
       ],
@@ -867,7 +867,7 @@ function sipFoundationContract() {
           '2109_passed_0_failed_12_external_prerequisites_ignored',
       },
       activation_blockers: [
-        'trusted_recovered_Call_producer_and_real_process_invocation_not_run',
+        'real_process_restart_to_recovered_capability_invocation_not_run',
         'live_endpoint_activation_not_run',
         'Linux_RustPBX_process_functional_verification_not_run',
       ],
@@ -918,7 +918,7 @@ function sipFoundationContract() {
     native_call_capability_recovery: {
       authority: 'Unified_RustPBX_Native_Call_registry',
       implementation_status:
-        'component_implemented_default_disabled_trusted_admission_invocation',
+        'component_implemented_default_disabled_trusted_admission_and_v2_capsule_proof_issuer',
       scope: 'rebuild_only_unconsumed_matched_CANCEL_capability_pair',
       predecessor_binding: 'NativeCallRecoveryBinding_exact_closed_v1',
       oracle_contract:
@@ -946,7 +946,8 @@ function sipFoundationContract() {
       missing_proof_policy:
         'legacy_unspecified_fails_closed_when_durable_runtime_is_enabled',
       fresh_proof_issuer: 'control_plane_new_prepared_reservation_only',
-      recovered_proof_issuer: 'not_run',
+      recovered_proof_issuer:
+        'Rust_AEAD_opened_reciprocal_v2_capsule_pair_exact_predecessor_component_implemented',
       owner_admission_snapshot:
         'one_Arc_snapshot_identity_proof_and_guard_checked_before_and_after_async_oracle',
       stale_snapshot_cleanup:
@@ -956,7 +957,7 @@ function sipFoundationContract() {
       refresh_task_replacement_fence:
         'original_owner_pointer_exit_on_replacement',
       live_recovery_wiring:
-        'trusted_admission_invokes_PostgreSQL_oracle_default_disabled_recovered_proof_producer_not_run',
+        'trusted_admission_oracle_and_v2_capsule_proof_issuer_component_implemented_default_disabled_real_restart_invocation_not_run',
       local_functional_verification: {
         native_sip_effect_capabilities:
           '135_sip_effect_tests_passed_0_failed_11_physical_tests_ignored_plus_lower_layer_exact_physical_adapter_1_passed',
@@ -965,6 +966,8 @@ function sipFoundationContract() {
         ivekit_owner: '11_passed_0_failed',
         snapshot_admission: '3_passed_0_failed',
         recovered_admission: '15_passed_0_failed',
+        trusted_recovery_proof_rust: '1_focused_test_passed_0_failed',
+        takeover_compatibility_gate: '10_passed_0_failed',
         locked_library_check: 'passed',
         rustfmt_changed_sources: 'passed',
         full_rustpbx_library:
@@ -972,11 +975,11 @@ function sipFoundationContract() {
       },
       server_functional_verification: capabilityRecoveryServerVerification,
       current_candidate_server_verification:
-        'not_run_server_not_used_for_ivekit_79',
+        'not_run_server_not_used_for_ivekit_80',
       performance_verification: 'not_run',
       performance_policy: 'deferred_to_final_performance_goal',
       activation_blockers: [
-        'trusted_recovered_Call_proof_producer_not_run',
+        'real_process_restart_to_v2_capsule_proof_invocation_not_run',
         'real_process_restart_and_ambiguity_recovery_not_run',
         'live_endpoint_activation_not_run',
         'Linux_RustPBX_process_functional_verification_not_run',

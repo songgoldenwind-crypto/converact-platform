@@ -2,6 +2,7 @@ import { createHash, createHmac, randomUUID } from 'node:crypto';
 
 import {
   DialogRecoveryCapsuleCodec,
+  nativeCallRecoveryBindingSha256,
   type DialogRecoveryCapsulePayload
 } from './dialog-recovery-capsule.js';
 import {
@@ -774,8 +775,16 @@ function assertRecoveryPair(
   callSessionRef: string
 ): void {
   const byDialog = new Map(payloads.map((payload) => [payload.dialog_id, payload]));
+  const predecessor = payloads[0]?.native_call_binding;
   if (byDialog.size !== 2 ||
-      new Set(payloads.map((payload) => payload.leg)).size !== 2) {
+      new Set(payloads.map((payload) => payload.leg)).size !== 2 ||
+      !predecessor ||
+      payloads.some((payload) =>
+        payload.schema_version !== 2 ||
+        !payload.native_call_binding ||
+        nativeCallRecoveryBindingSha256(payload.native_call_binding) !==
+          nativeCallRecoveryBindingSha256(predecessor)
+      )) {
     ineligible();
   }
   for (const [index, record] of records.entries()) {

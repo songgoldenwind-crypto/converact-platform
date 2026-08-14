@@ -1,0 +1,12 @@
+node --import tsx --test test/converact-dialog-owner-takeover.test.ts
+(cd /private/tmp/converact-g03-79-recovered-admission.CCfajn/baseline && git apply --check --unsafe-paths /Users/songjinfeng/Projects/converact-worktrees/platform/infra/converact/rustpbx/patches/rustpbx-converact-trusted-recovery-proof.patch)
+(cd /private/tmp/converact-g03-79-recovered-admission.CCfajn/candidate && /Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustfmt --edition 2024 --check --config skip_children=true src/ivekit_dialog_shadow.rs)
+(cd /private/tmp/converact-g03-79-recovered-admission.CCfajn/candidate && RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc /Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/cargo test --locked --lib resume_capsule_v2_preserves_one_native_call_and_advances_takeover_fence)
+(cd /private/tmp/converact-g03-79-recovered-admission.CCfajn/candidate && target/debug/deps/rustpbx-ec36ba560b2c1f26 ivekit_dialog_shadow::tests)
+(cd /private/tmp/converact-g03-79-recovered-admission.CCfajn/candidate && RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc /Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/cargo test --locked --lib --quiet)
+(cd /private/tmp/converact-g03-79-recovered-admission.CCfajn/candidate && RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc /Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/cargo check --locked --lib)
+npm run typecheck
+node --import ./test/explicit-dev-auth.mjs --import tsx --test <57 exact modified TypeScript test paths from git status --porcelain -- test>
+node architecture-foundation/execution/goal-03/generate-goal-03.mjs
+node --test architecture-foundation/execution/goal-03/goal-03-contract.test.mjs
+git diff --check

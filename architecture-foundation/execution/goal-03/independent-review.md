@@ -386,6 +386,25 @@ server was not contacted, no performance command ran, and the trusted
 recovered-proof producer, real process restart, live Endpoint, production and
 `G03-E15/G03-E16` remain `not_run`.
 
+The incremental `.80` candidate closes that intentionally open issuer component
+without promoting TypeScript to recovery Authority. Review confirms the
+compatibility coordinator refuses legacy v1, missing and split-binding capsule
+pairs before claim. Rust then opens the authoritative reciprocal A256GCM pair,
+returns the exact predecessor together with the derived higher-epoch successor,
+and calls `ensure_recovered_owner_with_identity` on both restored-call and
+finalization-only paths. No request body, placement replay, legacy capsule or
+one-leg value can mint the recovered proof.
+
+The RED test first accepted legacy/split takeover input and the Rust RED build
+failed because the trusted-authority helper did not exist. The GREEN candidate
+passes takeover `10/10`, Rust dialog-shadow `9/9`, the focused proof regression
+`1/1`, full RustPBX `2109/2109` with 12 external prerequisites ignored, locked
+check, scoped rustfmt, exact patch replay, repository typecheck, affected static
+tests and G03 machine contracts. This is an interim implementation review, not
+final G03 acceptance. Real process restart-to-issuer/Oracle execution,
+two-node ambiguity recovery, live Endpoint, Linux product process,
+`G03-E15/G03-E16`, production and performance remain `not_run`.
+
 ## Rejection history and remaining gate
 
 The earlier `6cbe1a3` evidence review was rejected with

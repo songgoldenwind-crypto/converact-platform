@@ -12,7 +12,10 @@ Gate is complete at `16ab4af98c5f3b453ad3d9bdd1ae5fe959a37720`; G02 remains
 `blocked_external` for `G02-E09/E12/E14/E15`. G03 does not inherit those
 claims and this audit does not mark G02 complete or production eligible.
 
-## 2. Observed Current Implementation
+## 2. Observed Baseline and Exact Candidate
+
+The table freezes the `.79` baseline that `.80` extends; the exact current
+candidate delta immediately below is authoritative for changed status.
 
 | Slice | Exact current source | Observed status | G03 disposition |
 | --- | --- | --- | --- |
@@ -24,6 +27,28 @@ claims and this audit does not mark G02 complete or production eligible.
 | Initial 100 Trying | `rsipstack-ivekit-single-trying.patch`; SIPp campaign sources | Exact `.53` image emitted exactly 100 Trying responses for 100 INVITEs; p99/max were 1/1 ms, with zero response retransmissions | `G03-E06` controlled evidence; no inherited `.42` promotion |
 | SIP wire tests | frozen 22-case corpus and exact dual-binary replay | `.53` matches all 18 accepted semantics and applies four versioned malformed-input tightenings with zero unexplained differences | `G03-E07` controlled evidence; future rvoip differential remains `not_run` |
 | rvoip runtime | no G03 runtime source dependency found | Not a parser, transaction, Dialog or transport production path | `not_run`; reserved for G06 layer-by-layer gates |
+
+### Exact `.80` candidate delta
+
+The table's `.79` statements remain the immediately preceding substrate; the
+current additive candidate is `ivekit.80`. The TypeScript takeover coordinator
+is compatibility/fencing code only and now refuses a claim unless both
+authenticated capsule payloads are schema v2 and carry the same canonical
+`NativeCallRecoveryBinding` hash. After the authoritative claim, Rust opens the
+two A256GCM capsules, preserves that exact predecessor binding, derives the
+higher-epoch successor identity and installs
+`NativeCallOwnerProof::Recovered { predecessor }` on both resume and
+finalization paths. It never derives recovered authority from the request body
+or from an ordinary placement replay.
+
+Focused exact-source evidence passes the takeover suite `10/10`, Rust
+dialog-shadow `9/9`, the exact recovery test `1/1`, and the full RustPBX library
+`2109/2109` with 12 external-prerequisite tests ignored. Patch replay, scoped
+rustfmt, locked library check, repository typecheck, static contracts and G03
+machine contracts pass. This proves only the local issuer component. A real
+process restart reaching that issuer and then invoking the recovered
+PostgreSQL capability Oracle, two-node ambiguity recovery, live Endpoint,
+Linux product-process execution, production and performance remain `not_run`.
 
 The TypeScript SipFoundation code arrived through commit `385521c` and its
 PostgreSQL boundary was retained/hardened in later commits including `6c5d998`.
@@ -137,6 +162,17 @@ canonical command passed without an implementation change. This local-only
 bundle is `evidence/raw/durable-recovered-admission-f56f954-19/`. The `.79`
 slice did not contact the server and ran no load or performance command.
 
+Incremental `.80` closes the missing trusted recovered-proof issuer component.
+RED first proved that the takeover coordinator accepted legacy v1 capsules and
+that Rust discarded the exact predecessor by registering a legacy owner proof.
+GREEN requires one reciprocal v2 binding before the compatibility coordinator
+can claim, then has Rust retain the decrypted predecessor and register a
+recovered owner proof for either restored or finalization-only dialog recovery.
+The successor identity still advances owner epoch exactly once; legacy,
+missing or split bindings fail closed. Local exact-source verification is
+recorded under `evidence/raw/trusted-recovery-proof-d7e0b07-20/`. No server,
+Docker, load or performance command belongs to this slice.
+
 The following remain `not_run`:
 
 - native Call/Leg and effect-writer activation;
@@ -218,9 +254,11 @@ The following remain `not_run`:
    startup scan from the unchanged 250 ms Call-store deadline. `.79` makes the
    authenticated admission proof explicit, invokes that Oracle from the exact
    recovered owner snapshot and fences stale cleanup, while the only current
-   control-plane issuer emits `fresh` from a newly prepared reservation. Next
-   build and prove the trusted recovered-proof producer against a real process
-   restart, then close UAS-2xx and reconciliation resume.
+   control-plane issuer emits `fresh` from a newly prepared reservation. `.80`
+   now derives recovered proof only from one Rust-opened reciprocal v2 capsule
+   pair and preserves its exact predecessor. Next prove a real process restart
+   reaches that issuer and the capability Oracle, then close UAS-2xx and
+   reconciliation resume.
    Close parent-Unknown and stale-
    nonterminal/UAS-owner crash recovery before product activation. The v2
    recovery capsule must remain the only path that restores the existing

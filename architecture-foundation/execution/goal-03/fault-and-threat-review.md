@@ -44,6 +44,11 @@ Production eligibility: `false`
 | Adapter callback reenters open/drain | reserve ID/capacity before callback; opening reservation counts as active; same-ID reentry fails closed | G03 local reentrancy tests; host fault campaign `not_run` |
 | schema downgrade or shadow writer | schema/writer registries disabled until activation receipt; exact writer role | source/migration tests; physical activation `not_run` |
 
+The `.80` candidate supersedes the two `.79` issuer-status cells above: local
+trusted proof issuance is implemented and verified from one reciprocal v2
+capsule pair. The remaining risk is real restart-to-issuer-to-Oracle execution,
+not the existence of a client-callable recovered proof emitter.
+
 ## 3. Failure-domain Truth Table
 
 | Failure | Allowed result | Forbidden claim |
@@ -166,16 +171,18 @@ microbenchmark or citing rvoip upstream numbers cannot close that Gate.
     healthy/restart-zero. `.79` now invokes recovery only from a closed
     authenticated recovered proof and one current-owner snapshot; missing proof
     under the durable runtime and stale owner replacement both fail closed.
-    It does not provide the trusted recovered-proof producer, activate the
-    Endpoint or prove real process crash/restart. No performance command ran;
-    `.79` did not contact the server.
-11. The current TypeScript control plane may issue only `fresh`, and only from
-    a newly prepared reservation. This prevents an untrusted caller or replay
-    from self-declaring recovery, but it also means end-to-end recovered-call
-    production remains absent. A future Rust-first recovery coordinator must
-    derive the exact predecessor binding from authenticated durable takeover
-    state, emit the closed proof idempotently, and prove crash/ambiguity cases;
-    until then activation remains `not_run`.
+    `.80` adds the local issuer component: the compatibility coordinator rejects
+    v1, missing or split bindings before claim, and Rust opens the reciprocal
+    A256GCM pair, retains the exact predecessor and registers recovered owner
+    proof on resume and finalization. It does not activate the Endpoint or prove
+    real process crash/restart. No performance command ran; `.79` and `.80` did
+    not contact the server.
+11. The issuer is now Rust-owned, but end-to-end recovered-call production is
+    still absent. A real process restart has not proved that takeover reaches
+    the capsule issuer, installs the recovered Active Call and invokes the
+    PostgreSQL capability Oracle with the exact predecessor. Crash timing,
+    visible/ambiguous predecessor effects and two-node races therefore remain
+    fail-closed activation gates rather than inferred successes.
 
-All eleven remain visible in the G03 status artifacts and prevent production
-eligibility.
+All residual risks remain visible in the G03 status artifacts and prevent
+production eligibility.

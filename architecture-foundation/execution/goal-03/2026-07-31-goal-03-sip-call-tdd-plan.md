@@ -279,6 +279,20 @@ Run serially:
    canonical command passed with no implementation change. The server was not
    contacted and all production, restart, external dependency and performance
    claims remain `not_run`.
+   The `.80` RED/GREEN slice closes the issuer component that `.79` deliberately
+   left open. RED proves that a v1 or split-binding capsule pair could be claimed
+   and that Rust converted the recovered successor into a legacy owner proof.
+   GREEN makes the TypeScript coordinator reject any non-reciprocal v2 binding
+   before claim and makes Rust return both the decrypted predecessor binding and
+   derived successor identity, then call
+   `ensure_recovered_owner_with_identity` in restored and finalization-only
+   paths. The focused takeover suite passes `10/10`, Rust dialog-shadow passes
+   `9/9`, the exact proof regression passes `1/1`, and full RustPBX passes
+   `2109/2109` with 12 external prerequisites ignored. Exact patch replay,
+   scoped rustfmt, locked check, typecheck, affected static tests and G03 machine
+   contracts pass. Real process restart-to-issuer/Oracle invocation, live
+   Endpoint, Linux product execution, production and performance stay
+   `not_run`.
 6. repository typecheck.
 7. Generate raw output, command/source manifest and SHA-256 evidence with no
    secrets.

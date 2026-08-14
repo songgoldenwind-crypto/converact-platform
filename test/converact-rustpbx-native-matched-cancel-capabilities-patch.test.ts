@@ -45,7 +45,7 @@ test("ivekit.74 retains the matched-CANCEL pair before response capabilities", (
   }
 
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.79"/);
+  assert.match(build, /PATCHSET="ivekit\.80"/);
   assert.match(
     build,
     /rsipstack-converact-uas-2xx-owner-retention\.patch"[\s\S]*rsipstack-converact-transaction-local-matched-cancel-pair\.patch"/,
@@ -145,7 +145,7 @@ test("the functional slice does not claim server activation or performance evide
   assert.match(readme, /live Endpoint activation[\s\S]*remain[s]?[\s\S]*`not_run`/i);
   assert.match(readme, /performance[^\n]*remain[^\n]*`not_run`/i);
   assert.deepEqual(matchedCancel.activation_blockers, [
-    "trusted_recovered_Call_producer_and_real_process_invocation_not_run",
+    "real_process_restart_to_recovered_capability_invocation_not_run",
     "live_endpoint_activation_not_run",
     "Linux_RustPBX_process_functional_verification_not_run",
   ]);
@@ -167,7 +167,7 @@ test("the functional slice does not claim server activation or performance evide
   );
   assert.equal(
     matchedCancel.capability_restart_rebuild,
-    "durable_PostgreSQL_composition_and_trusted_invocation_implemented_default_disabled_recovered_producer_not_run",
+    "durable_PostgreSQL_composition_trusted_admission_and_v2_capsule_proof_issuer_implemented_default_disabled_real_process_invocation_not_run",
   );
   assert.equal(
     matchedCancel.format_scope_exception,

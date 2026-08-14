@@ -190,7 +190,7 @@
           "const": "166c6d22984429eb6b509920c14fcd69f974f0b3"
         },
         "patchset": {
-          "const": "ivekit.79"
+          "const": "ivekit.80"
         },
         "current_adapter": {
           "const": "rsipstack"
@@ -467,7 +467,7 @@
           "const": "implemented_identity_and_native_cell_pointer_fence"
         },
         "capability_restart_rebuild": {
-          "const": "durable_PostgreSQL_composition_and_trusted_invocation_implemented_default_disabled_recovered_producer_not_run"
+          "const": "durable_PostgreSQL_composition_trusted_admission_and_v2_capsule_proof_issuer_implemented_default_disabled_real_process_invocation_not_run"
         },
         "format_scope_exception": {
           "const": "test_auth_constructor_compiled_and_full_tested_rustfmt_excluded_due_unrelated_upstream_drift"
@@ -544,7 +544,7 @@
           "maxItems": 3,
           "prefixItems": [
             {
-              "const": "trusted_recovered_Call_producer_and_real_process_invocation_not_run"
+              "const": "real_process_restart_to_recovered_capability_invocation_not_run"
             },
             {
               "const": "live_endpoint_activation_not_run"
@@ -800,7 +800,7 @@
           "maxItems": 3,
           "prefixItems": [
             {
-              "const": "trusted_recovered_Call_producer_and_real_process_invocation_not_run"
+              "const": "real_process_restart_to_recovered_capability_invocation_not_run"
             },
             {
               "const": "live_endpoint_activation_not_run"
@@ -1051,7 +1051,7 @@
           "const": "Unified_RustPBX_Native_Call_registry"
         },
         "implementation_status": {
-          "const": "component_implemented_default_disabled_trusted_admission_invocation"
+          "const": "component_implemented_default_disabled_trusted_admission_and_v2_capsule_proof_issuer"
         },
         "scope": {
           "const": "rebuild_only_unconsumed_matched_CANCEL_capability_pair"
@@ -1124,7 +1124,7 @@
           "const": "control_plane_new_prepared_reservation_only"
         },
         "recovered_proof_issuer": {
-          "const": "not_run"
+          "const": "Rust_AEAD_opened_reciprocal_v2_capsule_pair_exact_predecessor_component_implemented"
         },
         "owner_admission_snapshot": {
           "const": "one_Arc_snapshot_identity_proof_and_guard_checked_before_and_after_async_oracle"
@@ -1139,7 +1139,7 @@
           "const": "original_owner_pointer_exit_on_replacement"
         },
         "live_recovery_wiring": {
-          "const": "trusted_admission_invokes_PostgreSQL_oracle_default_disabled_recovered_proof_producer_not_run"
+          "const": "trusted_admission_oracle_and_v2_capsule_proof_issuer_component_implemented_default_disabled_real_restart_invocation_not_run"
         },
         "local_functional_verification": {
           "type": "object",
@@ -1150,6 +1150,8 @@
             "ivekit_owner",
             "snapshot_admission",
             "recovered_admission",
+            "trusted_recovery_proof_rust",
+            "takeover_compatibility_gate",
             "locked_library_check",
             "rustfmt_changed_sources",
             "full_rustpbx_library"
@@ -1169,6 +1171,12 @@
             },
             "recovered_admission": {
               "const": "15_passed_0_failed"
+            },
+            "trusted_recovery_proof_rust": {
+              "const": "1_focused_test_passed_0_failed"
+            },
+            "takeover_compatibility_gate": {
+              "const": "10_passed_0_failed"
             },
             "locked_library_check": {
               "const": "passed"
@@ -1234,7 +1242,7 @@
           }
         },
         "current_candidate_server_verification": {
-          "const": "not_run_server_not_used_for_ivekit_79"
+          "const": "not_run_server_not_used_for_ivekit_80"
         },
         "performance_verification": {
           "const": "not_run"
@@ -1248,7 +1256,7 @@
           "maxItems": 4,
           "prefixItems": [
             {
-              "const": "trusted_recovered_Call_proof_producer_not_run"
+              "const": "real_process_restart_to_v2_capsule_proof_invocation_not_run"
             },
             {
               "const": "real_process_restart_and_ambiguity_recovery_not_run"

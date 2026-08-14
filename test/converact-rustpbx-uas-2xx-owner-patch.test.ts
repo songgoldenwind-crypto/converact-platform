@@ -37,7 +37,7 @@ test("ivekit.64 applies the UAS 2xx owner after peer-derived CANCEL support", ()
   }
 
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.79"/);
+  assert.match(build, /PATCHSET="ivekit\.80"/);
   assert.match(
     build,
     /rsipstack-converact-peer-derived-cancel-response\.patch"[\s\S]*rsipstack-converact-uas-2xx-owner\.patch"[\s\S]*rustrtc-ivekit-udp-socket-capacity\.patch"/,
