@@ -39,7 +39,7 @@ test('ivekit.81 applies recovered Active Call authority after trusted proof', ()
   );
 
   const build = readFileSync(BUILD, 'utf8');
-  assert.match(build, /PATCHSET="ivekit\.84"/u);
+  assert.match(build, /PATCHSET="ivekit\.85"/u);
   assert.match(
     build,
     /rustpbx-converact-trusted-recovery-proof\.patch"[\s\S]*rustpbx-converact-recovered-active-call\.patch"/u

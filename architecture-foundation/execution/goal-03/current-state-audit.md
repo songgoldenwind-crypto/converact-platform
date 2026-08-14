@@ -14,7 +14,7 @@ claims and this audit does not mark G02 complete or production eligible.
 
 ## 2. Observed Baseline and Exact Candidate
 
-The table freezes the `.79` baseline retained by `.80` through `.84`; the exact
+The table freezes the `.79` baseline retained by `.80` through `.85`; the exact
 candidate deltas immediately below are authoritative for changed status.
 
 | Slice | Exact current source | Observed status | G03 disposition |
@@ -147,6 +147,27 @@ Endpoint. Process abort/OOM, external media orphan reconciliation, real
 restart/two-node, live peer/Endpoint, Linux product process, production and
 performance remain `not_run`. No server, container or running program was
 contacted or changed.
+
+### Exact `.85` candidate delta
+
+The current additive candidate is `ivekit.85`. It adds no production runtime
+branch: it connects the existing `.84` panic report to the real recovered
+Active Call registry and exact cleanup-fence types in one component fault test.
+Two distinct recovered Calls and four Dialog indexes are installed. A worker
+Future panics, `.84` catches and reports that panic, and releasing the affected
+controller lease removes only that exact Call and its Dialog pair. The
+unrelated recovered Call, handle and Dialog indexes remain present and usable
+until their own cleanup fence is consumed.
+
+The focused registry-isolation regression passes `1/1`, dialog-shadow passes
+`14/14`, and full RustPBX passes `2116/2116` with 12 external-prerequisite tests
+ignored. Static contracts pass `240/240` across 61 files and G03 machine
+contracts pass `9/9`. This proves local component isolation for the exact
+recovered-worker/registry path, not live Endpoint injection or process-wide
+survival. Process abort/OOM, blocking external dependencies, external media
+orphan reconciliation, real restart/two-node, live peer/Endpoint, Linux product
+process, production and performance remain `not_run`. No server, container or
+running program was contacted or changed.
 
 The TypeScript SipFoundation code arrived through commit `385521c` and its
 PostgreSQL boundary was retained/hardened in later commits including `6c5d998`.
@@ -377,7 +398,10 @@ The following remain `not_run`:
    Active Call admission error. `.84` supervises both recovered Dialog event
    workers through one bounded capacity-2 exit channel; unexpected exit or
    panic terminates only the exact Call, while controller exit cancels both
-   workers. Actual live-task fault injection and external
+   workers. `.85` then proves with the real Active Call registry and cleanup
+   fence that one reported worker panic removes only its affected recovered
+   Call while an unrelated Call and Dialog pair survive. Actual live Endpoint
+   fault injection and external
    media orphan reconciliation remain unproved. Next prove a real process restart reaches that issuer and registry. Separately
    prove the capability Oracle on a recovery path that retains the original
    server-INVITE transaction facts; confirmed-dialog recovery must not invent

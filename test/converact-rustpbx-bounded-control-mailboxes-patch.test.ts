@@ -77,7 +77,7 @@ test('RustPBX bounds Call actor, timer, dialog, and REFER control paths with rej
 test('the exact RustPBX build applies bounded protocol mailboxes before bounded Call mailboxes', () => {
   const build = readFileSync(BUILD, 'utf8');
 
-  assert.match(build, /PATCHSET="ivekit\.84"/);
+  assert.match(build, /PATCHSET="ivekit\.85"/);
   assert.match(
     build,
     /rsipstack-ivekit-wire-guard\.patch"[\s\S]*rsipstack-ivekit-bounded-protocol-mailboxes\.patch"/

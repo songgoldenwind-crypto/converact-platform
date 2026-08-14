@@ -30,7 +30,7 @@ test('ivekit.83 applies the admission cleanup deadline after controller fault co
   assert.equal(parsed.stdout, '42\t4\tsrc/ivekit_dialog_shadow.rs\n');
 
   const build = readFileSync(BUILD, 'utf8');
-  assert.match(build, /PATCHSET="ivekit\.84"/u);
+  assert.match(build, /PATCHSET="ivekit\.85"/u);
   assert.match(
     build,
     /rustpbx-converact-recovered-controller-fault-boundary\.patch"[\s\S]*rustpbx-converact-recovered-admission-cleanup-deadline\.patch"/u

@@ -30,7 +30,7 @@ test('ivekit.84 applies worker supervision after admission cleanup bounding', ()
   assert.equal(parsed.stdout, '197\t47\tsrc/ivekit_dialog_shadow.rs\n');
 
   const build = readFileSync(BUILD, 'utf8');
-  assert.match(build, /PATCHSET="ivekit\.84"/u);
+  assert.match(build, /PATCHSET="ivekit\.85"/u);
   assert.match(
     build,
     /rustpbx-converact-recovered-admission-cleanup-deadline\.patch"[\s\S]*rustpbx-converact-recovered-dialog-worker-supervision\.patch"/u

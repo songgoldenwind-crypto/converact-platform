@@ -26,7 +26,7 @@ const sourceIdentity = Object.freeze({
   rustpbx_commit: '6c49ee76baa54fdbf8f98020cc9bee158c7c15de',
   rsipstack_commit: '8318e97b1170de4e5245b120afec1cdf53e3d716',
   rustrtc_commit: '166c6d22984429eb6b509920c14fcd69f974f0b3',
-  patchset: 'ivekit.84',
+  patchset: 'ivekit.85',
   current_adapter: 'rsipstack',
   target_adapter: 'rvoip_low_level_slices_after_separate_gates',
   native_runtime_authority: 'Unified RustPBX process',
@@ -789,6 +789,8 @@ function sipFoundationContract() {
         'unexpected_exit_or_panic_reports_to_one_controller_then_terminates_exact_call',
       recovered_dialog_worker_shutdown:
         'controller_exit_cancels_both_workers_without_exit_report',
+      recovered_worker_fault_registry_isolation:
+        'actual_worker_panic_report_then_exact_cleanup_lease_preserves_unrelated_active_call_and_dialog_indexes',
       confirmed_dialog_oracle_boundary:
         'original_server_INVITE_transaction_facts_absent_do_not_fabricate_or_invoke_matched_CANCEL_Oracle',
       hot_path_work_added: 'none_to_ordinary_new_call_or_media_packet_path',
@@ -826,7 +828,7 @@ function sipFoundationContract() {
           '40_native_sip_effect_tests_passed_0_failed_1_physical_test_ignored_plus_lower_layer_exact_physical_adapter_1_passed',
         rsipstack_library: '314_passed_0_failed',
         rustpbx_library:
-          '2115_passed_0_failed_12_external_prerequisites_ignored',
+          '2116_passed_0_failed_12_external_prerequisites_ignored',
         affected_static_contract_tests:
           'targeted_contract_and_migration_suite_passed',
         repository_typecheck: 'passed',
@@ -887,7 +889,7 @@ function sipFoundationContract() {
         rustfmt_changed_sources: 'passed',
         locked_library_check: 'passed',
         full_rustpbx_library:
-          '2115_passed_0_failed_12_external_prerequisites_ignored',
+          '2116_passed_0_failed_12_external_prerequisites_ignored',
       },
       activation_blockers: [
         'real_process_restart_to_recovered_capability_invocation_not_run',
@@ -932,7 +934,7 @@ function sipFoundationContract() {
         rustfmt_changed_sources: 'passed',
         locked_library_check: 'passed',
         full_rustpbx_library:
-          '2115_passed_0_failed_12_external_prerequisites_ignored',
+          '2116_passed_0_failed_12_external_prerequisites_ignored',
       },
       server_functional_verification:
         'not_run_existing_host_cannot_link_RustPBX_lib_test_within_safe_isolated_memory_ceiling',
@@ -992,19 +994,20 @@ function sipFoundationContract() {
         trusted_recovery_proof_rust: '1_focused_test_passed_0_failed',
         takeover_compatibility_gate: '10_passed_0_failed',
         recovered_active_call_registry: '25_passed_0_failed',
-        recovered_dialog_shadow: '13_passed_0_failed',
+        recovered_dialog_shadow: '14_passed_0_failed',
         recovered_control_handle: '1_passed_0_failed',
         recovered_controller_panic_boundary: '1_passed_0_failed',
         recovered_media_cleanup_deadline: '1_passed_0_failed',
         recovered_dialog_worker_supervision: '1_passed_0_failed',
+        recovered_worker_fault_registry_isolation: '1_passed_0_failed',
         locked_library_check: 'passed',
         rustfmt_changed_sources: 'passed',
         full_rustpbx_library:
-          '2115_passed_0_failed_12_external_prerequisites_ignored',
+          '2116_passed_0_failed_12_external_prerequisites_ignored',
       },
       server_functional_verification: capabilityRecoveryServerVerification,
       current_candidate_server_verification:
-        'not_run_server_not_used_for_ivekit_84',
+        'not_run_server_not_used_for_ivekit_85',
       performance_verification: 'not_run',
       performance_policy: 'deferred_to_final_performance_goal',
       activation_blockers: [

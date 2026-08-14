@@ -1,0 +1,106 @@
+diff --git a/src/ivekit_dialog_shadow.rs b/src/ivekit_dialog_shadow.rs
+index d1963df..b623eca 100644
+--- a/src/ivekit_dialog_shadow.rs
++++ b/src/ivekit_dialog_shadow.rs
+@@ -4524,6 +4524,101 @@ mod tests {
+         assert!(receiver.recv().await.is_none());
+     }
+ 
++    fn register_recovered_test_call(
++        registry: &Arc<crate::proxy::active_call_registry::ActiveProxyCallRegistry>,
++        session_id: &str,
++        projection_id: &str,
++        dialog_ids: [&str; 2],
++    ) -> crate::proxy::active_call_registry::NativeCallCleanupFence {
++        let identity = NativeCallIdentity::adopt_projection(
++            "tenant-a",
++            projection_id,
++            projection_id,
++            session_id,
++            7,
++            11,
++            13,
++        )
++        .unwrap();
++        let (handle, _commands) =
++            crate::proxy::proxy_call::sip_session::SipSessionHandle::new_recovered(session_id);
++        registry
++            .register_recovered_call(
++                crate::proxy::active_call_registry::ActiveProxyCallEntry {
++                    session_id: session_id.to_string(),
++                    caller: Some("sip:caller@example.test".to_string()),
++                    callee: Some("sip:callee@example.test".to_string()),
++                    direction: "inbound".to_string(),
++                    started_at: chrono::Utc::now(),
++                    answered_at: Some(chrono::Utc::now()),
++                    status: crate::proxy::active_call_registry::ActiveProxyCallStatus::Talking,
++                },
++                handle,
++                identity,
++                dialog_ids.map(str::to_string),
++            )
++            .unwrap()
++    }
++
++    #[tokio::test]
++    async fn recovered_worker_panic_cleanup_preserves_unrelated_active_call() {
++        let registry = Arc::new(crate::proxy::active_call_registry::ActiveProxyCallRegistry::new());
++        let unaffected_session = "call-session-unaffected";
++        let unaffected_cleanup = register_recovered_test_call(
++            &registry,
++            unaffected_session,
++            "vcall_unaffected",
++            ["dialog-unaffected-caller", "dialog-unaffected-callee"],
++        );
++
++        let affected_session = "call-session-worker-fault";
++        let affected_cleanup = register_recovered_test_call(
++            &registry,
++            affected_session,
++            "vcall_worker_fault",
++            ["dialog-worker-fault-caller", "dialog-worker-fault-callee"],
++        );
++        let affected_lease = RecoveredActiveCallLease {
++            registry: registry.clone(),
++            cleanup_fence: Some(affected_cleanup),
++        };
++        assert_eq!(registry.count(), 2);
++
++        let (exit_sender, mut exit_receiver) = tokio::sync::mpsc::channel(2);
++        report_recovered_dialog_worker_exit(
++            RecoveredDialogSide::Caller,
++            async {
++                panic!("recovered worker registry isolation fault injection");
++                #[allow(unreachable_code)]
++                RecoveredDialogWorkerExitKind::ReceiverClosed
++            },
++            exit_sender,
++        )
++        .await;
++        assert_eq!(
++            exit_receiver.recv().await.unwrap().kind,
++            RecoveredDialogWorkerExitKind::Panicked
++        );
++
++        drop(affected_lease);
++        assert!(registry.get(affected_session).is_none());
++        assert!(
++            registry
++                .get_handle_by_dialog("dialog-worker-fault-caller")
++                .is_none()
++        );
++        assert_eq!(registry.count(), 1);
++        assert!(registry.get(unaffected_session).is_some());
++        assert!(
++            registry
++                .get_handle_by_dialog("dialog-unaffected-caller")
++                .is_some()
++        );
++
++        assert!(unaffected_cleanup.remove_original(&registry));
++        assert!(registry.is_empty());
++    }
++
+     #[test]
+     fn capsule_v2_native_binding_must_match_aead_authority() {
+         let codec = DialogRecoveryCapsuleCodec::new(

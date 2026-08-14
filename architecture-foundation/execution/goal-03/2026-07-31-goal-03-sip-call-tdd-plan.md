@@ -346,6 +346,16 @@ Run serially:
    RustPBX `2115/2115` with 12 external prerequisites ignored, and static
    contracts `236/236` across 60 files. Live Endpoint worker-fault injection,
    process abort/OOM and external media orphan reconciliation remain `not_run`.
+   The `.85` audit regression adds no runtime behavior. Applied without `.84`,
+   its worker-panic symbols fail to compile; on the current patch chain it
+   registers two recovered Calls and four Dialog indexes in the real registry,
+   injects a worker Future panic through `.84` reporting, releases the affected
+   controller lease and proves the unrelated Call/pair survives. Focused
+   registry isolation passes `1/1`, dialog shadow `14/14`, full RustPBX
+   `2116/2116` with 12 external prerequisites ignored, and static contracts
+   `240/240` across 61 files. Live Endpoint injection, process abort/OOM,
+   blocking external dependencies and external media orphan reconciliation
+   remain `not_run`.
 6. repository typecheck.
 7. Generate raw output, command/source manifest and SHA-256 evidence with no
    secrets.

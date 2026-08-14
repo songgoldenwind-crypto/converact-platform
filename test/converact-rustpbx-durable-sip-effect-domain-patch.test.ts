@@ -111,7 +111,7 @@ test("Rust fixed vectors are byte-identical to the TypeScript contract", () => {
 
 test("exact build retains the shared SipEffect domain in ivekit.57", () => {
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.84"/);
+  assert.match(build, /PATCHSET="ivekit\.85"/);
   assert.match(
     build,
     /rustpbx-converact-native-call-runtime-composition\.patch"[\s\S]*rustpbx-converact-durable-sip-effect-domain\.patch"/,

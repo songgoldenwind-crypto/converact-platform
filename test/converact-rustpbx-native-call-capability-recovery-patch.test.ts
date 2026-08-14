@@ -42,7 +42,7 @@ test("ivekit.76 applies recovery after cleanup fencing", () => {
   );
 
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.84"/);
+  assert.match(build, /PATCHSET="ivekit\.85"/);
   assert.match(
     build,
     /rustpbx-converact-native-call-cleanup-fence\.patch"[\s\S]*rustpbx-converact-native-call-capability-recovery\.patch"/,
@@ -128,7 +128,7 @@ test("recovery remains component-only while durable and live gates are not_run",
     entries: Array<{ evidence_id: string; status: string }>;
   };
 
-  assert.equal(contract.source_identity.patchset, "ivekit.84");
+  assert.equal(contract.source_identity.patchset, "ivekit.85");
   assert.equal(
     contract.native_matched_cancel_effects.capability_restart_rebuild,
     "durable_PostgreSQL_composition_trusted_admission_and_v2_capsule_proof_issuer_implemented_default_disabled_real_process_invocation_not_run",
@@ -226,7 +226,7 @@ test("recovery remains component-only while durable and live gates are not_run",
   assert.equal(contract.native_call_capability_recovery.performance_verification, "not_run");
   assert.equal(
     contract.native_call_capability_recovery.current_candidate_server_verification,
-    "not_run_server_not_used_for_ivekit_84",
+    "not_run_server_not_used_for_ivekit_85",
   );
   assert.equal(
     contract.native_call_capability_recovery.performance_policy,

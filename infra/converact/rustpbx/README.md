@@ -1048,6 +1048,22 @@ fault survival. Process abort/OOM, external media orphan reconciliation, real
 restart/two-node, live Endpoint, production and performance remain `not_run`.
 No server, Docker or running service was contacted or changed.
 
+ivekit.85 adds component fault-isolation evidence without changing production
+runtime behavior. The regression registers two distinct recovered Calls and
+four Dialog indexes in the real Active Call registry, injects one worker Future
+panic through the ivekit.84 report boundary, and releases the affected
+controller's exact identity/native-cell cleanup lease. Only that Call and pair
+are removed; the unrelated recovered Call, handle and Dialog pair remain until
+their own fence is consumed.
+
+Local exact-source verification passes registry isolation `1/1`, dialog shadow
+`14/14`, and full RustPBX `2116/2116` with 12 external-prerequisite tests
+ignored. Static repository contracts pass `240/240` across 61 files and G03
+machine contracts pass `9/9`. This is not a live Endpoint, process abort/OOM,
+blocked external dependency or orphan-media campaign. Those items, real
+restart/two-node, production and performance remain `not_run`. No server,
+Docker or running service was contacted or changed.
+
 RustPBX `0.4.11` returns AMI dialogs without identifiers. The Converact Fabric AMI patch
 adds the SIP `call_id`/`dialog_id` and active-call registry entries so a timed-out
 RWI originate can be reconciled by the deterministic `call_id` supplied by the

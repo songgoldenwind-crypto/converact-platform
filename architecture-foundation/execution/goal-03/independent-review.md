@@ -492,6 +492,25 @@ through a live Endpoint; process abort/OOM, external media orphan
 reconciliation, restart/two-node, `G03-E15/G03-E16`, production and performance
 remain `not_run`. No server or container was contacted.
 
+The incremental `.85` candidate adds a test/evidence slice only. Review confirms
+it uses the real `ActiveProxyCallRegistry`, recovered registration path,
+`RecoveredActiveCallLease` and `.84` panic-report helper. Two distinct recovered
+Calls and four Dialog indexes exist before fault injection. Dropping the
+affected exact identity/native-cell lease after the panic report removes only
+that Call and pair; the unrelated Call, handle and pair remain until their own
+fence is consumed. No runtime branch, retry, worker, queue, global registry,
+blocking operation or packet-path work is added.
+
+The focused registry-isolation test passes `1/1`, dialog shadow `14/14`, full
+RustPBX `2116/2116` with 12 external prerequisites ignored, locked check,
+scoped rustfmt, exact patch replay, repository typecheck, affected static
+contracts `240/240` across 61 files and G03 machine contracts `9/9`. This is an
+implementation self-review checkpoint, not final independent acceptance. It
+does not run through a live Endpoint controller or prove process abort/OOM,
+blocking external dependency isolation or external media reconciliation.
+`G03-E10`, `G03-E15`, `G03-E16`, production and performance therefore remain
+`not_run`. No server or container was contacted.
+
 ## Rejection history and remaining gate
 
 The earlier `6cbe1a3` evidence review was rejected with

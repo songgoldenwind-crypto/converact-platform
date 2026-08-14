@@ -45,7 +45,7 @@ test("ivekit.74 retains the matched-CANCEL pair before response capabilities", (
   }
 
   const build = readFileSync(BUILD, "utf8");
-  assert.match(build, /PATCHSET="ivekit\.84"/);
+  assert.match(build, /PATCHSET="ivekit\.85"/);
   assert.match(
     build,
     /rsipstack-converact-uas-2xx-owner-retention\.patch"[\s\S]*rsipstack-converact-transaction-local-matched-cancel-pair\.patch"/,
@@ -187,7 +187,7 @@ test("the functional slice does not claim server activation or performance evide
     durable_runtime_composition:
       "40_native_sip_effect_tests_passed_0_failed_1_physical_test_ignored_plus_lower_layer_exact_physical_adapter_1_passed",
     rsipstack_library: "314_passed_0_failed",
-    rustpbx_library: "2115_passed_0_failed_12_external_prerequisites_ignored",
+    rustpbx_library: "2116_passed_0_failed_12_external_prerequisites_ignored",
     affected_static_contract_tests:
       "targeted_contract_and_migration_suite_passed",
     repository_typecheck: "passed",
