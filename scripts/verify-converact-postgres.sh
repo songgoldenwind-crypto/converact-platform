@@ -38,6 +38,7 @@ find_pg_tool() {
 INITDB="$(find_pg_tool initdb)"
 PG_CTL="$(find_pg_tool pg_ctl)"
 CREATEDB="$(find_pg_tool createdb)"
+PSQL="$(find_pg_tool psql)"
 ROOT="$(mktemp -d "${TMPDIR:-/tmp}/converact-postgres.XXXXXX")"
 MARKER="$ROOT/.converact-postgres-harness"
 DATA="$ROOT/data"
@@ -68,6 +69,10 @@ trap cleanup INT TERM HUP EXIT
 "$PG_CTL" -D "$DATA" -l "$LOG" -o "-F -k $SOCKET -p $PORT" -w start >/dev/null
 "$CREATEDB" -h 127.0.0.1 -p "$PORT" -U opc_admin converact_fresh
 "$CREATEDB" -h 127.0.0.1 -p "$PORT" -U opc_admin converact_upgrade
+"$PSQL" -h 127.0.0.1 -p "$PORT" -U opc_admin -d postgres \
+  -v ON_ERROR_STOP=1 -c \
+  "CREATE ROLE converact_event_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS" \
+  >/dev/null
 
 export CONVERACT_FABRIC_STANDALONE_TEST_DATABASE_URL="postgresql://opc_admin@127.0.0.1:$PORT/converact_fresh?sslmode=disable"
 export CONVERACT_FABRIC_STANDALONE_TEST_RUNTIME_DATABASE_URL="postgresql://opc_runtime:$RUNTIME_PASSWORD@127.0.0.1:$PORT/converact_fresh?sslmode=disable"
@@ -82,6 +87,12 @@ node --import tsx --test test/tinode-inbound-projector.test.ts
 node --import tsx --test test/converact-ivr-postgres.test.ts
 node --import tsx --test test/converact-voice-controlled-postgres.test.ts
 node --import tsx --test test/converact-dialog-terminal-repair-postgres.test.ts
+
+export CONVERACT_TEST_POSTGRES_URL="postgresql://converact_event_runtime@127.0.0.1:$PORT/converact_fresh?sslmode=disable"
+export CONVERACT_TEST_POSTGRES_ADMIN_URL="postgresql://opc_admin@127.0.0.1:$PORT/converact_fresh?sslmode=disable"
+cargo test --manifest-path server-rs/Cargo.toml -p converact-postgres-store \
+  platform_outbox::physical_tests::writer_fenced_event_and_outbox_lifecycle_is_physically_idempotent \
+  -- --ignored --exact
 
 trap - INT TERM HUP EXIT
 "$PG_CTL" -D "$DATA" -m fast -w stop >/dev/null

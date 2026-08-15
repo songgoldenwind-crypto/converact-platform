@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-platform-event-store",
+  "generated_at": "2026-08-15T13:43:06Z",
+  "cycles": [
+    {
+      "id": "fenced_inbox_effect_outbox",
+      "red": "the Rust PostgreSQL kernel exposed no domain persistence API and target mutations had no exact Authority route provenance",
+      "green": "private tenant transactions now expose bounded Inbox, Effect and Outbox APIs backed by database writer fencing and exact route/object generation"
+    },
+    {
+      "id": "cross_generation_effect_claim",
+      "red": "one effect identity reused one nonterminal claim across generations",
+      "green": "PostgreSQL derives a distinct canonical claim from effect_id plus its big-endian generation and physical replay proves two generations complete independently"
+    },
+    {
+      "id": "claim_commit_unknown",
+      "red": "an ambiguous or empty Outbox claim had no immutable command receipt and could be retried with a changed capability",
+      "green": "one exact claim operation and immutable per-row receipts distinguish Applied, NotApplied and Conflict, including an empty batch"
+    },
+    {
+      "id": "transition_exactness_and_concurrency",
+      "red": "retry delay and concurrent duplicate transition execution were not part of exact replay truth",
+      "green": "retry delay, route provenance, revision, outcome and capability digest bind the command; advisory serialization converges concurrent duplicates to one Applied and one Replay"
+    },
+    {
+      "id": "least_privilege_roles",
+      "red": "the target role could call raw generation claim/release functions and legacy raw DML could reach target-provenance rows",
+      "green": "target claim/release and raw DML are physically denied; legacy NULL-provenance writes remain compatible while provenance guards reject target mutation"
+    },
+    {
+      "id": "database_canonical_claim_identity",
+      "red": "SECURITY DEFINER wrappers trusted a caller-provided claim_id that could strand durable work",
+      "green": "claim_id parameters were removed and PostgreSQL derives effect and outbox claim identities from canonical durable identifiers"
+    },
+    {
+      "id": "rolling_indexes",
+      "red": "large-table indexes were declared inside transactional migrations",
+      "green": "the migration runner prepares exact indexes concurrently and migration 119 validates validity, uniqueness, columns and predicates"
+    }
+  ]
+}

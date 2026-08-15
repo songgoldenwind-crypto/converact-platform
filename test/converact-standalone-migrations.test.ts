@@ -115,6 +115,10 @@ test('standalone migration order includes RLS and communication overlays but exc
   assert.equal(migrations.includes('113_converact_sip_effect_transport_completed.sql'), true);
   assert.equal(migrations.includes('114_converact_sip_effect_transport_completed_validate.sql'), true);
   assert.equal(migrations.includes('115_converact_sip_effect_stale_nonterminal_recovery.sql'), true);
+  assert.equal(migrations.includes('116_converact_sip_capability_recovery_fence.sql'), true);
+  assert.equal(migrations.includes('117_converact_authority_migration_routes.sql'), true);
+  assert.equal(migrations.includes('118_converact_platform_event_runtime_fencing.sql'), true);
+  assert.equal(migrations.includes('119_converact_platform_event_runtime_indexes.sql'), true);
   assert.equal(
     migrations.indexOf('043_ivekit_intelligence_translation.sql') <
       migrations.indexOf('044_quality_review_policy_routing.sql') &&
@@ -251,10 +255,16 @@ test('standalone migration order includes RLS and communication overlays but exc
       migrations.indexOf('114_converact_sip_effect_transport_completed_validate.sql') <
       migrations.indexOf('115_converact_sip_effect_stale_nonterminal_recovery.sql') &&
       migrations.indexOf('115_converact_sip_effect_stale_nonterminal_recovery.sql') <
-      migrations.indexOf('116_converact_sip_capability_recovery_fence.sql'),
+      migrations.indexOf('116_converact_sip_capability_recovery_fence.sql') &&
+      migrations.indexOf('116_converact_sip_capability_recovery_fence.sql') <
+      migrations.indexOf('117_converact_authority_migration_routes.sql') &&
+      migrations.indexOf('117_converact_authority_migration_routes.sql') <
+      migrations.indexOf('118_converact_platform_event_runtime_fencing.sql') &&
+      migrations.indexOf('118_converact_platform_event_runtime_fencing.sql') <
+      migrations.indexOf('119_converact_platform_event_runtime_indexes.sql'),
     true
   );
-  assert.equal(migrations.at(-1), '116_converact_sip_capability_recovery_fence.sql');
+  assert.equal(migrations.at(-1), '119_converact_platform_event_runtime_indexes.sql');
   const runtimeSecurity = readFileSync(
     'services/converact-service/migrations/090_ivekit_runtime_security.sql',
     'utf8'

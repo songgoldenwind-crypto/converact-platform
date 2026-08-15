@@ -1,0 +1,54 @@
+{
+  "contract_version": 1,
+  "baseline_commit": "a8270c10eb42ed84b9e5d6c85efb536a4d07535c",
+  "current_sources": [
+    {
+      "path": "src/agent-runtime/converact/platform-foundation/postgres-event-receipt-store.ts",
+      "sha256": "85d212e5cab30d41a61510a4f99f740fc7ef2aefd80d2ca8b8733d9d321e440c"
+    },
+    {
+      "path": "src/migrations/109_converact_platform_event_receipts.sql",
+      "sha256": "44e6581234823fcc4e59b346017f08522e5e968e3dc6e70322b62aa5cb4c1b78"
+    },
+    {
+      "path": "src/migrations/112_converact_platform_history_receipt_integrity.sql",
+      "sha256": "e1993b548a9f9a98189b3474ed42ca4933a1090ad9b7d09674616a666967421e"
+    },
+    {
+      "path": "src/migrations/117_converact_authority_migration_routes.sql",
+      "sha256": "979ceef33d1930fadbef8c0a8702dbcbd32bef96dce8dc030245f5bbce735703"
+    },
+    {
+      "path": "test/converact-platform-event-receipt-postgres.test.ts",
+      "sha256": "af667ec7b742d928e98aca67aa4aef5ac4e483038e8c650905ce41e0dddfd44e"
+    }
+  ],
+  "current_state": {
+    "inbox": ["inserted", "replay", "stale"],
+    "effect_receipt": ["inserted", "replay"],
+    "outbox": ["claim"],
+    "claim_clock": "caller_wall_clock",
+    "claim_batch_max": 200,
+    "claim_lease_ms_min": 1000,
+    "claim_lease_ms_max": 900000,
+    "authority_writer_fence": false,
+    "generation_claims": false,
+    "aggregate_plus_outbox": false,
+    "complete_retry_dead_letter_query_reconcile": false
+  },
+  "target_contract": {
+    "route_generation_is_distinct_from_effect_generation": true,
+    "writer_fence_authority": "postgresql_transaction_time",
+    "nonterminal_effect_claim": "same_tenant_transaction",
+    "terminal_release": "same_tenant_transaction",
+    "outbox_clock": "postgresql_transaction_timestamp",
+    "outbox_delivery_token": "raw_256_bit_capability_hashed_only_in_postgresql",
+    "outbox_batch_max": 200,
+    "outbox_lease_ms_min": 1000,
+    "outbox_lease_ms_max": 900000,
+    "outbox_retry_ms_max": 86400000,
+    "outbox_max_attempts_max": 1000,
+    "commit_unknown": "exact_query_and_reconcile_without_blind_retry",
+    "aggregate_plus_outbox": "private_domain_adapter_transaction_only"
+  }
+}

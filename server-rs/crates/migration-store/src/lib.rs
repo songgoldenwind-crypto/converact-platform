@@ -5,8 +5,9 @@ use std::{error::Error, fmt};
 use converact_contracts::canonical_sha256;
 use converact_kernel_ids::{CellId, Generation, OwnerEpoch, TenantId};
 use converact_migration_routing::{
-    AuthorityKind, AuthorityRoute, Implementation, OperationId, PartitionKey, PreparedBinding,
-    RouteCommand, RouteKey, RouteRevision, RouteState, SchemaRevision, WriterBinding,
+    AuthorityKind, AuthorityRoute, Implementation, MutationScope, OperationId, PartitionKey,
+    PreparedBinding, RouteCommand, RouteKey, RouteRevision, RouteState, SchemaRevision,
+    WriterBinding,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -208,8 +209,77 @@ impl LeaseToken {
         Ok(Self(value.into()))
     }
 
+    /// Exposes the raw capability only to the database writer-fence adapter.
+    ///
+    /// The value must be used as an ephemeral query parameter. It must never
+    /// be persisted, serialized, logged or copied into a domain receipt.
+    #[must_use]
+    pub fn as_secret(&self) -> &str {
+        &self.0
+    }
+
     fn digest(&self) -> LeaseDigest {
         LeaseDigest(hex::encode(Sha256::digest(self.0.as_bytes())).into())
+    }
+}
+
+/// Borrowed exact route-generation authorization supplied to a durable
+/// domain adapter. The raw lease capability is never copied or formatted.
+pub struct WriterFenceBinding<'a> {
+    route_key: &'a RouteKey,
+    generation: Generation,
+    owner_epoch: OwnerEpoch,
+    lease_token: &'a LeaseToken,
+    scope: MutationScope,
+}
+
+impl fmt::Debug for WriterFenceBinding<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("WriterFenceBinding([REDACTED])")
+    }
+}
+
+impl<'a> WriterFenceBinding<'a> {
+    #[must_use]
+    pub const fn new(
+        route_key: &'a RouteKey,
+        generation: Generation,
+        owner_epoch: OwnerEpoch,
+        lease_token: &'a LeaseToken,
+        scope: MutationScope,
+    ) -> Self {
+        Self {
+            route_key,
+            generation,
+            owner_epoch,
+            lease_token,
+            scope,
+        }
+    }
+
+    #[must_use]
+    pub const fn route_key(&self) -> &RouteKey {
+        self.route_key
+    }
+
+    #[must_use]
+    pub const fn generation(&self) -> Generation {
+        self.generation
+    }
+
+    #[must_use]
+    pub const fn owner_epoch(&self) -> OwnerEpoch {
+        self.owner_epoch
+    }
+
+    #[must_use]
+    pub const fn lease_token(&self) -> &LeaseToken {
+        self.lease_token
+    }
+
+    #[must_use]
+    pub const fn scope(&self) -> MutationScope {
+        self.scope
     }
 }
 

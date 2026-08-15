@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-platform-event-store",
+  "generated_at": "2026-08-15T13:43:06Z",
+  "current_state": "implemented_offline_default_disabled",
+  "target_state": "complete_durable_platform_foundation",
+  "production_eligible": false,
+  "checks": [
+    {
+      "id": "focused_rust_tests",
+      "status": "passed",
+      "result": "9 ordinary tests plus one compile-fail doctest passed; 13 isolated physical tests remained explicitly ignored in the ordinary command"
+    },
+    {
+      "id": "focused_clippy_and_format",
+      "status": "passed",
+      "result": "converact-postgres-store all targets with -D warnings; cargo fmt check"
+    },
+    {
+      "id": "affected_typescript_contracts",
+      "status": "passed",
+      "result": "39/39 migration, exact-source, delivery-bundle and standalone source-graph tests"
+    },
+    {
+      "id": "typescript_typecheck",
+      "status": "passed"
+    },
+    {
+      "id": "isolated_postgresql_14_18_platform_event_lifecycle",
+      "status": "passed",
+      "result": "1/1 exact ignored physical test after fresh migration through 119 with opc_runtime and non-bypass converact_event_runtime roles"
+    },
+    {
+      "id": "independent_exact_diff_review",
+      "status": "passed_for_default_disabled_foundation",
+      "result": "two initial commit blockers were fixed; final read-only review found zero remaining commit blockers"
+    },
+    {
+      "id": "repository_wide_postgresql_harness",
+      "status": "failed_outside_slice",
+      "result": "legacy Voice HTTP auth fixture returned 401; with explicit test-only auth flag, SIP Effect cleanup violated an existing session-fence tenant FK"
+    },
+    {
+      "id": "runtime_role_and_connection_wiring",
+      "status": "not_run"
+    },
+    {
+      "id": "expired_route_owner_adoption",
+      "status": "not_run"
+    },
+    {
+      "id": "aggregate_and_outbox_atomic_adapter",
+      "status": "not_run"
+    },
+    {
+      "id": "nats_jetstream_delivery_and_recovery",
+      "status": "not_run"
+    },
+    {
+      "id": "legacy_writer_cutover_drain_active_zero",
+      "status": "not_run"
+    },
+    {
+      "id": "generation_counter_dehotspot_and_capacity",
+      "status": "not_run"
+    },
+    {
+      "id": "running_server_validation",
+      "status": "not_run"
+    },
+    {
+      "id": "performance_validation",
+      "status": "not_run"
+    },
+    {
+      "id": "production_eligibility",
+      "status": "not_run"
+    }
+  ]
+}

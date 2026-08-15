@@ -30,6 +30,15 @@ impl EffectReceiptStage {
             Self::StateObserved => 2,
         }
     }
+
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Accepted => "accepted",
+            Self::Completed => "completed",
+            Self::StateObserved => "state_observed",
+        }
+    }
 }
 
 /// Strict validated effect receipt. Unknown fields cannot cross this boundary.

@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-platform-event-store",
+  "reviewed_at": "2026-08-15T13:43:06Z",
+  "reviewer": "/root/r1_route_store_review",
+  "mode": "independent_read_only_exact_diff",
+  "commit_blockers": 0,
+  "r1_or_production_blockers": 5,
+  "verified": [
+    "target raw table DML and direct generation claim/release are denied",
+    "legacy opc_runtime can write only rolling NULL-provenance rows and cannot mutate target provenance",
+    "effect and outbox canonical claim identities are derived in PostgreSQL",
+    "cross-generation effect claims, exact claim receipts, retry delay and concurrent duplicate transitions are closed",
+    "concurrent indexes are prepared outside migration transactions and definitions are validated",
+    "the exact diff is acceptable only as a default-disabled offline foundation"
+  ],
+  "remaining_not_run": [
+    "production runtime role graph and connection wiring",
+    "expired route-owner adoption",
+    "legacy writer retirement and active-zero",
+    "generation counter structural de-hotspotting and capacity",
+    "production rolling upgrade and recovery"
+  ],
+  "repository_or_server_mutation_by_reviewer": false
+}

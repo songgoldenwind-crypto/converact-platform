@@ -310,7 +310,20 @@ impl PostgresRuntime {
     }
 }
 
+mod platform_event;
+mod platform_outbox;
 mod tenant_transaction;
+
+pub use platform_event::{
+    DeliveryLeaseToken, DeliveryLeaseTokenError, EffectAppendStatus, InboxAppendStatus,
+    PlatformStoreError, PlatformStorePolicy, PlatformStorePolicyError,
+};
+pub use platform_outbox::{
+    OutboxClaim, OutboxClaimApplyDisposition, OutboxClaimBatch, OutboxClaimCommand,
+    OutboxClaimCommandError, OutboxClaimReconcileStatus, OutboxEnqueueStatus, OutboxSnapshot,
+    OutboxStatus, OutboxTransitionApplyStatus, OutboxTransitionCommand,
+    OutboxTransitionCommandError, OutboxTransitionKind, OutboxTransitionReconcileStatus,
+};
 
 impl fmt::Debug for PostgresRuntime {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {

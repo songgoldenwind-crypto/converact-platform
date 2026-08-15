@@ -22,6 +22,10 @@ const SIP_EFFECT_STALE_NONTERMINAL_MIGRATION =
   '115_converact_sip_effect_stale_nonterminal_recovery';
 const SIP_EFFECT_STALE_NONTERMINAL_INDEX =
   'idx_ivekit_sip_effect_stale_nonterminal';
+const PLATFORM_EVENT_RUNTIME_FENCING_MIGRATION =
+  '118_converact_platform_event_runtime_fencing';
+const PLATFORM_EVENT_RUNTIME_INDEX_MIGRATION =
+  '119_converact_platform_event_runtime_indexes';
 
 export function isPostgresMigrationFile(file: string): boolean {
   return /^\d{3}_[a-z0-9_]+\.sql$/.test(file);
@@ -87,6 +91,12 @@ export async function runPostgresMigrationsOnClient(
     if (migration.version === SIP_EFFECT_STALE_NONTERMINAL_MIGRATION) {
       await prepareSipEffectStaleNonterminalIndex(pg);
     }
+    if (migration.version === PLATFORM_EVENT_RUNTIME_FENCING_MIGRATION) {
+      await preparePlatformEventGenerationOwnerIndex(pg);
+    }
+    if (migration.version === PLATFORM_EVENT_RUNTIME_INDEX_MIGRATION) {
+      await preparePlatformEventRuntimeIndexes(pg);
+    }
     await pg.query('BEGIN');
     try {
       if (migration.version === VOICE_CDR_MIGRATION) {
@@ -103,6 +113,156 @@ export async function runPostgresMigrationsOnClient(
       throw error;
     }
   }
+}
+
+interface ConcurrentIndexSpec {
+  name: string;
+  table: string;
+  unique: boolean;
+  columns: readonly string[];
+  predicate: string | null;
+}
+
+const PLATFORM_EVENT_GENERATION_OWNER_INDEX: ConcurrentIndexSpec = {
+  name: 'converact_authority_generation_owner_identity',
+  table: 'converact_authority_generations',
+  unique: true,
+  columns: [
+    'tenant_id', 'authority_kind', 'partition_key', 'generation', 'owner_epoch'
+  ],
+  predicate: null
+};
+
+const PLATFORM_EVENT_RUNTIME_INDEXES: readonly ConcurrentIndexSpec[] = [
+  {
+    name: 'idx_converact_platform_outbox_route_pending',
+    table: 'converact_platform_outbox',
+    unique: false,
+    columns: [
+      'tenant_id', 'route_authority_kind', 'route_partition_key',
+      'route_generation', 'route_owner_epoch', 'next_attempt_at', 'id'
+    ],
+    predicate:
+      "route_generation IS NOT NULL AND status = 'pending' AND attempt_count < max_attempts"
+  },
+  {
+    name: 'idx_converact_platform_outbox_route_expired',
+    table: 'converact_platform_outbox',
+    unique: false,
+    columns: [
+      'tenant_id', 'route_authority_kind', 'route_partition_key',
+      'route_generation', 'route_owner_epoch', 'lease_until', 'id'
+    ],
+    predicate:
+      "route_generation IS NOT NULL AND status = 'claimed' AND attempt_count < max_attempts"
+  },
+  {
+    name: 'idx_converact_platform_outbox_route_exhausted',
+    table: 'converact_platform_outbox',
+    unique: false,
+    columns: [
+      'tenant_id', 'route_authority_kind', 'route_partition_key',
+      'route_generation', 'route_owner_epoch', 'lease_until', 'id'
+    ],
+    predicate:
+      "route_generation IS NOT NULL AND status = 'claimed' AND attempt_count >= max_attempts"
+  }
+];
+
+export async function preparePlatformEventGenerationOwnerIndex(
+  pg: MigrationQueryable
+): Promise<void> {
+  await prepareConcurrentIndex(pg, PLATFORM_EVENT_GENERATION_OWNER_INDEX);
+}
+
+export async function preparePlatformEventRuntimeIndexes(
+  pg: MigrationQueryable
+): Promise<void> {
+  for (const spec of PLATFORM_EVENT_RUNTIME_INDEXES) {
+    await prepareConcurrentIndex(pg, spec);
+  }
+}
+
+async function prepareConcurrentIndex(
+  pg: MigrationQueryable,
+  spec: ConcurrentIndexSpec
+): Promise<void> {
+  const existing = await pg.query(`
+    SELECT
+      index_meta.indisunique,
+      index_meta.indisvalid,
+      index_meta.indisready,
+      index_meta.indexprs IS NULL AS no_expressions,
+      pg_get_expr(index_meta.indpred, index_meta.indrelid) AS predicate,
+      ARRAY(
+        SELECT attribute.attname::text
+        FROM unnest(index_meta.indkey::smallint[]) WITH ORDINALITY
+          AS key_column(attnum, position)
+        JOIN pg_attribute attribute
+          ON attribute.attrelid = index_meta.indrelid
+         AND attribute.attnum = key_column.attnum
+        WHERE key_column.position <= index_meta.indnkeyatts
+        ORDER BY key_column.position
+      ) AS key_columns
+    FROM pg_index index_meta
+    JOIN pg_class index_relation
+      ON index_relation.oid = index_meta.indexrelid
+    JOIN pg_namespace index_namespace
+      ON index_namespace.oid = index_relation.relnamespace
+    WHERE index_namespace.nspname = 'public'
+      AND index_relation.relname = '${spec.name}'
+      AND index_meta.indrelid = 'public.${spec.table}'::regclass
+  `);
+  if (isExactConcurrentIndex(existing.rows[0], spec)) return;
+  if (existing.rowCount && existing.rowCount > 0) {
+    await pg.query(`DROP INDEX CONCURRENTLY public.${spec.name}`);
+  }
+  const uniqueness = spec.unique ? 'UNIQUE ' : '';
+  const predicate = spec.predicate ? ` WHERE ${spec.predicate}` : '';
+  await pg.query(
+    `CREATE ${uniqueness}INDEX CONCURRENTLY ${spec.name} ` +
+    `ON public.${spec.table} (${spec.columns.join(', ')})${predicate}`
+  );
+  const verified = await pg.query(`
+    SELECT index_meta.indisunique, index_meta.indisvalid,
+      index_meta.indisready, index_meta.indexprs IS NULL AS no_expressions,
+      pg_get_expr(index_meta.indpred, index_meta.indrelid) AS predicate,
+      ARRAY(
+        SELECT attribute.attname::text
+        FROM unnest(index_meta.indkey::smallint[]) WITH ORDINALITY
+          AS key_column(attnum, position)
+        JOIN pg_attribute attribute
+          ON attribute.attrelid = index_meta.indrelid
+         AND attribute.attnum = key_column.attnum
+        WHERE key_column.position <= index_meta.indnkeyatts
+        ORDER BY key_column.position
+      ) AS key_columns
+    FROM pg_index index_meta
+    JOIN pg_class index_relation ON index_relation.oid = index_meta.indexrelid
+    JOIN pg_namespace index_namespace ON index_namespace.oid = index_relation.relnamespace
+    WHERE index_namespace.nspname = 'public'
+      AND index_relation.relname = '${spec.name}'
+      AND index_meta.indrelid = 'public.${spec.table}'::regclass
+  `);
+  if (!isExactConcurrentIndex(verified.rows[0], spec)) {
+    throw new Error(`PostgreSQL concurrent index validation failed: ${spec.name}`);
+  }
+}
+
+function isExactConcurrentIndex(
+  row: Record<string, unknown> | undefined,
+  spec: ConcurrentIndexSpec
+): boolean {
+  if (!row || row.indisunique !== spec.unique || row.indisvalid !== true ||
+      row.indisready !== true || row.no_expressions !== true) return false;
+  const columns = row.key_columns;
+  if (!Array.isArray(columns) || columns.length !== spec.columns.length ||
+      columns.some((column, index) => column !== spec.columns[index])) return false;
+  const normalize = (value: unknown): string => String(value || '')
+    .replace(/::text/g, '')
+    .replace(/[()\s]/g, '')
+    .toLowerCase();
+  return normalize(row.predicate) === normalize(spec.predicate);
 }
 
 export async function prepareVoiceCdrConcurrentIndex(

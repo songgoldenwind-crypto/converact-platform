@@ -272,8 +272,15 @@ dependencies = [
 name = "converact-postgres-store"
 version = "0.1.0"
 dependencies = [
+ "converact-event-log",
+ "converact-idempotency",
  "converact-kernel-ids",
+ "converact-migration-routing",
+ "converact-migration-store",
  "deadpool-postgres",
+ "hex",
+ "serde_json",
+ "sha2 0.10.9",
  "tokio",
  "tokio-postgres",
 ]
@@ -836,6 +843,8 @@ dependencies = [
  "bytes",
  "fallible-iterator",
  "postgres-protocol",
+ "serde_core",
+ "serde_json",
 ]
 
 [[package]]

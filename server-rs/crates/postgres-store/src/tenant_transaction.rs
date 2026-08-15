@@ -59,7 +59,7 @@ impl PostgresRuntime {
     // Exposing `Transaction` would let an upper layer replace the authoritative
     // tenant GUC or issue transaction-control SQL. Public adapters must expose
     // only domain-specific Store methods and vendor-free domain ports.
-    async fn with_tenant_transaction<T, E, F>(
+    pub(super) async fn with_tenant_transaction<T, E, F>(
         &self,
         tenant_id: &converact_kernel_ids::TenantId,
         work: F,
