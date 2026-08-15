@@ -1,14 +1,15 @@
 [package]
-name = "converact-tenant-auth"
+name = "converact-idempotency"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 
 [dependencies]
 converact-contracts = { path = "../contracts" }
 serde.workspace = true
-serde_json = { workspace = true, features = ["raw_value"] }
+serde_json.workspace = true
 
 [lints]
 workspace = true

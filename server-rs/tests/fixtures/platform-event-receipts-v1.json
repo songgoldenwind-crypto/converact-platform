@@ -1,0 +1,342 @@
+{
+  "contract_version": 1,
+  "compatibility_policy_revision": 1,
+  "compatibility_hardening": {
+    "unicode_scalar": "reject_unpaired_surrogate",
+    "reserved_object_keys": ["__proto__"],
+    "correlation_negative_zero": "normalize_to_zero"
+  },
+  "baseline_commit": "373f12ef538941ce9e5f30832bdb06ebc21cc356",
+  "current_sources": [
+    {
+      "path": "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
+      "sha256": "37e003ea407be9bf40032cb4b90a9fbc29c1d9ac11d4a8c5c6ee101172d83715"
+    },
+    {
+      "path": "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
+      "sha256": "262790a51c58e5849707f08270804c735ecc123a752eca4f1b72953e215e1339"
+    }
+  ],
+  "event_source": "src/agent-runtime/converact/platform-foundation/event-envelope.ts#decodePlatformEvent,decideInboxWrite",
+  "effect_source": "src/agent-runtime/converact/platform-foundation/effect-receipt.ts#decideEffectReceiptAppend,effectNeedsReconcile,createEffectAuditLink",
+  "base_event": {
+    "schema_version": 2,
+    "event_id": "event-a",
+    "event_type": "interaction.state.changed",
+    "tenant_id": "tenant-a",
+    "producer_identity": "workload-interaction-a",
+    "authority": "Converact Interaction",
+    "aggregate_type": "interaction",
+    "aggregate_id": "interaction-a",
+    "aggregate_revision": 7,
+    "ordering_key": "tenant-a:interaction:interaction-a",
+    "idempotency_key": "interaction-a:7",
+    "payload_digest": "cba46c1d74dfcb05e584e0ffb2ac1bd39d5d0de0c7a3fd2ae7354b4401f48ba6",
+    "occurred_at": "2026-08-01T12:00:00.000Z",
+    "observed_at": "2026-08-01T12:00:00.010Z",
+    "correlation": {
+      "correlation_id": "correlation-a",
+      "interaction_id": "interaction-a"
+    },
+    "causation_event_id": null,
+    "purpose": "interaction_state_projection",
+    "region_policy": "tenant-primary",
+    "retention_policy": "event-30d",
+    "data": { "state": "ready" }
+  },
+  "event_cases": [
+    {
+      "name": "valid_v2",
+      "overrides": {},
+      "expected": { "accepted": true, "source_schema_version": 2, "extensions": {} }
+    },
+    {
+      "name": "declared_v1",
+      "overrides": { "schema_version": 1 },
+      "expected": { "accepted": true, "source_schema_version": 1, "extensions": {} }
+    },
+    {
+      "name": "unsupported_major",
+      "overrides": { "schema_version": 3 },
+      "expected": { "quarantine": true, "reason": "unsupported_schema_version" }
+    },
+    {
+      "name": "unknown_effect_semantics",
+      "overrides": { "effect_semantics": "execute_external_v99" },
+      "expected": { "quarantine": true, "reason": "unknown_effect_semantics" }
+    },
+    {
+      "name": "unknown_extension_without_effect",
+      "overrides": {
+        "effect_semantics": "none",
+        "future_projection_hint": { "mode": "compact" }
+      },
+      "expected": {
+        "accepted": true,
+        "source_schema_version": 2,
+        "extensions": { "future_projection_hint": { "mode": "compact" } }
+      }
+    },
+    {
+      "name": "unknown_extension_without_declared_semantics",
+      "overrides": { "future_projection_hint": { "mode": "compact" } },
+      "expected": { "quarantine": true, "reason": "unknown_extension_with_effect_semantics" }
+    },
+    {
+      "name": "unknown_extension_with_effect",
+      "overrides": {
+        "effect_semantics": "effect_receipt_v1",
+        "future_effect_instruction": { "operation": "unknown" }
+      },
+      "expected": { "quarantine": true, "reason": "unknown_extension_with_effect_semantics" }
+    },
+    {
+      "name": "payload_digest_mismatch",
+      "overrides": {
+        "payload_digest": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "expected": { "quarantine": true, "reason": "payload_digest_mismatch" }
+    },
+    {
+      "name": "noncanonical_timestamp",
+      "overrides": { "observed_at": "2026-08-01T12:00:00Z" },
+      "expected": { "quarantine": true, "reason": "event_timestamp_invalid" }
+    },
+    {
+      "name": "missing_ordering_key",
+      "overrides": {},
+      "remove": ["ordering_key"],
+      "expected": { "quarantine": true, "reason": "missing_ordering_key" }
+    },
+    {
+      "name": "wall_clock_skew_is_not_ordering",
+      "overrides": {
+        "occurred_at": "2026-08-01T12:00:01.000Z",
+        "observed_at": "2026-08-01T12:00:00.900Z"
+      },
+      "expected": { "accepted": true, "source_schema_version": 2, "extensions": {} }
+    },
+    {
+      "name": "identifier_exact_utf16_limit",
+      "overrides": { "event_id": { "$repeat": "😀", "count": 128 } },
+      "expected": { "accepted": true, "source_schema_version": 2, "extensions": {} }
+    },
+    {
+      "name": "identifier_over_utf16_limit",
+      "overrides": { "event_id": { "$repeat": "😀", "count": 129 } },
+      "expected": { "quarantine": true, "reason": "event_identity_invalid" }
+    },
+    {
+      "name": "identifier_ecmascript_trim_boundary",
+      "overrides": { "event_id": "﻿event-a" },
+      "expected": { "quarantine": true, "reason": "event_identity_invalid" }
+    },
+    {
+      "name": "aggregate_revision_max_safe_integer",
+      "overrides": { "aggregate_revision": 9007199254740991 },
+      "expected": { "accepted": true, "source_schema_version": 2, "extensions": {} }
+    },
+    {
+      "name": "aggregate_revision_over_safe_integer",
+      "overrides": { "aggregate_revision": 9007199254740992 },
+      "expected": { "quarantine": true, "reason": "aggregate_revision_invalid" }
+    },
+    {
+      "name": "correlation_negative_zero_is_nonnegative",
+      "overrides": {
+        "correlation": { "correlation_id": "correlation-a", "sequence": -0 }
+      },
+      "expected": {
+        "accepted": true,
+        "source_schema_version": 2,
+        "extensions": {},
+        "correlation": { "correlation_id": "correlation-a", "sequence": 0 }
+      }
+    },
+    {
+      "name": "correlation_negative_integer",
+      "overrides": {
+        "correlation": { "correlation_id": "correlation-a", "sequence": -1 }
+      },
+      "expected": { "quarantine": true, "reason": "correlation_invalid" }
+    },
+    {
+      "name": "correlation_prototype_key",
+      "overrides": {
+        "correlation": { "correlation_id": "correlation-a", "__proto__": "forbidden" }
+      },
+      "expected": { "quarantine": true, "reason": "correlation_invalid" }
+    },
+    {
+      "name": "extension_prototype_key",
+      "overrides": { "__proto__": "forbidden" },
+      "expected": { "quarantine": true, "reason": "extensions_invalid" }
+    }
+  ],
+  "inbox_cases": [
+    { "name": "first", "existing": null, "incoming_overrides": {}, "expected": "insert" },
+    {
+      "name": "exact_replay",
+      "existing": {
+        "event_id": "event-a",
+        "ordering_key": "tenant-a:interaction:interaction-a",
+        "payload_digest": "cba46c1d74dfcb05e584e0ffb2ac1bd39d5d0de0c7a3fd2ae7354b4401f48ba6",
+        "aggregate_revision": 7
+      },
+      "incoming_overrides": {},
+      "expected": "replay"
+    },
+    {
+      "name": "same_identity_changed_digest",
+      "existing": {
+        "event_id": "event-a",
+        "ordering_key": "tenant-a:interaction:interaction-a",
+        "payload_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "aggregate_revision": 7
+      },
+      "incoming_overrides": {},
+      "expected": "conflict"
+    },
+    {
+      "name": "older_revision",
+      "existing": {
+        "event_id": "event-newer",
+        "ordering_key": "tenant-a:interaction:interaction-a",
+        "payload_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "aggregate_revision": 8
+      },
+      "incoming_overrides": {},
+      "expected": "stale"
+    },
+    {
+      "name": "revision_gap",
+      "existing": {
+        "event_id": "event-prior",
+        "ordering_key": "tenant-a:interaction:interaction-a",
+        "payload_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "aggregate_revision": 4
+      },
+      "incoming_overrides": {},
+      "expected": "gap_requires_reconcile"
+    },
+    {
+      "name": "independent_ordering_key",
+      "existing": {
+        "event_id": "event-other",
+        "ordering_key": "tenant-a:interaction:interaction-other",
+        "payload_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "aggregate_revision": 99
+      },
+      "incoming_overrides": {},
+      "expected": "insert"
+    }
+  ],
+  "base_receipts": {
+    "accepted": {
+      "receipt_id": "receipt-accepted",
+      "tenant_id": "tenant-a",
+      "effect_id": "effect-a",
+      "event_id": "event-accepted",
+      "correlation_id": "correlation-a",
+      "stage": "accepted",
+      "generation": 4,
+      "writer_id": "effect-worker-a",
+      "owner_epoch": 8,
+      "receipt_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "observed_at": "2026-08-01T12:00:00.000Z"
+    },
+    "completed": {
+      "receipt_id": "receipt-completed",
+      "tenant_id": "tenant-a",
+      "effect_id": "effect-a",
+      "event_id": "event-completed",
+      "correlation_id": "correlation-a",
+      "stage": "completed",
+      "generation": 4,
+      "writer_id": "effect-worker-a",
+      "owner_epoch": 8,
+      "receipt_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "observed_at": "2026-08-01T12:00:01.000Z"
+    },
+    "state_observed": {
+      "receipt_id": "receipt-state_observed",
+      "tenant_id": "tenant-a",
+      "effect_id": "effect-a",
+      "event_id": "event-state_observed",
+      "correlation_id": "correlation-a",
+      "stage": "state_observed",
+      "generation": 4,
+      "writer_id": "effect-worker-a",
+      "owner_epoch": 8,
+      "receipt_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "observed_at": "2026-08-01T12:00:02.000Z"
+    }
+  },
+  "effect_cases": [
+    { "name": "start", "history": [], "candidate": "accepted", "overrides": {}, "expected": "append" },
+    { "name": "cannot_complete_first", "history": [], "candidate": "completed", "overrides": {}, "expected": "invalid_transition" },
+    { "name": "complete", "history": ["accepted"], "candidate": "completed", "overrides": {}, "expected": "append" },
+    { "name": "observe", "history": ["accepted", "completed"], "candidate": "state_observed", "overrides": {}, "expected": "append" },
+    { "name": "exact_replay", "history": ["accepted", "completed", "state_observed"], "candidate": "state_observed", "overrides": {}, "expected": "replay" },
+    {
+      "name": "changed_replay_conflicts",
+      "history": ["accepted"],
+      "candidate": "accepted",
+      "overrides": { "receipt_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" },
+      "expected": "conflict"
+    },
+    {
+      "name": "lower_owner_epoch_is_stale",
+      "history": ["accepted"],
+      "candidate": "completed",
+      "overrides": { "owner_epoch": 7 },
+      "expected": "stale_writer"
+    },
+    {
+      "name": "takeover_advances_epoch",
+      "history": ["accepted"],
+      "candidate": "completed",
+      "overrides": { "writer_id": "effect-worker-b", "owner_epoch": 9 },
+      "expected": "append"
+    },
+    {
+      "name": "new_generation_restarts",
+      "history": ["accepted", "completed", "state_observed"],
+      "candidate": "accepted",
+      "overrides": { "receipt_id": "receipt-generation-5", "generation": 5, "owner_epoch": 9 },
+      "expected": "append"
+    }
+  ],
+  "invalid_receipt_cases": [
+    {
+      "name": "unknown_secret_field",
+      "overrides": { "secret": "must-not-cross" },
+      "remove": [],
+      "expected": "invalid_transition"
+    },
+    {
+      "name": "zero_generation",
+      "overrides": { "generation": 0 },
+      "remove": [],
+      "expected": "invalid_transition"
+    },
+    {
+      "name": "oversized_writer_identifier",
+      "overrides": { "writer_id": { "$repeat": "x", "count": 257 } },
+      "remove": [],
+      "expected": "invalid_transition"
+    },
+    {
+      "name": "noncanonical_observed_at",
+      "overrides": { "observed_at": "2026-08-01T12:00:00Z" },
+      "remove": [],
+      "expected": "invalid_transition"
+    },
+    {
+      "name": "missing_correlation_id",
+      "overrides": {},
+      "remove": ["correlation_id"],
+      "expected": "invalid_transition"
+    }
+  ]
+}

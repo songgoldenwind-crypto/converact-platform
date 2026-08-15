@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-event-idempotency-contracts",
+  "baseline_commit": "373f12ef538941ce9e5f30832bdb06ebc21cc356",
+  "generated_at": "2026-08-15T07:17:38Z",
+  "hash_algorithm": "sha256",
+  "scope": "all build inputs, active compatibility sources, fixtures and tests changed by this slice",
+  "files": [
+    {
+      "path": "server-rs/Cargo.toml",
+      "sha256": "0bb4a4964b0910c1959ac5f157590f55c90012741abeee057fabafcfd273bedd"
+    },
+    {
+      "path": "server-rs/Cargo.lock",
+      "sha256": "d3898c2d09cf8fced76abc4f1b0217c261ebe9d76b221b7dade88ba49bd0cd39"
+    },
+    {
+      "path": "server-rs/crates/contracts/src/lib.rs",
+      "sha256": "f5b8cc47a470a8a404586dc0cb5bd68d71387a16338f210f8832b19b6dae447d"
+    },
+    {
+      "path": "server-rs/crates/contracts/tests/canonical_json.rs",
+      "sha256": "531707f75ab4e95b0b090c389c01aab481a02d5cdb080717abec191a47227e1d"
+    },
+    {
+      "path": "server-rs/crates/tenant-auth/Cargo.toml",
+      "sha256": "77cef8dc96293de0166ea93ed656ee699706fb48125879f8d126c2a86bd14f22"
+    },
+    {
+      "path": "server-rs/crates/tenant-auth/src/lib.rs",
+      "sha256": "f38e4944d33554e54fbf157dcad63cbf94d524fd74aa3dd83d417a65e790c622"
+    },
+    {
+      "path": "server-rs/crates/event-log/Cargo.toml",
+      "sha256": "f498712e586d5272e59f0514f711d19b611d6c3fc393ef0c80a50105a5d7f502"
+    },
+    {
+      "path": "server-rs/crates/event-log/src/lib.rs",
+      "sha256": "8788c5e711e2becf86d87a82fd1eddd5dbd3c7705d9e34ed0a5f8ae0f8504ff4"
+    },
+    {
+      "path": "server-rs/crates/event-log/tests/compatibility.rs",
+      "sha256": "bb11defdbc24fa030b36a4a33306d5411236ffe8f3003873b60a26066691c455"
+    },
+    {
+      "path": "server-rs/crates/idempotency/Cargo.toml",
+      "sha256": "c5677917dd0a69698461e9c8a47519b4fea16d26dbc83237d071744131881081"
+    },
+    {
+      "path": "server-rs/crates/idempotency/src/lib.rs",
+      "sha256": "65168c875a7eff3fa947e7797cc021f002777db4bdfe9bda9369ae304441aba1"
+    },
+    {
+      "path": "server-rs/crates/idempotency/tests/effect_receipt.rs",
+      "sha256": "fbbbce6a15096b3e02830cb48b83ae2479e350169fbb1c68af9de9ddfe03628d"
+    },
+    {
+      "path": "server-rs/tests/fixtures/platform-event-receipts-v1.json",
+      "sha256": "59d0b917aa55ef71c555e91b8e8e611ebe7c561685d8a36411ba39ef9530fc9e"
+    },
+    {
+      "path": "src/agent-runtime/converact/platform-foundation/event-envelope.ts",
+      "sha256": "37e003ea407be9bf40032cb4b90a9fbc29c1d9ac11d4a8c5c6ee101172d83715"
+    },
+    {
+      "path": "src/agent-runtime/converact/platform-foundation/effect-receipt.ts",
+      "sha256": "262790a51c58e5849707f08270804c735ecc123a752eca4f1b72953e215e1339"
+    },
+    {
+      "path": "test/converact-rust-platform-event-contract.test.ts",
+      "sha256": "b1a92c4b582716998d32582d66101fc74364b8a86e76dfa91b1291520dc894d0"
+    }
+  ],
+  "excluded_from_recursive_hashing": [
+    "architecture-foundation/rust-migration/evidence/r1-event-idempotency/README.md",
+    "architecture-foundation/rust-migration/evidence/r1-event-idempotency/tdd-log.json",
+    "architecture-foundation/rust-migration/evidence/r1-event-idempotency/verification.json",
+    "architecture-foundation/rust-migration/evidence/r1-event-idempotency/source-manifest.json",
+    "architecture-foundation/rust-migration/evidence/r1-event-idempotency/independent-review.json"
+  ]
+}

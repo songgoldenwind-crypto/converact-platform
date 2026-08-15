@@ -126,9 +126,7 @@ export function decodePlatformEvent(
 
   const extensions = decodeExtensions(value);
   if (!extensions) return quarantine('extensions_invalid');
-  if (Object.keys(extensions).length > 0
-    && value.effect_semantics !== undefined
-    && value.effect_semantics !== 'none') {
+  if (Object.keys(extensions).length > 0 && value.effect_semantics !== 'none') {
     return quarantine('unknown_extension_with_effect_semantics');
   }
   const normalizedData = deepFreezeJson(JSON.parse(canonicalData) as unknown);
@@ -213,12 +211,12 @@ function decodeCorrelation(value: unknown): PlatformEventCorrelation | null {
     || !boundedText(value.correlation_id)) return null;
   const result: Record<string, string | number> = {};
   for (const [key, item] of entries) {
-    if (!boundedText(key)) return null;
+    if (!boundedText(key) || key === '__proto__') return null;
     if (typeof item === 'string') {
       if (!boundedText(item)) return null;
       result[key] = item;
     } else if (nonNegativeInteger(item)) {
-      result[key] = item;
+      result[key] = Object.is(item, -0) ? 0 : item;
     } else {
       return null;
     }
@@ -228,7 +226,7 @@ function decodeCorrelation(value: unknown): PlatformEventCorrelation | null {
 
 function decodeExtensions(value: Record<string, unknown>): Record<string, unknown> | null {
   const keys = Object.keys(value).filter((key) => !ENVELOPE_FIELDS.has(key)).sort();
-  if (keys.length > MAX_EXTENSION_FIELDS) return null;
+  if (keys.length > MAX_EXTENSION_FIELDS || keys.includes('__proto__')) return null;
   const extensions: Record<string, unknown> = {};
   for (const key of keys) extensions[key] = value[key];
   try {
@@ -247,6 +245,7 @@ function canonicalJson(value: unknown, maxBytes = Number.POSITIVE_INFINITY): str
     if (nodes > MAX_JSON_NODES || depth > MAX_JSON_DEPTH) throw new Error('json_bounds_exceeded');
     if (item === null) return encoded('null');
     if (typeof item === 'string') {
+      if (!validUnicodeScalarString(item)) throw new Error('json_string_invalid');
       if (Buffer.byteLength(item, 'utf8') > maxBytes) throw new Error('json_bounds_exceeded');
       return encoded(JSON.stringify(item));
     }
@@ -275,6 +274,7 @@ function canonicalJson(value: unknown, maxBytes = Number.POSITIVE_INFINITY): str
       const entries: string[] = [];
       let bytes = 2;
       for (const key of keys) {
+        if (!validUnicodeScalarString(key)) throw new Error('json_key_invalid');
         const encodedKey = encoded(JSON.stringify(key));
         const child = encode(item[key], depth + 1);
         bytes += encodedKey.bytes + 1 + child.bytes + (entries.length === 0 ? 0 : 1);
@@ -323,7 +323,22 @@ function plainRecord(value: unknown): value is Record<string, unknown> {
 
 function boundedText(value: unknown): value is string {
   return typeof value === 'string' && value.length >= 1 && value.length <= MAX_IDENTIFIER_LENGTH
-    && value.trim() === value && !/[\u0000-\u001f\u007f]/u.test(value);
+    && value.trim() === value && !/[\u0000-\u001f\u007f]/u.test(value)
+    && validUnicodeScalarString(value);
+}
+
+function validUnicodeScalarString(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const unit = value.charCodeAt(index);
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      const next = value.charCodeAt(index + 1);
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return false;
+      index += 1;
+    } else if (unit >= 0xdc00 && unit <= 0xdfff) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function canonicalTimestamp(value: unknown): number | null {

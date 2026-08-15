@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-event-idempotency-contracts",
+  "generated_at": "2026-08-15T07:17:38Z",
+  "cycles": [
+    {
+      "id": "cross_runtime_contract_freeze",
+      "red": "the Rust workspace had no event-log or idempotency API and the new compatibility tests failed with unresolved imports",
+      "green": "the active TypeScript source passes the shared exact-source fixture and the Rust crates replay every frozen decision"
+    },
+    {
+      "id": "canonical_payload_budget",
+      "red": "the first Rust test used the ordinary 65536-byte canonical envelope and could not hash the valid escaped-string boundary",
+      "green": "the shared canonical encoder accepts only an explicit bounded budget up to the frozen escaped payload maximum, while preserving the ordinary 65536-byte default"
+    },
+    {
+      "id": "shared_timestamp_contract",
+      "red": "canonical JavaScript timestamp parsing lived inside tenant-auth and could not be reused without an inverted event-to-auth dependency",
+      "green": "the parser moved to converact-contracts, tenant-auth keeps its public re-export, and its full prior boundary suite remains green"
+    },
+    {
+      "id": "closed_domain_boundaries",
+      "red": "raw JSON and structurally invalid receipt/history values could otherwise be promoted into durable decisions",
+      "green": "validated fields are private, strict receipt decoding rejects unknown shape, stable enums drive decisions, and audit links cannot acquire payload or secret fields"
+    },
+    {
+      "id": "review_bounded_extension_preflight",
+      "red": "the first decoder cloned all extension values before proving the extension field, byte, depth and node limits",
+      "green": "a borrowed one-pass preflight rejects excessive fields, bytes, depth and nodes before the bounded extension map is cloned and canonicalized"
+    },
+    {
+      "id": "review_unicode_and_object_key_parity",
+      "red": "the TypeScript compatibility oracle accepted lone UTF-16 surrogates and normalized reserved __proto__ keys differently from serde_json",
+      "green": "compatibility policy revision 1 rejects non-Unicode-scalar text and reserved __proto__ correlation or extension keys in TypeScript and Rust; raw Rust JSON boundaries fail closed"
+    },
+    {
+      "id": "review_effect_semantics_and_writer_fence",
+      "red": "an unknown extension with omitted effect_semantics could be accepted and the pure receipt helper documentation could be mistaken for durable write authorization",
+      "green": "unknown extensions require explicit effect_semantics none, while the helper documents that same-transaction PostgreSQL Authority fencing remains mandatory and outside this pure slice"
+    },
+    {
+      "id": "review_raw_receipt_mapping",
+      "red": "the fixture claimed invalid_transition for malformed receipt values without exercising a raw compatibility boundary",
+      "green": "bounded value and raw JSON APIs now map malformed, oversized, non-scalar or structurally invalid receipts to invalid_transition before typed decisions"
+    }
+  ]
+}

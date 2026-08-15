@@ -8,8 +8,10 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 const MAX_CANONICAL_BYTES: usize = 65_536;
+const MAX_ESCAPED_PAYLOAD_BYTES: usize = MAX_CANONICAL_BYTES * 6 + 2;
 const MAX_CANONICAL_DEPTH: usize = 32;
 const MAX_CANONICAL_NODES: usize = 8_192;
+const JS_DATE_LIMIT_MS: i64 = 8_640_000_000_000_000;
 
 /// A value cannot be represented inside the frozen canonical JSON bounds.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -42,10 +44,31 @@ impl Error for CanonicalJsonError {}
 /// Returns [`CanonicalJsonError`] if the value exceeds 65,536 encoded bytes,
 /// 32 levels or 8,192 nodes, or if scalar encoding fails.
 pub fn canonical_json(value: &Value) -> Result<String, CanonicalJsonError> {
+    canonical_json_with_max_bytes(value, MAX_CANONICAL_BYTES)
+}
+
+/// Encodes canonical JSON under an explicit byte budget.
+///
+/// The upper limit is the largest representation accepted by the frozen
+/// TypeScript event contract: a 65,536-byte string with every byte escaped.
+/// This keeps callers from turning a compatibility helper into an unbounded
+/// encoder.
+///
+/// # Errors
+///
+/// Returns [`CanonicalJsonError`] for a zero or oversized budget, or when the
+/// value exceeds the requested byte, depth or node bound.
+pub fn canonical_json_with_max_bytes(
+    value: &Value,
+    max_bytes: usize,
+) -> Result<String, CanonicalJsonError> {
+    if max_bytes == 0 || max_bytes > MAX_ESCAPED_PAYLOAD_BYTES {
+        return Err(CanonicalJsonError::BoundsExceeded);
+    }
     let mut output = String::new();
     let mut nodes = 0;
-    encode(value, 0, &mut nodes, &mut output)?;
-    check_bytes(&output)?;
+    encode(value, 0, &mut nodes, &mut output, max_bytes)?;
+    check_bytes(&output, max_bytes)?;
     Ok(output)
 }
 
@@ -55,7 +78,21 @@ pub fn canonical_json(value: &Value) -> Result<String, CanonicalJsonError> {
 ///
 /// Returns [`CanonicalJsonError`] when canonical encoding fails.
 pub fn canonical_sha256(value: &Value) -> Result<String, CanonicalJsonError> {
-    let canonical = canonical_json(value)?;
+    canonical_sha256_with_max_bytes(value, MAX_CANONICAL_BYTES)
+}
+
+/// Returns the lowercase SHA-256 of canonical JSON under an explicit bounded
+/// byte budget.
+///
+/// # Errors
+///
+/// Returns [`CanonicalJsonError`] under the same conditions as
+/// [`canonical_json_with_max_bytes`].
+pub fn canonical_sha256_with_max_bytes(
+    value: &Value,
+    max_bytes: usize,
+) -> Result<String, CanonicalJsonError> {
+    let canonical = canonical_json_with_max_bytes(value, max_bytes)?;
     Ok(hex::encode(Sha256::digest(canonical.as_bytes())))
 }
 
@@ -64,6 +101,7 @@ fn encode(
     depth: usize,
     nodes: &mut usize,
     output: &mut String,
+    max_bytes: usize,
 ) -> Result<(), CanonicalJsonError> {
     *nodes = nodes
         .checked_add(1)
@@ -76,7 +114,7 @@ fn encode(
         Value::Bool(boolean) => output.push_str(if *boolean { "true" } else { "false" }),
         Value::Number(number) => output.push_str(&javascript_number(number)?),
         Value::String(text) => {
-            check_input_bytes(text)?;
+            check_input_bytes(text, max_bytes)?;
             output.push_str(
                 &serde_json::to_string(text).map_err(|_| CanonicalJsonError::EncodingFailed)?,
             );
@@ -90,8 +128,8 @@ fn encode(
                 if index > 0 {
                     output.push(',');
                 }
-                encode(item, depth + 1, nodes, output)?;
-                check_bytes(output)?;
+                encode(item, depth + 1, nodes, output, max_bytes)?;
+                check_bytes(output, max_bytes)?;
             }
             output.push(']');
         }
@@ -101,14 +139,14 @@ fn encode(
             }
             let mut aggregate_key_bytes: usize = 0;
             for key in object.keys() {
-                check_input_bytes(key)?;
+                check_input_bytes(key, max_bytes)?;
                 let encoded_key_bytes = serde_json::to_string(key)
                     .map_err(|_| CanonicalJsonError::EncodingFailed)?
                     .len();
                 aggregate_key_bytes = aggregate_key_bytes
                     .checked_add(encoded_key_bytes)
                     .ok_or(CanonicalJsonError::BoundsExceeded)?;
-                if aggregate_key_bytes > MAX_CANONICAL_BYTES {
+                if aggregate_key_bytes > max_bytes {
                     return Err(CanonicalJsonError::BoundsExceeded);
                 }
             }
@@ -123,29 +161,121 @@ fn encode(
                     &serde_json::to_string(key).map_err(|_| CanonicalJsonError::EncodingFailed)?,
                 );
                 output.push(':');
-                encode(&object[key], depth + 1, nodes, output)?;
-                check_bytes(output)?;
+                encode(&object[key], depth + 1, nodes, output, max_bytes)?;
+                check_bytes(output, max_bytes)?;
             }
             output.push('}');
         }
     }
-    check_bytes(output)
+    check_bytes(output, max_bytes)
 }
 
-fn check_bytes(value: &str) -> Result<(), CanonicalJsonError> {
-    if value.len() > MAX_CANONICAL_BYTES {
+fn check_bytes(value: &str, max_bytes: usize) -> Result<(), CanonicalJsonError> {
+    if value.len() > max_bytes {
         Err(CanonicalJsonError::BoundsExceeded)
     } else {
         Ok(())
     }
 }
 
-fn check_input_bytes(value: &str) -> Result<(), CanonicalJsonError> {
-    if value.len() > MAX_CANONICAL_BYTES {
+fn check_input_bytes(value: &str, max_bytes: usize) -> Result<(), CanonicalJsonError> {
+    if value.len() > max_bytes {
         Err(CanonicalJsonError::BoundsExceeded)
     } else {
         Ok(())
     }
+}
+
+/// Parses the exact string emitted by JavaScript `Date::toISOString`,
+/// including the ECMAScript time-clip boundary and extended signed years.
+#[must_use]
+pub fn parse_canonical_timestamp_ms(value: &str) -> Option<i64> {
+    let bytes = value.as_bytes();
+    let (year, year_end) = match bytes.len() {
+        24 => (parse_digits(bytes, 0, 4)?, 4),
+        27 if matches!(bytes.first(), Some(b'+' | b'-')) => {
+            let magnitude = parse_digits(bytes, 1, 7)?;
+            if (bytes[0] == b'+' && magnitude < 10_000) || (bytes[0] == b'-' && magnitude == 0) {
+                return None;
+            }
+            let signed = if bytes[0] == b'-' {
+                -magnitude
+            } else {
+                magnitude
+            };
+            (signed, 7)
+        }
+        _ => return None,
+    };
+    if bytes.get(year_end) != Some(&b'-')
+        || bytes.get(year_end + 3) != Some(&b'-')
+        || bytes.get(year_end + 6) != Some(&b'T')
+        || bytes.get(year_end + 9) != Some(&b':')
+        || bytes.get(year_end + 12) != Some(&b':')
+        || bytes.get(year_end + 15) != Some(&b'.')
+        || bytes.get(year_end + 19) != Some(&b'Z')
+    {
+        return None;
+    }
+    let month = parse_digits(bytes, year_end + 1, year_end + 3)?;
+    let day = parse_digits(bytes, year_end + 4, year_end + 6)?;
+    let hour = parse_digits(bytes, year_end + 7, year_end + 9)?;
+    let minute = parse_digits(bytes, year_end + 10, year_end + 12)?;
+    let second = parse_digits(bytes, year_end + 13, year_end + 15)?;
+    let millisecond = parse_digits(bytes, year_end + 16, year_end + 19)?;
+    if !(1..=12).contains(&month)
+        || day < 1
+        || day > days_in_month(year, month)
+        || hour > 23
+        || minute > 59
+        || second > 59
+    {
+        return None;
+    }
+    let milliseconds = i128::from(days_from_civil(year, month, day)) * 86_400_000
+        + i128::from(hour) * 3_600_000
+        + i128::from(minute) * 60_000
+        + i128::from(second) * 1_000
+        + i128::from(millisecond);
+    if milliseconds < -i128::from(JS_DATE_LIMIT_MS) || milliseconds > i128::from(JS_DATE_LIMIT_MS) {
+        return None;
+    }
+    i64::try_from(milliseconds).ok()
+}
+
+fn parse_digits(bytes: &[u8], start: usize, end: usize) -> Option<i64> {
+    let digits = bytes.get(start..end)?;
+    if digits.iter().any(|digit| !digit.is_ascii_digit()) {
+        return None;
+    }
+    Some(
+        digits
+            .iter()
+            .fold(0_i64, |value, digit| value * 10 + i64::from(digit - b'0')),
+    )
+}
+
+const fn days_in_month(year: i64, month: i64) -> i64 {
+    match month {
+        2 if is_leap_year(year) => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    }
+}
+
+const fn is_leap_year(year: i64) -> bool {
+    year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
+}
+
+fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
+    let adjusted_year = year - i64::from(month <= 2);
+    let era = adjusted_year.div_euclid(400);
+    let year_of_era = adjusted_year - era * 400;
+    let shifted_month = month + if month > 2 { -3 } else { 9 };
+    let day_of_year = (153 * shifted_month + 2) / 5 + day - 1;
+    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    era * 146_097 + day_of_era - 719_468
 }
 
 fn javascript_number(number: &serde_json::Number) -> Result<String, CanonicalJsonError> {

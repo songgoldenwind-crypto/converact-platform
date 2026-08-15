@@ -1,4 +1,7 @@
-use converact_contracts::{canonical_json, canonical_sha256};
+use converact_contracts::{
+    CanonicalJsonError, canonical_json, canonical_json_with_max_bytes, canonical_sha256,
+    canonical_sha256_with_max_bytes,
+};
 #[test]
 fn canonical_json_and_sha256_replay_the_active_typescript_contract_fixture() {
     let fixture: serde_json::Value = serde_json::from_str(include_str!(
@@ -50,4 +53,30 @@ fn canonical_json_rejects_values_before_unbounded_encoding_or_sorting() {
         })
         .collect();
     assert!(canonical_json(&serde_json::Value::Object(aggregate_oversized_keys)).is_err());
+}
+
+#[test]
+fn explicit_budget_is_bounded_and_supports_the_frozen_escaped_string_case() {
+    let escaped = serde_json::Value::String("\u{0001}".repeat(65_536));
+    let maximum = 65_536 * 6 + 2;
+    let encoded = canonical_json_with_max_bytes(&escaped, maximum).expect("escaped payload");
+    assert_eq!(encoded.len(), maximum);
+    assert_eq!(
+        canonical_sha256_with_max_bytes(&escaped, maximum)
+            .unwrap()
+            .len(),
+        64
+    );
+    assert_eq!(
+        canonical_json_with_max_bytes(&escaped, 65_536),
+        Err(CanonicalJsonError::BoundsExceeded)
+    );
+    assert_eq!(
+        canonical_json_with_max_bytes(&serde_json::Value::Null, 0),
+        Err(CanonicalJsonError::BoundsExceeded)
+    );
+    assert_eq!(
+        canonical_json_with_max_bytes(&serde_json::Value::Null, maximum + 1),
+        Err(CanonicalJsonError::BoundsExceeded)
+    );
 }

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-event-idempotency-contracts",
+  "reviewed_at": "2026-08-15T07:29:00Z",
+  "reviewer": "/root/r1_route_store_review",
+  "mode": "independent_read_only_exact_source",
+  "critical": 0,
+  "important": 0,
+  "minor": 0,
+  "verified": [
+    "extension values are field, byte, depth and node preflighted before bounded cloning",
+    "TypeScript Authority and Rust raw JSON boundaries reject lone UTF-16 surrogates fail closed",
+    "correlation and extension reserved __proto__ keys are rejected in both runtimes",
+    "the source manifest hashes all changed build inputs, active compatibility sources, fixtures and tests",
+    "correlation negative zero normalizes to zero in both runtimes",
+    "the receipt helper is documented and evidenced as a pure compatibility decision rather than a durable writer fence",
+    "unknown extensions require explicit effect_semantics none",
+    "malformed value and raw receipt boundaries map to invalid_transition",
+    "TypeScript 28 of 28, Rust workspace, Clippy, rustfmt and git diff checks pass",
+    "18 physical PostgreSQL tests remain ignored and not_run for this pure slice"
+  ],
+  "repository_or_server_mutation_by_reviewer": false
+}

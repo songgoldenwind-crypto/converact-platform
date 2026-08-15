@@ -4,6 +4,8 @@ members = [
   "apps/converact-migration-tool",
   "crates/config",
   "crates/contracts",
+  "crates/event-log",
+  "crates/idempotency",
   "crates/kernel-ids",
   "crates/migration-routing",
   "crates/migration-store",

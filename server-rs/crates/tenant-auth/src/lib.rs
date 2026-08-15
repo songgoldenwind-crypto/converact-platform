@@ -4,6 +4,7 @@
 
 use std::{collections::HashSet, error::Error, fmt};
 
+pub use converact_contracts::parse_canonical_timestamp_ms;
 use serde::{Deserialize, Serialize, de::Error as _};
 use serde_json::value::RawValue;
 
@@ -362,98 +363,6 @@ const fn deny(reason: DenialReason) -> AccessDecision {
         allowed: false,
         reason: Some(reason),
     }
-}
-
-/// Parses the exact string emitted by JavaScript `Date::toISOString`,
-/// including the ECMAScript time-clip boundary and extended signed years.
-#[must_use]
-pub fn parse_canonical_timestamp_ms(value: &str) -> Option<i64> {
-    let bytes = value.as_bytes();
-    let (year, year_end) = match bytes.len() {
-        24 => (parse_digits(bytes, 0, 4)?, 4),
-        27 if matches!(bytes.first(), Some(b'+' | b'-')) => {
-            let magnitude = parse_digits(bytes, 1, 7)?;
-            if (bytes[0] == b'+' && magnitude < 10_000) || (bytes[0] == b'-' && magnitude == 0) {
-                return None;
-            }
-            let signed = if bytes[0] == b'-' {
-                -magnitude
-            } else {
-                magnitude
-            };
-            (signed, 7)
-        }
-        _ => return None,
-    };
-    if bytes.get(year_end) != Some(&b'-')
-        || bytes.get(year_end + 3) != Some(&b'-')
-        || bytes.get(year_end + 6) != Some(&b'T')
-        || bytes.get(year_end + 9) != Some(&b':')
-        || bytes.get(year_end + 12) != Some(&b':')
-        || bytes.get(year_end + 15) != Some(&b'.')
-        || bytes.get(year_end + 19) != Some(&b'Z')
-    {
-        return None;
-    }
-    let month = parse_digits(bytes, year_end + 1, year_end + 3)?;
-    let day = parse_digits(bytes, year_end + 4, year_end + 6)?;
-    let hour = parse_digits(bytes, year_end + 7, year_end + 9)?;
-    let minute = parse_digits(bytes, year_end + 10, year_end + 12)?;
-    let second = parse_digits(bytes, year_end + 13, year_end + 15)?;
-    let millisecond = parse_digits(bytes, year_end + 16, year_end + 19)?;
-    if !(1..=12).contains(&month)
-        || day < 1
-        || day > days_in_month(year, month)
-        || hour > 23
-        || minute > 59
-        || second > 59
-    {
-        return None;
-    }
-    let milliseconds = i128::from(days_from_civil(year, month, day)) * 86_400_000
-        + i128::from(hour) * 3_600_000
-        + i128::from(minute) * 60_000
-        + i128::from(second) * 1_000
-        + i128::from(millisecond);
-    if milliseconds < -i128::from(JS_DATE_LIMIT_MS) || milliseconds > i128::from(JS_DATE_LIMIT_MS) {
-        return None;
-    }
-    i64::try_from(milliseconds).ok()
-}
-
-fn parse_digits(bytes: &[u8], start: usize, end: usize) -> Option<i64> {
-    let digits = bytes.get(start..end)?;
-    if digits.iter().any(|digit| !digit.is_ascii_digit()) {
-        return None;
-    }
-    Some(
-        digits
-            .iter()
-            .fold(0_i64, |value, digit| value * 10 + i64::from(digit - b'0')),
-    )
-}
-
-const fn days_in_month(year: i64, month: i64) -> i64 {
-    match month {
-        2 if is_leap_year(year) => 29,
-        2 => 28,
-        4 | 6 | 9 | 11 => 30,
-        _ => 31,
-    }
-}
-
-const fn is_leap_year(year: i64) -> bool {
-    year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
-}
-
-fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
-    let adjusted_year = year - i64::from(month <= 2);
-    let era = adjusted_year.div_euclid(400);
-    let year_of_era = adjusted_year - era * 400;
-    let shifted_month = month + if month > 2 { -3 } else { 9 };
-    let day_of_year = (153 * shifted_month + 2) / 5 + day - 1;
-    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
-    era * 146_097 + day_of_era - 719_468
 }
 
 #[cfg(test)]

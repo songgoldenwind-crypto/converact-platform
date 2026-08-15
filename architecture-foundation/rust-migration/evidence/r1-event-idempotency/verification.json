@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-event-idempotency-contracts",
+  "verified_at": "2026-08-15T07:29:00Z",
+  "current_state": "implemented_offline_pure_contract",
+  "target_state": "writer_fenced_durable_event_outbox_idempotency_foundation",
+  "production_eligible": false,
+  "results": [
+    {
+      "id": "typescript_exact_source_and_affected_contracts",
+      "command": "node --import tsx --test test/converact-platform-event-compatibility.test.ts test/converact-platform-audit-effect.test.ts test/converact-platform-event-receipt-postgres.test.ts test/converact-rust-platform-event-contract.test.ts",
+      "status": "passed",
+      "passed": 28,
+      "failed": 0
+    },
+    {
+      "id": "typescript_typecheck",
+      "command": "npm run typecheck",
+      "status": "passed"
+    },
+    {
+      "id": "rust_workspace_all_features",
+      "command": "cargo test --workspace --all-features",
+      "status": "passed",
+      "passed": 83,
+      "failed": 0,
+      "ignored_physical": 18
+    },
+    {
+      "id": "rust_clippy_all_targets_features",
+      "command": "cargo clippy --workspace --all-targets --all-features -- -D warnings",
+      "status": "passed"
+    },
+    {
+      "id": "rust_format",
+      "command": "cargo fmt --all -- --check",
+      "status": "passed"
+    },
+    {
+      "id": "locked_offline_metadata_and_dependency_delta",
+      "command": "cargo metadata --locked --offline --format-version 1 --no-deps",
+      "status": "passed",
+      "result": "Cargo.lock adds only the two internal workspace packages and the existing converact-contracts edge; no third-party, native or build-script dependency was added"
+    },
+    {
+      "id": "source_manifest_secret_and_diff_checks",
+      "status": "passed",
+      "result": "16 source SHA-256 identities match; evidence JSON parses; no credential pattern was found in the slice; git diff --check passes"
+    },
+    {
+      "id": "independent_review_final",
+      "status": "passed",
+      "result": "read-only exact-source review reported 0 Critical, 0 Important and 0 Minor"
+    },
+    {
+      "id": "rust_event_postgres_physical",
+      "status": "not_run",
+      "reason": "this commit contains the pure contract layer; the writer-fenced private PostgreSQL adapter is the next TDD slice"
+    },
+    {
+      "id": "server_container_performance_production",
+      "status": "not_run",
+      "reason": "forbidden or outside RM01 functional contract scope"
+    }
+  ]
+}

@@ -184,6 +184,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "converact-event-log"
+version = "0.1.0"
+dependencies = [
+ "converact-contracts",
+ "hex",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "converact-idempotency"
+version = "0.1.0"
+dependencies = [
+ "converact-contracts",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "converact-kernel-ids"
 version = "0.1.0"
 
@@ -271,6 +291,7 @@ dependencies = [
 name = "converact-tenant-auth"
 version = "0.1.0"
 dependencies = [
+ "converact-contracts",
  "serde",
  "serde_json",
 ]
