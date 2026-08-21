@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-platform-event-role",
+  "reviewed_at": "2026-08-21T06:45:44Z",
+  "reviewer": "/root/converact_ai_fit",
+  "supporting_reviewers": [
+    "/root/converact_ai_fit/sql_rls_review",
+    "/root/converact_ai_fit/tests_verifier_review"
+  ],
+  "mode": "independent_read_only_exact_working_tree",
+  "commit_blockers": 0,
+  "production_blockers": 7,
+  "verified": [
+    "event and owner roles have no membership, bypass or unreviewed ownership path",
+    "six wrappers have exact owner, SECURITY DEFINER, search_path, RLS and function ACL contracts",
+    "migration 120 converges fresh and through-119 upgrade paths and narrows the rolling legacy writer",
+    "direct and effective PUBLIC database, schema, relation, column, sequence, large-object and privileged-function bypasses fail closed",
+    "opc_admin global function defaults prevent later migrations from restoring ambient PUBLIC EXECUTE",
+    "focused PostgreSQL, clean activation, initializer replay, CLI activation and Rust physical lifecycle pass on the final exact tree",
+    "delivery, static contracts, typecheck, Rust format/tests/strict Clippy and diff check pass",
+    "the exact diff is acceptable only as an offline default-disabled foundation"
+  ],
+  "remaining_not_run": [
+    "production secret and TLS material",
+    "dedicated runtime pool URL and process wiring",
+    "route commit, new-work cutover and sole-writer proof",
+    "expired-owner adoption, drain, query/reconcile and active-zero",
+    "legacy role and writer retirement",
+    "generation-counter de-hotspotting and capacity",
+    "server, fleet, fault, performance and production qualification"
+  ],
+  "repository_or_server_mutation_by_reviewer": false
+}

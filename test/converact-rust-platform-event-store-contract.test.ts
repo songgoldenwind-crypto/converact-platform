@@ -32,7 +32,14 @@ test('target hardening does not confuse effect and AuthorityRoute generations', 
 test('physical event-store verification uses an isolated non-bypass target role', () => {
   assert.match(
     postgresVerifier,
-    /CREATE ROLE converact_event_runtime LOGIN NOSUPERUSER[\s\S]*NOBYPASSRLS/i
+    /CREATE ROLE converact_event_runtime NOLOGIN NOSUPERUSER[\s\S]*NOBYPASSRLS/i
+  );
+  assert.match(postgresVerifier, /converact-init-event-runtime-role\.ts/i);
+  const rollingRoleReplay = postgresVerifier.indexOf('src/converact-init-runtime-role.ts');
+  const targetRoleActivation = postgresVerifier.indexOf('src/converact-init-event-runtime-role.ts');
+  assert.ok(
+    rollingRoleReplay >= 0 && targetRoleActivation > rollingRoleReplay,
+    'legacy rolling role replay must run before target role activation'
   );
   assert.match(
     postgresVerifier,
@@ -40,4 +47,38 @@ test('physical event-store verification uses an isolated non-bypass target role'
   );
   assert.match(postgresVerifier, /CONVERACT_TEST_POSTGRES_URL/);
   assert.match(postgresVerifier, /CONVERACT_TEST_POSTGRES_ADMIN_URL/);
+});
+
+test('focused event-role verification owns a migration-only PostgreSQL prerequisite', () => {
+  const focusedBranch = postgresVerifier.match(
+    /if \[ "\$\{CONVERACT_POSTGRES_EVENT_ROLE_ONLY:-0\}" = '1' \]; then([\s\S]*?)else/i
+  )?.[1] || '';
+  assert.match(
+    focusedBranch,
+    /test\/converact-platform-event-runtime-role-postgres\.test\.ts/,
+    'focused role verification must use its dedicated fresh/upgrade migration test'
+  );
+  assert.doesNotMatch(
+    focusedBranch,
+    /test\/converact-standalone-postgres\.test\.ts/,
+    'focused role verification must not borrow the unrelated full product suite'
+  );
+  assert.match(postgresVerifier, /server-rs\/rust-toolchain\.toml/);
+  assert.match(postgresVerifier, /rustup[\s\S]*which[\s\S]*--toolchain/);
+  assert.match(postgresVerifier, /RUSTDOC="\$RUST_RUSTDOC"/);
+  assert.match(postgresVerifier, /--locked --manifest-path server-rs\/Cargo\.toml/);
+  assert.match(postgresVerifier, /DROP DATABASE converact_upgrade/);
+  assert.match(
+    postgresVerifier,
+    /REVOKE CONNECT, TEMPORARY ON DATABASE postgres FROM PUBLIC/
+  );
+  assert.match(
+    postgresVerifier,
+    /REVOKE CONNECT, TEMPORARY ON DATABASE template1 FROM PUBLIC/
+  );
+  assert.doesNotMatch(
+    postgresVerifier,
+    /\ncargo test --manifest-path server-rs\/Cargo\.toml/,
+    'physical verification must not depend on the caller default cargo'
+  );
 });

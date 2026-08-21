@@ -9,6 +9,7 @@
     "bootstrap:tinode": "node dist/converact-tinode-bootstrap.js",
     "admit:component-node": "node dist/converact-component-node-admission.js",
     "init:runtime-role": "node dist/converact-init-runtime-role.js",
+    "init:event-runtime-role": "node dist/converact-init-event-runtime-role.js",
     "migrate": "node dist/converact-migrate.js",
     "preflight:intelligence": "node dist/converact-intelligence-preflight.js",
     "preflight:voice": "node dist/converact-voice-preflight.js",

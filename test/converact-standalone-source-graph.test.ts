@@ -98,6 +98,7 @@ test('standalone source policy is explicit and keeps build assets out of Convera
     'src/converact-restore.ts',
     'src/converact-migrate.ts',
     'src/converact-init-runtime-role.ts',
+    'src/converact-init-event-runtime-role.ts',
     'src/converact-tinode-bootstrap.ts',
     'src/converact-intelligence-preflight.ts',
     'src/converact-render-kamailio-config.ts',
@@ -116,7 +117,7 @@ test('standalone source policy is explicit and keeps build assets out of Convera
     'src/agent-runtime/converact/ivr/index.ts',
     'src/agent-runtime/converact/contact-center/index.ts'
   ]);
-  assert.deepEqual(policy.migrations.slice(-9), [
+  assert.deepEqual(policy.migrations.slice(-10), [
     '111_converact_platform_key_lifecycle.sql',
     '112_converact_platform_history_receipt_integrity.sql',
     '113_converact_sip_effect_transport_completed.sql',
@@ -125,7 +126,8 @@ test('standalone source policy is explicit and keeps build assets out of Convera
     '116_converact_sip_capability_recovery_fence.sql',
     '117_converact_authority_migration_routes.sql',
     '118_converact_platform_event_runtime_fencing.sql',
-    '119_converact_platform_event_runtime_indexes.sql'
+    '119_converact_platform_event_runtime_indexes.sql',
+    '120_converact_platform_event_runtime_roles.sql'
   ]);
   for (const prefix of [
     'src/agent-runtime/call-center/',

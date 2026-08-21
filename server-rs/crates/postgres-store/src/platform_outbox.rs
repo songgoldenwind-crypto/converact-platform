@@ -1088,7 +1088,7 @@ async fn execute_outbox_writer_fence(
     fence: &FenceValues,
 ) -> Result<(), PlatformStoreError> {
     const SQL: &str = concat!(
-        "SELECT converact_authority_writer_fence(",
+        "SELECT converact_platform_writer_fence(",
         "$1, $2, $3, $4::text::numeric, $5::text::numeric, $6, $7, ",
         "$8::text::numeric)"
     );
@@ -1491,7 +1491,7 @@ mod physical_tests {
     use converact_kernel_ids::{Generation, OwnerEpoch, TenantId};
     use converact_migration_routing::{AuthorityKind, MutationScope, PartitionKey, RouteKey};
     use converact_migration_store::{LeaseToken, WriterFenceBinding};
-    use deadpool_postgres::tokio_postgres::{NoTls, error::SqlState};
+    use deadpool_postgres::tokio_postgres::{Client, NoTls, error::SqlState};
     use serde_json::json;
     use sha2::{Digest, Sha256};
 
@@ -1504,7 +1504,7 @@ mod physical_tests {
     };
 
     #[tokio::test]
-    #[ignore = "requires an isolated PostgreSQL database migrated through 119"]
+    #[ignore = "requires an isolated PostgreSQL database migrated through 120"]
     async fn writer_fenced_event_and_outbox_lifecycle_is_physically_idempotent() {
         seed_route().await;
         assert_target_role_cannot_bypass_mutation_functions().await;
@@ -2025,6 +2025,7 @@ mod physical_tests {
         let database_url = std::env::var("CONVERACT_TEST_POSTGRES_URL").unwrap();
         let (client, connection) = tokio_postgres::connect(&database_url, NoTls).await.unwrap();
         let task = tokio::spawn(connection);
+        assert_target_role_shape(&client).await;
         for statement in [
             "UPDATE converact_platform_outbox SET status = status WHERE false",
             "UPDATE converact_platform_inbox SET consumer_id = consumer_id WHERE false",
@@ -2034,6 +2035,10 @@ mod physical_tests {
             assert_eq!(error.code(), Some(&SqlState::INSUFFICIENT_PRIVILEGE));
         }
         for statement in [
+            "SELECT converact_authority_writer_fence(
+               NULL::text, NULL::text, NULL::text, NULL::numeric,
+               NULL::numeric, NULL::text, NULL::text, NULL::numeric
+             )",
             "SELECT converact_authority_claim_generation_work(
                NULL::text, NULL::text, NULL::text, NULL::numeric,
                NULL::numeric, NULL::text, NULL::text, NULL::numeric,
@@ -2049,6 +2054,93 @@ mod physical_tests {
         }
         drop(client);
         task.await.unwrap().unwrap();
+    }
+
+    async fn assert_target_role_shape(client: &Client) {
+        let event_role = client
+            .query_one(
+                "SELECT rolcanlogin, rolsuper, rolcreatedb, rolcreaterole,
+                        rolreplication, rolinherit, rolbypassrls
+                 FROM pg_roles WHERE rolname = current_user",
+                &[],
+            )
+            .await
+            .unwrap();
+        assert!(event_role.get::<_, bool>("rolcanlogin"));
+        for field in [
+            "rolsuper",
+            "rolcreatedb",
+            "rolcreaterole",
+            "rolreplication",
+            "rolinherit",
+            "rolbypassrls",
+        ] {
+            assert!(!event_role.get::<_, bool>(field), "unexpected {field}");
+        }
+        let owner_role = client
+            .query_one(
+                "SELECT rolcanlogin, rolsuper, rolcreatedb, rolcreaterole,
+                        rolreplication, rolinherit, rolbypassrls
+                 FROM pg_roles WHERE rolname = 'converact_event_store_owner'",
+                &[],
+            )
+            .await
+            .unwrap();
+        for field in [
+            "rolcanlogin",
+            "rolsuper",
+            "rolcreatedb",
+            "rolcreaterole",
+            "rolreplication",
+            "rolinherit",
+            "rolbypassrls",
+        ] {
+            assert!(
+                !owner_role.get::<_, bool>(field),
+                "unexpected owner {field}"
+            );
+        }
+        let membership_count: i64 = client
+            .query_one(
+                "SELECT count(*)::bigint AS count FROM pg_auth_members
+                 WHERE member IN (
+                   SELECT oid FROM pg_roles WHERE rolname IN (
+                     current_user, 'converact_event_store_owner'
+                   )
+                 ) OR roleid IN (
+                   SELECT oid FROM pg_roles WHERE rolname IN (
+                     current_user, 'converact_event_store_owner'
+                   )
+                 )",
+                &[],
+            )
+            .await
+            .unwrap()
+            .get("count");
+        assert_eq!(membership_count, 0);
+        let owned_wrapper_count: i64 = client
+            .query_one(
+                "SELECT count(*)::bigint AS count
+                 FROM pg_proc AS procedure
+                 JOIN pg_roles AS owner ON owner.oid = procedure.proowner
+                 WHERE procedure.oid IN (
+                   to_regprocedure('converact_platform_writer_fence(text,text,text,numeric,numeric,text,text,numeric)'),
+                   to_regprocedure('converact_platform_inbox_append(text,text,text,numeric,numeric,text,text,numeric,text,text,text,bigint,text,timestamp with time zone)'),
+                   to_regprocedure('converact_platform_effect_append(text,text,text,numeric,numeric,text,text,numeric,text,text,text,text,text,bigint,text,bigint,text,timestamp with time zone)'),
+                   to_regprocedure('converact_platform_outbox_enqueue(text,text,text,numeric,numeric,text,text,numeric,text,text,text,integer,integer,text,text,text,text,bigint,text,text,text,jsonb,jsonb,text,text,text,jsonb,integer,timestamp with time zone,timestamp with time zone)'),
+                   to_regprocedure('converact_platform_outbox_claim(text,text,text,numeric,numeric,text,text,numeric,text,text,text,bigint,integer)'),
+                   to_regprocedure('converact_platform_outbox_transition_apply(text,text,text,numeric,numeric,text,text,numeric,text,text,text,bigint,text,text,bigint,text,text)')
+                 ) AND owner.rolname = 'converact_event_store_owner'
+                   AND procedure.prosecdef
+                   AND procedure.proconfig = ARRAY[
+                     'search_path=pg_catalog, public, pg_temp'
+                   ]::text[]",
+                &[],
+            )
+            .await
+            .unwrap()
+            .get("count");
+        assert_eq!(owned_wrapper_count, 6);
     }
 
     async fn assert_legacy_role_is_confined_to_null_provenance() {
@@ -2105,6 +2197,29 @@ mod physical_tests {
             .unwrap_err();
         assert_eq!(error.code(), Some(&SqlState::INSUFFICIENT_PRIVILEGE));
         target_update.rollback().await.unwrap();
+
+        let target_delete = admin.transaction().await.unwrap();
+        target_delete
+            .batch_execute("SET LOCAL ROLE opc_runtime")
+            .await
+            .unwrap();
+        target_delete
+            .query_one(
+                "SELECT set_config('app.current_tenant', 'tenant-event-a', true)",
+                &[],
+            )
+            .await
+            .unwrap();
+        let error = target_delete
+            .execute(
+                "DELETE FROM converact_platform_outbox
+                 WHERE tenant_id = 'tenant-event-a' AND id = 'outbox-a'",
+                &[],
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(error.code(), Some(&SqlState::INSUFFICIENT_PRIVILEGE));
+        target_delete.rollback().await.unwrap();
 
         drop(admin);
         task.await.unwrap().unwrap();

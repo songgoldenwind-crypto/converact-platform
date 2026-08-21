@@ -231,8 +231,10 @@ fn durable_sql_keeps_fence_claim_clock_and_delivery_token_in_postgres() {
     assert!(!durable_source.contains("lease_token_hash: String"));
     assert!(!PLATFORM_EVENT_SOURCE.contains("INSERT INTO converact_platform_inbox"));
     assert!(!PLATFORM_EVENT_SOURCE.contains("INSERT INTO converact_platform_effect_receipts"));
+    assert!(!PLATFORM_EVENT_SOURCE.contains("converact_authority_writer_fence("));
     assert!(!platform_outbox_adapter.contains("INSERT INTO converact_platform_outbox"));
     assert!(!platform_outbox_adapter.contains("UPDATE converact_platform_outbox"));
+    assert!(!platform_outbox_adapter.contains("converact_authority_writer_fence("));
     assert!(PLATFORM_EVENT_SOURCE.contains("converact_platform_effect_append("));
     assert!(PLATFORM_OUTBOX_SOURCE.contains("converact_platform_outbox_claim("));
 }

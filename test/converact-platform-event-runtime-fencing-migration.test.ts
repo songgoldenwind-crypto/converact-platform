@@ -10,6 +10,10 @@ const indexSql = readFileSync(
   new URL('../src/migrations/119_converact_platform_event_runtime_indexes.sql', import.meta.url),
   'utf8'
 );
+const roleSql = readFileSync(
+  new URL('../src/migrations/120_converact_platform_event_runtime_roles.sql', import.meta.url),
+  'utf8'
+);
 const migrationRunner = readFileSync(
   new URL('../src/postgres-migrations.ts', import.meta.url),
   'utf8'
@@ -151,5 +155,72 @@ test('large-table indexes are prepared concurrently outside migration transactio
   assert.match(
     migrationRunner,
     /preparePlatformEventRuntimeIndexes\(pg\);[\s\S]*await pg\.query\('BEGIN'\)/i
+  );
+});
+
+test('event store functions use a dedicated no-login owner and a non-inheriting runtime role', () => {
+  assert.match(roleSql, /converact_event_store_owner/i);
+  assert.match(roleSql, /rolcanlogin[\s\S]*FALSE/i);
+  assert.match(roleSql, /rolinherit[\s\S]*FALSE/i);
+  assert.match(roleSql, /rolbypassrls[\s\S]*FALSE/i);
+  assert.match(
+    roleSql,
+    /WHERE member IN \([\s\S]*\)\s+OR roleid IN \(/i,
+    'both membership directions must be rejected'
+  );
+  assert.match(
+    roleSql,
+    /REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public\s+FROM converact_event_store_owner/i
+  );
+  assert.match(
+    roleSql,
+    /REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public\s+FROM converact_event_store_owner/i
+  );
+  assert.match(
+    roleSql,
+    /candidate\.prosecdef[\s\S]*REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC/i,
+    'ambient PUBLIC execution of existing security-definer functions must be removed'
+  );
+  assert.match(
+    roleSql,
+    /ALTER DEFAULT PRIVILEGES FOR ROLE opc_admin\s+REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC/i,
+    'future migration functions must not regain ambient PUBLIC execution'
+  );
+  assert.match(
+    roleSql,
+    /REVOKE ALL ON converact_platform_outbox, converact_platform_inbox,[\s\S]*converact_platform_outbox_claim_receipts[\s\S]*FROM opc_runtime/i,
+    'the role migration must remove broad bootstrap privileges from the rolling legacy principal'
+  );
+  assert.match(
+    roleSql,
+    /GRANT SELECT, INSERT, UPDATE ON converact_platform_outbox TO opc_runtime/i
+  );
+  assert.match(
+    roleSql,
+    /GRANT SELECT, INSERT ON converact_platform_inbox,[\s\S]*converact_platform_effect_receipts TO opc_runtime/i
+  );
+  assert.match(
+    roleSql,
+    /REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public\s+FROM converact_event_store_owner/i
+  );
+  for (const mutation of [
+    'converact_platform_inbox_append',
+    'converact_platform_effect_append',
+    'converact_platform_outbox_enqueue',
+    'converact_platform_outbox_claim',
+    'converact_platform_outbox_transition_apply'
+  ]) {
+    assert.match(
+      roleSql,
+      new RegExp(`ALTER FUNCTION ${mutation}\\([\\s\\S]*OWNER TO converact_event_store_owner`, 'i'),
+      mutation
+    );
+  }
+  assert.match(roleSql, /REVOKE EXECUTE ON FUNCTION converact_authority_claim_generation_work[\s\S]*FROM converact_event_runtime/i);
+  assert.match(roleSql, /REVOKE EXECUTE ON FUNCTION converact_authority_release_generation_work[\s\S]*FROM converact_event_runtime/i);
+  assert.match(roleSql, /GRANT SELECT ON[\s\S]*TO converact_event_runtime/i);
+  assert.doesNotMatch(
+    roleSql,
+    /GRANT (?:INSERT|UPDATE|DELETE|TRUNCATE)[^;]+TO converact_event_runtime/i
   );
 });

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-platform-event-role",
+  "generated_at": "2026-08-21T06:45:44Z",
+  "base_commit": "1025dc73a14a1201429d69753a44aaae063ccb00",
+  "branch": "codex/converact-platform-rename",
+  "rust_toolchain": "1.94.1-aarch64-apple-darwin",
+  "hash_algorithm": "sha256",
+  "production_eligible": false,
+  "new_external_dependencies": [],
+  "files": [
+    { "path": "scripts/converact-delivery-bundle.ts", "sha256": "cf007aa98bb333a10f998de2a7dfac4b44745cf04202d29b8b97a302258fc9a4" },
+    { "path": "scripts/verify-converact-postgres.sh", "sha256": "c38c2d1443769909ae7de13bff464d86511e3e31acb563d9501853ab25188747" },
+    { "path": "scripts/verify-converact-standalone-context.ts", "sha256": "f7f7e1df15e5c840247938d02aa8b4796a235314c7864c26d7a63f3b41f582ec" },
+    { "path": "server-rs/crates/postgres-store/src/platform_event.rs", "sha256": "1829901fa5b017d749a9e3e3c3abb9b511b52ae509956a73eff08b9877cc3a53" },
+    { "path": "server-rs/crates/postgres-store/src/platform_outbox.rs", "sha256": "c13008d46abf36a7720e94f998deca0f33ae9f06294c2059098681d654ea0011" },
+    { "path": "server-rs/crates/postgres-store/tests/platform_event_contract.rs", "sha256": "1e2913cef2b81c047e653ed625342bd4542fc79a30bcb49e6b8330491b80db36" },
+    { "path": "services/converact-service/package.json", "sha256": "fedad39a866fd5daca43aca1af0ad7c82746ac3b874ad2b56c1e627295f9593b" },
+    { "path": "services/converact-service/source-policy.json", "sha256": "1631466a81007c40ad6daa5d8672756c7bf2c6265be6243cd1742aaba62d6df7" },
+    { "path": "src/converact-init-event-runtime-role.ts", "sha256": "6eed8ac91720c200632e1866294f09dd7e5e59992d232ae57af3ef2153a7df14" },
+    { "path": "src/converact-runtime-role.ts", "sha256": "a5c76a5bebf6fe9d37c30f6726c4c5f73c2b0dfe7f41585e4b96ddedb80365ce" },
+    { "path": "src/migrations/120_converact_platform_event_runtime_roles.sql", "sha256": "cc15120744712cbcf67d25bb3e1c8ad3efcb14f3d05b0c765166fae87fa1071f" },
+    { "path": "test/converact-authority-route-migration.test.ts", "sha256": "dbf6cd9fb76f876604a07e6ee9dc3bb35353c9866084441aab85dcd7b403aa69" },
+    { "path": "test/converact-delivery-bundle.test.ts", "sha256": "a0b4e2af789d4bf4889c2bb1db9c18e272eef50c80853734421ccc25d247000c" },
+    { "path": "test/converact-platform-event-runtime-fencing-migration.test.ts", "sha256": "037a0f82b13bcc5a709616105bf5d83538d17880474d0d27410b78353eac39b0" },
+    { "path": "test/converact-platform-event-runtime-role-postgres.test.ts", "sha256": "e5b351ce3defbf1ac6e146989ba8229c1e3d9ad564bec1790528f53f8d21f301" },
+    { "path": "test/converact-runtime-role.test.ts", "sha256": "5d541205246f3bbb8a3601f8778b5e1f52148a7bc1df337f096542d4aa6d8dd9" },
+    { "path": "test/converact-rust-platform-event-store-contract.test.ts", "sha256": "9d91158c70348a9372bfaabcf60b48f502fb11aa0067c3eeaba1e9a13b01c404" },
+    { "path": "test/converact-standalone-build-context.test.ts", "sha256": "850902b4ee77a70c2f595cf384ca07721674deec71087a30c0ff0d8b09b6e45f" },
+    { "path": "test/converact-standalone-migrations.test.ts", "sha256": "e8d5f060512b12968888149ff1034dd8a41e65bc697128df5994b6c1ca0b5e55" },
+    { "path": "test/converact-standalone-source-graph.test.ts", "sha256": "9ea3ab96d7733e4ca2efd6680465582b2e8ae5f1b9488f9fbf3138ce71887472" }
+  ]
+}

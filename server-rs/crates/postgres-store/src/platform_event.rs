@@ -78,7 +78,7 @@ const EFFECT_EXACT_SQL: &str = concat!(
     "AND effect_id = $2 AND stage = $3 AND generation = $4"
 );
 const WRITER_FENCE_SQL: &str = concat!(
-    "SELECT converact_authority_writer_fence(",
+    "SELECT converact_platform_writer_fence(",
     "$1, $2, $3, $4::text::numeric, $5::text::numeric, $6, $7, ",
     "$8::text::numeric)"
 );

@@ -19,7 +19,7 @@ test('authority migration route schema is exact-key bounded and additive', () =>
     new URL('../src/migrations', import.meta.url).pathname
   );
   assert.equal(plan.some((entry) => entry.file === '117_converact_authority_migration_routes.sql'), true);
-  assert.equal(plan.at(-1)?.file, '119_converact_platform_event_runtime_indexes.sql');
+  assert.equal(plan.at(-1)?.file, '120_converact_platform_event_runtime_roles.sql');
 
   for (const table of [
     'converact_authority_routes',

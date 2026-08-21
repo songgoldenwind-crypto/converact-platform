@@ -25,6 +25,7 @@ const entrypoints = [
   'converact-realtime-audio-tap-worker.js',
   'converact-migrate.js',
   'converact-init-runtime-role.js',
+  'converact-init-event-runtime-role.js',
   'converact-intelligence-preflight.js',
   'converact-kamailio-compose-config.js',
   'converact-render-kamailio-config.js',

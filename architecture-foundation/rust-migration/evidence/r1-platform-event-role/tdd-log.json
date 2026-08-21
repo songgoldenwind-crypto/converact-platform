@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-platform-event-role",
+  "generated_at": "2026-08-21T06:45:44Z",
+  "cycles": [
+    {
+      "id": "default_disabled_login",
+      "red": "the Platform Event adapter had no dedicated database login or explicit activation boundary",
+      "green": "bootstrap creates a no-inherit NOLOGIN role and a separate parameterized command validates the exact graph before enabling LOGIN"
+    },
+    {
+      "id": "dedicated_function_owner",
+      "red": "Platform Event security-definer wrappers had no isolated non-login owner contract",
+      "green": "migration 120 installs one no-login owner with exact wrapper ownership and only the direct table and Authority-function privileges required by the wrappers"
+    },
+    {
+      "id": "closed_world_authority",
+      "red": "direct role ACL and pg_shdepend checks missed effective PUBLIC SECURITY DEFINER, cross-database, relation, column, sequence and large-object authority",
+      "green": "catalog plus effective-privilege validation enforce one database-scoped graph and physical attacks prove PUBLIC and direct variants fail while the role remains NOLOGIN"
+    },
+    {
+      "id": "future_public_authority",
+      "red": "later opc_admin objects could regain PostgreSQL's PUBLIC function execution or malicious PUBLIC table, sequence and schema defaults after activation",
+      "green": "migration 120 installs the global owner-only function default and activation rejects forward PUBLIC function, table, sequence and schema default ACLs"
+    },
+    {
+      "id": "legacy_rolling_acl",
+      "red": "generic bootstrap left opc_runtime with DELETE and broad UPDATE on all six target relations",
+      "green": "migration 120 revokes all six relations and restores only the exact time-bounded Outbox, Inbox and Effect rolling privileges"
+    },
+    {
+      "id": "rolling_replay",
+      "red": "replaying generic runtime-role initialization could disable an explicitly activated event login",
+      "green": "existing event LOGIN state is preserved while fresh creation remains NOLOGIN; fresh and through-119 migration paths converge"
+    },
+    {
+      "id": "rust_wrapper_boundary",
+      "red": "Rust Platform Event adapters called the underlying Authority writer fence directly",
+      "green": "both adapters call the dedicated Platform Event wrapper and exact-source tests reject regression"
+    },
+    {
+      "id": "reproducible_physical_verifier",
+      "red": "the focused verifier borrowed a broader Voice/SIP campaign and did not pin every Rust executable",
+      "green": "the focused mode owns fresh and upgrade databases, pins cargo/rustc/rustdoc, uses --locked and runs only its dedicated role and Rust lifecycle evidence"
+    }
+  ]
+}
