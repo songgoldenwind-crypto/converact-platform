@@ -1,0 +1,121 @@
+{
+  "contract_version": 1,
+  "source": "src/middleware/auth.ts#jwksCache+fetchJwks+queueJwksRefresh+jwksCacheAgeMs",
+  "source_sha256": "a9300059a63c42a6fd32511dc62c6ccdfac67336a5bcaa29a92e1d90a5f77b7c",
+  "policy": {
+    "fresh_for_ms": 300000,
+    "on_demand_refresh_floor_ms": 5000
+  },
+  "known_key_id": "external-rs256-v7",
+  "unknown_key_id": "external-rs256-missing",
+  "sequences": [
+    {
+      "name": "fresh_known_boundaries",
+      "seed_at_ms": 1000,
+      "fetch_mode": "reject",
+      "steps": [
+        {
+          "name": "fresh_at_zero_age",
+          "at_ms": 1000,
+          "key": "known",
+          "expected": { "availability": "ready", "refresh_started": false }
+        },
+        {
+          "name": "fresh_at_last_millisecond",
+          "at_ms": 300999,
+          "key": "known",
+          "expected": { "availability": "ready", "refresh_started": false }
+        }
+      ]
+    },
+    {
+      "name": "expired_snapshot_refresh_floor",
+      "seed_at_ms": 1000,
+      "fetch_mode": "reject",
+      "steps": [
+        {
+          "name": "expired_at_ttl",
+          "at_ms": 301000,
+          "key": "known",
+          "expected": { "availability": "unavailable", "refresh_started": true }
+        },
+        {
+          "name": "expired_inside_refresh_floor",
+          "at_ms": 301001,
+          "key": "known",
+          "expected": { "availability": "unavailable", "refresh_started": false }
+        },
+        {
+          "name": "expired_at_refresh_floor",
+          "at_ms": 306000,
+          "key": "known",
+          "expected": { "availability": "unavailable", "refresh_started": true }
+        }
+      ]
+    },
+    {
+      "name": "clock_regression",
+      "seed_at_ms": 1000,
+      "fetch_mode": "reject",
+      "steps": [
+        {
+          "name": "clock_regression_fails_closed",
+          "at_ms": 999,
+          "key": "known",
+          "expected": { "availability": "ready", "refresh_started": false },
+          "target_expected": { "availability": "clock_regressed", "refresh_started": false }
+        }
+      ]
+    },
+    {
+      "name": "unknown_key_refresh_floor_and_last_known_good",
+      "seed_at_ms": 1000,
+      "fetch_mode": "reject",
+      "steps": [
+        {
+          "name": "unknown_key_starts_refresh",
+          "at_ms": 1000,
+          "key": "unknown",
+          "expected": { "availability": "unavailable", "refresh_started": true }
+        },
+        {
+          "name": "unknown_key_inside_refresh_floor",
+          "at_ms": 5999,
+          "key": "unknown",
+          "expected": { "availability": "unavailable", "refresh_started": false }
+        },
+        {
+          "name": "unknown_key_at_refresh_floor",
+          "at_ms": 6000,
+          "key": "unknown",
+          "expected": { "availability": "unavailable", "refresh_started": true }
+        },
+        {
+          "name": "failed_refresh_preserves_fresh_known_key",
+          "at_ms": 6001,
+          "key": "known",
+          "expected": { "availability": "ready", "refresh_started": false }
+        }
+      ]
+    },
+    {
+      "name": "single_flight",
+      "seed_at_ms": 1000,
+      "fetch_mode": "pending",
+      "steps": [
+        {
+          "name": "first_unknown_key_starts_refresh",
+          "at_ms": 1000,
+          "key": "unknown",
+          "expected": { "availability": "unavailable", "refresh_started": true }
+        },
+        {
+          "name": "pending_refresh_blocks_second_fetch_after_floor",
+          "at_ms": 7000,
+          "key": "unknown",
+          "expected": { "availability": "unavailable", "refresh_started": false }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-cache",
+  "generated_at": "2026-08-22T13:34:19Z",
+  "cycles": [
+    {
+      "id": "active_typescript_cache_freeze",
+      "red": "the migration had no exact-source corpus for fresh, expired, unknown-key, retry-floor and pending-refresh cache decisions",
+      "green": "a 12-step Node 24 corpus drives the active authentication path with controlled monotonic time and failed or pending refreshes"
+    },
+    {
+      "id": "issuer_local_bounded_state",
+      "red": "the focused Rust test could not import a JWKS cache policy, resolution, refresh lease or lifecycle error",
+      "green": "one issuer-local object owns one bounded snapshot, one refresh lease and one retry timestamp with no global map or runtime dependency"
+    },
+    {
+      "id": "single_flight_and_completion_fence",
+      "red": "the target had no proof that duplicate, stale or reordered refresh completion could not replace newer key state",
+      "green": "opaque increasing leases enforce one in-flight refresh and exact completion; stale success is rejected and atomic replacement is directly tested"
+    },
+    {
+      "id": "clock_domain_and_last_known_good",
+      "red": "current TypeScript treats a regressed monotonic reading as zero-age fresh and refresh failure behavior was not frozen independently",
+      "green": "Rust fails clock regression closed, clears an exact bad completion without sticking, and retains only the still-fresh last-known-good snapshot"
+    }
+  ]
+}

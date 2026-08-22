@@ -10,11 +10,16 @@ use serde_json::value::RawValue;
 
 mod hs256;
 mod jwks;
+mod jwks_cache;
 mod jwt;
 mod rs256;
 
 pub use hs256::Hs256PlatformTokenVerifier;
 pub use jwks::{Rs256JwksError, Rs256JwksSnapshot, Rs256PublicKeyComponents};
+pub use jwks_cache::{
+    Rs256JwksCache, Rs256JwksCacheConfigError, Rs256JwksCachePolicy, Rs256JwksLifecycleError,
+    Rs256JwksRefreshLease, Rs256JwksResolution, Rs256JwksUnavailableReason,
+};
 pub use jwt::{
     AuthenticatedPlatformIdentity, PlatformIdentityRole, PlatformTokenVerificationError,
     PlatformTokenVerifierConfigError,

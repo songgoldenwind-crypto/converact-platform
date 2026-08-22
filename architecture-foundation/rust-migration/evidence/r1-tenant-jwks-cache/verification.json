@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-cache",
+  "generated_at": "2026-08-22T13:34:19Z",
+  "current_state": "typescript_global_jwks_cache_active_rust_lifecycle_offline_default_disabled",
+  "target_state": "issuer_local_bounded_single_flight_jwks_lifecycle",
+  "production_eligible": false,
+  "checks": [
+    {
+      "id": "active_typescript_jwks_cache_corpus",
+      "status": "passed",
+      "result": "12/12 current cache decisions replayed under Node 24.15.0 and the exact auth.ts source SHA-256 matched"
+    },
+    {
+      "id": "rust_jwks_lifecycle_and_prior_auth_contracts",
+      "status": "passed",
+      "result": "17/17 tenant-auth tests passed, including 12 target cache decisions, RS256/HS256 verification, bounded JWKS parsing and the prior tenant policy"
+    },
+    {
+      "id": "explicit_clock_difference",
+      "status": "passed",
+      "result": "both runtimes assert clock regression as the sole target difference: current ready, target fail-closed ClockRegressed"
+    },
+    {
+      "id": "single_flight_fence_atomic_rotation_and_failure",
+      "status": "passed",
+      "result": "focused Rust tests prove scheduled/on-demand single flight, exact generation completion, stale completion rejection, atomic key replacement and last-known-good preservation"
+    },
+    {
+      "id": "rust_workspace_all_targets",
+      "status": "passed",
+      "result": "pinned cargo test --workspace --all-targets --locked exited 0; explicitly gated physical PostgreSQL tests remained ignored"
+    },
+    {
+      "id": "rust_workspace_clippy_format_and_docs",
+      "status": "passed",
+      "result": "pinned formatting, workspace Clippy all targets/all features with -D warnings and rustdoc with -D warnings exited 0"
+    },
+    {
+      "id": "node24_affected_auth_and_typecheck",
+      "status": "passed",
+      "result": "26/26 affected authentication tests passed and repository TypeScript typecheck exited 0"
+    },
+    {
+      "id": "bounded_inert_dependency_boundary",
+      "status": "passed",
+      "result": "policy/time/generation/snapshot state is bounded, errors are closed, key material does not escape resolution, static no-runtime-I/O guards passed and no dependency or lockfile changed"
+    },
+    {
+      "id": "git_diff_json_and_source_manifest_replay",
+      "status": "passed",
+      "result": "JSON parsing, git diff --check and exact SHA-256 source-manifest replay exited 0; the staged set was empty before explicit staging"
+    },
+    {
+      "id": "independent_exact_tree_review",
+      "status": "not_run"
+    },
+    {
+      "id": "cache_verifier_fetch_readiness_and_runtime_facade",
+      "status": "not_run"
+    },
+    {
+      "id": "mtls_http_websocket_shadow_drain_and_deletion",
+      "status": "not_run"
+    },
+    {
+      "id": "fleet_fault_capacity_performance_and_production",
+      "status": "not_run"
+    }
+  ]
+}
