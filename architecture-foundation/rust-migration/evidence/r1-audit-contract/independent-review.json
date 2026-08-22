@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-audit-contract",
+  "reviewed_at": "2026-08-22T03:06:00Z",
+  "reviewer": "/root/converact_ai_fit",
+  "mode": "independent_read_only_exact_working_tree",
+  "commit_blockers": 0,
+  "production_blockers": 7,
+  "verified": [
+    "the crate accepts only the current TypeScript service's normalized append shape through private fields and closed enums",
+    "hash and replay reproduce the active TypeScript PostgreSQL store, including reuse of the stored occurred_at on replay",
+    "metadata key, secret, PII, byte, depth, array and UTF-16 text bounds are closed",
+    "the Node en-US key comparator is restricted to the existing ASCII key grammar and rejects unsupported keys",
+    "four active-TypeScript hash vectors and normalizer edge witnesses pass",
+    "no Rust app, TypeScript source or script references the new crate and no runtime route or database writer exists",
+    "no second Authority, task, lock, unbounded queue, native library or new external dependency was introduced",
+    "reviewer differential checks found zero ordering mismatches across 4,290 allowed one/two-character keys and zero email/phone mismatches across 300,000/500,000 generated samples",
+    "the exact diff is acceptable only as an offline default-disabled foundation"
+  ],
+  "remaining_not_run": [
+    "raw source-IP normalization and HMAC key custody",
+    "durable PostgreSQL writer, concurrent chain-tail serialization and RLS",
+    "physical replay, conflict and immutable-chain verification",
+    "runtime shadow route and fenced single-writer cutover",
+    "list and JSONL export migration",
+    "drain, reconcile, active-zero and TypeScript deletion",
+    "production image, fleet, fault, performance and production qualification"
+  ],
+  "repository_or_server_mutation_by_reviewer": false
+}

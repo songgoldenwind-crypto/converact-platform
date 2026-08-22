@@ -2,6 +2,7 @@
 members = [
   "apps/converact-api",
   "apps/converact-migration-tool",
+  "crates/audit",
   "crates/config",
   "crates/contracts",
   "crates/event-log",

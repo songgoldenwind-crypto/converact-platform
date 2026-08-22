@@ -1,0 +1,122 @@
+{
+  "contract_version": 1,
+  "baseline_commit": "80844c1d311563a1fb26a43d180840fbba54b927",
+  "current_sources": [
+    {
+      "path": "src/agent-runtime/converact/operations/audit/types.ts",
+      "sha256": "3087cf79cc1562dfd73c3fcea8eaf8e59e053da40dc926c050755560de2a858b"
+    },
+    {
+      "path": "src/agent-runtime/converact/operations/audit/service.ts",
+      "sha256": "fb69245621162e875850c8bd24f05b89742e10dab76fd9dfcbeec29856f49d89"
+    },
+    {
+      "path": "src/agent-runtime/converact/operations/audit/postgres-store.ts",
+      "sha256": "c56d844da59cf08eb541d44d24dd79ffc5eb1ec94a9f713416d03d869cceb6e4"
+    },
+    {
+      "path": "src/agent-runtime/converact/notifications/canonical.ts",
+      "sha256": "3b2148a515a534cceb2d99cac911bec9dba89829d20b378894ec2c8ba1b63914"
+    },
+    {
+      "path": "src/migrations/066_ivekit_audit.sql",
+      "sha256": "84edb7fa0eaa7a988ea391fadad5d22cbd81a2b33764ccb892dc67ed61d1a8a2"
+    }
+  ],
+  "base_append": {
+    "tenant_id": "tenant-a",
+    "actor_id": "admin-a",
+    "actor_role": "admin",
+    "action": "notification.endpoint.create",
+    "resource_type": "notification_endpoint",
+    "resource_id": "endpoint-a",
+    "business_ref_type": "endpoint",
+    "business_ref_id": "endpoint-a",
+    "request_id": "request-a",
+    "idempotency_key": "audit-request-a",
+    "result": "succeeded",
+    "policy_decision": "allow",
+    "source_ip_hmac": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "metadata": {
+      "channel": "sms",
+      "status": "active"
+    },
+    "occurred_at": "2026-07-15T08:00:00.000Z",
+    "retention_until": null,
+    "legal_hold": false
+  },
+  "hash_cases": [
+    {
+      "name": "first_tenant_event",
+      "overrides": {},
+      "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "expected_hash": "85e221dafd1d50271596ddc81c65dc1178f77878947c4ed747d266dda87b0bcd"
+    },
+    {
+      "name": "linked_denied_event",
+      "overrides": {
+        "action": "notification.endpoint.delete",
+        "result": "denied",
+        "policy_decision": "deny",
+        "metadata": {
+          "list": ["ok", 7, false],
+          "nested": { "a": null, "b": true },
+          "z": 0
+        },
+        "retention_until": "2027-07-15T08:00:00.000Z",
+        "legal_hold": true
+      },
+      "previous_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected_hash": "b698a3161ea2fe32b2c1636099bc7e4048ed0aeb14b44bb5b438432818f72dee"
+    },
+    {
+      "name": "unicode_system_event_without_ip",
+      "overrides": {
+        "actor_id": "系统-a",
+        "actor_role": "system",
+        "action": "audit.export",
+        "resource_type": "audit",
+        "resource_id": "导出-a",
+        "business_ref_type": "engagement",
+        "business_ref_id": "互动-a",
+        "request_id": "request-unicode",
+        "idempotency_key": "audit-unicode",
+        "result": "accepted",
+        "policy_decision": "not_applicable",
+        "source_ip_hmac": "",
+        "metadata": {
+          "locale": "zh-CN",
+          "revision": 2
+        },
+        "occurred_at": "2026-07-15T08:00:01.250Z"
+      },
+      "previous_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "expected_hash": "87d8ebe4d100f0d3ebf23de57616e1d92fafc4423a3ee8b440749cefa1ea08f6"
+    },
+    {
+      "name": "node_24_en_us_metadata_key_collation",
+      "overrides": {
+        "metadata": {
+          "Z": 1,
+          "a": 2,
+          "A": 3,
+          "_": 4,
+          "-": 5,
+          ".": 6,
+          "a1": 7,
+          "A1": 8,
+          "aa": 9,
+          "aA": 10
+        }
+      },
+      "previous_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "expected_hash": "e887f4abc47427c89cfa04c885217e174429284bca6c22dbdcfc74ad6a00192c"
+    }
+  ],
+  "target_scope": {
+    "pure_contract_only": true,
+    "database_writer": false,
+    "runtime_route": false,
+    "server_or_container_change": false
+  }
+}

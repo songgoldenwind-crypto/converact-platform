@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-audit-contract",
+  "generated_at": "2026-08-22T03:06:00Z",
+  "current_state": "implemented_offline_default_disabled",
+  "target_state": "rust_audit_normalization_hash_and_replay_foundation",
+  "production_eligible": false,
+  "checks": [
+    {
+      "id": "typescript_exact_source_and_audit_contracts",
+      "status": "passed",
+      "result": "10/10 under Node 24.15.0: current migration, service, PostgreSQL store and Rust cross-runtime fixture"
+    },
+    {
+      "id": "typescript_typecheck",
+      "status": "passed"
+    },
+    {
+      "id": "rust_audit_and_canonical_contracts",
+      "status": "passed",
+      "result": "10/10 focused tests on pinned Rust 1.94.1"
+    },
+    {
+      "id": "rust_workspace_all_targets",
+      "status": "passed",
+      "result": "cargo test --workspace --all-targets --locked exited 0; 19 isolated-PostgreSQL tests retained their explicit ignore gates"
+    },
+    {
+      "id": "rust_format_and_workspace_strict_clippy",
+      "status": "passed",
+      "result": "cargo fmt --all -- --check and cargo clippy --workspace --all-targets --locked -- -D warnings"
+    },
+    {
+      "id": "independent_exact_diff_review",
+      "status": "passed_for_default_disabled_foundation",
+      "result": "zero submit blockers; Authority, dependency, boundedness, normalization, hash and replay boundaries reviewed on the exact working tree"
+    },
+    {
+      "id": "database_writer_and_physical_postgresql",
+      "status": "not_run"
+    },
+    {
+      "id": "runtime_route_shadow_and_single_writer_cutover",
+      "status": "not_run"
+    },
+    {
+      "id": "drain_reconcile_active_zero_and_legacy_deletion",
+      "status": "not_run"
+    },
+    {
+      "id": "production_node_image_locale_and_rolling_compatibility",
+      "status": "not_run"
+    },
+    {
+      "id": "server_fleet_fault_performance_and_production_qualification",
+      "status": "not_run"
+    }
+  ]
+}

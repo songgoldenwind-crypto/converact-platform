@@ -1,6 +1,6 @@
 use converact_contracts::{
-    CanonicalJsonError, canonical_json, canonical_json_with_max_bytes, canonical_sha256,
-    canonical_sha256_with_max_bytes,
+    CanonicalJsonError, CanonicalKeyOrder, canonical_json, canonical_json_with_max_bytes,
+    canonical_json_with_max_bytes_and_key_order, canonical_sha256, canonical_sha256_with_max_bytes,
 };
 #[test]
 fn canonical_json_and_sha256_replay_the_active_typescript_contract_fixture() {
@@ -23,6 +23,39 @@ fn canonical_json_and_sha256_replay_the_active_typescript_contract_fixture() {
             "{name}",
         );
     }
+}
+
+#[test]
+fn bounded_node_24_en_us_ascii_order_matches_the_frozen_audit_key_domain() {
+    let input = serde_json::json!({
+        "Z": 1,
+        "a": 2,
+        "A": 3,
+        "_": 4,
+        "-": 5,
+        ".": 6,
+        "a1": 7,
+        "A1": 8,
+        "aa": 9,
+        "aA": 10,
+    });
+    assert_eq!(
+        canonical_json_with_max_bytes_and_key_order(
+            &input,
+            1_024,
+            CanonicalKeyOrder::Node24EnUsAscii,
+        )
+        .unwrap(),
+        r#"{"_":4,"-":5,".":6,"a":2,"A":3,"a1":7,"A1":8,"aa":9,"aA":10,"Z":1}"#,
+    );
+    assert_eq!(
+        canonical_json_with_max_bytes_and_key_order(
+            &serde_json::json!({"非ASCII": true}),
+            1_024,
+            CanonicalKeyOrder::Node24EnUsAscii,
+        ),
+        Err(CanonicalJsonError::EncodingFailed),
+    );
 }
 
 #[test]

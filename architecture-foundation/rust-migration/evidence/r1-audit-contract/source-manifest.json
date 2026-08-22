@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-audit-contract",
+  "generated_at": "2026-08-22T03:06:00Z",
+  "base_commit": "80844c1d311563a1fb26a43d180840fbba54b927",
+  "branch": "codex/converact-platform-rename",
+  "rust_toolchain": "1.94.1-aarch64-apple-darwin",
+  "node_toolchain": "v24.15.0-icu78.2-en-US",
+  "hash_algorithm": "sha256",
+  "production_eligible": false,
+  "new_external_dependencies": [],
+  "files": [
+    { "path": "Dockerfile", "sha256": "d7db949dd0da08ec472eac69c681cb697cfdb32adb00acf888a63c0007eee3c9" },
+    { "path": "server-rs/Cargo.lock", "sha256": "59d9f34a7674888fe72b18178c24c9ef4a857ee947e4cce4a1376d5f90777ee0" },
+    { "path": "server-rs/Cargo.toml", "sha256": "806cb351675e6178224d48400cb1e26b6a98d18e39b2850f05a207eb84920999" },
+    { "path": "server-rs/crates/audit/Cargo.toml", "sha256": "1aabb5c6c50b3f43defb9aa422f9b93e6a2d12639b6318c23d9509d06f1d59ec" },
+    { "path": "server-rs/crates/audit/src/lib.rs", "sha256": "ee54d1934f254543af505d385269d219f0f5871c841c51f1601472c9c2184e06" },
+    { "path": "server-rs/crates/audit/tests/compatibility.rs", "sha256": "41979905c680bf0c8e6cd0610a313194882ddd34d581beb6a55de7346604a63d" },
+    { "path": "server-rs/crates/contracts/src/lib.rs", "sha256": "7475916095872c9be9906e6e0dbb82422519dd4e16ab1719413f990056198e5b" },
+    { "path": "server-rs/crates/contracts/tests/canonical_json.rs", "sha256": "31c048d0852edd5af4e2b1d2aab00c6021f868f394b9c67694d0602a9212d387" },
+    { "path": "server-rs/tests/fixtures/audit-record-v1.json", "sha256": "087cfcd57b86278dd178f7de63d67397a70ffffd3bf0c1849264e6d769d3c067" },
+    { "path": "src/agent-runtime/converact/notifications/canonical.ts", "sha256": "3b2148a515a534cceb2d99cac911bec9dba89829d20b378894ec2c8ba1b63914" },
+    { "path": "src/agent-runtime/converact/operations/audit/postgres-store.ts", "sha256": "c56d844da59cf08eb541d44d24dd79ffc5eb1ec94a9f713416d03d869cceb6e4" },
+    { "path": "src/agent-runtime/converact/operations/audit/service.ts", "sha256": "fb69245621162e875850c8bd24f05b89742e10dab76fd9dfcbeec29856f49d89" },
+    { "path": "src/agent-runtime/converact/operations/audit/types.ts", "sha256": "3087cf79cc1562dfd73c3fcea8eaf8e59e053da40dc926c050755560de2a858b" },
+    { "path": "src/migrations/066_ivekit_audit.sql", "sha256": "84edb7fa0eaa7a988ea391fadad5d22cbd81a2b33764ccb892dc67ed61d1a8a2" },
+    { "path": "test/converact-rust-audit-contract.test.ts", "sha256": "253e5d56e9207c68dde979033ed39454be69c69af2c830286842395f010f314e" }
+  ]
+}

@@ -22,6 +22,20 @@ pub enum CanonicalJsonError {
     EncodingFailed,
 }
 
+/// Closed object-key ordering contracts used by frozen cross-runtime JSON.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum CanonicalKeyOrder {
+    /// JavaScript `Array.prototype.sort()` order over UTF-16 code units.
+    #[default]
+    Utf16CodeUnit,
+    /// Node 24 `en-US` variant collation over `[A-Za-z0-9_.-]` keys.
+    ///
+    /// This is intentionally limited to the active audit metadata key domain.
+    /// Any other object key fails closed instead of pretending to implement
+    /// general Unicode collation.
+    Node24EnUsAscii,
+}
+
 impl fmt::Display for CanonicalJsonError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
@@ -62,12 +76,26 @@ pub fn canonical_json_with_max_bytes(
     value: &Value,
     max_bytes: usize,
 ) -> Result<String, CanonicalJsonError> {
+    canonical_json_with_max_bytes_and_key_order(value, max_bytes, CanonicalKeyOrder::Utf16CodeUnit)
+}
+
+/// Encodes canonical JSON under explicit byte and object-key-order contracts.
+///
+/// # Errors
+///
+/// Returns [`CanonicalJsonError`] when the value exceeds the requested bounds
+/// or contains an object key outside the selected order's closed key domain.
+pub fn canonical_json_with_max_bytes_and_key_order(
+    value: &Value,
+    max_bytes: usize,
+    key_order: CanonicalKeyOrder,
+) -> Result<String, CanonicalJsonError> {
     if max_bytes == 0 || max_bytes > MAX_ESCAPED_PAYLOAD_BYTES {
         return Err(CanonicalJsonError::BoundsExceeded);
     }
     let mut output = String::new();
     let mut nodes = 0;
-    encode(value, 0, &mut nodes, &mut output, max_bytes)?;
+    encode(value, 0, &mut nodes, &mut output, max_bytes, key_order)?;
     check_bytes(&output, max_bytes)?;
     Ok(output)
 }
@@ -79,6 +107,20 @@ pub fn canonical_json_with_max_bytes(
 /// Returns [`CanonicalJsonError`] when canonical encoding fails.
 pub fn canonical_sha256(value: &Value) -> Result<String, CanonicalJsonError> {
     canonical_sha256_with_max_bytes(value, MAX_CANONICAL_BYTES)
+}
+
+/// Returns a lowercase SHA-256 under an explicit object-key-order contract.
+///
+/// # Errors
+///
+/// Returns [`CanonicalJsonError`] when canonical encoding fails.
+pub fn canonical_sha256_with_key_order(
+    value: &Value,
+    key_order: CanonicalKeyOrder,
+) -> Result<String, CanonicalJsonError> {
+    let canonical =
+        canonical_json_with_max_bytes_and_key_order(value, MAX_CANONICAL_BYTES, key_order)?;
+    Ok(hex::encode(Sha256::digest(canonical.as_bytes())))
 }
 
 /// Returns the lowercase SHA-256 of canonical JSON under an explicit bounded
@@ -102,6 +144,7 @@ fn encode(
     nodes: &mut usize,
     output: &mut String,
     max_bytes: usize,
+    key_order: CanonicalKeyOrder,
 ) -> Result<(), CanonicalJsonError> {
     *nodes = nodes
         .checked_add(1)
@@ -128,7 +171,7 @@ fn encode(
                 if index > 0 {
                     output.push(',');
                 }
-                encode(item, depth + 1, nodes, output, max_bytes)?;
+                encode(item, depth + 1, nodes, output, max_bytes, key_order)?;
                 check_bytes(output, max_bytes)?;
             }
             output.push(']');
@@ -140,6 +183,11 @@ fn encode(
             let mut aggregate_key_bytes: usize = 0;
             for key in object.keys() {
                 check_input_bytes(key, max_bytes)?;
+                if key_order == CanonicalKeyOrder::Node24EnUsAscii
+                    && !key.bytes().all(|byte| node24_en_us_primary(byte).is_some())
+                {
+                    return Err(CanonicalJsonError::EncodingFailed);
+                }
                 let encoded_key_bytes = serde_json::to_string(key)
                     .map_err(|_| CanonicalJsonError::EncodingFailed)?
                     .len();
@@ -152,7 +200,10 @@ fn encode(
             }
             output.push('{');
             let mut keys: Vec<_> = object.keys().collect();
-            keys.sort_unstable_by(|left, right| left.encode_utf16().cmp(right.encode_utf16()));
+            keys.sort_unstable_by(|left, right| match key_order {
+                CanonicalKeyOrder::Utf16CodeUnit => left.encode_utf16().cmp(right.encode_utf16()),
+                CanonicalKeyOrder::Node24EnUsAscii => node24_en_us_ascii_cmp(left, right),
+            });
             for (index, key) in keys.into_iter().enumerate() {
                 if index > 0 {
                     output.push(',');
@@ -161,13 +212,45 @@ fn encode(
                     &serde_json::to_string(key).map_err(|_| CanonicalJsonError::EncodingFailed)?,
                 );
                 output.push(':');
-                encode(&object[key], depth + 1, nodes, output, max_bytes)?;
+                encode(&object[key], depth + 1, nodes, output, max_bytes, key_order)?;
                 check_bytes(output, max_bytes)?;
             }
             output.push('}');
         }
     }
     check_bytes(output, max_bytes)
+}
+
+fn node24_en_us_ascii_cmp(left: &str, right: &str) -> std::cmp::Ordering {
+    left.bytes()
+        .map(|byte| node24_en_us_primary(byte).expect("validated ASCII collation key"))
+        .cmp(
+            right
+                .bytes()
+                .map(|byte| node24_en_us_primary(byte).expect("validated ASCII collation key")),
+        )
+        .then_with(|| {
+            left.bytes()
+                .map(node24_en_us_case_weight)
+                .cmp(right.bytes().map(node24_en_us_case_weight))
+        })
+        .then_with(|| left.as_bytes().cmp(right.as_bytes()))
+}
+
+const fn node24_en_us_primary(byte: u8) -> Option<u8> {
+    match byte {
+        b'_' => Some(0),
+        b'-' => Some(1),
+        b'.' => Some(2),
+        b'0'..=b'9' => Some(3 + byte - b'0'),
+        b'A'..=b'Z' => Some(13 + byte - b'A'),
+        b'a'..=b'z' => Some(13 + byte - b'a'),
+        _ => None,
+    }
+}
+
+const fn node24_en_us_case_weight(byte: u8) -> u8 {
+    if byte.is_ascii_uppercase() { 1 } else { 0 }
 }
 
 fn check_bytes(value: &str, max_bytes: usize) -> Result<(), CanonicalJsonError> {

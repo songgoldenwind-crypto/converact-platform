@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-audit-contract",
+  "generated_at": "2026-08-22T03:06:00Z",
+  "cycles": [
+    {
+      "id": "exact_source_fixture",
+      "red": "the cross-runtime TypeScript test failed 3/3 because no audit compatibility fixture existed",
+      "green": "a source-hashed fixture now drives the active TypeScript PostgreSQL store and freezes static chained-hash outputs"
+    },
+    {
+      "id": "bounded_rust_contract",
+      "red": "the Rust compatibility test failed to compile because AuditAppendInput, AuditEvent, hashing and append decisions did not exist",
+      "green": "a pure no-runtime crate now validates normalized append records and implements bounded hash/replay decisions"
+    },
+    {
+      "id": "ecmascript_trim",
+      "red": "Rust rejected U+0085 at a text boundary even though ECMAScript String.prototype.trim preserves it",
+      "green": "the Rust boundary uses the exact ECMAScript trim character set and the Node normalizer witnesses the edge case"
+    },
+    {
+      "id": "node_24_metadata_collation",
+      "red": "the mixed-case and punctuation metadata vector produced Rust hash 67f261b702ae158231e48e4635bb410cd7fbd669f3166b3027e11da399822a84 instead of TypeScript e887f4abc47427c89cfa04c885217e174429284bca6c22dbdcfc74ad6a00192c",
+      "green": "a closed Node 24 en-US ASCII-key ordering contract reproduces the active localeCompare hash without adding ICU"
+    },
+    {
+      "id": "ecmascript_phone_whitespace",
+      "red": "Rust accepted +12 NBSP 345 NBSP 6789 although the active TypeScript phone regex rejects it as direct PII",
+      "green": "the bounded streaming phone matcher recognizes the ECMAScript whitespace set without allocating a character buffer"
+    }
+  ]
+}
