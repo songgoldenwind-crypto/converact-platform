@@ -1,0 +1,120 @@
+{
+  "contract_version": 1,
+  "baseline_commit": "6a1066e7ecfad212340bcad27be0adf380e8ee77",
+  "current_sources": [
+    {
+      "path": "src/agent-runtime/converact/operations/audit/service.ts",
+      "sha256": "fb69245621162e875850c8bd24f05b89742e10dab76fd9dfcbeec29856f49d89"
+    }
+  ],
+  "key_base64": "BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ=",
+  "valid_cases": [
+    {
+      "name": "absent",
+      "source_ip_present": false,
+      "source_ip": null,
+      "normalized_ip": "",
+      "expected_hmac": ""
+    },
+    {
+      "name": "empty",
+      "source_ip_present": true,
+      "source_ip": "",
+      "normalized_ip": "",
+      "expected_hmac": ""
+    },
+    {
+      "name": "null",
+      "source_ip_present": true,
+      "source_ip": null,
+      "normalized_ip": "",
+      "expected_hmac": ""
+    },
+    {
+      "name": "ipv4_forwarded_chain",
+      "source_ip_present": true,
+      "source_ip": " 203.0.113.10 , 198.51.100.2 ",
+      "normalized_ip": "203.0.113.10",
+      "expected_hmac": "ebe13ea227d1d3bf09ed4591641a32b294af45ae3c14eda57b910e6be17444d5"
+    },
+    {
+      "name": "expanded_uppercase_ipv6",
+      "source_ip_present": true,
+      "source_ip": "2001:0DB8:0000:0000:0000:0000:0000:0001",
+      "normalized_ip": "2001:0db8:0000:0000:0000:0000:0000:0001",
+      "expected_hmac": "591a1b01cdd570b787f632d4e643b020c3cf09fe0967d4c4868d888edfd9df67"
+    },
+    {
+      "name": "ipv4_mapped_ipv6",
+      "source_ip_present": true,
+      "source_ip": "::FFFF:192.0.2.128",
+      "normalized_ip": "::ffff:192.0.2.128",
+      "expected_hmac": "5fa4a7b2a3902910713b4daade91be3bef2b366681b801abc40e92f604bd6c21"
+    },
+    {
+      "name": "compressed_ipv6_with_ecmascript_trim",
+      "source_ip_present": true,
+      "source_ip": " \t2001:DB8::A\n",
+      "normalized_ip": "2001:db8::a",
+      "expected_hmac": "dd00f46f8943f26e82ef646d17ed1bb4d074ab6766991785c28075dc9990481e"
+    },
+    {
+      "name": "scoped_ipv6_interface",
+      "source_ip_present": true,
+      "source_ip": "fe80::1%lo0",
+      "normalized_ip": "fe80::1%lo0",
+      "expected_hmac": "6b5cce64586825b98b600a3a92c272524220e322cb692bf9aef6039a653911cf"
+    },
+    {
+      "name": "scoped_ipv6_uppercase_zone",
+      "source_ip_present": true,
+      "source_ip": "::1%ABC",
+      "normalized_ip": "::1%abc",
+      "expected_hmac": "2b851d4a3a83d5e17fde565049ba8d73ef85e22599a6633deada85996a45f81c"
+    },
+    {
+      "name": "scoped_ipv4_mapped_ipv6",
+      "source_ip_present": true,
+      "source_ip": "::ffff:192.0.2.1%eth0",
+      "normalized_ip": "::ffff:192.0.2.1%eth0",
+      "expected_hmac": "4e24323425872b1d9da103d5797f5200c38dd01095cbdccb2d3317c89816cfee"
+    },
+    {
+      "name": "scoped_ipv6_full_node_zone_grammar",
+      "source_ip_present": true,
+      "source_ip": "2001:DB8::1%A-b.C:9",
+      "normalized_ip": "2001:db8::1%a-b.c:9",
+      "expected_hmac": "2076772155b319a7a61d9f15b9d23fa1f57172628773b762613345006ae6f592"
+    }
+  ],
+  "accepted_keys": [
+    "BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ=",
+    "BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ",
+    "BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ====="
+  ],
+  "rejected_keys": [
+    "",
+    "BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBA==",
+    "!BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ="
+  ],
+  "invalid_source_ips": [
+    " ",
+    "example.com",
+    "203.0.113.999",
+    "[2001:db8::1]",
+    ", 203.0.113.10",
+    "203.0.113.10:5060",
+    "fe80::1%",
+    "fe80::1%eth_0",
+    "fe80::1%eth/0",
+    "fe80::1%eth 0",
+    "fe80::1%é",
+    "fe80::1%a%b"
+  ],
+  "target_scope": {
+    "pure_contract_only": true,
+    "database_writer": false,
+    "runtime_route": false,
+    "server_or_container_change": false
+  }
+}

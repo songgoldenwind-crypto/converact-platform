@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-audit-ip-hmac",
+  "reviewed_at": "2026-08-22T03:35:00Z",
+  "reviewer": "/root/converact_ai_fit",
+  "mode": "independent_read_only_exact_working_tree",
+  "initial_submit_blockers_found": 2,
+  "final_submit_blockers": 0,
+  "production_blockers": 6,
+  "verified": [
+    "the reviewer first found that Node 24 net.isIP accepts scoped IPv6 while std::net::IpAddr does not; frozen scoped vectors produced a true Rust RED before the final fix",
+    "ordinary IPv4 and IPv6 plus Node 24's exact [0-9A-Za-z-.:]+ scoped-IPv6 suffix are validated while preserving the lowercased original text for HMAC",
+    "30,082 bare and 50,108 scoped or invalid-zone Node 24/Rust generated cases had zero acceptance mismatch",
+    "the complete Node 24 BMP trim set matched the Rust ECMAScript helper for all 25 code points",
+    "HMAC-SHA256 outputs are byte-identical to the active TypeScript service for every frozen vector",
+    "base64 parsing accepts canonical, unpadded and arbitrary surplus trailing padding for exactly 32 bytes and rejects oversized input before decode allocation",
+    "the key has no byte accessor, Clone or Serialize surface and its Debug representation is redacted",
+    "the crate remains synchronous, pure, default-disabled and unwired with no runtime route, database writer, task, lock, queue, I/O, native library or second Audit Authority",
+    "dependency lock inspection found zero newly resolved packages and the source manifest matched all 9 entries",
+    "fresh affected TypeScript, focused Rust, workspace Rust, typecheck, strict Clippy, formatting and diff checks passed"
+  ],
+  "remaining_not_run": [
+    "raw source-IP or header byte bound at the runtime boundary",
+    "HMAC key loading, custody, rotation and the production memory-clearing policy",
+    "Rust database writer, concurrent chain-tail serialization, immutable trigger, RLS and physical PostgreSQL tests",
+    "shadow comparison, single-writer cutover, drain, reconcile, active-zero and TypeScript deletion",
+    "list cursor and JSONL export migration",
+    "production image, fleet, fault, performance and production qualification"
+  ],
+  "repository_or_server_mutation_by_reviewer": false
+}

@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-audit-ip-hmac",
+  "generated_at": "2026-08-22T03:31:57Z",
+  "current_state": "implemented_offline_default_disabled",
+  "target_state": "rust_audit_source_ip_privacy_boundary",
+  "production_eligible": false,
+  "checks": [
+    {
+      "id": "typescript_exact_source_and_affected_audit_contracts",
+      "status": "passed",
+      "result": "17/17 under Node 24.15.0 with the repository explicit-dev-auth test preloader"
+    },
+    {
+      "id": "typescript_typecheck",
+      "status": "passed"
+    },
+    {
+      "id": "rust_ip_hmac_contract",
+      "status": "passed",
+      "result": "4/4 focused tests on pinned Rust 1.94.1"
+    },
+    {
+      "id": "rust_workspace_all_targets",
+      "status": "passed",
+      "result": "cargo test --workspace --all-targets --locked exited 0; 19 isolated-PostgreSQL tests retained their explicit existing ignore gates"
+    },
+    {
+      "id": "rust_format_and_workspace_strict_clippy",
+      "status": "passed",
+      "result": "cargo fmt --all -- --check and cargo clippy --workspace --all-targets --locked -- -D warnings"
+    },
+    {
+      "id": "typescript_harness_invocation_correction",
+      "status": "resolved",
+      "result": "the first expanded command omitted explicit-dev-auth.mjs and failed only two HTTP harness tests; the repository-conformant rerun passed 17/17"
+    },
+    {
+      "id": "independent_exact_diff_review",
+      "status": "passed_for_default_disabled_foundation",
+      "result": "zero final submit blockers after closing two reviewer-found issues; generated Node/Rust comparison passed 30,082 bare and 50,108 scoped/invalid-zone cases with zero mismatch; full-BMP trim comparison matched all 25 Node trim code points"
+    },
+    {
+      "id": "runtime_key_custody_and_raw_request_route",
+      "status": "not_run",
+      "result": "includes an explicit raw source-IP/header byte bound before this linear normalization boundary"
+    },
+    {
+      "id": "database_writer_and_physical_postgresql",
+      "status": "not_run"
+    },
+    {
+      "id": "runtime_shadow_single_writer_cutover_and_drain",
+      "status": "not_run"
+    },
+    {
+      "id": "server_fleet_fault_performance_and_production_qualification",
+      "status": "not_run"
+    }
+  ]
+}

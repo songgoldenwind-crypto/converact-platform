@@ -167,9 +167,13 @@ dependencies = [
 name = "converact-audit"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "converact-contracts",
+ "hex",
+ "hmac",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
 ]
 
 [[package]]

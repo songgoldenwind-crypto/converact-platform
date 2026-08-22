@@ -11,6 +11,10 @@ use converact_contracts::{
 use serde::Serialize;
 use serde_json::{Map, Value};
 
+mod ip_hmac;
+
+pub use ip_hmac::{AuditIpHmacError, AuditIpHmacKey, audit_source_ip_hmac};
+
 const MAX_METADATA_BYTES: usize = 32_768;
 const MAX_METADATA_DEPTH: usize = 5;
 const MAX_METADATA_ARRAY_ITEMS: usize = 100;
@@ -479,7 +483,7 @@ fn has_normalized_ecmascript_trim_boundary(value: &str) -> bool {
             .is_some_and(|character| !is_ecmascript_trim_character(character))
 }
 
-const fn is_ecmascript_trim_character(character: char) -> bool {
+pub(crate) const fn is_ecmascript_trim_character(character: char) -> bool {
     matches!(
         character,
         '\u{0009}'

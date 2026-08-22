@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-audit-ip-hmac",
+  "generated_at": "2026-08-22T03:31:57Z",
+  "base_commit": "6a1066e7ecfad212340bcad27be0adf380e8ee77",
+  "branch": "codex/converact-platform-rename",
+  "rust_toolchain": "1.94.1-aarch64-apple-darwin",
+  "node_toolchain": "v24.15.0-icu78.2-en-US",
+  "hash_algorithm": "sha256",
+  "production_eligible": false,
+  "new_resolved_packages": [],
+  "new_direct_locked_dependencies": [
+    "base64@0.22.1",
+    "hex@0.4.3",
+    "hmac@0.13.0",
+    "sha2@0.11.0"
+  ],
+  "files": [
+    { "path": "server-rs/Cargo.lock", "sha256": "f5e509d2629cc82a51561fe670c7af1c6276bce2fc29285e23218ab889752324" },
+    { "path": "server-rs/Cargo.toml", "sha256": "96f4a99f168cf46331969ed71c677cba5f70f72bfe9c15cb296196e4bc3f9735" },
+    { "path": "server-rs/crates/audit/Cargo.toml", "sha256": "7ceb12c0f215f4bf0d228e6a9411c735f37e36f2114d703f4798092981c83652" },
+    { "path": "server-rs/crates/audit/src/lib.rs", "sha256": "f3d413c6cedb06f0f127e1f312fb88f9803b1a55fdbb2f2e2c9bff6b0b808b52" },
+    { "path": "server-rs/crates/audit/src/ip_hmac.rs", "sha256": "89722f9e0b0d0c8ad0c6b0164bbcd046375b507576bfccc330561dd68f6460dc" },
+    { "path": "server-rs/crates/audit/tests/ip_hmac.rs", "sha256": "56b145d8f379657803825a8383592d77b5d7d18e31c869654d9f421ca3ae613e" },
+    { "path": "server-rs/tests/fixtures/audit-ip-hmac-v1.json", "sha256": "7af4325b363641650b2005dae4b066907af8ab3387b97d127c7d43b563181e81" },
+    { "path": "src/agent-runtime/converact/operations/audit/service.ts", "sha256": "fb69245621162e875850c8bd24f05b89742e10dab76fd9dfcbeec29856f49d89" },
+    { "path": "test/converact-rust-audit-ip-hmac-contract.test.ts", "sha256": "5e2929e663f974cb020092ce2cfbcb80adc195a943e475453df21325e02cea6c" }
+  ]
+}

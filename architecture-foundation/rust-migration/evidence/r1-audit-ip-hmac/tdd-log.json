@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-audit-ip-hmac",
+  "generated_at": "2026-08-22T03:31:57Z",
+  "cycles": [
+    {
+      "id": "exact_typescript_fixture",
+      "red": "the Node 24 compatibility test failed 1/1 because server-rs/tests/fixtures/audit-ip-hmac-v1.json did not exist",
+      "green": "the active TypeScript service now witnesses missing, null, empty, forwarded IPv4, IPv6, key-acceptance and rejection vectors; 5/5 tests pass"
+    },
+    {
+      "id": "opaque_rust_ip_hmac_boundary",
+      "red": "the focused Rust integration test failed to compile because AuditIpHmacKey, AuditIpHmacError and audit_source_ip_hmac did not exist",
+      "green": "the pure Rust boundary now replays all frozen vectors, fails closed on invalid input and redacts key Debug output; 4/4 tests pass"
+    },
+    {
+      "id": "node_scoped_ipv6_compatibility",
+      "red": "after Node 24 source inspection added scoped IPv6 vectors, the Rust suite failed 1/4 at scoped_ipv6_interface with InvalidSourceIp",
+      "green": "Rust now validates the IPv6 address separately from Node's exact [0-9A-Za-z-.:]+ zone suffix and hashes the complete lowercased original text; 4/4 tests pass"
+    }
+  ]
+}
