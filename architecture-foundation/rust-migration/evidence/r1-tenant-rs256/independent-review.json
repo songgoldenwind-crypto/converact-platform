@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-rs256",
+  "reviewed_at": null,
+  "reviewer": null,
+  "mode": "not_run",
+  "status": "not_run",
+  "final_submit_blockers": null,
+  "reason": "Independent exact-tree security, maintainability and native-source review was not invoked for this offline default-disabled verifier slice and remains required before runtime routing or production eligibility.",
+  "repository_or_server_mutation_by_reviewer": false
+}

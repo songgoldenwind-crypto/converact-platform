@@ -11,6 +11,7 @@ use serde_json::value::RawValue;
 mod hs256;
 mod jwks;
 mod jwt;
+mod rs256;
 
 pub use hs256::Hs256PlatformTokenVerifier;
 pub use jwks::{Rs256JwksError, Rs256JwksSnapshot, Rs256PublicKeyComponents};
@@ -18,6 +19,7 @@ pub use jwt::{
     AuthenticatedPlatformIdentity, PlatformIdentityRole, PlatformTokenVerificationError,
     PlatformTokenVerifierConfigError,
 };
+pub use rs256::Rs256PlatformTokenVerifier;
 
 const MAX_TEXT_UTF16_UNITS: usize = 256;
 const MAX_STRING_SET_ITEMS: usize = 64;

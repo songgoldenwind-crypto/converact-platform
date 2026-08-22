@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-rs256",
+  "generated_at": "2026-08-22T13:19:08Z",
+  "cycles": [
+    {
+      "id": "active_typescript_signed_token_freeze",
+      "red": "the migration had no exact-source frozen RS256 token corpus exercising the active TypeScript verification and policy path",
+      "green": "one 13-case Node 24 corpus binds the active auth source hash and replays public-key selection, signatures, claims and policy decisions"
+    },
+    {
+      "id": "rust_public_key_verifier",
+      "red": "the focused Rust test failed because Rs256PlatformTokenVerifier and its implementation module did not exist",
+      "green": "an inert verifier selects one bounded public JWK, verifies the original compact signing bytes and constructs the shared opaque authenticated identity"
+    },
+    {
+      "id": "credential_and_duplicate_claim_confusion",
+      "red": "the current TypeScript path accepts both a bearer self-claiming mTLS strength and a signed payload with a duplicate tenant security field",
+      "green": "the Rust target accepts only signed_token strength and its typed payload parser rejects duplicate fields; both differences are explicit in both runtime suites"
+    },
+    {
+      "id": "canonical_signature_and_provider_boundary",
+      "red": "the migration had no direct proof for signature length, canonical base64url, stable errors, redacted output or public-key-only provider use",
+      "green": "focused tests prove exact modulus-length signatures, canonical encoding, closed errors, redaction, bounded inputs and a static no-private-key/no-runtime-I/O source boundary"
+    }
+  ]
+}

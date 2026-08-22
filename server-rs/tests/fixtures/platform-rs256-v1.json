@@ -1,0 +1,110 @@
+{
+  "contract_version": 1,
+  "provenance": "random test-only RSA key generated once in Node 24; private key discarded and not stored",
+  "source": "src/middleware/auth.ts#verifyJwt+validatePlatformJwtPayload",
+  "source_sha256": "a9300059a63c42a6fd32511dc62c6ccdfac67336a5bcaa29a92e1d90a5f77b7c",
+  "public_jwk": {
+    "kty": "RSA",
+    "kid": "external-rs256-v7",
+    "n": "pY0950Dc5d4p7m6BNJD2fm7MJ7F_7jL4htrorka91m_rGAYzMm5UJegPN5m_Bw-uKnkbRnzQBi2JXSGzOhIR_XbC_tZwePM1McNxkc4iqd2n27VklCm3oeKI7rM71CTLjOKgYDOnHtgQtpVLs3IToGLUNUFVqGMANg8gipHqgJLti0hypFPJawPQSkeVl_zkIL1vbAJ3glEhZwwbmvsLgqrAakdAw2jKHllh4KlFJlvyJpr8SuBCxTUXrL4_aNh1oSgtT9pIlbtGtcS8rACwICt3iVKi5DhpnKrDQ0wSXVpYdWCfPo4xgwjnM8QVH1eKidYgUAzsxBVM9IjTaEaANQ",
+    "e": "AQAB",
+    "use": "sig",
+    "alg": "RS256",
+    "key_ops": [
+      "verify"
+    ]
+  },
+  "policy": {
+    "expected_issuer": "https://external-identity.example.test",
+    "expected_audience": "converact-core",
+    "current_policy_version": 12,
+    "current_revocation_epoch": 4,
+    "wall_now_epoch_ms": 1775217600000
+  },
+  "tokens": {
+    "valid": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImV4dGVybmFsLXJzMjU2LXY3In0.eyJzdWIiOiJ1c2VyLXJzIiwidGlkIjoidGVuYW50LXJzIiwidGVuYW50X2lkIjoidGVuYW50LXJzIiwiaWRlbnRpdHlfaWQiOiJ1c2VyLXJzIiwiaWRlbnRpdHlfa2luZCI6Imh1bWFuIiwic2Vzc2lvbl9pZCI6InNlc3Npb24tcnMiLCJ0b2tlbl9pZCI6InRva2VuLXJzIiwiaXNzIjoiaHR0cHM6Ly9leHRlcm5hbC1pZGVudGl0eS5leGFtcGxlLnRlc3QiLCJpc3N1ZXIiOiJodHRwczovL2V4dGVybmFsLWlkZW50aXR5LmV4YW1wbGUudGVzdCIsImF1ZCI6WyJjb252ZXJhY3QtY29yZSJdLCJhdWRpZW5jZSI6WyJjb252ZXJhY3QtY29yZSJdLCJrZXlfaWQiOiJleHRlcm5hbC1yczI1Ni12NyIsInJvbGUiOiJvcGVyYXRvciIsImlhdCI6MCwibmJmIjowLCJleHAiOjQxMDI0NDQ4MDAsImlzc3VlZF9hdCI6IjE5NzAtMDEtMDFUMDA6MDA6MDAuMDAwWiIsIm5vdF9iZWZvcmUiOiIxOTcwLTAxLTAxVDAwOjAwOjAwLjAwMFoiLCJleHBpcmVzX2F0IjoiMjEwMC0wMS0wMVQwMDowMDowMC4wMDBaIiwicG9saWN5X3ZlcnNpb24iOjEyLCJyZXZvY2F0aW9uX2Vwb2NoIjo0LCJjYXBhYmlsaXRpZXMiOlsicGxhdGZvcm0uYXBpIl0sInB1cnBvc2UiOlsicHJvZHVjdF9vcGVyYXRpb24iXSwiY3JlZGVudGlhbF9zdHJlbmd0aCI6InNpZ25lZF90b2tlbiJ9.FoSAdSukuI0bULRtSbMuBrcbq8YtzKx9pfby4PkmuxYXdBAbEGZjv9uFptSKFChV8sBRLR5fgAyf6j9rHbNdieo9gyGPzj-N91yowSR9ngT07noB_tmxRuDRakn3Cc7ernyPTZRUEsaKR2KbC_XAHaPGsJJA4Mz3BKKOen_UewpxPwjo2FLi90-dKeSpzIuMYmXyHXoMROYmq5OQlVUxZhBpciIIT_E8zuFrO63zfinN7yeU_9gsgRo_vUXdLQeckIi1650iuPZiQKHbZrxkPKr2v6Ot_F2gSTZhHUVayF6nvdw73jBRtKbvSd-2CXvCJ_4us0k9VUwjfWWMUMVLNA",
+    "expired": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImV4dGVybmFsLXJzMjU2LXY3In0.eyJzdWIiOiJ1c2VyLXJzIiwidGlkIjoidGVuYW50LXJzIiwidGVuYW50X2lkIjoidGVuYW50LXJzIiwiaWRlbnRpdHlfaWQiOiJ1c2VyLXJzIiwiaWRlbnRpdHlfa2luZCI6Imh1bWFuIiwic2Vzc2lvbl9pZCI6InNlc3Npb24tcnMiLCJ0b2tlbl9pZCI6InRva2VuLXJzIiwiaXNzIjoiaHR0cHM6Ly9leHRlcm5hbC1pZGVudGl0eS5leGFtcGxlLnRlc3QiLCJpc3N1ZXIiOiJodHRwczovL2V4dGVybmFsLWlkZW50aXR5LmV4YW1wbGUudGVzdCIsImF1ZCI6WyJjb252ZXJhY3QtY29yZSJdLCJhdWRpZW5jZSI6WyJjb252ZXJhY3QtY29yZSJdLCJrZXlfaWQiOiJleHRlcm5hbC1yczI1Ni12NyIsInJvbGUiOiJvcGVyYXRvciIsImlhdCI6MCwibmJmIjowLCJleHAiOjEsImlzc3VlZF9hdCI6IjE5NzAtMDEtMDFUMDA6MDA6MDAuMDAwWiIsIm5vdF9iZWZvcmUiOiIxOTcwLTAxLTAxVDAwOjAwOjAwLjAwMFoiLCJleHBpcmVzX2F0IjoiMTk3MC0wMS0wMVQwMDowMDowMS4wMDBaIiwicG9saWN5X3ZlcnNpb24iOjEyLCJyZXZvY2F0aW9uX2Vwb2NoIjo0LCJjYXBhYmlsaXRpZXMiOlsicGxhdGZvcm0uYXBpIl0sInB1cnBvc2UiOlsicHJvZHVjdF9vcGVyYXRpb24iXSwiY3JlZGVudGlhbF9zdHJlbmd0aCI6InNpZ25lZF90b2tlbiJ9.jMAmLbKJ4NW6Q5NbF5E7t371yoNZLNIq8wUEgdzgZpOR6ZodsxoR4ojHtz7DxrWo3Y_Y1d3P7ipVkAEPXsS6mFeBcrynhJclG8L-xkXqadv5Kr7AiIsvPgTtx0FUL8dF6weYc6jxklfivf846ou3f3bwGUO56vWzzmSCiQRglFrtHJoDqEl9_l7fphx8-XSAH0J9hhnKWZ97tRd3yPrLPA4HazX_wC2HLEzAD9qTT3nIO6VUzdnLapAEceJn-10TZQ9FYCCq6bpHDcGrzEdBl_Tmg1CRw9UGmDhhcuA0OFtDyiY8gCeUXGyZUTbhX54g1glH486aXnmj8jcLKdTHuw",
+    "wrong_issuer": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImV4dGVybmFsLXJzMjU2LXY3In0.eyJzdWIiOiJ1c2VyLXJzIiwidGlkIjoidGVuYW50LXJzIiwidGVuYW50X2lkIjoidGVuYW50LXJzIiwiaWRlbnRpdHlfaWQiOiJ1c2VyLXJzIiwiaWRlbnRpdHlfa2luZCI6Imh1bWFuIiwic2Vzc2lvbl9pZCI6InNlc3Npb24tcnMiLCJ0b2tlbl9pZCI6InRva2VuLXJzIiwiaXNzIjoiaHR0cHM6Ly9hdHRhY2tlci5leGFtcGxlIiwiaXNzdWVyIjoiaHR0cHM6Ly9hdHRhY2tlci5leGFtcGxlIiwiYXVkIjpbImNvbnZlcmFjdC1jb3JlIl0sImF1ZGllbmNlIjpbImNvbnZlcmFjdC1jb3JlIl0sImtleV9pZCI6ImV4dGVybmFsLXJzMjU2LXY3Iiwicm9sZSI6Im9wZXJhdG9yIiwiaWF0IjowLCJuYmYiOjAsImV4cCI6NDEwMjQ0NDgwMCwiaXNzdWVkX2F0IjoiMTk3MC0wMS0wMVQwMDowMDowMC4wMDBaIiwibm90X2JlZm9yZSI6IjE5NzAtMDEtMDFUMDA6MDA6MDAuMDAwWiIsImV4cGlyZXNfYXQiOiIyMTAwLTAxLTAxVDAwOjAwOjAwLjAwMFoiLCJwb2xpY3lfdmVyc2lvbiI6MTIsInJldm9jYXRpb25fZXBvY2giOjQsImNhcGFiaWxpdGllcyI6WyJwbGF0Zm9ybS5hcGkiXSwicHVycG9zZSI6WyJwcm9kdWN0X29wZXJhdGlvbiJdLCJjcmVkZW50aWFsX3N0cmVuZ3RoIjoic2lnbmVkX3Rva2VuIn0.EbAFsvo4qzms38zmKPSQGnEoyNLKDOrx_IN8TSbm-9ZuZvAiOZ3oin9uB9gJcFWLaX3ZxdboVh75myOjLVGKNGYYSfnTWHZVmikikb1PERGi3bJnuLFchT5CXQZT4GDqWX1_7gDwyfzCnVw5yRRBWcQ0eiT1sYMJKpzlp7NEAgSVygPQaHtn-YOP9HgagoekHZfU5EmSuOudod4GrXh2RzhkvSClsBGQZ7qKIbIbtHebQ9wlRGP9HYYiX1Q3zYopE3fl0y214tRndiviLA1ncPbrTDPwmtSG0gcRy_CLuWhK4a92fmXzFLUnAYjoTeffs0HdX8B8mN_tq4bazvdQuw",
+    "payload_key_mismatch": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImV4dGVybmFsLXJzMjU2LXY3In0.eyJzdWIiOiJ1c2VyLXJzIiwidGlkIjoidGVuYW50LXJzIiwidGVuYW50X2lkIjoidGVuYW50LXJzIiwiaWRlbnRpdHlfaWQiOiJ1c2VyLXJzIiwiaWRlbnRpdHlfa2luZCI6Imh1bWFuIiwic2Vzc2lvbl9pZCI6InNlc3Npb24tcnMiLCJ0b2tlbl9pZCI6InRva2VuLXJzIiwiaXNzIjoiaHR0cHM6Ly9leHRlcm5hbC1pZGVudGl0eS5leGFtcGxlLnRlc3QiLCJpc3N1ZXIiOiJodHRwczovL2V4dGVybmFsLWlkZW50aXR5LmV4YW1wbGUudGVzdCIsImF1ZCI6WyJjb252ZXJhY3QtY29yZSJdLCJhdWRpZW5jZSI6WyJjb252ZXJhY3QtY29yZSJdLCJrZXlfaWQiOiJleHRlcm5hbC1yczI1Ni1vdGhlciIsInJvbGUiOiJvcGVyYXRvciIsImlhdCI6MCwibmJmIjowLCJleHAiOjQxMDI0NDQ4MDAsImlzc3VlZF9hdCI6IjE5NzAtMDEtMDFUMDA6MDA6MDAuMDAwWiIsIm5vdF9iZWZvcmUiOiIxOTcwLTAxLTAxVDAwOjAwOjAwLjAwMFoiLCJleHBpcmVzX2F0IjoiMjEwMC0wMS0wMVQwMDowMDowMC4wMDBaIiwicG9saWN5X3ZlcnNpb24iOjEyLCJyZXZvY2F0aW9uX2Vwb2NoIjo0LCJjYXBhYmlsaXRpZXMiOlsicGxhdGZvcm0uYXBpIl0sInB1cnBvc2UiOlsicHJvZHVjdF9vcGVyYXRpb24iXSwiY3JlZGVudGlhbF9zdHJlbmd0aCI6InNpZ25lZF90b2tlbiJ9.QdsWjkMQvSGU3a8QKMnWctMlF1jh2TpqMNvMFou6Zof1DJRhl099KCZkQhkm_Ru6pI649dSBWZC_8wqb7ggBBgMU7868w0SHotutOc9AGMSZqsKhZzH8BGyDu8D9Wy8fGyWfqe5SgKNnM0ZljPH9BNnqwq5QjmHub1Y7MZuJmJHoeYMM1yPxHNobY5YctZgZdXXgjJBnh7xu-nOz9zGpsBYkY-jm4yzkXptut2gmqjtJ7lb_7-1RnK_VzCMVqKNO1TFjUpvc2eD9OvvWCayQQQYqpqrJdzd1D3L2-2mS209rbuRb60-dONqZ-xiHiseKsO-iEqLK8U5LbEVKmyQiMA",
+    "mtls_claim": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImV4dGVybmFsLXJzMjU2LXY3In0.eyJzdWIiOiJ1c2VyLXJzIiwidGlkIjoidGVuYW50LXJzIiwidGVuYW50X2lkIjoidGVuYW50LXJzIiwiaWRlbnRpdHlfaWQiOiJ1c2VyLXJzIiwiaWRlbnRpdHlfa2luZCI6InNlcnZpY2UiLCJzZXNzaW9uX2lkIjoic2Vzc2lvbi1ycyIsInRva2VuX2lkIjoidG9rZW4tcnMiLCJpc3MiOiJodHRwczovL2V4dGVybmFsLWlkZW50aXR5LmV4YW1wbGUudGVzdCIsImlzc3VlciI6Imh0dHBzOi8vZXh0ZXJuYWwtaWRlbnRpdHkuZXhhbXBsZS50ZXN0IiwiYXVkIjpbImNvbnZlcmFjdC1jb3JlIl0sImF1ZGllbmNlIjpbImNvbnZlcmFjdC1jb3JlIl0sImtleV9pZCI6ImV4dGVybmFsLXJzMjU2LXY3Iiwicm9sZSI6Im9wZXJhdG9yIiwiaWF0IjowLCJuYmYiOjAsImV4cCI6NDEwMjQ0NDgwMCwiaXNzdWVkX2F0IjoiMTk3MC0wMS0wMVQwMDowMDowMC4wMDBaIiwibm90X2JlZm9yZSI6IjE5NzAtMDEtMDFUMDA6MDA6MDAuMDAwWiIsImV4cGlyZXNfYXQiOiIyMTAwLTAxLTAxVDAwOjAwOjAwLjAwMFoiLCJwb2xpY3lfdmVyc2lvbiI6MTIsInJldm9jYXRpb25fZXBvY2giOjQsImNhcGFiaWxpdGllcyI6WyJwbGF0Zm9ybS5hcGkiXSwicHVycG9zZSI6WyJwcm9kdWN0X29wZXJhdGlvbiJdLCJjcmVkZW50aWFsX3N0cmVuZ3RoIjoibXRscyJ9.L709uXHAKrvpCthpwYgWm4h5slvy65BRaHy-yqp3IRVOI9ozSQ77-OQbzZVUlZ6a_lcjCM2I3rQW0nrktrZM_dwl3aDaNy_054Idy6VZrr4h9CraXKylWf44_ohHmYxZNjItPIGdtXJubrd0ldPMycL57pf6qEJlZlRbg16luJ1SJ4O6GEpA9nlRLkcVDbkpc1NUXfGbGCKH4YTGcjby-NwbAEFrKphzU5I608JYiS0tHRF9vG7tJOqXfedN4ll-baQa0Aek3LLSy7gqOMnfYVyaztc4Cufe5jJHs-b24FDuZ2_3pJg-RduTmoSrfeu7UiWDNRpPlGp7mPvAbOT6FA",
+    "duplicate_tenant_claim": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImV4dGVybmFsLXJzMjU2LXY3In0.eyJzdWIiOiJ1c2VyLXJzIiwidGlkIjoidGVuYW50LXJzIiwidGVuYW50X2lkIjoidGVuYW50LXJzIiwidGVuYW50X2lkIjoidGVuYW50LXJzIiwiaWRlbnRpdHlfaWQiOiJ1c2VyLXJzIiwiaWRlbnRpdHlfa2luZCI6Imh1bWFuIiwic2Vzc2lvbl9pZCI6InNlc3Npb24tcnMiLCJ0b2tlbl9pZCI6InRva2VuLXJzIiwiaXNzIjoiaHR0cHM6Ly9leHRlcm5hbC1pZGVudGl0eS5leGFtcGxlLnRlc3QiLCJpc3N1ZXIiOiJodHRwczovL2V4dGVybmFsLWlkZW50aXR5LmV4YW1wbGUudGVzdCIsImF1ZCI6WyJjb252ZXJhY3QtY29yZSJdLCJhdWRpZW5jZSI6WyJjb252ZXJhY3QtY29yZSJdLCJrZXlfaWQiOiJleHRlcm5hbC1yczI1Ni12NyIsInJvbGUiOiJvcGVyYXRvciIsImlhdCI6MCwibmJmIjowLCJleHAiOjQxMDI0NDQ4MDAsImlzc3VlZF9hdCI6IjE5NzAtMDEtMDFUMDA6MDA6MDAuMDAwWiIsIm5vdF9iZWZvcmUiOiIxOTcwLTAxLTAxVDAwOjAwOjAwLjAwMFoiLCJleHBpcmVzX2F0IjoiMjEwMC0wMS0wMVQwMDowMDowMC4wMDBaIiwicG9saWN5X3ZlcnNpb24iOjEyLCJyZXZvY2F0aW9uX2Vwb2NoIjo0LCJjYXBhYmlsaXRpZXMiOlsicGxhdGZvcm0uYXBpIl0sInB1cnBvc2UiOlsicHJvZHVjdF9vcGVyYXRpb24iXSwiY3JlZGVudGlhbF9zdHJlbmd0aCI6InNpZ25lZF90b2tlbiJ9.V0U2VkpHNbnlVnq_X2OvM_g-56lVeQdovwoRnHR8nebmYIm51yThHzj0aQ0aewuAsovw_t9EyD4dW5vxbZt4O1Ty0PyxxNSZ7MW7LIPVGkMBQ3IiOlMw_zkl93WjZZEqW-VTDfKO6RH0ugyRxPO4MWHwIW0zOLiaATsmPeB6fYlTCu1qQTKPAykMvJ99lSU-ctOj_jH2EKbcnUJ9GRvHpapJinPzycLMRD1UOQ4FxlwkvlvSNyQV2JWdpTydlOIqa42e-mCBW0P-PIc_ADOawqCgX6HvBZfaQpp_dHKooUb5-BkN-IYBo26gmDeXiMR-rbdycXEOQz4AsxmkGyN5nw"
+  },
+  "cases": [
+    {
+      "name": "valid",
+      "token_ref": "valid",
+      "expected": "allowed"
+    },
+    {
+      "name": "wrong_algorithm",
+      "recipe": "header_override",
+      "header_overrides": {
+        "alg": "HS256"
+      },
+      "expected": "denied"
+    },
+    {
+      "name": "wrong_type",
+      "recipe": "header_override",
+      "header_overrides": {
+        "typ": "JWS"
+      },
+      "expected": "denied"
+    },
+    {
+      "name": "missing_key_id",
+      "recipe": "header_remove_key",
+      "expected": "denied"
+    },
+    {
+      "name": "unknown_key_id",
+      "recipe": "header_override",
+      "header_overrides": {
+        "kid": "external-rs256-missing"
+      },
+      "expected": "denied"
+    },
+    {
+      "name": "payload_key_mismatch",
+      "token_ref": "payload_key_mismatch",
+      "expected": "denied"
+    },
+    {
+      "name": "wrong_issuer",
+      "token_ref": "wrong_issuer",
+      "expected": "denied"
+    },
+    {
+      "name": "expired",
+      "token_ref": "expired",
+      "expected": "denied"
+    },
+    {
+      "name": "rs256_cannot_claim_mtls",
+      "token_ref": "mtls_claim",
+      "expected": "allowed",
+      "target_expected": "denied"
+    },
+    {
+      "name": "duplicate_tenant_claim",
+      "token_ref": "duplicate_tenant_claim",
+      "expected": "allowed",
+      "target_expected": "denied"
+    },
+    {
+      "name": "invalid_signature",
+      "recipe": "invalid_signature",
+      "expected": "denied"
+    },
+    {
+      "name": "noncanonical_signature",
+      "recipe": "signature_padding",
+      "expected": "denied"
+    },
+    {
+      "name": "wrong_signature_length",
+      "recipe": "short_signature",
+      "expected": "denied"
+    }
+  ]
+}

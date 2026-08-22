@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-rs256",
+  "reviewed_at": "2026-08-22T13:19:08Z",
+  "scope": "new RS256 signature provider and newly resolved packages only",
+  "status": "boundary_review_passed_with_remaining_gates",
+  "selected_provider": {
+    "name": "ring",
+    "version": "0.17.14",
+    "exact_pin": true,
+    "license": "Apache-2.0 AND ISC",
+    "crate_archive_sha256": "a4689e6c2294d81e88dc6261c768b63bc4fcdb852be6d1352498b114f61383b7",
+    "lockfile_checksum_matches_archive": true,
+    "enabled_features": ["alloc"],
+    "default_features": false,
+    "product_api_allowlist": [
+      "ring::signature::RsaPublicKeyComponents::verify",
+      "ring::signature::RSA_PKCS1_2048_8192_SHA256"
+    ],
+    "private_key_or_signing_api_used": false,
+    "random_api_used_by_product_verifier": false,
+    "runtime_network_or_file_api_used_by_product_verifier": false
+  },
+  "native_boundary": {
+    "contains_c_or_assembly": true,
+    "build_script_present": true,
+    "build_dependency": "cc 1.4.4",
+    "packaged_source_files_observed": 392,
+    "packaged_source_kib_observed": 8396,
+    "packaged_build_shape": "registry package has no .git directory; build.rs selects pregenerated assembly, compiles checked-in C/assembly and links a static library",
+    "build_rs_sha256": "9d1928ffb1d8e15766c1c1b9ead73e4b81a21703dd25f7c27b87842a2e6e9cee",
+    "normalized_cargo_toml_sha256": "b81a19b27cc744410b056eb1d1195ecd41e25a163acadfca3c6457e96b797d3f",
+    "independent_exhaustive_source_audit": "not_run",
+    "non_macos_target_matrix": "not_run"
+  },
+  "new_resolved_packages": [
+    { "name": "cc", "version": "1.4.4", "license": "MIT OR Apache-2.0" },
+    { "name": "find-msvc-tools", "version": "0.1.11", "license": "MIT OR Apache-2.0" },
+    { "name": "ring", "version": "0.17.14", "license": "Apache-2.0 AND ISC" },
+    { "name": "shlex", "version": "2.0.1", "license": "MIT OR Apache-2.0" },
+    { "name": "untrusted", "version": "0.9.0", "license": "ISC" },
+    { "name": "windows-sys", "version": "0.52.0", "license": "MIT OR Apache-2.0" },
+    { "name": "windows-targets", "version": "0.52.6", "license": "MIT OR Apache-2.0" },
+    { "name": "windows_aarch64_gnullvm", "version": "0.52.6", "license": "MIT OR Apache-2.0" },
+    { "name": "windows_aarch64_msvc", "version": "0.52.6", "license": "MIT OR Apache-2.0" },
+    { "name": "windows_i686_gnu", "version": "0.52.6", "license": "MIT OR Apache-2.0" },
+    { "name": "windows_i686_gnullvm", "version": "0.52.6", "license": "MIT OR Apache-2.0" },
+    { "name": "windows_i686_msvc", "version": "0.52.6", "license": "MIT OR Apache-2.0" },
+    { "name": "windows_x86_64_gnu", "version": "0.52.6", "license": "MIT OR Apache-2.0" },
+    { "name": "windows_x86_64_gnullvm", "version": "0.52.6", "license": "MIT OR Apache-2.0" },
+    { "name": "windows_x86_64_msvc", "version": "0.52.6", "license": "MIT OR Apache-2.0" }
+  ],
+  "advisory_review": [
+    {
+      "id": "RUSTSEC-2025-0009",
+      "url": "https://rustsec.org/advisories/RUSTSEC-2025-0009.html",
+      "result": "selected 0.17.14 is at or above patched version 0.17.12; described AES/QUIC paths are not used by this verifier"
+    },
+    {
+      "id": "RUSTSEC-2025-0010",
+      "url": "https://rustsec.org/advisories/RUSTSEC-2025-0010.html",
+      "result": "unmaintained scope is ring versions prior to 0.17; selected version is 0.17.14"
+    },
+    {
+      "id": "RUSTSEC-2025-0007",
+      "url": "https://rustsec.org/advisories/RUSTSEC-2025-0007.html",
+      "result": "withdrawn advisory; not treated as an active finding"
+    },
+    {
+      "id": "RUSTSEC-2023-0071",
+      "url": "https://rustsec.org/advisories/RUSTSEC-2023-0071.html",
+      "result": "RustCrypto rsa alternative not selected because the advisory reports no patched version; product use here would be verify-only, but the project avoids taking the unresolved package boundary"
+    }
+  ],
+  "provider_documentation": [
+    "https://docs.rs/ring/0.17.14/ring/signature/static.RSA_PKCS1_2048_8192_SHA256.html",
+    "https://docs.rs/ring/0.17.14/ring/signature/struct.RsaPublicKeyComponents.html"
+  ],
+  "automated_full_lockfile_advisory_scan": {
+    "status": "not_run",
+    "reason": "cargo-audit is not installed; no tool was installed or unpinned during this slice"
+  },
+  "production_eligible": false
+}
