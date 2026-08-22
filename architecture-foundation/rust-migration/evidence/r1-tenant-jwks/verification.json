@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks",
+  "generated_at": "2026-08-22T13:00:03Z",
+  "current_state": "typescript_jwks_fetch_and_cache_active_rust_snapshot_offline_default_disabled",
+  "target_state": "bounded_cryptographically_usable_rs256_key_snapshot",
+  "production_eligible": false,
+  "checks": [
+    {
+      "id": "active_typescript_jwks_corpus",
+      "status": "passed",
+      "result": "21/21 current decoder decisions replayed under Node 24.15.0 and the exact auth.ts source SHA-256 matched"
+    },
+    {
+      "id": "rust_jwks_and_prior_auth_contracts",
+      "status": "passed",
+      "result": "10/10 tenant-auth tests passed, including 21 target JWKS decisions, HS256 verification and the prior bounded access policy"
+    },
+    {
+      "id": "explicit_security_differences",
+      "status": "passed",
+      "result": "both runtimes assert the same seven-item current/target difference list for RSA parameters and key_ops"
+    },
+    {
+      "id": "rust_workspace_all_targets",
+      "status": "passed",
+      "result": "pinned cargo test --workspace --all-targets --locked exited 0; explicitly gated physical PostgreSQL tests remained ignored"
+    },
+    {
+      "id": "rust_workspace_clippy_format_and_docs",
+      "status": "passed",
+      "result": "pinned formatting, workspace Clippy all targets/all features with -D warnings and rustdoc with -D warnings exited 0"
+    },
+    {
+      "id": "node24_affected_auth_and_typecheck",
+      "status": "passed",
+      "result": "24/24 affected authentication tests passed and repository TypeScript typecheck exited 0"
+    },
+    {
+      "id": "bounded_inert_dependency_boundary",
+      "status": "passed",
+      "result": "document/key/component bounds, value-free errors, bounded lookup and static no-runtime-I/O guards passed; no dependency or lockfile changed"
+    },
+    {
+      "id": "git_diff_and_source_manifest_replay",
+      "status": "passed",
+      "result": "JSON parsing and git diff --check passed, the staged set was empty before explicit staging, and the exact SHA-256 source manifest replayed without mismatch"
+    },
+    {
+      "id": "independent_exact_tree_review",
+      "status": "not_run"
+    },
+    {
+      "id": "rsa_signature_provider_and_signed_token_replay",
+      "status": "not_run"
+    },
+    {
+      "id": "bounded_jwks_fetch_freshness_refresh_and_outage",
+      "status": "not_run"
+    },
+    {
+      "id": "mtls_http_websocket_runtime_route_shadow_drain_and_deletion",
+      "status": "not_run"
+    },
+    {
+      "id": "fleet_fault_capacity_performance_and_production",
+      "status": "not_run"
+    }
+  ]
+}

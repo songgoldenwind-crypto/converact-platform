@@ -9,11 +9,13 @@ use serde::{Deserialize, Serialize, de::Error as _};
 use serde_json::value::RawValue;
 
 mod hs256;
+mod jwks;
 
 pub use hs256::{
     AuthenticatedPlatformIdentity, Hs256PlatformTokenVerifier, PlatformIdentityRole,
     PlatformTokenVerificationError, PlatformTokenVerifierConfigError,
 };
+pub use jwks::{Rs256JwksError, Rs256JwksSnapshot, Rs256PublicKeyComponents};
 
 const MAX_TEXT_UTF16_UNITS: usize = 256;
 const MAX_STRING_SET_ITEMS: usize = 64;

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks",
+  "generated_at": "2026-08-22T13:01:15Z",
+  "base_commit": "815440720399e93d8a30fa80d18bda3fc42f823e",
+  "branch": "codex/converact-platform-rename",
+  "rust_toolchain": "1.94.1-aarch64-apple-darwin",
+  "node_toolchain": "v24.15.0",
+  "hash_algorithm": "sha256",
+  "production_eligible": false,
+  "new_external_dependencies": [],
+  "new_resolved_packages": [],
+  "files": [
+    { "path": "server-rs/Cargo.toml", "sha256": "beaa3067193cc8d20d8e1280bdda42506db7d8d30d923d0e9af7a689f79708a2" },
+    { "path": "server-rs/Cargo.lock", "sha256": "f3a05ae0df8fa3f4413bce0fafe33613070326f16339b1d34320287b2d9bac55" },
+    { "path": "server-rs/crates/tenant-auth/Cargo.toml", "sha256": "65ae59532142255b69a7d770080f76f210a73303547c2b778c0a0b2b95d17ca7" },
+    { "path": "server-rs/crates/tenant-auth/src/lib.rs", "sha256": "a7efc99a9b014525000e2985a9b311e27edcc763ba2bbb15adae0ac25469d569" },
+    { "path": "server-rs/crates/tenant-auth/src/jwks.rs", "sha256": "12349d13559db3810b2a2d86812ea38ca6951644058f5ffd87ab8528c76b9901" },
+    { "path": "server-rs/crates/tenant-auth/src/tests.rs", "sha256": "6e949b4f84d9d373b6a7fad0da93c996397c75e5bea1247b68a05f15605e6c88" },
+    { "path": "server-rs/crates/tenant-auth/tests/jwks.rs", "sha256": "0e69b6082969e90aa4eb3ac4527f76b351adfccefdcf600c531450ece4e57718" },
+    { "path": "server-rs/tests/fixtures/platform-access-v1.json", "sha256": "5a3581e33d486d164eab574e959fc7bb130d73ffc98ca68bdf13225429422bac" },
+    { "path": "server-rs/tests/fixtures/platform-jwks-v1.json", "sha256": "74c505732236a9e94bcf823c43641f3260a338c3fc70d1c37c2d2b1626e5fa75" },
+    { "path": "src/middleware/auth.ts", "sha256": "a9300059a63c42a6fd32511dc62c6ccdfac67336a5bcaa29a92e1d90a5f77b7c" },
+    { "path": "src/agent-runtime/converact/platform-foundation/identity.ts", "sha256": "9e28ac104cc10db4620fc7a37ee4dc8643a7170292fe6a43d760008ebc10cdcf" },
+    { "path": "test/auth-middleware.test.ts", "sha256": "1ae09d61cb5a67f588ac49faa553bf63aa0a6ff56a5575b2b461dc39cfce12c2" },
+    { "path": "test/converact-rust-tenant-auth-contract.test.ts", "sha256": "46c164f77bb37a877006e35a81ce4292fe638f95ffa9c3fd6184af7d71684e1f" },
+    { "path": "test/converact-rust-jwks-contract.test.ts", "sha256": "b4fd1496d1feb91b1a0c335f4977ddc375d1e761ccdc3600f150e2934501f02d" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-jwks/README.md", "sha256": "d9ddb38f837d3e7b5158a9c609f7d9c8654d0ee9086c112b29139d285b905f4f" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-jwks/independent-review.json", "sha256": "5223103ceb55dd31863cbce95d6ed5addb8bf8fbe87ff33444d90b968968927b" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-jwks/tdd-log.json", "sha256": "c4b5e073438baed997d6b8a4b6487125fa78120525e32907ff8d6e55328e587c" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-jwks/verification.json", "sha256": "7ebae6149d8091876052f7f8840d6babf0a8eb07a8cf57f6599fc7575b56a18b" }
+  ]
+}

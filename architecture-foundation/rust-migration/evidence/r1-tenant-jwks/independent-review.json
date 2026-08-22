@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks",
+  "reviewed_at": null,
+  "reviewer": null,
+  "mode": "not_run",
+  "status": "not_run",
+  "final_submit_blockers": null,
+  "reason": "Independent exact-tree review was not invoked for this offline default-disabled key-snapshot slice and remains required before selecting a signature provider or routing traffic.",
+  "repository_or_server_mutation_by_reviewer": false
+}

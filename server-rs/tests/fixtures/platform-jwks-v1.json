@@ -1,0 +1,89 @@
+{
+  "contract_version": 1,
+  "source": "src/middleware/auth.ts#decodeJwks",
+  "source_sha256": "a9300059a63c42a6fd32511dc62c6ccdfac67336a5bcaa29a92e1d90a5f77b7c",
+  "base_key": {
+    "kty": "RSA",
+    "kid": "identity-rs256-v7",
+    "n": "1QkmCCNFunc7eZKIbb8nJImNW-H4Dt_LFSruBfhYdZPiwLgi5GD2BLIAthjhFHP1ht2Onz6FAf7Ae29pAhqpqb2s_IBeXQSbVQWimDr2LmxEqUYOMvXH-v5OP5wwLeFgEcM9ltSeNdEx_vbCXsDt8s8C1Q4roMtcbgpF_K1UX6iLjOSAnGQpkacot1911OBaPQV9v6zzls6Bg69QajUgQI1yKs__WhMeQB55_SrmlGmgG15efqxdlyePrtzlBihCc0wqcrZ51Jzb-W35X79aKefBpzbFfcqD5lKI46QcUMVzmkqJC6sK_oLEAvxnqs6hWbRqUoWA4MeHZ3qFkpXw-Q",
+    "e": "AQAB",
+    "use": "sig",
+    "alg": "RS256"
+  },
+  "cases": [
+    { "name": "valid", "expected": "allowed" },
+    {
+      "name": "optional_use_and_alg",
+      "key_remove": ["use", "alg"],
+      "expected": "allowed"
+    },
+    {
+      "name": "provider_extension_fields",
+      "key_overrides": { "x5t": "provider-thumbprint", "custom": true },
+      "expected": "allowed"
+    },
+    {
+      "name": "verify_key_operation",
+      "key_overrides": { "key_ops": ["verify"] },
+      "expected": "allowed"
+    },
+    {
+      "name": "encryption_key_operation",
+      "key_overrides": { "key_ops": ["encrypt"] },
+      "expected": "allowed",
+      "target_expected": "denied"
+    },
+    { "name": "empty_keys", "recipe": "empty_keys", "expected": "denied" },
+    { "name": "too_many_keys", "recipe": "too_many_keys", "expected": "denied" },
+    { "name": "duplicate_key_id", "recipe": "duplicate_key", "expected": "denied" },
+    { "name": "wrong_key_type", "key_overrides": { "kty": "EC" }, "expected": "denied" },
+    { "name": "invalid_key_id", "key_overrides": { "kid": "identity key" }, "expected": "denied" },
+    { "name": "encryption_use", "key_overrides": { "use": "enc" }, "expected": "denied" },
+    { "name": "wrong_algorithm", "key_overrides": { "alg": "RS512" }, "expected": "denied" },
+    { "name": "short_modulus", "key_overrides": { "n": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }, "expected": "denied" },
+    {
+      "name": "weak_2041_bit_modulus",
+      "key_overrides": {
+        "n": "AQkmCCNFunc7eZKIbb8nJImNW-H4Dt_LFSruBfhYdZPiwLgi5GD2BLIAthjhFHP1ht2Onz6FAf7Ae29pAhqpqb2s_IBeXQSbVQWimDr2LmxEqUYOMvXH-v5OP5wwLeFgEcM9ltSeNdEx_vbCXsDt8s8C1Q4roMtcbgpF_K1UX6iLjOSAnGQpkacot1911OBaPQV9v6zzls6Bg69QajUgQI1yKs__WhMeQB55_SrmlGmgG15efqxdlyePrtzlBihCc0wqcrZ51Jzb-W35X79aKefBpzbFfcqD5lKI46QcUMVzmkqJC6sK_oLEAvxnqs6hWbRqUoWA4MeHZ3qFkpXw-Q"
+      },
+      "expected": "allowed",
+      "target_expected": "denied"
+    },
+    {
+      "name": "noncanonical_modulus_encoding",
+      "key_overrides": {
+        "n": "1QkmCCNFunc7eZKIbb8nJImNW-H4Dt_LFSruBfhYdZPiwLgi5GD2BLIAthjhFHP1ht2Onz6FAf7Ae29pAhqpqb2s_IBeXQSbVQWimDr2LmxEqUYOMvXH-v5OP5wwLeFgEcM9ltSeNdEx_vbCXsDt8s8C1Q4roMtcbgpF_K1UX6iLjOSAnGQpkacot1911OBaPQV9v6zzls6Bg69QajUgQI1yKs__WhMeQB55_SrmlGmgG15efqxdlyePrtzlBihCc0wqcrZ51Jzb-W35X79aKefBpzbFfcqD5lKI46QcUMVzmkqJC6sK_oLEAvxnqs6hWbRqUoWA4MeHZ3qFkpXw-R"
+      },
+      "expected": "allowed",
+      "target_expected": "denied"
+    },
+    {
+      "name": "zero_exponent",
+      "key_overrides": { "e": "AA" },
+      "expected": "allowed",
+      "target_expected": "denied"
+    },
+    {
+      "name": "even_modulus",
+      "key_overrides": {
+        "n": "1QkmCCNFunc7eZKIbb8nJImNW-H4Dt_LFSruBfhYdZPiwLgi5GD2BLIAthjhFHP1ht2Onz6FAf7Ae29pAhqpqb2s_IBeXQSbVQWimDr2LmxEqUYOMvXH-v5OP5wwLeFgEcM9ltSeNdEx_vbCXsDt8s8C1Q4roMtcbgpF_K1UX6iLjOSAnGQpkacot1911OBaPQV9v6zzls6Bg69QajUgQI1yKs__WhMeQB55_SrmlGmgG15efqxdlyePrtzlBihCc0wqcrZ51Jzb-W35X79aKefBpzbFfcqD5lKI46QcUMVzmkqJC6sK_oLEAvxnqs6hWbRqUoWA4MeHZ3qFkpXw-A"
+      },
+      "expected": "allowed",
+      "target_expected": "denied"
+    },
+    {
+      "name": "even_exponent",
+      "key_overrides": { "e": "Ag" },
+      "expected": "allowed",
+      "target_expected": "denied"
+    },
+    {
+      "name": "oversized_exponent",
+      "key_overrides": { "e": "___________" },
+      "expected": "allowed",
+      "target_expected": "denied"
+    },
+    { "name": "invalid_root", "recipe": "invalid_root", "expected": "denied" },
+    { "name": "missing_keys", "recipe": "missing_keys", "expected": "denied" }
+  ]
+}

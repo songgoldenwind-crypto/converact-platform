@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks",
+  "generated_at": "2026-08-22T13:00:03Z",
+  "cycles": [
+    {
+      "id": "active_typescript_jwks_freeze",
+      "red": "the Rust migration had no exact-source corpus for active JWKS document admission",
+      "green": "a 21-case Node 24 corpus drives the exported warm path and binds the exact decodeJwks source hash"
+    },
+    {
+      "id": "bounded_rust_snapshot",
+      "red": "the focused Rust test could not import an RS256 JWKS snapshot or stable parse error",
+      "green": "one immutable 131072-byte/64-key snapshot validates key metadata and exposes bounded vendor-neutral public components"
+    },
+    {
+      "id": "rsa_component_semantics",
+      "red": "the active decoder admits weak, non-canonical or even moduli and zero, even or oversized exponents into its cache",
+      "green": "the target rejects all six component defects and freezes each current/target difference explicitly"
+    },
+    {
+      "id": "jwk_operation_authority",
+      "red": "self-review showed that ignored key_ops could admit an encryption-only key for signature selection",
+      "green": "absent or exact verify key_ops is accepted; every other operation set fails closed as the seventh explicit target difference"
+    }
+  ]
+}
