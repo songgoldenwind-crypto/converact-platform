@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-outbox-worker-contract",
+  "generated_at": "2026-08-22T06:07:16Z",
+  "base_commit": "5a7d6269af9020cfdd86f72262872fc3b3d0651b",
+  "branch": "codex/converact-platform-rename",
+  "rust_toolchain": "1.94.1-aarch64-apple-darwin",
+  "node_toolchain": "v24.15.0",
+  "hash_algorithm": "sha256",
+  "production_eligible": false,
+  "new_workspace_packages": [
+    "converact-outbox-worker"
+  ],
+  "new_external_dependencies": [],
+  "new_resolved_packages": [],
+  "new_direct_locked_dependencies": [],
+  "files": [
+    {
+      "path": "server-rs/Cargo.toml",
+      "sha256": "beaa3067193cc8d20d8e1280bdda42506db7d8d30d923d0e9af7a689f79708a2"
+    },
+    {
+      "path": "server-rs/Cargo.lock",
+      "sha256": "12a71e59693691a33c5de9d55ca6aa8ac0b7c4664d51e97bb21747a7ef46c8e4"
+    },
+    {
+      "path": "server-rs/crates/outbox-worker/Cargo.toml",
+      "sha256": "6a6da0f856508977e89cdc1b74d0aad7be1150191c1b4eb46f085c9ec4f5fa26"
+    },
+    {
+      "path": "server-rs/crates/outbox-worker/src/lib.rs",
+      "sha256": "5e7929ff66211a25c900d2308a3c8c14fc60d813c605469aac1e60a6ac19cd3c"
+    },
+    {
+      "path": "server-rs/crates/outbox-worker/tests/dependency_boundary.rs",
+      "sha256": "38cc380744db167013214c448ec895fb6a42e79d8da7a9a4df6ae2327881ca9b"
+    },
+    {
+      "path": "server-rs/crates/outbox-worker/tests/workflow.rs",
+      "sha256": "08fd4ed1d3147667ba0ccd7aafd64a79eb2928fd52f4443c975796ce6ff9db4c"
+    }
+  ]
+}

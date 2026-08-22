@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-outbox-worker-contract",
+  "generated_at": "2026-08-22T06:07:16Z",
+  "cycles": [
+    {
+      "id": "unknown_effect_recovery_order",
+      "red": "the focused Rust test failed because the workspace had no outbox recovery state-machine API",
+      "green": "the pure reducer now persists acceptance before delivery, queries recovered acceptances, persists definitive completion before the outbox transition and records state-observed last"
+    },
+    {
+      "id": "durable_transition_policy_drift",
+      "red": "two focused tests failed because a persisted retry was recomputed with the restarted process policy and because a sub-millisecond persisted transition passed snapshot validation",
+      "green": "new transitions use current policy while persisted transitions validate their own bounds and match only invariant resolution semantics"
+    },
+    {
+      "id": "bounded_unknown_reconciliation",
+      "red": "the focused contract did not accept a reconciliation policy and its unknown action carried no delay",
+      "green": "unknown outcomes now produce only a non-zero whole-millisecond bounded reconciliation delay without applying an outbox transition"
+    }
+  ]
+}

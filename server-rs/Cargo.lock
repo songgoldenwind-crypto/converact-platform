@@ -282,6 +282,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "converact-outbox-worker"
+version = "0.1.0"
+
+[[package]]
 name = "converact-postgres-store"
 version = "0.1.0"
 dependencies = [

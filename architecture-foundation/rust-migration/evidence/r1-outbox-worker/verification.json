@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-outbox-worker-contract",
+  "generated_at": "2026-08-22T06:11:09Z",
+  "current_state": "implemented_offline_default_disabled",
+  "target_state": "durable_outbox_worker_recovery_contract",
+  "production_eligible": false,
+  "checks": [
+    {
+      "id": "focused_rust_contract",
+      "status": "passed",
+      "result": "12/12 tests passed under pinned Rust 1.94.1"
+    },
+    {
+      "id": "rust_workspace_all_targets",
+      "status": "passed",
+      "result": "pinned cargo test --workspace --all-targets --locked exited 0; 20 isolated PostgreSQL tests retained explicit ignore gates"
+    },
+    {
+      "id": "rust_workspace_clippy_format_and_docs",
+      "status": "passed",
+      "result": "pinned cargo fmt --check, workspace Clippy with -D warnings and cargo doc --workspace --no-deps --locked exited 0"
+    },
+    {
+      "id": "node24_repository_typecheck",
+      "status": "passed"
+    },
+    {
+      "id": "dependency_tree",
+      "status": "passed",
+      "result": "the new crate has zero direct or transitive dependencies and adds no external resolved package"
+    },
+    {
+      "id": "git_diff_check",
+      "status": "passed"
+    },
+    {
+      "id": "source_manifest_hash_replay",
+      "status": "passed",
+      "result": "6/6 exact SHA-256 entries replayed without mismatch"
+    },
+    {
+      "id": "local_exact_tree_review",
+      "status": "passed_for_offline_pure_contract",
+      "result": "the exact source and evidence were reviewed for authority, crash ordering, bounds, dependency direction and unsupported claims"
+    },
+    {
+      "id": "independent_exact_tree_review",
+      "status": "not_run"
+    },
+    {
+      "id": "durable_resolution_document_and_digest_binding",
+      "status": "not_run"
+    },
+    {
+      "id": "postgres_adapter_atomicity_and_effect_receipt_integration",
+      "status": "not_run"
+    },
+    {
+      "id": "provider_nats_jetstream_and_bounded_runner",
+      "status": "not_run"
+    },
+    {
+      "id": "physical_crash_restart_stale_owner_duplicate_reorder_and_two_node",
+      "status": "not_run"
+    },
+    {
+      "id": "runtime_route_shadow_drain_active_zero_and_legacy_deletion",
+      "status": "not_run"
+    },
+    {
+      "id": "postgres16_rolling_fleet_fault_capacity_performance_and_production",
+      "status": "not_run"
+    }
+  ]
+}

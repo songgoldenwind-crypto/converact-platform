@@ -12,6 +12,7 @@ members = [
   "crates/migration-store",
   "crates/migration-tooling",
   "crates/observability",
+  "crates/outbox-worker",
   "crates/postgres-store",
   "crates/runtime-health",
   "crates/tenant-auth",
