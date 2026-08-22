@@ -40,10 +40,7 @@ fn new_attempt_persists_acceptance_before_delivery() {
         DurableOutboxProgress::Claimed,
     );
 
-    assert_eq!(
-        next_action(&attempt, policy()),
-        CoordinatorAction::PersistAccepted
-    );
+    assert_eq!(next_action(&attempt), CoordinatorAction::PersistAccepted);
 }
 
 #[test]
@@ -61,17 +58,20 @@ fn fresh_acceptance_delivers_but_recovered_acceptance_queries() {
         DurableOutboxProgress::Claimed,
     );
 
-    assert_eq!(next_action(&fresh, policy()), CoordinatorAction::Deliver);
-    assert_eq!(
-        next_action(&recovered, policy()),
-        CoordinatorAction::QueryDelivery
-    );
+    assert_eq!(next_action(&fresh), CoordinatorAction::Deliver);
+    assert_eq!(next_action(&recovered), CoordinatorAction::QueryDelivery);
 }
 
 #[test]
 fn unknown_observation_waits_without_transition() {
+    let recovered = snapshot(
+        1,
+        3,
+        DurableEffectProgress::recovered_accepted(),
+        DurableOutboxProgress::Claimed,
+    );
     assert_eq!(
-        action_after_observation(DeliveryObservation::Unknown, policy()),
+        action_after_observation(DeliveryObservation::Unknown, &recovered, policy()),
         CoordinatorAction::WaitForReconcile {
             retry_after: Duration::from_secs(7),
         }
@@ -79,67 +79,54 @@ fn unknown_observation_waits_without_transition() {
 }
 
 #[test]
-fn applied_delivery_completes_receipt_then_outbox_then_state_observed() {
-    assert_eq!(
-        action_after_observation(DeliveryObservation::Applied, policy()),
-        CoordinatorAction::PersistCompleted(DeliveryResolution::Applied)
-    );
-
-    let completed = snapshot(
+fn applied_delivery_builds_one_atomic_finalization_plan() {
+    let accepted = snapshot(
         1,
         3,
-        DurableEffectProgress::Completed(DeliveryResolution::Applied),
+        DurableEffectProgress::recovered_accepted(),
         DurableOutboxProgress::Claimed,
     );
-    assert_eq!(
-        next_action(&completed, policy()),
-        CoordinatorAction::ApplyOutboxTransition(OutboxTransitionDecision::Complete)
-    );
-
-    let transitioned = snapshot(
-        1,
-        3,
-        DurableEffectProgress::Completed(DeliveryResolution::Applied),
-        DurableOutboxProgress::TransitionApplied(OutboxTransitionDecision::Complete),
-    );
-    assert_eq!(
-        next_action(&transitioned, policy()),
-        CoordinatorAction::PersistStateObserved
-    );
+    let CoordinatorAction::FinalizeAtomically(plan) =
+        action_after_observation(DeliveryObservation::Applied, &accepted, policy())
+    else {
+        panic!("definitive observation must create a finalization plan");
+    };
+    assert_eq!(plan.resolution(), &DeliveryResolution::Applied);
+    assert_eq!(plan.transition(), &OutboxTransitionDecision::Complete);
 
     let observed = snapshot(
         1,
         3,
-        DurableEffectProgress::StateObserved(DeliveryResolution::Applied),
+        DurableEffectProgress::StateObserved,
         DurableOutboxProgress::TransitionApplied(OutboxTransitionDecision::Complete),
     );
-    assert_eq!(next_action(&observed, policy()), CoordinatorAction::Done);
+    assert_eq!(next_action(&observed), CoordinatorAction::Done);
 }
 
 #[test]
 fn retryable_not_applied_retries_before_attempt_limit() {
     let resolution = retryable();
     let error_code = resolution.failure_code().expect("failure code").clone();
-    assert_eq!(
-        action_after_observation(
-            DeliveryObservation::NotAppliedRetryable(error_code),
-            policy(),
-        ),
-        CoordinatorAction::PersistCompleted(resolution.clone())
-    );
-    let attempt = snapshot(
+    let accepted = snapshot(
         2,
         3,
-        DurableEffectProgress::Completed(resolution.clone()),
+        DurableEffectProgress::recovered_accepted(),
         DurableOutboxProgress::Claimed,
     );
-
+    let CoordinatorAction::FinalizeAtomically(plan) = action_after_observation(
+        DeliveryObservation::NotAppliedRetryable(error_code),
+        &accepted,
+        policy(),
+    ) else {
+        panic!("definitive observation must create a finalization plan");
+    };
+    assert_eq!(plan.resolution(), &resolution);
     assert_eq!(
-        next_action(&attempt, policy()),
-        CoordinatorAction::ApplyOutboxTransition(OutboxTransitionDecision::Retry {
+        plan.transition(),
+        &OutboxTransitionDecision::Retry {
             error_code: resolution.failure_code().expect("failure code").clone(),
             retry_delay: Duration::from_secs(5),
-        })
+        }
     );
 }
 
@@ -147,18 +134,23 @@ fn retryable_not_applied_retries_before_attempt_limit() {
 fn retryable_not_applied_dead_letters_at_attempt_limit() {
     let resolution = retryable();
     let error_code = resolution.failure_code().expect("failure code").clone();
-    let attempt = snapshot(
+    let accepted = snapshot(
         3,
         3,
-        DurableEffectProgress::Completed(resolution),
+        DurableEffectProgress::recovered_accepted(),
         DurableOutboxProgress::Claimed,
     );
-
+    let CoordinatorAction::FinalizeAtomically(plan) = action_after_observation(
+        DeliveryObservation::NotAppliedRetryable(error_code.clone()),
+        &accepted,
+        policy(),
+    ) else {
+        panic!("definitive observation must create a finalization plan");
+    };
+    assert_eq!(plan.resolution(), &resolution);
     assert_eq!(
-        next_action(&attempt, policy()),
-        CoordinatorAction::ApplyOutboxTransition(OutboxTransitionDecision::DeadLetter {
-            error_code,
-        })
+        plan.transition(),
+        &OutboxTransitionDecision::DeadLetter { error_code }
     );
 }
 
@@ -166,61 +158,77 @@ fn retryable_not_applied_dead_letters_at_attempt_limit() {
 fn permanent_not_applied_dead_letters() {
     let resolution = permanent();
     let error_code = resolution.failure_code().expect("failure code").clone();
-    assert_eq!(
-        action_after_observation(
-            DeliveryObservation::NotAppliedPermanent(error_code.clone()),
-            policy(),
-        ),
-        CoordinatorAction::PersistCompleted(resolution.clone())
-    );
-    let attempt = snapshot(
+    let accepted = snapshot(
         1,
         3,
-        DurableEffectProgress::Completed(resolution),
+        DurableEffectProgress::recovered_accepted(),
         DurableOutboxProgress::Claimed,
     );
-
+    let CoordinatorAction::FinalizeAtomically(plan) = action_after_observation(
+        DeliveryObservation::NotAppliedPermanent(error_code.clone()),
+        &accepted,
+        policy(),
+    ) else {
+        panic!("definitive observation must create a finalization plan");
+    };
+    assert_eq!(plan.resolution(), &resolution);
     assert_eq!(
-        next_action(&attempt, policy()),
-        CoordinatorAction::ApplyOutboxTransition(OutboxTransitionDecision::DeadLetter {
-            error_code,
-        })
+        plan.transition(),
+        &OutboxTransitionDecision::DeadLetter { error_code }
     );
 }
 
 #[test]
-fn mismatched_persisted_transition_conflicts() {
+fn partial_completed_state_conflicts_even_if_transition_exists() {
     let attempt = snapshot(
         1,
         3,
-        DurableEffectProgress::Completed(DeliveryResolution::Applied),
+        DurableEffectProgress::Completed,
         DurableOutboxProgress::TransitionApplied(OutboxTransitionDecision::DeadLetter {
             error_code: DeliveryFailureCode::new("unexpected_failure").expect("valid code"),
         }),
     );
 
-    assert_eq!(next_action(&attempt, policy()), CoordinatorAction::Conflict);
+    assert_eq!(next_action(&attempt), CoordinatorAction::Conflict);
 }
 
 #[test]
-fn persisted_retry_survives_policy_change_after_restart() {
-    let resolution = retryable();
-    let error_code = resolution.failure_code().expect("failure code").clone();
+fn persisted_retry_finalization_replays_without_policy_recomputation() {
+    let error_code = DeliveryFailureCode::new("provider_unavailable").expect("valid code");
     let attempt = snapshot(
         1,
         3,
-        DurableEffectProgress::Completed(resolution),
+        DurableEffectProgress::StateObserved,
         DurableOutboxProgress::TransitionApplied(OutboxTransitionDecision::Retry {
             error_code,
             retry_delay: Duration::from_secs(5),
         }),
     );
-    let changed_policy = OutboxWorkerPolicy::new(Duration::from_secs(30), Duration::from_secs(7))
-        .expect("valid policy");
+    assert_eq!(next_action(&attempt), CoordinatorAction::Done);
+}
+
+#[test]
+fn definitive_observation_outside_an_accepted_claim_conflicts() {
+    let absent = snapshot(
+        1,
+        3,
+        DurableEffectProgress::Absent,
+        DurableOutboxProgress::Claimed,
+    );
+    let not_yet_dispatched = snapshot(
+        1,
+        3,
+        DurableEffectProgress::accepted_in_current_cycle(),
+        DurableOutboxProgress::Claimed,
+    );
 
     assert_eq!(
-        next_action(&attempt, changed_policy),
-        CoordinatorAction::PersistStateObserved
+        action_after_observation(DeliveryObservation::Applied, &absent, policy()),
+        CoordinatorAction::Conflict
+    );
+    assert_eq!(
+        action_after_observation(DeliveryObservation::Applied, &not_yet_dispatched, policy(),),
+        CoordinatorAction::Conflict
     );
 }
 
@@ -239,10 +247,22 @@ fn invalid_bounds_and_failure_codes_fail_closed() {
         AttemptSnapshot::new(
             1,
             3,
-            DurableEffectProgress::Completed(retryable()),
+            DurableEffectProgress::Completed,
             DurableOutboxProgress::TransitionApplied(OutboxTransitionDecision::Retry {
                 error_code: DeliveryFailureCode::new("provider_unavailable").expect("valid code"),
                 retry_delay: Duration::from_nanos(1),
+            }),
+        ),
+        Err(SnapshotError)
+    );
+    assert_eq!(
+        AttemptSnapshot::new(
+            3,
+            3,
+            DurableEffectProgress::StateObserved,
+            DurableOutboxProgress::TransitionApplied(OutboxTransitionDecision::Retry {
+                error_code: DeliveryFailureCode::new("provider_unavailable").expect("valid code"),
+                retry_delay: Duration::from_secs(1),
             }),
         ),
         Err(SnapshotError)
@@ -286,16 +306,16 @@ fn impossible_progress_combinations_conflict() {
     let observed_without_transition = snapshot(
         1,
         3,
-        DurableEffectProgress::StateObserved(DeliveryResolution::Applied),
+        DurableEffectProgress::StateObserved,
         DurableOutboxProgress::Claimed,
     );
 
     assert_eq!(
-        next_action(&transitioned_without_receipt, policy()),
+        next_action(&transitioned_without_receipt),
         CoordinatorAction::Conflict
     );
     assert_eq!(
-        next_action(&observed_without_transition, policy()),
+        next_action(&observed_without_transition),
         CoordinatorAction::Conflict
     );
 }

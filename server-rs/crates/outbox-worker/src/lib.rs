@@ -79,17 +79,18 @@ pub enum DeliveryObservation {
 
 /// Durable effect receipt progress plus the non-durable current-cycle marker.
 ///
-/// A completed resolution must come from a durable, versioned resolution
-/// document bound by the receipt digest. A digest by itself is not a
-/// reversible resolution store, so adapters must query/reconcile instead of
-/// inventing a value when that document is unavailable.
+/// `Completed` exists so an adapter can fail closed on a partial or legacy
+/// durable shape. The target worker never commits that stage alone: it commits
+/// completed, the outbox transition and state-observed in one transaction.
+/// A receipt digest is not a reversible resolution store, so an adapter must
+/// never invent a result for a partial shape.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DurableEffectProgress {
     Absent,
     AcceptedInCurrentCycle,
     RecoveredAccepted,
-    Completed(DeliveryResolution),
-    StateObserved(DeliveryResolution),
+    Completed,
+    StateObserved,
 }
 
 impl DurableEffectProgress {
@@ -120,6 +121,27 @@ pub enum OutboxTransitionDecision {
     DeadLetter {
         error_code: DeliveryFailureCode,
     },
+}
+
+/// One atomic database finalization plan. An adapter must append the completed
+/// receipt, apply this transition and append the state-observed receipt in one
+/// transaction, in that order.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DeliveryFinalizationPlan {
+    resolution: DeliveryResolution,
+    transition: OutboxTransitionDecision,
+}
+
+impl DeliveryFinalizationPlan {
+    #[must_use]
+    pub const fn resolution(&self) -> &DeliveryResolution {
+        &self.resolution
+    }
+
+    #[must_use]
+    pub const fn transition(&self) -> &OutboxTransitionDecision {
+        &self.transition
+    }
 }
 
 /// Durable outbox progress visible to the coordinator.
@@ -210,7 +232,7 @@ impl AttemptSnapshot {
             || max_attempts == 0
             || max_attempts > MAX_ATTEMPTS
             || attempt_count > max_attempts
-            || !valid_outbox_progress(&outbox)
+            || !valid_outbox_progress(&outbox, attempt_count, max_attempts)
         {
             return Err(SnapshotError);
         }
@@ -242,9 +264,7 @@ pub enum CoordinatorAction {
     PersistAccepted,
     Deliver,
     QueryDelivery,
-    PersistCompleted(DeliveryResolution),
-    ApplyOutboxTransition(OutboxTransitionDecision),
-    PersistStateObserved,
+    FinalizeAtomically(DeliveryFinalizationPlan),
     WaitForReconcile { retry_after: Duration },
     Done,
     Conflict,
@@ -254,18 +274,37 @@ pub enum CoordinatorAction {
 #[must_use]
 pub fn action_after_observation(
     observation: DeliveryObservation,
+    snapshot: &AttemptSnapshot,
     policy: OutboxWorkerPolicy,
 ) -> CoordinatorAction {
+    if !matches!(
+        (&snapshot.effect, &snapshot.outbox),
+        (
+            DurableEffectProgress::RecoveredAccepted,
+            DurableOutboxProgress::Claimed
+        )
+    ) {
+        return CoordinatorAction::Conflict;
+    }
     match observation {
-        DeliveryObservation::Applied => {
-            CoordinatorAction::PersistCompleted(DeliveryResolution::Applied)
-        }
-        DeliveryObservation::NotAppliedRetryable(error_code) => {
-            CoordinatorAction::PersistCompleted(DeliveryResolution::NotAppliedRetryable(error_code))
-        }
-        DeliveryObservation::NotAppliedPermanent(error_code) => {
-            CoordinatorAction::PersistCompleted(DeliveryResolution::NotAppliedPermanent(error_code))
-        }
+        DeliveryObservation::Applied => finalization_action(
+            DeliveryResolution::Applied,
+            snapshot.attempt_count,
+            snapshot.max_attempts,
+            policy,
+        ),
+        DeliveryObservation::NotAppliedRetryable(error_code) => finalization_action(
+            DeliveryResolution::NotAppliedRetryable(error_code),
+            snapshot.attempt_count,
+            snapshot.max_attempts,
+            policy,
+        ),
+        DeliveryObservation::NotAppliedPermanent(error_code) => finalization_action(
+            DeliveryResolution::NotAppliedPermanent(error_code),
+            snapshot.attempt_count,
+            snapshot.max_attempts,
+            policy,
+        ),
         DeliveryObservation::Unknown => CoordinatorAction::WaitForReconcile {
             retry_after: policy.reconcile_delay(),
         },
@@ -278,7 +317,7 @@ pub fn action_after_observation(
 /// only forward path is provider query/reconcile, which prevents blind replay
 /// after a crash with an unknown external outcome.
 #[must_use]
-pub fn next_action(snapshot: &AttemptSnapshot, policy: OutboxWorkerPolicy) -> CoordinatorAction {
+pub fn next_action(snapshot: &AttemptSnapshot) -> CoordinatorAction {
     match (&snapshot.effect, &snapshot.outbox) {
         (DurableEffectProgress::Absent, DurableOutboxProgress::Claimed) => {
             CoordinatorAction::PersistAccepted
@@ -289,63 +328,31 @@ pub fn next_action(snapshot: &AttemptSnapshot, policy: OutboxWorkerPolicy) -> Co
         (DurableEffectProgress::RecoveredAccepted, DurableOutboxProgress::Claimed) => {
             CoordinatorAction::QueryDelivery
         }
-        (DurableEffectProgress::Completed(resolution), DurableOutboxProgress::Claimed) => {
-            CoordinatorAction::ApplyOutboxTransition(transition_for(
-                resolution,
-                snapshot.attempt_count,
-                snapshot.max_attempts,
-                policy,
-            ))
-        }
-        (
-            DurableEffectProgress::Completed(resolution),
-            DurableOutboxProgress::TransitionApplied(applied),
-        ) => {
-            if transition_matches(snapshot, resolution, applied) {
-                CoordinatorAction::PersistStateObserved
-            } else {
-                CoordinatorAction::Conflict
-            }
-        }
-        (
-            DurableEffectProgress::StateObserved(resolution),
-            DurableOutboxProgress::TransitionApplied(applied),
-        ) => {
-            if transition_matches(snapshot, resolution, applied) {
-                CoordinatorAction::Done
-            } else {
-                CoordinatorAction::Conflict
-            }
+        (DurableEffectProgress::StateObserved, DurableOutboxProgress::TransitionApplied(_)) => {
+            CoordinatorAction::Done
         }
         _ => CoordinatorAction::Conflict,
     }
 }
 
-fn transition_matches(
-    snapshot: &AttemptSnapshot,
-    resolution: &DeliveryResolution,
-    applied: &OutboxTransitionDecision,
-) -> bool {
-    match (resolution, applied) {
-        (DeliveryResolution::Applied, OutboxTransitionDecision::Complete) => true,
-        (
-            DeliveryResolution::NotAppliedRetryable(expected),
-            OutboxTransitionDecision::Retry { error_code, .. },
-        ) => snapshot.attempt_count < snapshot.max_attempts && expected == error_code,
-        (
-            DeliveryResolution::NotAppliedRetryable(expected)
-            | DeliveryResolution::NotAppliedPermanent(expected),
-            OutboxTransitionDecision::DeadLetter { error_code },
-        ) => {
-            (matches!(resolution, DeliveryResolution::NotAppliedPermanent(_))
-                || snapshot.attempt_count == snapshot.max_attempts)
-                && expected == error_code
-        }
-        _ => false,
-    }
+fn finalization_action(
+    resolution: DeliveryResolution,
+    attempt_count: u16,
+    max_attempts: u16,
+    policy: OutboxWorkerPolicy,
+) -> CoordinatorAction {
+    let transition = transition_for(&resolution, attempt_count, max_attempts, policy);
+    CoordinatorAction::FinalizeAtomically(DeliveryFinalizationPlan {
+        resolution,
+        transition,
+    })
 }
 
-fn valid_outbox_progress(progress: &DurableOutboxProgress) -> bool {
+fn valid_outbox_progress(
+    progress: &DurableOutboxProgress,
+    attempt_count: u16,
+    max_attempts: u16,
+) -> bool {
     match progress {
         DurableOutboxProgress::Claimed
         | DurableOutboxProgress::TransitionApplied(
@@ -355,7 +362,9 @@ fn valid_outbox_progress(progress: &DurableOutboxProgress) -> bool {
             retry_delay,
             ..
         }) => {
-            *retry_delay <= MAX_RETRY_DELAY && retry_delay.subsec_nanos().is_multiple_of(1_000_000)
+            attempt_count < max_attempts
+                && *retry_delay <= MAX_RETRY_DELAY
+                && retry_delay.subsec_nanos().is_multiple_of(1_000_000)
         }
     }
 }

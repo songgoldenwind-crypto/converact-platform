@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-outbox-atomic-finalization",
+  "generated_at": "2026-08-22T06:17:55Z",
+  "cycles": [
+    {
+      "id": "atomic_finalization_plan",
+      "red": "focused tests failed because provider observations accepted no attempt snapshot and the reducer exposed no atomic finalization action",
+      "green": "definitive observations after dispatch now produce one private-field plan containing the exact resolution and derived outbox transition"
+    },
+    {
+      "id": "durable_stage_projection",
+      "red": "focused tests failed because completed and state-observed durable stages required a resolution value absent from the current receipt schema",
+      "green": "durable progress now models only stages; partial completed state conflicts and state-observed plus a valid applied transition is terminal"
+    },
+    {
+      "id": "terminal_retry_validation",
+      "red": "a state-observed retry transition at max_attempts passed snapshot validation",
+      "green": "persisted retry progress is accepted only while attempt_count is strictly below max_attempts"
+    }
+  ]
+}

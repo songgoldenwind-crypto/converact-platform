@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-outbox-atomic-finalization",
+  "generated_at": "2026-08-22T06:17:55Z",
+  "base_commit": "a0e0b687fd6e783312a99646ea12c333b65a5100",
+  "branch": "codex/converact-platform-rename",
+  "rust_toolchain": "1.94.1-aarch64-apple-darwin",
+  "node_toolchain": "v24.15.0",
+  "hash_algorithm": "sha256",
+  "production_eligible": false,
+  "new_external_dependencies": [],
+  "new_resolved_packages": [],
+  "new_direct_locked_dependencies": [],
+  "files": [
+    {
+      "path": "server-rs/crates/outbox-worker/src/lib.rs",
+      "sha256": "f2be1c788ee598f5dbffbbee88405940a2fc755e1c3057ac5ab2a2fca3153a7b"
+    },
+    {
+      "path": "server-rs/crates/outbox-worker/tests/workflow.rs",
+      "sha256": "ec6dc3622c92692c970de528256131f84d7e831ffff52183aaa639f64cf88a88"
+    }
+  ]
+}
