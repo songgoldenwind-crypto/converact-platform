@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-issuer",
+  "generated_at": "2026-08-22T13:50:47Z",
+  "cycles": [
+    {
+      "id": "active_typescript_url_freeze",
+      "red": "the migration had no exact-source corpus for issuer acceptance and derived JWKS URLs",
+      "green": "a 22-case Node 24 corpus invokes the active warm path with mocked fetch and records current acceptance, rejection and canonical URL behavior"
+    },
+    {
+      "id": "bounded_rust_issuer_authority",
+      "red": "the focused Rust test could not include or import a JWKS issuer module, transport policy, validated value or closed error",
+      "green": "the pure Rust boundary bounds exact issuer text, validates authority and transport, and derives one redacted canonical JWKS endpoint"
+    },
+    {
+      "id": "embedded_whitespace_canonicalization",
+      "red": "the first target implementation inherited WHATWG removal of an embedded tab and incorrectly accepted the ambiguous issuer",
+      "green": "raw whitespace is rejected before URL parsing while the frozen TypeScript corpus retains the explicit current-versus-target difference"
+    },
+    {
+      "id": "dependency_and_advisory_boundary",
+      "red": "the standards parser dependency tree, archives, licenses, native/source shape and matching advisories were unproved",
+      "green": "25 archives match the lockfile, license metadata is recorded, the source-shape scan is clean and all three matching RustSec advisories resolve to patched selected versions"
+    }
+  ]
+}

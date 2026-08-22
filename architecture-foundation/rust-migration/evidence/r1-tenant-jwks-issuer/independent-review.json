@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-issuer",
+  "generated_at": "2026-08-22T13:50:47Z",
+  "status": "not_run",
+  "production_eligible": false,
+  "reason": "No independent exact-tree security and maintainability reviewer has reviewed this slice.",
+  "required_scope": [
+    "issuer claim and endpoint authority separation",
+    "URL and IDNA canonicalization edge cases",
+    "HTTPS and explicit loopback HTTP policy",
+    "dependency and advisory evidence",
+    "future fetch adapter SSRF and redirect boundary"
+  ]
+}

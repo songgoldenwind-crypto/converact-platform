@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-issuer",
+  "reviewed_at": "2026-08-22T13:50:47Z",
+  "scope": "new issuer URL parser and its 25 newly resolved packages only",
+  "status": "boundary_review_passed_with_remaining_gates",
+  "selected_parser": {
+    "name": "url",
+    "version": "2.5.8",
+    "exact_pin": true,
+    "license": "MIT OR Apache-2.0",
+    "crate_archive_sha256": "ff67a8a4397373c3ef660812acab3268222035010ab8680ec4215f38ba3d0eed",
+    "lockfile_checksum_matches_archive": true,
+    "default_features": false,
+    "enabled_features": ["std"],
+    "use": "bounded WHATWG URL parsing, host typing, IDNA canonicalization and path-segment endpoint derivation",
+    "runtime_network_or_file_api_used": false
+  },
+  "new_resolved_packages": [
+    { "name": "displaydoc", "version": "0.2.7", "license": "MIT OR Apache-2.0", "checksum": "c6232dd377dcc64799954cbd3a9bb882e9cdc1308ccd87b1c098f1fb2eaf82a8" },
+    { "name": "icu_collections", "version": "2.3.0", "license": "Unicode-3.0", "checksum": "fa68d21081c4a05d5a901a1c62add574c77048b6a1c67be3b50ce0b60d4ca513" },
+    { "name": "icu_locale_core", "version": "2.3.0", "license": "Unicode-3.0", "checksum": "d56e28588da92eee5c3201a6eff33fabdd49b62269c8938d4ff050ce4d900deb" },
+    { "name": "icu_normalizer", "version": "2.3.0", "license": "Unicode-3.0", "checksum": "12f9cf5f235641ed274641dd81c3f28d870e276763d0797aeeab72317b1c646f" },
+    { "name": "icu_normalizer_data", "version": "2.3.0", "license": "Unicode-3.0", "checksum": "1563da1ed3e0b3bf3d74c9b85917ac9c56464d2f57242270c09c9e752f8021a0" },
+    { "name": "icu_properties", "version": "2.3.0", "license": "Unicode-3.0", "checksum": "7e7ca276ad3145661a65914e6daf131ca5120cd3dcee8f8f3214b8875184a148" },
+    { "name": "icu_properties_data", "version": "2.3.0", "license": "Unicode-3.0", "checksum": "e590f038c1464a96894fd6d10127e90a8be4509f56ff7ecef851b15cee0b7caa" },
+    { "name": "icu_provider", "version": "2.3.1", "license": "Unicode-3.0", "checksum": "d27bbb9d3abbefac45d55f647c9de1d44aafcd1186eb91879afef17c396c3e73" },
+    { "name": "idna", "version": "1.1.0", "license": "MIT OR Apache-2.0", "checksum": "3b0875f23caa03898994f6ddc501886a45c7d3d62d04d2d90788d47be1b1e4de" },
+    { "name": "idna_adapter", "version": "1.2.2", "license": "Apache-2.0 OR MIT", "checksum": "cb68373c0d6620ef8105e855e7745e18b0d00d3bdb07fb532e434244cdb9a714" },
+    { "name": "litemap", "version": "0.8.3", "license": "Unicode-3.0", "checksum": "47d9d19d1d6efa0109d2f65ff4c85cddd50bd572e5a00127ab10987290bcefae" },
+    { "name": "potential_utf", "version": "0.1.6", "license": "Unicode-3.0", "checksum": "d83eb9bc6d8e5cf568e7a1101d60ee05e81ed50ea106026f3d18deeb046d7661" },
+    { "name": "stable_deref_trait", "version": "1.2.1", "license": "MIT OR Apache-2.0", "checksum": "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596" },
+    { "name": "synstructure", "version": "0.13.2", "license": "MIT", "checksum": "728a70f3dbaf5bab7f0c4b1ac8d7ae5ea60a4b5549c8a5914361c99147a709d2" },
+    { "name": "tinystr", "version": "0.8.4", "license": "Unicode-3.0", "checksum": "b1e27c91459209c2986af3dcf603a5a74a4368754ce37414f59acc971167f643" },
+    { "name": "url", "version": "2.5.8", "license": "MIT OR Apache-2.0", "checksum": "ff67a8a4397373c3ef660812acab3268222035010ab8680ec4215f38ba3d0eed" },
+    { "name": "utf8_iter", "version": "1.0.4", "license": "Apache-2.0 OR MIT", "checksum": "b6c140620e7ffbb22c2dee59cafe6084a59b5ffc27a8859a5f0d494b5d52b6be" },
+    { "name": "writeable", "version": "0.6.4", "license": "Unicode-3.0", "checksum": "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc" },
+    { "name": "yoke", "version": "0.8.3", "license": "Unicode-3.0", "checksum": "709fe23a0424b6a435d82152b1bd3fdfb0833487d5fa90d05d42762a9891fef5" },
+    { "name": "yoke-derive", "version": "0.8.2", "license": "Unicode-3.0", "checksum": "de844c262c8848816172cef550288e7dc6c7b7814b4ee56b3e1553f275f1858e" },
+    { "name": "zerofrom", "version": "0.1.8", "license": "Unicode-3.0", "checksum": "0ec05a11813ea801ff6d75110ad09cd0824ddba17dfe17128ea0d5f68e6c5272" },
+    { "name": "zerofrom-derive", "version": "0.1.7", "license": "Unicode-3.0", "checksum": "11532158c46691caf0f2593ea8358fed6bbf68a0315e80aae9bd41fbade684a1" },
+    { "name": "zerotrie", "version": "0.2.5", "license": "Unicode-3.0", "checksum": "4ea269c3bd32f0a32c321907a2ae912ba6f4649bb0fc764a15627e99a7095a3f" },
+    { "name": "zerovec", "version": "0.11.8", "license": "Unicode-3.0", "checksum": "bb0464e17806c1d976d5cba29399c7f08e516e279e2ba493f63123b5fca67dd8" },
+    { "name": "zerovec-derive", "version": "0.11.6", "license": "Unicode-3.0", "checksum": "34df6fc39dbd26ddc9c10e6a2984476e13acce22e64e4487636ef494369225da" }
+  ],
+  "archive_verification": {
+    "archives_checked": 25,
+    "lockfile_checksum_matches": 25,
+    "mismatches": 0
+  },
+  "source_scan": {
+    "scope": "all unpacked source files in the 25 new resolved package directories",
+    "build_scripts_or_native_source_matches": 0,
+    "unsafe_keyword_file_matches": 0,
+    "limitation": "lexical boundary scan, not an independent exhaustive source audit"
+  },
+  "advisory_review": {
+    "database": "RustSec/advisory-db",
+    "database_commit": "bf5c0d245a92671908518d7e765914d437954ed6",
+    "matching_package_advisories": [
+      { "id": "RUSTSEC-2024-0421", "package": "idna", "selected": "1.1.0", "patched": ">=1.0.0", "result": "not affected" },
+      { "id": "RUSTSEC-2024-0347", "package": "zerovec", "selected": "0.11.8", "patched": ">=0.10.4", "result": "not affected" },
+      { "id": "RUSTSEC-2024-0346", "package": "zerovec-derive", "selected": "0.11.6", "patched": ">=0.10.3", "result": "not affected" }
+    ]
+  },
+  "provider_documentation": [
+    "https://docs.rs/url/2.5.8/url/",
+    "https://docs.rs/url/2.5.8/url/enum.Host.html",
+    "https://github.com/servo/rust-url"
+  ],
+  "automated_full_lockfile_advisory_scan": {
+    "status": "not_run",
+    "reason": "cargo-audit is not installed; no tool was installed or unpinned during this slice"
+  },
+  "independent_exhaustive_source_audit": "not_run",
+  "non_macos_target_matrix": "not_run",
+  "production_eligible": false
+}

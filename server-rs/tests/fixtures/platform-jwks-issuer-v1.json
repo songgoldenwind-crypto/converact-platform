@@ -1,0 +1,166 @@
+{
+  "contract_version": 1,
+  "source": "src/middleware/auth.ts#jwksUrl",
+  "source_sha256": "a9300059a63c42a6fd32511dc62c6ccdfac67336a5bcaa29a92e1d90a5f77b7c",
+  "cases": [
+    {
+      "name": "https_root",
+      "issuer": "https://auth.example.test",
+      "target_policy": "https_only",
+      "expected": "allowed",
+      "expected_jwks_url": "https://auth.example.test/.well-known/jwks.json"
+    },
+    {
+      "name": "https_root_trailing_slash",
+      "issuer": "https://auth.example.test/",
+      "target_policy": "https_only",
+      "expected": "allowed",
+      "expected_jwks_url": "https://auth.example.test/.well-known/jwks.json"
+    },
+    {
+      "name": "https_tenant_path",
+      "issuer": "https://auth.example.test/realms/tenant-a",
+      "target_policy": "https_only",
+      "expected": "allowed",
+      "expected_jwks_url": "https://auth.example.test/realms/tenant-a/.well-known/jwks.json"
+    },
+    {
+      "name": "https_tenant_path_trailing_slash",
+      "issuer": "https://auth.example.test/realms/tenant-a/",
+      "target_policy": "https_only",
+      "expected": "allowed",
+      "expected_jwks_url": "https://auth.example.test/realms/tenant-a/.well-known/jwks.json"
+    },
+    {
+      "name": "default_https_port_canonicalized",
+      "issuer": "https://auth.example.test:443/tenant",
+      "target_policy": "https_only",
+      "expected": "allowed",
+      "expected_jwks_url": "https://auth.example.test/tenant/.well-known/jwks.json"
+    },
+    {
+      "name": "nondefault_https_port_preserved",
+      "issuer": "https://auth.example.test:8443/tenant",
+      "target_policy": "https_only",
+      "expected": "allowed",
+      "expected_jwks_url": "https://auth.example.test:8443/tenant/.well-known/jwks.json"
+    },
+    {
+      "name": "unicode_domain_canonicalized",
+      "issuer": "https://例子.测试/realm",
+      "target_policy": "https_only",
+      "expected": "allowed",
+      "expected_jwks_url": "https://xn--fsqu00a.xn--0zwm56d/realm/.well-known/jwks.json"
+    },
+    {
+      "name": "query_and_fragment_are_not_authority",
+      "issuer": "https://auth.example.test/tenant?source=a#fragment",
+      "target_policy": "https_only",
+      "expected": "allowed",
+      "expected_jwks_url": "https://auth.example.test/tenant/.well-known/jwks.json",
+      "target_expected": "denied"
+    },
+    {
+      "name": "credentials_are_not_authority",
+      "issuer": "https://user:password@auth.example.test/tenant",
+      "target_policy": "https_only",
+      "expected": "allowed",
+      "expected_jwks_url": "https://user:password@auth.example.test/tenant/.well-known/jwks.json",
+      "target_expected": "denied"
+    },
+    {
+      "name": "empty_userinfo_is_not_authority",
+      "issuer": "https://@auth.example.test/tenant",
+      "target_policy": "https_only",
+      "expected": "allowed",
+      "expected_jwks_url": "https://auth.example.test/tenant/.well-known/jwks.json",
+      "target_expected": "denied"
+    },
+    {
+      "name": "leading_whitespace_is_rejected",
+      "issuer": " https://auth.example.test/tenant",
+      "target_policy": "https_only",
+      "expected": "allowed",
+      "expected_jwks_url": "https://auth.example.test/tenant/.well-known/jwks.json",
+      "target_expected": "denied"
+    },
+    {
+      "name": "embedded_ascii_whitespace_is_rejected",
+      "issuer": "https://auth.example.test/ten\tant",
+      "target_policy": "https_only",
+      "expected": "allowed",
+      "expected_jwks_url": "https://auth.example.test/tenant/.well-known/jwks.json",
+      "target_expected": "denied"
+    },
+    {
+      "name": "trailing_dot_host_is_rejected",
+      "issuer": "https://auth.example.test./tenant",
+      "target_policy": "https_only",
+      "expected": "allowed",
+      "expected_jwks_url": "https://auth.example.test./tenant/.well-known/jwks.json",
+      "target_expected": "denied"
+    },
+    {
+      "name": "zero_port_is_rejected",
+      "issuer": "https://auth.example.test:0/tenant",
+      "target_policy": "https_only",
+      "expected": "allowed",
+      "expected_jwks_url": "https://auth.example.test:0/tenant/.well-known/jwks.json",
+      "target_expected": "denied"
+    },
+    {
+      "name": "ipv4_loopback_development",
+      "issuer": "http://127.0.0.1:8080/identity",
+      "target_policy": "explicit_loopback_http",
+      "expected": "allowed",
+      "expected_jwks_url": "http://127.0.0.1:8080/identity/.well-known/jwks.json"
+    },
+    {
+      "name": "localhost_development",
+      "issuer": "http://localhost:8080/identity",
+      "target_policy": "explicit_loopback_http",
+      "expected": "allowed",
+      "expected_jwks_url": "http://localhost:8080/identity/.well-known/jwks.json"
+    },
+    {
+      "name": "loopback_http_requires_explicit_policy",
+      "issuer": "http://127.0.0.1:8080/identity",
+      "target_policy": "https_only",
+      "expected": "allowed",
+      "expected_jwks_url": "http://127.0.0.1:8080/identity/.well-known/jwks.json",
+      "target_expected": "denied"
+    },
+    {
+      "name": "ipv6_loopback_supported_when_explicit",
+      "issuer": "http://[::1]:8080/identity",
+      "target_policy": "explicit_loopback_http",
+      "expected": "denied",
+      "target_expected": "allowed",
+      "target_jwks_url": "http://[::1]:8080/identity/.well-known/jwks.json"
+    },
+    {
+      "name": "remote_http_rejected",
+      "issuer": "http://auth.example.test/identity",
+      "target_policy": "explicit_loopback_http",
+      "expected": "denied"
+    },
+    {
+      "name": "ftp_rejected",
+      "issuer": "ftp://auth.example.test/identity",
+      "target_policy": "https_only",
+      "expected": "denied"
+    },
+    {
+      "name": "relative_url_rejected",
+      "issuer": "/identity",
+      "target_policy": "https_only",
+      "expected": "denied"
+    },
+    {
+      "name": "empty_issuer_rejected",
+      "issuer": "",
+      "target_policy": "https_only",
+      "expected": "denied"
+    }
+  ]
+}

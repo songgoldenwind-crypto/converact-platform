@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-issuer",
+  "generated_at": "2026-08-22T13:50:47Z",
+  "current_state": "typescript_jwks_url_builder_active_rust_issuer_boundary_offline_default_disabled",
+  "target_state": "bounded_exact_issuer_claim_and_policy_approved_canonical_jwks_endpoint",
+  "production_eligible": false,
+  "checks": [
+    {
+      "id": "active_typescript_issuer_corpus",
+      "status": "passed",
+      "result": "22/22 current decisions and fetch URLs replayed under Node 24.15.0 and the exact auth.ts source SHA-256 matched"
+    },
+    {
+      "id": "rust_target_issuer_contract",
+      "status": "passed",
+      "result": "3/3 focused tests passed; all 22 target vectors, bounds, redaction, stable error and no-runtime-I/O source guard were asserted"
+    },
+    {
+      "id": "explicit_current_target_differences",
+      "status": "passed",
+      "result": "both runtimes assert the same nine explicit divergences without treating target behavior as current production behavior"
+    },
+    {
+      "id": "rust_workspace_all_targets",
+      "status": "passed",
+      "result": "pinned cargo test --workspace --all-targets --locked exited 0; explicitly gated physical PostgreSQL tests remained ignored"
+    },
+    {
+      "id": "rust_workspace_clippy_format_and_docs",
+      "status": "passed",
+      "result": "pinned formatting, workspace Clippy all targets/all features with -D warnings and rustdoc with -D warnings exited 0"
+    },
+    {
+      "id": "node24_affected_auth_and_typecheck",
+      "status": "passed",
+      "result": "27/27 affected authentication tests passed and repository TypeScript typecheck exited 0"
+    },
+    {
+      "id": "dependency_archives_licenses_source_and_advisories",
+      "status": "passed",
+      "result": "25/25 crate archive hashes matched Cargo.lock; metadata and lexical source scans were recorded; three matching RustSec advisories all exclude the selected patched versions"
+    },
+    {
+      "id": "git_diff_json_dependency_and_source_manifest_replay",
+      "status": "passed",
+      "result": "JSON parsing, git diff --check, 25-package archive/lock replay and exact 14-file SHA-256 source-manifest replay exited 0; the staged set was empty before explicit staging"
+    },
+    {
+      "id": "automated_full_lockfile_advisory_scan",
+      "status": "not_run",
+      "reason": "cargo-audit is not installed"
+    },
+    {
+      "id": "independent_exact_tree_review",
+      "status": "not_run"
+    },
+    {
+      "id": "fetch_dns_redirect_proxy_timeout_and_cancellation",
+      "status": "not_run"
+    },
+    {
+      "id": "cache_verifier_readiness_and_runtime_facade",
+      "status": "not_run"
+    },
+    {
+      "id": "mtls_http_websocket_shadow_drain_and_deletion",
+      "status": "not_run"
+    },
+    {
+      "id": "fleet_fault_capacity_performance_and_production",
+      "status": "not_run"
+    }
+  ]
+}

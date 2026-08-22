@@ -45,6 +45,7 @@ tokio-postgres = { version = "=0.7.18", default-features = false }
 tower = { version = "=0.5.3", features = ["util"] }
 tracing = "=0.1.44"
 tracing-subscriber = { version = "=0.3.22", features = ["fmt", "json"] }
+url = { version = "=2.5.8", default-features = false, features = ["std"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
