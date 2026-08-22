@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-audit-role",
+  "generated_at": "2026-08-22T05:50:06Z",
+  "current_state": "implemented_offline_default_disabled",
+  "target_state": "isolated_rust_audit_database_identity",
+  "production_eligible": false,
+  "checks": [
+    {
+      "id": "affected_node24_contracts",
+      "status": "passed",
+      "result": "67 passed, 3 explicitly skipped physical tests, 0 failed under Node 24.15.0"
+    },
+    {
+      "id": "typescript_typecheck_and_diff_check",
+      "status": "passed"
+    },
+    {
+      "id": "rust_workspace_all_targets",
+      "status": "passed",
+      "result": "pinned Rust 1.94.1 cargo test --workspace --all-targets --locked exited 0; 20 isolated PostgreSQL tests retained explicit ignore gates"
+    },
+    {
+      "id": "rust_workspace_clippy_format_and_docs",
+      "status": "passed",
+      "result": "pinned cargo fmt --check, workspace Clippy with -D warnings and workspace cargo doc --no-deps exited 0"
+    },
+    {
+      "id": "postgresql_14_18_audit_roles_fresh_and_upgrade",
+      "status": "passed",
+      "result": "1/1 adversarial physical test on two distinct disposable clusters for fresh and through-122 upgrade paths"
+    },
+    {
+      "id": "postgresql_14_18_platform_event_role_regression",
+      "status": "passed",
+      "result": "1/1 physical test on two disposable clusters for fresh and through-119 upgrade paths"
+    },
+    {
+      "id": "postgresql_14_18_legacy_audit_writer_fence",
+      "status": "passed",
+      "result": "1/1 TypeScript physical test migrated through 123"
+    },
+    {
+      "id": "postgresql_14_18_rust_audit_dedicated_role",
+      "status": "passed",
+      "result": "1/1 ignored Rust physical test through 123 using the activated runtime login and separate admin seed connection"
+    },
+    {
+      "id": "standalone_context_install_build_and_entrypoints",
+      "status": "passed",
+      "result": "offline npm install/build emitted 19/19 required entrypoints from 432 curated source files in a disposable context"
+    },
+    {
+      "id": "independent_exact_tree_review",
+      "status": "passed_for_default_disabled_foundation",
+      "result": "independent reviewer reported zero code submit blockers and independently reran focused static contracts, typecheck and diff-check"
+    },
+    {
+      "id": "source_manifest_hash_replay",
+      "status": "passed",
+      "result": "18/18 exact SHA-256 entries replayed without mismatch"
+    },
+    {
+      "id": "postgresql_16_fresh_upgrade_public_owner_and_parameter_acl",
+      "status": "not_run"
+    },
+    {
+      "id": "production_session_replication_reset_value",
+      "status": "not_run"
+    },
+    {
+      "id": "runtime_pool_process_health_and_authority_route",
+      "status": "not_run"
+    },
+    {
+      "id": "credentials_tls_pg_hba_rotation_and_connection_policy",
+      "status": "not_run"
+    },
+    {
+      "id": "application_tenant_authorization",
+      "status": "not_run"
+    },
+    {
+      "id": "shadow_cutover_drain_active_zero_and_typescript_deletion",
+      "status": "not_run"
+    },
+    {
+      "id": "reverse_handoff_crash_restart_commit_unknown_and_two_node",
+      "status": "not_run"
+    },
+    {
+      "id": "production_upgrade_rollback_fleet_fault_capacity_performance",
+      "status": "not_run"
+    }
+  ]
+}

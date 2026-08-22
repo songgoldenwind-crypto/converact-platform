@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-audit-role",
+  "generated_at": "2026-08-22T05:42:12Z",
+  "cycles": [
+    {
+      "id": "default_disabled_dedicated_roles",
+      "red": "the standalone package had no isolated Audit login, no non-login wrapper owner and no explicit activation entrypoint",
+      "green": "the initializer creates both roles as NOLOGIN/NOINHERIT/NOBYPASSRLS, migration 123 installs the closed graph and the packaged CLI performs the only explicit activation"
+    },
+    {
+      "id": "rolling_owner_transfer",
+      "red": "transferring wrapper ownership caused the invoker trigger to misclassify the exact target definer and reject a valid Rust append",
+      "green": "the guard trusts only the exact no-login Audit store owner for target provenance while direct, inherited and SET ROLE legacy identities remain denied"
+    },
+    {
+      "id": "closed_role_and_acl_graph",
+      "red": "independent adversarial review found memberships, default ACLs, grant options, alternate grantors and object-owner drift that the first role graph did not reject",
+      "green": "activation now checks exact role flags, membership, ownership, RLS, direct ACL grantor, grantability, database/schema scope, default ACLs, definers, columns, sequences and large objects before LOGIN"
+    },
+    {
+      "id": "persistent_settings_and_tenant_scope",
+      "red": "role and database defaults could install ambient tenant or RLS-bypass settings before a Rust transaction",
+      "green": "both dedicated roles must have empty rolconfig, no role/database settings and no cluster/database ambient setting row accepted by activation"
+    },
+    {
+      "id": "postgres_15_plus_security_shape",
+      "red": "a PG14-only public-schema owner assumption would reject PG15+ fresh databases and PG15+ parameter ACLs could grant trigger-disabling authority",
+      "green": "the graph accepts pg_database_owner only under an opc_admin-owned database and dynamically rejects PUBLIC/runtime/owner SET or ALTER SYSTEM parameter ACLs on PG15+; actual PG16 physical validation remains not_run"
+    },
+    {
+      "id": "hidden_trigger_and_rewrite_execution",
+      "red": "an extra trigger or rewrite rule on a target table could execute inside the wrapper owner's authority without appearing in runtime function ACL checks",
+      "green": "the event table must have exactly the reviewed legacy and immutable triggers, the head must have none and both targets must have zero rewrite rules; physical extra-trigger and extra-rule attacks are rejected"
+    },
+    {
+      "id": "session_replication_trigger_fence",
+      "red": "session_replication_role=replica could disable ordinary trigger fences even with a closed function and parameter ACL graph",
+      "green": "migration and activation require both current and reset session_replication_role to be origin; the physical replica-session attack is rejected"
+    },
+    {
+      "id": "direct_schema_and_grantor_evidence",
+      "red": "effective PUBLIC USAGE could conceal a missing dedicated schema grant and the first activation checks did not bind every allowed ACL entry to the object owner grantor",
+      "green": "both dedicated roles require one exact direct public-schema USAGE grant and all table, database and schema ACL entries bind the expected owner grantor; physical revoke and alternate-grantor attacks are rejected"
+    }
+  ]
+}

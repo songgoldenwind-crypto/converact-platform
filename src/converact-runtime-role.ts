@@ -55,10 +55,30 @@ export async function initializeConveractFabricRuntimeRole(
             NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
             NOREPLICATION NOINHERIT NOBYPASSRLS;
         END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_roles WHERE rolname = 'converact_audit_runtime'
+        ) THEN
+          CREATE ROLE converact_audit_runtime
+            NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
+            NOREPLICATION NOINHERIT NOBYPASSRLS;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_roles WHERE rolname = 'converact_audit_store_owner'
+        ) THEN
+          CREATE ROLE converact_audit_store_owner
+            NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
+            NOREPLICATION NOINHERIT NOBYPASSRLS;
+        END IF;
         ALTER ROLE converact_event_runtime
           NOSUPERUSER NOCREATEDB NOCREATEROLE
           NOREPLICATION NOINHERIT NOBYPASSRLS;
         ALTER ROLE converact_event_store_owner
+          NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
+          NOREPLICATION NOINHERIT NOBYPASSRLS;
+        ALTER ROLE converact_audit_runtime
+          NOSUPERUSER NOCREATEDB NOCREATEROLE
+          NOREPLICATION NOINHERIT NOBYPASSRLS;
+        ALTER ROLE converact_audit_store_owner
           NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
           NOREPLICATION NOINHERIT NOBYPASSRLS;
         IF pg_has_role('converact_event_runtime', 'opc_runtime', 'MEMBER') THEN
@@ -68,6 +88,14 @@ export async function initializeConveractFabricRuntimeRole(
           'converact_event_runtime', 'opc_sip_effect_executor', 'MEMBER'
         ) THEN
           REVOKE opc_sip_effect_executor FROM converact_event_runtime;
+        END IF;
+        IF pg_has_role('converact_audit_runtime', 'opc_runtime', 'MEMBER') THEN
+          REVOKE opc_runtime FROM converact_audit_runtime;
+        END IF;
+        IF pg_has_role(
+          'converact_audit_runtime', 'opc_sip_effect_executor', 'MEMBER'
+        ) THEN
+          REVOKE opc_sip_effect_executor FROM converact_audit_runtime;
         END IF;
       END
       $$
@@ -192,6 +220,12 @@ export async function initializeConveractFabricRuntimeRole(
         IF to_regclass('public.converact_audit_chain_heads') IS NOT NULL THEN
           REVOKE ALL PRIVILEGES ON TABLE public.converact_audit_chain_heads
             FROM PUBLIC, opc_runtime;
+        END IF;
+        IF to_regclass('public.ivekit_audit_events') IS NOT NULL THEN
+          REVOKE ALL PRIVILEGES ON TABLE public.ivekit_audit_events
+            FROM opc_runtime;
+          GRANT SELECT, INSERT ON TABLE public.ivekit_audit_events
+            TO opc_runtime;
         END IF;
         IF to_regprocedure(
           'public.converact_audit_legacy_writer_allowed(text)'
@@ -699,7 +733,27 @@ export async function activateConveractEventRuntimeRole(
           RAISE EXCEPTION 'converact event roles have effective authority outside the exact graph (database)';
         END IF;
 
-        IF has_schema_privilege(
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_database AS database
+          WHERE database.oid = current_database_oid
+            AND database.datdba = admin_role_oid
+        ) OR NOT EXISTS (
+          SELECT 1 FROM pg_namespace AS namespace
+          WHERE namespace.oid = public_schema_oid
+            AND namespace.nspowner IN (
+              admin_role_oid,
+              to_regrole('pg_database_owner')::OID
+            )
+        ) OR EXISTS (
+          SELECT 1
+          FROM pg_namespace AS namespace,
+            LATERAL aclexplode(
+              coalesce(namespace.nspacl, acldefault('n', namespace.nspowner))
+            ) AS privilege
+          WHERE namespace.oid = public_schema_oid
+            AND privilege.privilege_type = 'CREATE'
+            AND privilege.grantee <> namespace.nspowner
+        ) OR has_schema_privilege(
           event_role.oid, public_schema_oid, 'CREATE'
         ) OR has_schema_privilege(
           owner_role.oid, public_schema_oid, 'CREATE'
@@ -801,11 +855,13 @@ export async function activateConveractEventRuntimeRole(
               defaults.defaclnamespace = 0 AND
               privilege.grantee = 0 OR
               defaults.defaclobjtype = 'f' AND
-              defaults.defaclnamespace = 0 AND NOT (
-                privilege.grantee = admin_role_oid AND
-                privilege.grantor = admin_role_oid AND
-                privilege.privilege_type = 'EXECUTE' AND
-                NOT privilege.is_grantable
+              defaults.defaclnamespace IN (0, public_schema_oid) AND (
+                defaults.defaclnamespace <> 0 OR NOT (
+                  privilege.grantee = admin_role_oid AND
+                  privilege.grantor = admin_role_oid AND
+                  privilege.privilege_type = 'EXECUTE' AND
+                  NOT privilege.is_grantable
+                )
               )
             )
         ) THEN

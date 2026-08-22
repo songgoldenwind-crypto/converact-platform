@@ -187,6 +187,7 @@ test('standalone verifier requires every compiled operational entrypoint', () =>
     'converact-worker.js',
     'converact-realtime-audio-tap-worker.js',
     'converact-init-event-runtime-role.js',
+    'converact-init-audit-runtime-role.js',
     'converact-kamailio-compose-config.js',
     'converact-kamailio-webphone-acceptance.js',
     'converact-render-rustpbx-config.js',

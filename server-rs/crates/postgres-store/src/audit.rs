@@ -554,7 +554,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires an isolated PostgreSQL database migrated through 122"]
+    #[ignore = "requires isolated PostgreSQL admin/runtime URLs migrated through 123"]
     async fn audit_append_is_physically_fenced_idempotent_and_reconcilable() {
         seed_audit_route().await;
         let runtime = audit_runtime();
@@ -690,7 +690,9 @@ mod tests {
     }
 
     async fn seed_audit_route() {
-        let database_url = std::env::var("CONVERACT_AUDIT_TEST_DATABASE_URL").unwrap();
+        let database_url = std::env::var("CONVERACT_AUDIT_TEST_ADMIN_DATABASE_URL")
+            .or_else(|_| std::env::var("CONVERACT_AUDIT_TEST_DATABASE_URL"))
+            .unwrap();
         let (mut admin, connection) =
             deadpool_postgres::tokio_postgres::connect(&database_url, NoTls)
                 .await

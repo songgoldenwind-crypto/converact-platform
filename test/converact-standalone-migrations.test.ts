@@ -122,6 +122,7 @@ test('standalone migration order includes RLS and communication overlays but exc
   assert.equal(migrations.includes('120_converact_platform_event_runtime_roles.sql'), true);
   assert.equal(migrations.includes('121_converact_audit_runtime_fencing.sql'), true);
   assert.equal(migrations.includes('122_converact_audit_runtime_indexes.sql'), true);
+  assert.equal(migrations.includes('123_converact_audit_runtime_roles.sql'), true);
   assert.equal(
     migrations.indexOf('043_ivekit_intelligence_translation.sql') <
       migrations.indexOf('044_quality_review_policy_routing.sql') &&
@@ -273,7 +274,12 @@ test('standalone migration order includes RLS and communication overlays but exc
       migrations.indexOf('122_converact_audit_runtime_indexes.sql'),
     true
   );
-  assert.equal(migrations.at(-1), '122_converact_audit_runtime_indexes.sql');
+  assert.equal(
+    migrations.indexOf('122_converact_audit_runtime_indexes.sql') <
+      migrations.indexOf('123_converact_audit_runtime_roles.sql'),
+    true
+  );
+  assert.equal(migrations.at(-1), '123_converact_audit_runtime_roles.sql');
   const runtimeSecurity = readFileSync(
     'services/converact-service/migrations/090_ivekit_runtime_security.sql',
     'utf8'
@@ -312,6 +318,10 @@ test('standalone service owns compiled runtime-role bootstrap and Compose orderi
   assert.equal(
     servicePackage.scripts['init:event-runtime-role'],
     'node dist/converact-init-event-runtime-role.js'
+  );
+  assert.equal(
+    servicePackage.scripts['init:audit-runtime-role'],
+    'node dist/converact-init-audit-runtime-role.js'
   );
   assert.match(compose, /runtime-role-init:[\s\S]*dist\/converact-init-runtime-role\.js/);
   assert.match(compose, /migrate:[\s\S]*runtime-role-init:[\s\S]*condition: service_completed_successfully/);

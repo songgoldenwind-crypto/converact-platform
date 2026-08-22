@@ -498,12 +498,16 @@ async function assertExactPrivilegeGraph(admin: Pool, runtime: Pool): Promise<vo
   `);
   assert.deepEqual(functions.rows, [
     {
-      name: 'converact_audit_chain_head', owner: 'opc_admin', security_definer: true,
-      configuration: ['search_path=pg_catalog, public, pg_temp'], external_grants: []
+      name: 'converact_audit_chain_head', owner: 'converact_audit_store_owner',
+      security_definer: true,
+      configuration: ['search_path=pg_catalog, public, pg_temp'],
+      external_grants: ['converact_audit_runtime:EXECUTE:false']
     },
     {
-      name: 'converact_audit_event_append', owner: 'opc_admin', security_definer: true,
-      configuration: ['search_path=pg_catalog, public, pg_temp'], external_grants: []
+      name: 'converact_audit_event_append', owner: 'converact_audit_store_owner',
+      security_definer: true,
+      configuration: ['search_path=pg_catalog, public, pg_temp'],
+      external_grants: ['converact_audit_runtime:EXECUTE:false']
     },
     {
       name: 'converact_audit_legacy_writer_allowed', owner: 'opc_admin', security_definer: true,
@@ -515,8 +519,10 @@ async function assertExactPrivilegeGraph(admin: Pool, runtime: Pool): Promise<vo
       configuration: ['search_path=pg_catalog, public, pg_temp'], external_grants: []
     },
     {
-      name: 'converact_audit_writer_fence', owner: 'opc_admin', security_definer: true,
-      configuration: ['search_path=pg_catalog, public, pg_temp'], external_grants: []
+      name: 'converact_audit_writer_fence', owner: 'converact_audit_store_owner',
+      security_definer: true,
+      configuration: ['search_path=pg_catalog, public, pg_temp'],
+      external_grants: ['converact_audit_runtime:EXECUTE:false']
     }
   ]);
 

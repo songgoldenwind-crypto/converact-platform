@@ -40,7 +40,8 @@ function migrationCorpus(): {
       !file.endsWith('.sql') ||
       file === '120_converact_platform_event_runtime_roles.sql' ||
       file === '121_converact_audit_runtime_fencing.sql' ||
-      file === '122_converact_audit_runtime_indexes.sql'
+      file === '122_converact_audit_runtime_indexes.sql' ||
+      file === '123_converact_audit_runtime_roles.sql'
     ) {
       continue;
     }
@@ -97,6 +98,15 @@ physicalTest(
     const fresh = new Pool({ connectionString: freshAdminUrl, max: 1 });
     const upgrade = new Pool({ connectionString: upgradeAdminUrl, max: 1 });
     try {
+      await fresh.query(`
+        DO $$
+        BEGIN
+          IF to_regrole('pg_database_owner') IS NOT NULL THEN
+            EXECUTE 'ALTER SCHEMA public OWNER TO pg_database_owner';
+          END IF;
+        END
+        $$
+      `);
       await initializeConveractFabricRuntimeRole(fresh, runtimePassword);
       await initializeConveractFabricRuntimeRole(upgrade, runtimePassword);
       await applyConveractFabricMigrations(fresh, {
@@ -134,6 +144,23 @@ physicalTest(
       await assertEventRuntimeCannotLogin(fresh);
       await fresh.query(`
         ALTER DEFAULT PRIVILEGES FOR ROLE opc_admin
+        REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC
+      `);
+
+      await fresh.query(`
+        ALTER DEFAULT PRIVILEGES FOR ROLE opc_admin IN SCHEMA public
+        GRANT EXECUTE ON FUNCTIONS TO PUBLIC
+      `);
+      await assert.rejects(
+        () => activateConveractEventRuntimeRole(
+          fresh,
+          'must-not-activate-with-public-schema-function-default'
+        ),
+        /converact event roles have effective authority outside the exact graph/i
+      );
+      await assertEventRuntimeCannotLogin(fresh);
+      await fresh.query(`
+        ALTER DEFAULT PRIVILEGES FOR ROLE opc_admin IN SCHEMA public
         REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC
       `);
 
@@ -178,6 +205,17 @@ physicalTest(
         ALTER DEFAULT PRIVILEGES FOR ROLE opc_admin
         REVOKE CREATE ON SCHEMAS FROM PUBLIC
       `);
+
+      await fresh.query(`GRANT CREATE ON SCHEMA public TO opc_runtime`);
+      await assert.rejects(
+        () => activateConveractEventRuntimeRole(
+          fresh,
+          'must-not-activate-with-third-party-schema-creator'
+        ),
+        /converact event roles have effective authority outside the exact graph/i
+      );
+      await assertEventRuntimeCannotLogin(fresh);
+      await fresh.query(`REVOKE CREATE ON SCHEMA public FROM opc_runtime`);
 
       await fresh.query(`
         CREATE FUNCTION converact_event_public_definer_probe()

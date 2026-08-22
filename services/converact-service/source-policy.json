@@ -9,6 +9,7 @@
     "src/converact-migrate.ts",
     "src/converact-init-runtime-role.ts",
     "src/converact-init-event-runtime-role.ts",
+    "src/converact-init-audit-runtime-role.ts",
     "src/converact-tinode-bootstrap.ts",
     "src/converact-intelligence-preflight.ts",
     "src/converact-render-kamailio-config.ts",
@@ -153,6 +154,7 @@
     "119_converact_platform_event_runtime_indexes.sql",
     "120_converact_platform_event_runtime_roles.sql",
     "121_converact_audit_runtime_fencing.sql",
-    "122_converact_audit_runtime_indexes.sql"
+    "122_converact_audit_runtime_indexes.sql",
+    "123_converact_audit_runtime_roles.sql"
   ]
 }

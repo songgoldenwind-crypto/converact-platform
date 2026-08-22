@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-audit-role",
+  "reviewed_at": "2026-08-22T05:50:06Z",
+  "reviewer": "/root/converact_ai_fit",
+  "mode": "independent_read_only_exact_working_tree",
+  "status": "passed_for_default_disabled_foundation",
+  "final_submit_blockers": 0,
+  "verified": [
+    "one default-disabled Audit runtime role and one no-login wrapper owner preserve the TypeScript writer as the only active Audit Authority",
+    "role membership, ownership, ACL, RLS, SECURITY DEFINER, fixed search_path, direct grantor and persistent-setting checks are fail closed",
+    "the exact legacy and immutable triggers, zero head triggers, zero target rewrite rules and origin replication role close hidden execution paths",
+    "cross-database, current PUBLIC, public-schema creator, default ACL, sequence and large-object authority are rejected",
+    "migration and activation retain the rolling legacy writer while granting the Rust runtime only the three reviewed Audit wrappers",
+    "the activation CLI is packaged but no runtime pool, process, Compose service or Authority route consumes it",
+    "focused Node contracts, TypeScript typecheck and git diff-check independently passed on the exact reviewed tree; the implementer separately recorded the Node 24 replay",
+    "the code is acceptable only as a default-disabled offline foundation and must not be described as PostgreSQL 16 or production qualified"
+  ],
+  "remaining_not_run": [
+    "actual PostgreSQL 16 fresh and through-122 upgrade, pg_database_owner and parameter ACL branches",
+    "production session_replication_role server reset-value preflight",
+    "Rust Audit pool/process/health/route wiring and application tenant authorization",
+    "credential secret, TLS, pg_hba, rotation and connection policy",
+    "shadow, cutover, old TypeScript writer drain, active-zero and deletion",
+    "head-aware reverse handoff, crash/restart/CommitUnknown and two-node qualification",
+    "production upgrade/rollback, monitoring, fleet/fault, capacity, performance and production qualification"
+  ],
+  "repository_or_server_mutation_by_reviewer": false
+}
