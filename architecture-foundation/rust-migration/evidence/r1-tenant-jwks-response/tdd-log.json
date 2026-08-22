@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-response",
+  "generated_at": "2026-08-22T14:01:44Z",
+  "cycles": [
+    {
+      "id": "active_typescript_response_freeze",
+      "red": "the migration had no exact-source corpus for JWKS status, media type, declared length, streaming limit, UTF-8 and final body decisions",
+      "green": "a 16-case Node 24 corpus invokes the active warm path with exact synthetic response heads and bodies"
+    },
+    {
+      "id": "bounded_incremental_rust_collector",
+      "red": "the focused Rust test could not include or import a response collector or closed response failure taxonomy",
+      "green": "the Rust collector rejects invalid heads before allocation, bounds every chunk before copying and finalizes through the existing key-set parser"
+    },
+    {
+      "id": "target_response_hardening",
+      "red": "current TypeScript accepts missing or arbitrary media type, any 2xx status and mismatched declared length",
+      "green": "the target requires exact 200, approved JSON media essence and byte-exact declared length; all four differences are frozen separately"
+    }
+  ]
+}

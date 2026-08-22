@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-response",
+  "generated_at": "2026-08-22T14:01:44Z",
+  "base_commit": "4447c58f4f117a952be8b0d195a74fd6a8ffcdc4",
+  "branch": "codex/converact-platform-rename",
+  "rust_toolchain": "1.94.1-aarch64-apple-darwin",
+  "node_toolchain": "v24.15.0",
+  "hash_algorithm": "sha256",
+  "production_eligible": false,
+  "new_external_dependencies": [],
+  "new_resolved_packages": [],
+  "files": [
+    { "path": "server-rs/Cargo.toml", "sha256": "ce8c0e756295c2e085f15ab8e630a798c86a088882d0ba2ba0209ff5f14f7732" },
+    { "path": "server-rs/Cargo.lock", "sha256": "bafd8b8f9d6668dadebccc339218a894f61d926a20dbacc11ac36ce84eb7498e" },
+    { "path": "server-rs/crates/tenant-auth/Cargo.toml", "sha256": "bed6f772f77cbb73d00025fbdfa99fc3711ca3596f5bbcf5a1d5ee9d85371ff2" },
+    { "path": "server-rs/crates/tenant-auth/src/lib.rs", "sha256": "3bcb5bd1664808d7b8b765cccc550ec5a81ff673c546ce2e3df38c6aab70d97d" },
+    { "path": "server-rs/crates/tenant-auth/src/jwks.rs", "sha256": "12349d13559db3810b2a2d86812ea38ca6951644058f5ffd87ab8528c76b9901" },
+    { "path": "server-rs/crates/tenant-auth/src/jwks_response.rs", "sha256": "c742bd955321ef14a5c8c77b604596000d024f63d5c992886e48ba60f560e8c0" },
+    { "path": "server-rs/crates/tenant-auth/tests/jwks_response.rs", "sha256": "2d094a5c07b72593213baefad58fa445b6bc91d7d06b930fbe9c3e7c026002fc" },
+    { "path": "server-rs/tests/fixtures/platform-jwks-response-v1.json", "sha256": "5957300c2e1362b09b83e7ef4e7c083b3fce0796c90852329e7da350ac50561d" },
+    { "path": "server-rs/tests/fixtures/platform-rs256-v1.json", "sha256": "cec120bfabc3ede4c0587ff98fc330225b1fb713e3f533d429ad427ce6122be7" },
+    { "path": "src/middleware/auth.ts", "sha256": "a9300059a63c42a6fd32511dc62c6ccdfac67336a5bcaa29a92e1d90a5f77b7c" },
+    { "path": "test/auth-middleware.test.ts", "sha256": "1ae09d61cb5a67f588ac49faa553bf63aa0a6ff56a5575b2b461dc39cfce12c2" },
+    { "path": "test/converact-rust-jwks-response-contract.test.ts", "sha256": "8676f835ee016ba8b48d27a20ea7e705f288fcb9308aa02f892c5e396dba5b01" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-jwks-response/README.md", "sha256": "64a73433ec6764083c15fd7bf21a9824523c8813b5ef5ef7660ad692677ce68c" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-jwks-response/independent-review.json", "sha256": "46430f8ddf62ff9457482dc694de89f64ff26f5778d4518aaf8defabf62517bb" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-jwks-response/tdd-log.json", "sha256": "b6ba031a486813414c49f5af99df90ce67b0c03a85add81f035a5c8835b05890" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-jwks-response/verification.json", "sha256": "14aa0006a3cc7002ae18cf7781c42fba7574f1abc1dabe41d47f6bacf8b4bbdb" }
+  ]
+}

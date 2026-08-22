@@ -1,0 +1,129 @@
+{
+  "contract_version": 1,
+  "source": "src/middleware/auth.ts#fetchAndValidateJwks+readBoundedJwksBody+cancelUnreadJwksBody",
+  "source_sha256": "a9300059a63c42a6fd32511dc62c6ccdfac67336a5bcaa29a92e1d90a5f77b7c",
+  "max_response_bytes": 131072,
+  "cases": [
+    {
+      "name": "application_json_without_declared_length",
+      "status": 200,
+      "content_type": "application/json",
+      "body": "valid_jwks",
+      "expected": "allowed"
+    },
+    {
+      "name": "application_json_utf8_parameter",
+      "status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "body": "valid_jwks",
+      "expected": "allowed"
+    },
+    {
+      "name": "registered_jwk_set_media_type",
+      "status": 200,
+      "content_type": "application/jwk-set+json",
+      "body": "valid_jwks",
+      "expected": "allowed"
+    },
+    {
+      "name": "missing_content_type_is_rejected",
+      "status": 200,
+      "body": "valid_jwks",
+      "expected": "allowed",
+      "target_expected": "denied"
+    },
+    {
+      "name": "text_plain_is_rejected",
+      "status": 200,
+      "content_type": "text/plain",
+      "body": "valid_jwks",
+      "expected": "allowed",
+      "target_expected": "denied"
+    },
+    {
+      "name": "non_200_success_is_rejected",
+      "status": 201,
+      "content_type": "application/json",
+      "body": "valid_jwks",
+      "expected": "allowed",
+      "target_expected": "denied"
+    },
+    {
+      "name": "failed_status_is_rejected",
+      "status": 503,
+      "content_type": "application/json",
+      "body": "valid_jwks",
+      "expected": "denied"
+    },
+    {
+      "name": "canonical_declared_length",
+      "status": 200,
+      "content_type": "application/json",
+      "content_length": "actual",
+      "body": "valid_jwks",
+      "expected": "allowed"
+    },
+    {
+      "name": "noncanonical_declared_length",
+      "status": 200,
+      "content_type": "application/json",
+      "content_length": "01",
+      "body": "valid_jwks",
+      "expected": "denied"
+    },
+    {
+      "name": "oversized_declared_length",
+      "status": 200,
+      "content_type": "application/json",
+      "content_length": "131073",
+      "body": "valid_jwks",
+      "expected": "denied"
+    },
+    {
+      "name": "declared_length_mismatch_is_rejected",
+      "status": 200,
+      "content_type": "application/json",
+      "content_length": "999",
+      "body": "valid_jwks",
+      "expected": "allowed",
+      "target_expected": "denied"
+    },
+    {
+      "name": "exact_response_limit",
+      "status": 200,
+      "content_type": "application/json",
+      "content_length": "actual",
+      "body": "valid_jwks_exact_limit",
+      "expected": "allowed"
+    },
+    {
+      "name": "response_over_limit",
+      "status": 200,
+      "content_type": "application/json",
+      "body": "valid_jwks_over_limit",
+      "expected": "denied"
+    },
+    {
+      "name": "invalid_utf8",
+      "status": 200,
+      "content_type": "application/json",
+      "body": "invalid_utf8",
+      "expected": "denied"
+    },
+    {
+      "name": "malformed_json",
+      "status": 200,
+      "content_type": "application/json",
+      "body": "malformed_json",
+      "expected": "denied"
+    },
+    {
+      "name": "empty_body",
+      "status": 200,
+      "content_type": "application/json",
+      "content_length": "actual",
+      "body": "empty",
+      "expected": "denied"
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-response",
+  "generated_at": "2026-08-22T14:01:44Z",
+  "current_state": "typescript_jwks_fetch_response_active_rust_response_boundary_offline_default_disabled",
+  "target_state": "bounded_exact_http_response_head_stream_and_rs256_snapshot",
+  "production_eligible": false,
+  "checks": [
+    {
+      "id": "active_typescript_response_corpus",
+      "status": "passed",
+      "result": "16/16 current response decisions replayed under Node 24.15.0 and the exact auth.ts source SHA-256 matched"
+    },
+    {
+      "id": "rust_target_response_contract",
+      "status": "passed",
+      "result": "3/3 focused tests passed; all 16 target vectors, incremental bounds, closed reasons, redaction and no-runtime-I/O source guard were asserted"
+    },
+    {
+      "id": "explicit_current_target_differences",
+      "status": "passed",
+      "result": "both runtimes assert the same four status, media-type and declared-length differences"
+    },
+    {
+      "id": "current_typescript_transport_cancellation",
+      "status": "passed",
+      "result": "affected auth suite retained its three direct cancellation/abort checks for failed status, oversized declaration and streamed overflow"
+    },
+    {
+      "id": "rust_workspace_all_targets",
+      "status": "passed",
+      "result": "pinned cargo test --workspace --all-targets --locked exited 0; explicitly gated physical PostgreSQL tests remained ignored"
+    },
+    {
+      "id": "rust_workspace_clippy_format_and_docs",
+      "status": "passed",
+      "result": "pinned formatting, workspace Clippy all targets/all features with -D warnings and rustdoc with -D warnings exited 0"
+    },
+    {
+      "id": "node24_affected_auth_and_typecheck",
+      "status": "passed",
+      "result": "28/28 affected authentication tests passed and repository TypeScript typecheck exited 0"
+    },
+    {
+      "id": "dependency_boundary",
+      "status": "passed",
+      "result": "no dependency or lockfile changed and the module-level no-runtime-I/O guard passed"
+    },
+    {
+      "id": "git_diff_json_and_source_manifest_replay",
+      "status": "passed",
+      "result": "JSON parsing, git diff --check and exact 16-file SHA-256 source-manifest replay exited 0; the staged set was empty before explicit staging"
+    },
+    {
+      "id": "independent_exact_tree_review",
+      "status": "not_run"
+    },
+    {
+      "id": "rust_http_tls_dns_redirect_proxy_timeout_and_cancellation",
+      "status": "not_run"
+    },
+    {
+      "id": "cache_verifier_readiness_and_runtime_facade",
+      "status": "not_run"
+    },
+    {
+      "id": "mtls_http_websocket_shadow_drain_and_deletion",
+      "status": "not_run"
+    },
+    {
+      "id": "fleet_fault_capacity_performance_and_production",
+      "status": "not_run"
+    }
+  ]
+}

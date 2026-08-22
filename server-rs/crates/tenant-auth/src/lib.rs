@@ -12,6 +12,7 @@ mod hs256;
 mod jwks;
 mod jwks_cache;
 mod jwks_issuer;
+mod jwks_response;
 mod jwt;
 mod rs256;
 
@@ -22,6 +23,7 @@ pub use jwks_cache::{
     Rs256JwksRefreshLease, Rs256JwksResolution, Rs256JwksUnavailableReason,
 };
 pub use jwks_issuer::{JwksIssuerError, JwksIssuerTransportPolicy, ValidatedJwksIssuer};
+pub use jwks_response::{Rs256JwksResponseCollector, Rs256JwksResponseError};
 pub use jwt::{
     AuthenticatedPlatformIdentity, PlatformIdentityRole, PlatformTokenVerificationError,
     PlatformTokenVerifierConfigError,

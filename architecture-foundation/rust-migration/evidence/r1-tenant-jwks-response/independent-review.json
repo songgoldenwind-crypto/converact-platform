@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-response",
+  "generated_at": "2026-08-22T14:01:44Z",
+  "status": "not_run",
+  "production_eligible": false,
+  "reason": "No independent exact-tree security and maintainability reviewer has reviewed this slice.",
+  "required_scope": [
+    "HTTP response status and media-type policy",
+    "incremental memory and declared-length bounds",
+    "UTF-8, JSON and key-set validation composition",
+    "transport cancellation obligations",
+    "current-versus-target compatibility differences"
+  ]
+}
