@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-hs256",
+  "generated_at": "2026-08-22T12:48:03Z",
+  "current_state": "typescript_hs256_active_rust_verifier_offline_default_disabled",
+  "target_state": "bounded_local_hs256_human_identity_verifier",
+  "production_eligible": false,
+  "checks": [
+    {
+      "id": "active_typescript_hs256_corpus",
+      "status": "passed",
+      "result": "13/13 current decisions replayed through resolveAuthContext under Node 24.15.0 and the exact auth.ts source SHA-256 matched"
+    },
+    {
+      "id": "rust_hs256_and_policy_contracts",
+      "status": "passed",
+      "result": "8/8 tenant-auth tests passed; the 13-vector HS256 corpus and prior bounded access-policy corpus both remain green"
+    },
+    {
+      "id": "credential_confusion_regression",
+      "status": "passed",
+      "result": "current TypeScript allowed and target Rust denied the signed HMAC token claiming mTLS; both suites assert it is the sole intentional divergence"
+    },
+    {
+      "id": "rust_workspace_all_targets",
+      "status": "passed",
+      "result": "pinned cargo test --workspace --all-targets --locked exited 0; explicitly gated physical PostgreSQL tests remained ignored"
+    },
+    {
+      "id": "rust_workspace_clippy_format_and_docs",
+      "status": "passed",
+      "result": "pinned formatting, workspace Clippy all targets/all features with -D warnings and rustdoc with -D warnings exited 0"
+    },
+    {
+      "id": "node24_affected_auth_and_typecheck",
+      "status": "passed",
+      "result": "23/23 affected authentication tests passed and repository TypeScript typecheck exited 0"
+    },
+    {
+      "id": "bounded_inert_dependency_boundary",
+      "status": "passed",
+      "result": "token/key/config bounds, value-free errors, redacted Debug and static no-runtime-I/O guards passed; no new resolved package or native library was added"
+    },
+    {
+      "id": "git_diff_and_source_manifest_replay",
+      "status": "passed",
+      "result": "JSON parsing and git diff --check passed, the staged set was empty before explicit staging, and the exact SHA-256 source manifest replayed without mismatch"
+    },
+    {
+      "id": "independent_exact_tree_review",
+      "status": "not_run"
+    },
+    {
+      "id": "legacy_token_and_key_strength_inventory",
+      "status": "not_run"
+    },
+    {
+      "id": "secret_loader_rotation_zeroization_and_local_issuance",
+      "status": "not_run"
+    },
+    {
+      "id": "rs256_jwks_and_mtls_peer_mapping",
+      "status": "not_run"
+    },
+    {
+      "id": "http_websocket_runtime_route_shadow_drain_and_deletion",
+      "status": "not_run"
+    },
+    {
+      "id": "fleet_fault_capacity_performance_and_production",
+      "status": "not_run"
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-hs256",
+  "generated_at": "2026-08-22T12:49:29Z",
+  "base_commit": "e03c59a2d9e54037d349698590748a0d31572077",
+  "branch": "codex/converact-platform-rename",
+  "rust_toolchain": "1.94.1-aarch64-apple-darwin",
+  "node_toolchain": "v24.15.0",
+  "hash_algorithm": "sha256",
+  "production_eligible": false,
+  "new_external_dependencies": [],
+  "new_resolved_packages": [],
+  "reused_workspace_dependencies": [
+    {
+      "name": "base64",
+      "version": "0.22.1",
+      "license": "MIT OR Apache-2.0",
+      "use": "canonical unpadded base64url decoding and encoding checks",
+      "native_library_linked": false
+    },
+    {
+      "name": "hmac",
+      "version": "0.13.0",
+      "license": "MIT OR Apache-2.0",
+      "use": "constant-time HMAC-SHA256 token authentication",
+      "native_library_linked": false
+    },
+    {
+      "name": "sha2",
+      "version": "0.11.0",
+      "license": "MIT OR Apache-2.0",
+      "use": "SHA-256 digest implementation used by HMAC",
+      "native_library_linked": false
+    }
+  ],
+  "files": [
+    { "path": "server-rs/Cargo.toml", "sha256": "beaa3067193cc8d20d8e1280bdda42506db7d8d30d923d0e9af7a689f79708a2" },
+    { "path": "server-rs/Cargo.lock", "sha256": "f3a05ae0df8fa3f4413bce0fafe33613070326f16339b1d34320287b2d9bac55" },
+    { "path": "server-rs/crates/tenant-auth/Cargo.toml", "sha256": "65ae59532142255b69a7d770080f76f210a73303547c2b778c0a0b2b95d17ca7" },
+    { "path": "server-rs/crates/tenant-auth/src/lib.rs", "sha256": "128be58b325c7352d36db5fef8eae53035d614bf05dc7c9c6938f78a8c5b2db7" },
+    { "path": "server-rs/crates/tenant-auth/src/hs256.rs", "sha256": "2d7f1b1ec4c91f74f5ed4619e2dc4188e297c9d3892623b96fac4797d72fa8d7" },
+    { "path": "server-rs/crates/tenant-auth/src/tests.rs", "sha256": "6e949b4f84d9d373b6a7fad0da93c996397c75e5bea1247b68a05f15605e6c88" },
+    { "path": "server-rs/crates/tenant-auth/tests/hs256.rs", "sha256": "2244c15c3c07ec61d44034dbd27b5b0fed18f8697c3285acab2ca62af4af698b" },
+    { "path": "server-rs/tests/fixtures/platform-access-v1.json", "sha256": "5a3581e33d486d164eab574e959fc7bb130d73ffc98ca68bdf13225429422bac" },
+    { "path": "server-rs/tests/fixtures/platform-hs256-v1.json", "sha256": "2da1dc7373fd28b209b089f4a3aa2221fc5e0a2188bc71b782f49fef46e2ca09" },
+    { "path": "src/middleware/auth.ts", "sha256": "a9300059a63c42a6fd32511dc62c6ccdfac67336a5bcaa29a92e1d90a5f77b7c" },
+    { "path": "src/agent-runtime/converact/platform-foundation/identity.ts", "sha256": "9e28ac104cc10db4620fc7a37ee4dc8643a7170292fe6a43d760008ebc10cdcf" },
+    { "path": "test/auth-middleware.test.ts", "sha256": "1ae09d61cb5a67f588ac49faa553bf63aa0a6ff56a5575b2b461dc39cfce12c2" },
+    { "path": "test/converact-rust-tenant-auth-contract.test.ts", "sha256": "46c164f77bb37a877006e35a81ce4292fe638f95ffa9c3fd6184af7d71684e1f" },
+    { "path": "test/converact-rust-tenant-hs256-contract.test.ts", "sha256": "cd42ec429a9b4a2b080ebecdbf58eb65a29be27a8f97c4e0a45d086b35cf108b" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-hs256/README.md", "sha256": "3dd9f8645c163e3f287a4848d69e813fe612209cb02d2eaee67400c1991d46fc" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-hs256/independent-review.json", "sha256": "abbe0f98cc54e0a2d49cd5ef497f4f3ee4103d84b3837438acdf072d4e691e3f" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-hs256/tdd-log.json", "sha256": "aa25b6509f1c29ed43fd127d0a00669ec40c098f806aaff57aa521b84d11637d" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-hs256/verification.json", "sha256": "2e21ee7b1eb56d532ddec9ebee5ac5668aaf43aae049eacbe5104cdaad0fa9e2" }
+  ]
+}

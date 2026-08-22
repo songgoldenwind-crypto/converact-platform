@@ -8,6 +8,13 @@ pub use converact_contracts::parse_canonical_timestamp_ms;
 use serde::{Deserialize, Serialize, de::Error as _};
 use serde_json::value::RawValue;
 
+mod hs256;
+
+pub use hs256::{
+    AuthenticatedPlatformIdentity, Hs256PlatformTokenVerifier, PlatformIdentityRole,
+    PlatformTokenVerificationError, PlatformTokenVerifierConfigError,
+};
+
 const MAX_TEXT_UTF16_UNITS: usize = 256;
 const MAX_STRING_SET_ITEMS: usize = 64;
 // Large enough for every currently valid bounded claim set, while bounding

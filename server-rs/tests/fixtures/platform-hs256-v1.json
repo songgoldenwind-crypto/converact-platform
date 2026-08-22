@@ -1,0 +1,83 @@
+{
+  "contract_version": 1,
+  "source": "src/middleware/auth.ts#verifyHs256Jwt+validatePlatformJwtPayload",
+  "source_sha256": "a9300059a63c42a6fd32511dc62c6ccdfac67336a5bcaa29a92e1d90a5f77b7c",
+  "test_key_utf8": "rm01-hs256-cross-runtime-test-key-32-bytes",
+  "header": {
+    "alg": "HS256",
+    "typ": "JWT",
+    "kid": "identity-key-v7"
+  },
+  "payload": {
+    "sub": "user-1",
+    "tid": "tenant-1",
+    "tenant_id": "tenant-1",
+    "identity_id": "user-1",
+    "identity_kind": "human",
+    "session_id": "session-1",
+    "token_id": "token-1",
+    "iss": "https://identity.example.test",
+    "issuer": "https://identity.example.test",
+    "aud": ["converact-core"],
+    "audience": ["converact-core"],
+    "key_id": "identity-key-v7",
+    "role": "operator",
+    "iat": 0,
+    "nbf": 0,
+    "exp": 4102444800,
+    "issued_at": "1970-01-01T00:00:00.000Z",
+    "not_before": "1970-01-01T00:00:00.000Z",
+    "expires_at": "2100-01-01T00:00:00.000Z",
+    "policy_version": 12,
+    "revocation_epoch": 4,
+    "capabilities": ["platform.api"],
+    "purpose": ["product_operation"],
+    "credential_strength": "signed_token"
+  },
+  "policy": {
+    "expected_issuer": "https://identity.example.test",
+    "expected_audience": "converact-core",
+    "expected_key_id": "identity-key-v7",
+    "current_policy_version": 12,
+    "current_revocation_epoch": 4,
+    "wall_now_epoch_ms": 1775217600000
+  },
+  "frozen_valid_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImlkZW50aXR5LWtleS12NyJ9.eyJzdWIiOiJ1c2VyLTEiLCJ0aWQiOiJ0ZW5hbnQtMSIsInRlbmFudF9pZCI6InRlbmFudC0xIiwiaWRlbnRpdHlfaWQiOiJ1c2VyLTEiLCJpZGVudGl0eV9raW5kIjoiaHVtYW4iLCJzZXNzaW9uX2lkIjoic2Vzc2lvbi0xIiwidG9rZW5faWQiOiJ0b2tlbi0xIiwiaXNzIjoiaHR0cHM6Ly9pZGVudGl0eS5leGFtcGxlLnRlc3QiLCJpc3N1ZXIiOiJodHRwczovL2lkZW50aXR5LmV4YW1wbGUudGVzdCIsImF1ZCI6WyJjb252ZXJhY3QtY29yZSJdLCJhdWRpZW5jZSI6WyJjb252ZXJhY3QtY29yZSJdLCJrZXlfaWQiOiJpZGVudGl0eS1rZXktdjciLCJyb2xlIjoib3BlcmF0b3IiLCJpYXQiOjAsIm5iZiI6MCwiZXhwIjo0MTAyNDQ0ODAwLCJpc3N1ZWRfYXQiOiIxOTcwLTAxLTAxVDAwOjAwOjAwLjAwMFoiLCJub3RfYmVmb3JlIjoiMTk3MC0wMS0wMVQwMDowMDowMC4wMDBaIiwiZXhwaXJlc19hdCI6IjIxMDAtMDEtMDFUMDA6MDA6MDAuMDAwWiIsInBvbGljeV92ZXJzaW9uIjoxMiwicmV2b2NhdGlvbl9lcG9jaCI6NCwiY2FwYWJpbGl0aWVzIjpbInBsYXRmb3JtLmFwaSJdLCJwdXJwb3NlIjpbInByb2R1Y3Rfb3BlcmF0aW9uIl0sImNyZWRlbnRpYWxfc3RyZW5ndGgiOiJzaWduZWRfdG9rZW4ifQ.puM_-gs-vCb_E3b_h4gwwuWxjau0JCgVTRBuWdpgo4M",
+  "cases": [
+    { "name": "valid", "recipe": "frozen", "expected": "allowed" },
+    { "name": "wrong_algorithm", "header_overrides": { "alg": "HS512" }, "expected": "denied" },
+    { "name": "wrong_type", "header_overrides": { "typ": "JWS" }, "expected": "denied" },
+    { "name": "wrong_header_key", "header_overrides": { "kid": "other-key" }, "expected": "denied" },
+    {
+      "name": "wrong_issuer",
+      "payload_overrides": {
+        "iss": "https://attacker.example",
+        "issuer": "https://attacker.example"
+      },
+      "expected": "denied"
+    },
+    { "name": "tenant_claim_mismatch", "payload_overrides": { "tid": "tenant-other" }, "expected": "denied" },
+    { "name": "audience_claim_mismatch", "payload_overrides": { "aud": ["other-audience"] }, "expected": "denied" },
+    {
+      "name": "expired",
+      "payload_overrides": {
+        "exp": 1,
+        "expires_at": "1970-01-01T00:00:01.000Z"
+      },
+      "expected": "denied"
+    },
+    { "name": "stale_policy", "payload_overrides": { "policy_version": 11 }, "expected": "denied" },
+    { "name": "missing_identity_claim", "payload_remove": ["session_id"], "expected": "denied" },
+    {
+      "name": "hs256_cannot_claim_mtls",
+      "payload_overrides": {
+        "identity_kind": "service",
+        "credential_strength": "mtls"
+      },
+      "expected": "allowed",
+      "target_expected": "denied"
+    },
+    { "name": "invalid_signature", "recipe": "invalid_signature", "expected": "denied" },
+    { "name": "noncanonical_signature", "recipe": "signature_padding", "expected": "denied" }
+  ]
+}

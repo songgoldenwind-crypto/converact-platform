@@ -318,9 +318,12 @@ dependencies = [
 name = "converact-tenant-auth"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "converact-contracts",
+ "hmac",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
 ]
 
 [[package]]

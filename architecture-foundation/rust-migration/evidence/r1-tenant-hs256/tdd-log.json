@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-hs256",
+  "generated_at": "2026-08-22T12:48:03Z",
+  "cycles": [
+    {
+      "id": "active_typescript_wire_freeze",
+      "red": "the migration had no exact-source compact-token corpus exercising the active TypeScript HS256 verifier",
+      "green": "one deterministic Node 24 corpus binds the active source hash and replays valid, malformed, mismatched, expired and stale-policy tokens"
+    },
+    {
+      "id": "rust_credential_authority",
+      "red": "the Rust test failed to import a platform token verifier, authenticated identity, role and stable verification errors",
+      "green": "an inert bounded verifier authenticates the corpus and is the only in-crate constructor of opaque verified platform claims"
+    },
+    {
+      "id": "credential_confusion_boundary",
+      "red": "self-review proved the active TypeScript verifier lets an HMAC bearer assert credential_strength=mtls and authorize a service identity",
+      "green": "the target HS256 verifier accepts only signed_token strength; current allowed and target denied are separately frozen as the sole intentional divergence"
+    },
+    {
+      "id": "canonical_and_redacted_boundary",
+      "red": "the Rust migration had no direct proof of canonical compact encoding, wrong-key rejection, bounded token/key inputs or redacted authenticated identity output",
+      "green": "focused tests prove canonical unpadded base64url, constant-time HMAC verification, stable closed errors, bounded inputs and redacted verifier/identity Debug surfaces"
+    }
+  ]
+}
