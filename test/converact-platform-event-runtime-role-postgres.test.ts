@@ -36,7 +36,12 @@ function migrationCorpus(): {
   const through119Directory = join(root, 'through-119');
   mkdirSync(through119Directory);
   for (const file of readdirSync(fullDirectory)) {
-    if (!file.endsWith('.sql') || file === '120_converact_platform_event_runtime_roles.sql') {
+    if (
+      !file.endsWith('.sql') ||
+      file === '120_converact_platform_event_runtime_roles.sql' ||
+      file === '121_converact_audit_runtime_fencing.sql' ||
+      file === '122_converact_audit_runtime_indexes.sql'
+    ) {
       continue;
     }
     copyFileSync(join(fullDirectory, file), join(through119Directory, file));

@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-audit-writer",
+  "generated_at": "2026-08-22T04:40:37Z",
+  "cycles": [
+    {
+      "id": "rolling_audit_fence_migration",
+      "red": "the Node 24 migration contract failed because migration 121 and the Audit role/fence graph did not exist",
+      "green": "additive migrations 121/122 freeze legacy and target row shapes, exact capabilities and the concurrent target-position index"
+    },
+    {
+      "id": "rust_audit_postgres_adapter",
+      "red": "the focused Rust contract failed to compile because the Audit store API and query/reconcile adapter did not exist",
+      "green": "the default-disabled adapter exposes closed append outcomes and stable failures while calling only Audit domain functions"
+    },
+    {
+      "id": "database_owned_chain_order",
+      "red": "independent review proved that selecting the tail by caller-provided occurred_at permits an out-of-order append to fork the hash chain",
+      "green": "a locked per-tenant head and database-assigned append_position define one durable append order; physical B-then-C with older B time proves C links to B"
+    },
+    {
+      "id": "legacy_lease_and_identity_fence",
+      "red": "the first helper ignored lease expiry and a SECURITY DEFINER trigger could misclassify SET ROLE callers",
+      "green": "the invoker trigger gates all legacy rows through a narrow helper that checks the unexpired generation; direct, inherited and SET ROLE physical cases fail closed"
+    },
+    {
+      "id": "collision_and_exact_acl_graph",
+      "red": "CREATE OR REPLACE could preserve an unexpected function owner or ACL, and runtime-role replay could grant raw head-table access",
+      "green": "collision-failing CREATE plus exact owner/proconfig/ACL/RLS validation and initializer replay tests preserve only the legacy helper capability"
+    },
+    {
+      "id": "retention_independent_head_and_unique_position",
+      "red": "a head-to-event foreign key would block retention and append_position lacked an independent durable uniqueness invariant",
+      "green": "the head retains bounded identity/hash without an event foreign key and migration 122 validates the concurrent partial unique index"
+    },
+    {
+      "id": "canonical_extended_year_round_trip",
+      "red": "PostgreSQL to_char with YYYY could not reproduce ECMAScript signed extended years and raw +010000 timestamptz input was rejected",
+      "green": "the adapter writes/reads epoch milliseconds and the shared formatter physically round-trips +010000 exactly"
+    },
+    {
+      "id": "legacy_route_transition_race",
+      "red": "a legacy insert could pass its trigger, pause, and commit after a Rust route cutover because the transition did not share its barrier",
+      "green": "Audit route apply takes the tenant barrier before the route row lock; deterministic two-connection physical ordering closes the late-write race"
+    },
+    {
+      "id": "tenant_scoped_helper",
+      "red": "opc_runtime could call the helper for another tenant and acquire its advisory lock before any tenant-GUC check",
+      "green": "every Audit domain function validates the exact tenant GUC before the barrier; the cross-tenant physical call is denied"
+    },
+    {
+      "id": "reverse_handoff_fork_prevention",
+      "red": "after one Rust append, routing back to the old TypeScript writer could add untracked rows and fork the chain on a later Rust return",
+      "green": "presence of a qualified target head permanently fences the old NULL-provenance writer; the Rust-to-TypeScript physical negative leaves head and event count unchanged"
+    }
+  ]
+}

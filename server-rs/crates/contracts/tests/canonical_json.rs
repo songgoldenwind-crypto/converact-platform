@@ -1,6 +1,7 @@
 use converact_contracts::{
     CanonicalJsonError, CanonicalKeyOrder, canonical_json, canonical_json_with_max_bytes,
     canonical_json_with_max_bytes_and_key_order, canonical_sha256, canonical_sha256_with_max_bytes,
+    format_canonical_timestamp_ms, parse_canonical_timestamp_ms,
 };
 #[test]
 fn canonical_json_and_sha256_replay_the_active_typescript_contract_fixture() {
@@ -112,4 +113,25 @@ fn explicit_budget_is_bounded_and_supports_the_frozen_escaped_string_case() {
         canonical_json_with_max_bytes(&serde_json::Value::Null, maximum + 1),
         Err(CanonicalJsonError::BoundsExceeded)
     );
+}
+
+#[test]
+fn canonical_timestamp_formatter_is_the_inverse_of_node_24_to_iso_string() {
+    for (milliseconds, canonical) in [
+        (0, "1970-01-01T00:00:00.000Z"),
+        (-1, "1969-12-31T23:59:59.999Z"),
+        (-62_167_219_200_000, "0000-01-01T00:00:00.000Z"),
+        (-62_198_755_200_000, "-000001-01-01T00:00:00.000Z"),
+        (253_402_300_800_000, "+010000-01-01T00:00:00.000Z"),
+        (8_640_000_000_000_000, "+275760-09-13T00:00:00.000Z"),
+        (-8_640_000_000_000_000, "-271821-04-20T00:00:00.000Z"),
+    ] {
+        assert_eq!(
+            format_canonical_timestamp_ms(milliseconds).as_deref(),
+            Some(canonical)
+        );
+        assert_eq!(parse_canonical_timestamp_ms(canonical), Some(milliseconds));
+    }
+    assert_eq!(format_canonical_timestamp_ms(8_640_000_000_000_001), None);
+    assert_eq!(format_canonical_timestamp_ms(-8_640_000_000_000_001), None);
 }

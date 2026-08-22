@@ -120,6 +120,8 @@ test('standalone migration order includes RLS and communication overlays but exc
   assert.equal(migrations.includes('118_converact_platform_event_runtime_fencing.sql'), true);
   assert.equal(migrations.includes('119_converact_platform_event_runtime_indexes.sql'), true);
   assert.equal(migrations.includes('120_converact_platform_event_runtime_roles.sql'), true);
+  assert.equal(migrations.includes('121_converact_audit_runtime_fencing.sql'), true);
+  assert.equal(migrations.includes('122_converact_audit_runtime_indexes.sql'), true);
   assert.equal(
     migrations.indexOf('043_ivekit_intelligence_translation.sql') <
       migrations.indexOf('044_quality_review_policy_routing.sql') &&
@@ -264,10 +266,14 @@ test('standalone migration order includes RLS and communication overlays but exc
       migrations.indexOf('118_converact_platform_event_runtime_fencing.sql') <
       migrations.indexOf('119_converact_platform_event_runtime_indexes.sql') &&
       migrations.indexOf('119_converact_platform_event_runtime_indexes.sql') <
-      migrations.indexOf('120_converact_platform_event_runtime_roles.sql'),
+      migrations.indexOf('120_converact_platform_event_runtime_roles.sql') &&
+      migrations.indexOf('120_converact_platform_event_runtime_roles.sql') <
+      migrations.indexOf('121_converact_audit_runtime_fencing.sql') &&
+      migrations.indexOf('121_converact_audit_runtime_fencing.sql') <
+      migrations.indexOf('122_converact_audit_runtime_indexes.sql'),
     true
   );
-  assert.equal(migrations.at(-1), '120_converact_platform_event_runtime_roles.sql');
+  assert.equal(migrations.at(-1), '122_converact_audit_runtime_indexes.sql');
   const runtimeSecurity = readFileSync(
     'services/converact-service/migrations/090_ivekit_runtime_security.sql',
     'utf8'

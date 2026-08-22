@@ -189,6 +189,48 @@ export async function initializeConveractFabricRuntimeRole(
         IF to_regclass('public.schema_migrations') IS NOT NULL THEN
           REVOKE ALL PRIVILEGES ON TABLE public.schema_migrations FROM opc_runtime;
         END IF;
+        IF to_regclass('public.converact_audit_chain_heads') IS NOT NULL THEN
+          REVOKE ALL PRIVILEGES ON TABLE public.converact_audit_chain_heads
+            FROM PUBLIC, opc_runtime;
+        END IF;
+        IF to_regprocedure(
+          'public.converact_audit_legacy_writer_allowed(text)'
+        ) IS NOT NULL THEN
+          REVOKE ALL ON FUNCTION public.converact_audit_legacy_writer_allowed(TEXT)
+            FROM PUBLIC, opc_runtime;
+          GRANT EXECUTE ON FUNCTION public.converact_audit_legacy_writer_allowed(TEXT)
+            TO opc_runtime;
+        END IF;
+        IF to_regprocedure(
+          'public.converact_audit_legacy_writer_guard()'
+        ) IS NOT NULL THEN
+          REVOKE ALL ON FUNCTION public.converact_audit_legacy_writer_guard()
+            FROM PUBLIC, opc_runtime;
+        END IF;
+        IF to_regprocedure(
+          'public.converact_audit_writer_fence(text,text,text,numeric,numeric,text,text,numeric)'
+        ) IS NOT NULL THEN
+          REVOKE ALL ON FUNCTION public.converact_audit_writer_fence(
+            TEXT, TEXT, TEXT, NUMERIC, NUMERIC, TEXT, TEXT, NUMERIC
+          ) FROM PUBLIC, opc_runtime;
+        END IF;
+        IF to_regprocedure(
+          'public.converact_audit_chain_head(text,text,text,numeric,numeric,text,text,numeric)'
+        ) IS NOT NULL THEN
+          REVOKE ALL ON FUNCTION public.converact_audit_chain_head(
+            TEXT, TEXT, TEXT, NUMERIC, NUMERIC, TEXT, TEXT, NUMERIC
+          ) FROM PUBLIC, opc_runtime;
+        END IF;
+        IF to_regprocedure(
+          'public.converact_audit_event_append(text,text,text,numeric,numeric,text,text,numeric,text,text,text,text,text,text,text,text,text,text,text,text,text,jsonb,timestamp with time zone,timestamp with time zone,boolean,text,text)'
+        ) IS NOT NULL THEN
+          REVOKE ALL ON FUNCTION public.converact_audit_event_append(
+            TEXT, TEXT, TEXT, NUMERIC, NUMERIC, TEXT, TEXT, NUMERIC,
+            TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT,
+            TEXT, TEXT, TEXT, JSONB, TIMESTAMPTZ, TIMESTAMPTZ, BOOLEAN,
+            TEXT, TEXT
+          ) FROM PUBLIC, opc_runtime;
+        END IF;
         IF to_regclass('public.converact_platform_outbox') IS NOT NULL THEN
           REVOKE ALL PRIVILEGES ON TABLE public.converact_platform_outbox
             FROM opc_runtime;

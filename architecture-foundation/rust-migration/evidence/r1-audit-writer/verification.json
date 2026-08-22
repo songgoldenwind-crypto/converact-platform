@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-audit-writer",
+  "generated_at": "2026-08-22T04:48:01Z",
+  "current_state": "implemented_offline_default_disabled",
+  "target_state": "writer_fenced_rust_audit_store",
+  "production_eligible": false,
+  "checks": [
+    {
+      "id": "affected_node24_contracts",
+      "status": "passed",
+      "result": "58 passed, 1 explicitly skipped physical test, 0 failed under Node 24.15.0"
+    },
+    {
+      "id": "typescript_typecheck",
+      "status": "passed"
+    },
+    {
+      "id": "rust_workspace_all_targets",
+      "status": "passed",
+      "result": "pinned Rust 1.94.1 cargo test --workspace --all-targets --locked exited 0; 20 isolated PostgreSQL tests retained explicit ignore gates"
+    },
+    {
+      "id": "rust_workspace_doctests_clippy_and_format",
+      "status": "passed",
+      "result": "pinned workspace doctests, Clippy with -D warnings and cargo fmt --check exited 0"
+    },
+    {
+      "id": "isolated_postgresql_14_18_audit_migration_and_legacy_fence",
+      "status": "passed",
+      "result": "1/1 TypeScript physical test on a clean database migrated through 122"
+    },
+    {
+      "id": "isolated_postgresql_14_18_rust_audit_adapter",
+      "status": "passed",
+      "result": "1/1 ignored Rust physical test including out-of-order occurred_at and exact +010000 round-trip"
+    },
+    {
+      "id": "platform_event_fresh_and_upgrade_role_regression",
+      "status": "passed",
+      "result": "1/1 on two separately hardened disposable PostgreSQL 14.18 clusters"
+    },
+    {
+      "id": "independent_exact_tree_review",
+      "status": "passed_for_default_disabled_foundation",
+      "result": "the reviewer found and verified closure of all code and evidence submit blockers; final exact tree has zero submit blockers"
+    },
+    {
+      "id": "source_manifest_hash_replay",
+      "status": "passed",
+      "result": "28/28 exact SHA-256 entries independently replayed"
+    },
+    {
+      "id": "dedicated_audit_roles_pool_identity_and_runtime_route",
+      "status": "not_run"
+    },
+    {
+      "id": "legacy_history_offline_qualification",
+      "status": "not_run"
+    },
+    {
+      "id": "hmac_custody_rotation_memory_clear_and_raw_request_bound",
+      "status": "not_run"
+    },
+    {
+      "id": "retention_checkpoint_tenant_delete_list_and_export",
+      "status": "not_run"
+    },
+    {
+      "id": "full_database_timestamp_domain_qualification",
+      "status": "not_run"
+    },
+    {
+      "id": "formal_head_aware_reverse_handoff",
+      "status": "not_run"
+    },
+    {
+      "id": "shadow_cutover_drain_active_zero_and_typescript_deletion",
+      "status": "not_run"
+    },
+    {
+      "id": "fleet_fault_capacity_performance_and_production_qualification",
+      "status": "not_run"
+    }
+  ]
+}

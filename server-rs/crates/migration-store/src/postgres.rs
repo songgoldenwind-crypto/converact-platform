@@ -17,6 +17,8 @@ use crate::{
 use serde_json::{Value, json};
 
 const SET_TENANT_SQL: &str = "SELECT set_config('app.current_tenant', $1, true)";
+const AUDIT_TRANSITION_BARRIER_SQL: &str =
+    "SELECT pg_advisory_xact_lock(hashtextextended($1, 947113))";
 
 macro_rules! route_select_sql {
     () => {
@@ -383,6 +385,7 @@ impl PostgresRouteStore {
     ) -> Result<Transition, StoreError> {
         let transaction = client.transaction().await?;
         set_tenant(&transaction, key).await?;
+        acquire_route_transition_barrier(&transaction, key).await?;
         let before = load_route(&transaction, key, true)
             .await?
             .ok_or(StoreError::RouteNotFound)?;
@@ -608,6 +611,22 @@ async fn set_tenant(transaction: &Transaction<'_>, key: &RouteKey) -> Result<(),
         .query_one(SET_TENANT_SQL, &[&key.tenant_id().as_str()])
         .await?;
     Ok(())
+}
+
+async fn acquire_route_transition_barrier(
+    transaction: &Transaction<'_>,
+    key: &RouteKey,
+) -> Result<(), StoreError> {
+    if needs_audit_transition_barrier(key) {
+        transaction
+            .query_one(AUDIT_TRANSITION_BARRIER_SQL, &[&key.tenant_id().as_str()])
+            .await?;
+    }
+    Ok(())
+}
+
+fn needs_audit_transition_barrier(key: &RouteKey) -> bool {
+    key.authority_kind().as_str() == "audit" && key.partition_key().as_str() == "tenant-chain"
 }
 
 async fn load_route(
@@ -1004,4 +1023,36 @@ fn parse_u64(value: &str) -> Result<u64, StoreError> {
         return Err(StoreError::CorruptState);
     }
     value.parse().map_err(|_| StoreError::CorruptState)
+}
+
+#[cfg(test)]
+mod tests {
+    use converact_kernel_ids::TenantId;
+    use converact_migration_routing::{AuthorityKind, PartitionKey, RouteKey};
+
+    use super::needs_audit_transition_barrier;
+
+    fn route(authority: &str, partition: &str) -> RouteKey {
+        RouteKey::new(
+            TenantId::parse("tenant-a").unwrap(),
+            AuthorityKind::parse(authority).unwrap(),
+            PartitionKey::parse(partition).unwrap(),
+        )
+    }
+
+    #[test]
+    fn transition_barrier_is_exactly_the_audit_tenant_chain() {
+        assert!(needs_audit_transition_barrier(&route(
+            "audit",
+            "tenant-chain"
+        )));
+        assert!(!needs_audit_transition_barrier(&route(
+            "platform-event",
+            "tenant-chain"
+        )));
+        assert!(!needs_audit_transition_barrier(&route(
+            "audit",
+            "partition-a"
+        )));
+    }
 }

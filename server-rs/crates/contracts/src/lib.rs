@@ -326,6 +326,33 @@ pub fn parse_canonical_timestamp_ms(value: &str) -> Option<i64> {
     i64::try_from(milliseconds).ok()
 }
 
+/// Formats one ECMAScript time-clip millisecond exactly as
+/// JavaScript `Date::toISOString`.
+#[must_use]
+pub fn format_canonical_timestamp_ms(milliseconds: i64) -> Option<String> {
+    if !(-JS_DATE_LIMIT_MS..=JS_DATE_LIMIT_MS).contains(&milliseconds) {
+        return None;
+    }
+    let days = milliseconds.div_euclid(86_400_000);
+    let day_milliseconds = milliseconds.rem_euclid(86_400_000);
+    let (year, month, day) = civil_from_days(days);
+    let hour = day_milliseconds / 3_600_000;
+    let minute = day_milliseconds % 3_600_000 / 60_000;
+    let second = day_milliseconds % 60_000 / 1_000;
+    let millisecond = day_milliseconds % 1_000;
+
+    let year = if (0..=9_999).contains(&year) {
+        format!("{year:04}")
+    } else if year < 0 {
+        format!("-{magnitude:06}", magnitude = year.unsigned_abs())
+    } else {
+        format!("+{year:06}")
+    };
+    Some(format!(
+        "{year}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.{millisecond:03}Z"
+    ))
+}
+
 fn parse_digits(bytes: &[u8], start: usize, end: usize) -> Option<i64> {
     let digits = bytes.get(start..end)?;
     if digits.iter().any(|digit| !digit.is_ascii_digit()) {
@@ -359,6 +386,21 @@ fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
     let day_of_year = (153 * shifted_month + 2) / 5 + day - 1;
     let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
     era * 146_097 + day_of_era - 719_468
+}
+
+fn civil_from_days(days_since_epoch: i64) -> (i64, i64, i64) {
+    let days = days_since_epoch + 719_468;
+    let era = days.div_euclid(146_097);
+    let day_of_era = days - era * 146_097;
+    let year_of_era =
+        (day_of_era - day_of_era / 1_460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let mut year = year_of_era + era * 400;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let shifted_month = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * shifted_month + 2) / 5 + 1;
+    let month = shifted_month + if shifted_month < 10 { 3 } else { -9 };
+    year += i64::from(month <= 2);
+    (year, month, day)
 }
 
 fn javascript_number(number: &serde_json::Number) -> Result<String, CanonicalJsonError> {

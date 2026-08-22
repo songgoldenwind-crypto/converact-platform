@@ -26,6 +26,8 @@ const PLATFORM_EVENT_RUNTIME_FENCING_MIGRATION =
   '118_converact_platform_event_runtime_fencing';
 const PLATFORM_EVENT_RUNTIME_INDEX_MIGRATION =
   '119_converact_platform_event_runtime_indexes';
+const AUDIT_RUNTIME_INDEX_MIGRATION =
+  '122_converact_audit_runtime_indexes';
 
 export function isPostgresMigrationFile(file: string): boolean {
   return /^\d{3}_[a-z0-9_]+\.sql$/.test(file);
@@ -96,6 +98,9 @@ export async function runPostgresMigrationsOnClient(
     }
     if (migration.version === PLATFORM_EVENT_RUNTIME_INDEX_MIGRATION) {
       await preparePlatformEventRuntimeIndexes(pg);
+    }
+    if (migration.version === AUDIT_RUNTIME_INDEX_MIGRATION) {
+      await prepareAuditRuntimeIndexes(pg);
     }
     await pg.query('BEGIN');
     try {
@@ -169,6 +174,16 @@ const PLATFORM_EVENT_RUNTIME_INDEXES: readonly ConcurrentIndexSpec[] = [
   }
 ];
 
+const AUDIT_RUNTIME_INDEXES: readonly ConcurrentIndexSpec[] = [
+  {
+    name: 'uq_ivekit_audit_events_append_position',
+    table: 'ivekit_audit_events',
+    unique: true,
+    columns: ['tenant_id', 'append_position'],
+    predicate: 'append_position IS NOT NULL'
+  }
+];
+
 export async function preparePlatformEventGenerationOwnerIndex(
   pg: MigrationQueryable
 ): Promise<void> {
@@ -179,6 +194,14 @@ export async function preparePlatformEventRuntimeIndexes(
   pg: MigrationQueryable
 ): Promise<void> {
   for (const spec of PLATFORM_EVENT_RUNTIME_INDEXES) {
+    await prepareConcurrentIndex(pg, spec);
+  }
+}
+
+export async function prepareAuditRuntimeIndexes(
+  pg: MigrationQueryable
+): Promise<void> {
+  for (const spec of AUDIT_RUNTIME_INDEXES) {
     await prepareConcurrentIndex(pg, spec);
   }
 }

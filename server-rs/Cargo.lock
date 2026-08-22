@@ -285,6 +285,8 @@ dependencies = [
 name = "converact-postgres-store"
 version = "0.1.0"
 dependencies = [
+ "converact-audit",
+ "converact-contracts",
  "converact-event-log",
  "converact-idempotency",
  "converact-kernel-ids",

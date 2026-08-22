@@ -310,10 +310,12 @@ impl PostgresRuntime {
     }
 }
 
+mod audit;
 mod platform_event;
 mod platform_outbox;
 mod tenant_transaction;
 
+pub use audit::{AuditAppendResult, AuditAppendStatus, AuditStoreError, AuditStoreFailure};
 pub use platform_event::{
     DeliveryLeaseToken, DeliveryLeaseTokenError, EffectAppendStatus, InboxAppendStatus,
     PlatformStoreError, PlatformStorePolicy, PlatformStorePolicyError,

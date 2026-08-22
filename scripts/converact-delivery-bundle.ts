@@ -292,7 +292,9 @@ const STANDALONE_MIGRATIONS = [
   '117_converact_authority_migration_routes.sql',
   '118_converact_platform_event_runtime_fencing.sql',
   '119_converact_platform_event_runtime_indexes.sql',
-  '120_converact_platform_event_runtime_roles.sql'
+  '120_converact_platform_event_runtime_roles.sql',
+  '121_converact_audit_runtime_fencing.sql',
+  '122_converact_audit_runtime_indexes.sql'
 ];
 
 const CAPACITY_RUNTIME_SOURCE_PATHS = [

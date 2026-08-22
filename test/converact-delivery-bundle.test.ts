@@ -954,13 +954,15 @@ test('Converact Fabric delivery bundle contains only curated handoff artifacts w
       '117_converact_authority_migration_routes.sql',
       '118_converact_platform_event_runtime_fencing.sql',
       '119_converact_platform_event_runtime_indexes.sql',
-      '120_converact_platform_event_runtime_roles.sql'
+      '120_converact_platform_event_runtime_roles.sql',
+      '121_converact_audit_runtime_fencing.sql',
+      '122_converact_audit_runtime_indexes.sql'
     ]) assert.equal(files.includes(`database/migrations/${migration}`), true, migration);
     const migrationManifest = JSON.parse(readFileSync(
       join(outputDir, 'service', 'migration-manifest.json'),
       'utf8'
     )) as { migrations: Array<{ file: string; sha256: string }> };
-    assert.equal(migrationManifest.migrations.length, 104);
+    assert.equal(migrationManifest.migrations.length, 106);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '041_tinode_inbound_sync.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '042_ivekit_tenant_events.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '043_ivekit_intelligence_translation.sql'), true);
@@ -969,6 +971,8 @@ test('Converact Fabric delivery bundle contains only curated handoff artifacts w
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '118_converact_platform_event_runtime_fencing.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '119_converact_platform_event_runtime_indexes.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '120_converact_platform_event_runtime_roles.sql'), true);
+    assert.equal(migrationManifest.migrations.some((entry) => entry.file === '121_converact_audit_runtime_fencing.sql'), true);
+    assert.equal(migrationManifest.migrations.some((entry) => entry.file === '122_converact_audit_runtime_indexes.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '044_quality_review_policy_routing.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '045_translation_worker_routing.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '046_ivekit_voice_foundation.sql'), true);
