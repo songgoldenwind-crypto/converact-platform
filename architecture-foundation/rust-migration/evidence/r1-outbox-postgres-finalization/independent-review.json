@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-outbox-postgres-finalization",
+  "reviewed_at": null,
+  "reviewer": null,
+  "mode": "not_run",
+  "status": "not_run",
+  "final_submit_blockers": null,
+  "reason": "Independent exact-tree review was not invoked for this default-disabled adapter slice and remains required before any worker runtime route or production eligibility.",
+  "repository_or_server_mutation_by_reviewer": false
+}

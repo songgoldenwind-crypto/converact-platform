@@ -311,11 +311,16 @@ impl PostgresRuntime {
 }
 
 mod audit;
+mod outbox_worker;
 mod platform_event;
 mod platform_outbox;
 mod tenant_transaction;
 
 pub use audit::{AuditAppendResult, AuditAppendStatus, AuditStoreError, AuditStoreFailure};
+pub use outbox_worker::{
+    OutboxDeliveryFinalizationApplyStatus, OutboxDeliveryFinalizationCommand,
+    OutboxDeliveryFinalizationCommandError, OutboxDeliveryFinalizationReconcileStatus,
+};
 pub use platform_event::{
     DeliveryLeaseToken, DeliveryLeaseTokenError, EffectAppendStatus, InboxAppendStatus,
     PlatformStoreError, PlatformStorePolicy, PlatformStorePolicyError,

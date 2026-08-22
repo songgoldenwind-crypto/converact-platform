@@ -93,6 +93,8 @@ fn applied_delivery_builds_one_atomic_finalization_plan() {
     };
     assert_eq!(plan.resolution(), &DeliveryResolution::Applied);
     assert_eq!(plan.transition(), &OutboxTransitionDecision::Complete);
+    assert_eq!(plan.attempt_count(), 1);
+    assert_eq!(plan.max_attempts(), 3);
 
     let observed = snapshot(
         1,

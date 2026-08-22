@@ -474,29 +474,14 @@ async fn append_inbox_in_transaction(
     Ok(InboxAppendStatus::Replay)
 }
 
-async fn append_effect_in_transaction(
+pub(super) async fn append_effect_in_transaction(
     transaction: &deadpool_postgres::Transaction<'_>,
     fence: &FenceValues,
     receipt: &EffectReceipt,
 ) -> Result<EffectAppendStatus, PlatformStoreError> {
-    transaction
-        .query_one(EFFECT_LOCK_SQL, &[&fence.tenant, &receipt.effect_id()])
-        .await
-        .map_err(map_database_error)?;
-    let current = transaction
-        .query(EFFECT_CURRENT_SQL, &[&fence.tenant, &receipt.effect_id()])
-        .await
-        .map_err(map_database_error)?;
-    if current.len() > 3 {
-        return Err(PlatformStoreError::StoreInvalid);
-    }
-    let history: Vec<_> = current
-        .iter()
-        .map(|row| {
-            validate_row_fence(row, fence)?;
-            decode_effect_receipt(row)
-        })
-        .collect::<Result<_, _>>()?;
+    lock_effect_in_transaction(transaction, fence, receipt.effect_id()).await?;
+    let history =
+        load_effect_history_in_transaction(transaction, fence, receipt.effect_id()).await?;
     match decide_effect_receipt_append(&history, receipt) {
         EffectReceiptAppendDecision::Replay => {
             execute_writer_fence(transaction, fence).await?;
@@ -569,7 +554,40 @@ async fn append_effect_in_transaction(
     Ok(EffectAppendStatus::Replay)
 }
 
-async fn execute_writer_fence(
+pub(super) async fn lock_effect_in_transaction(
+    transaction: &deadpool_postgres::Transaction<'_>,
+    fence: &FenceValues,
+    effect_id: &str,
+) -> Result<(), PlatformStoreError> {
+    transaction
+        .query_one(EFFECT_LOCK_SQL, &[&fence.tenant, &effect_id])
+        .await
+        .map(|_| ())
+        .map_err(map_database_error)
+}
+
+pub(super) async fn load_effect_history_in_transaction(
+    transaction: &deadpool_postgres::Transaction<'_>,
+    fence: &FenceValues,
+    effect_id: &str,
+) -> Result<Vec<EffectReceipt>, PlatformStoreError> {
+    let current = transaction
+        .query(EFFECT_CURRENT_SQL, &[&fence.tenant, &effect_id])
+        .await
+        .map_err(map_database_error)?;
+    if current.len() > 3 {
+        return Err(PlatformStoreError::StoreInvalid);
+    }
+    current
+        .iter()
+        .map(|row| {
+            validate_row_fence(row, fence)?;
+            decode_effect_receipt(row)
+        })
+        .collect()
+}
+
+pub(super) async fn execute_writer_fence(
     transaction: &deadpool_postgres::Transaction<'_>,
     fence: &FenceValues,
 ) -> Result<(), PlatformStoreError> {

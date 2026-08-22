@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-outbox-postgres-finalization",
+  "generated_at": "2026-08-22T06:37:18Z",
+  "cycles": [
+    {
+      "id": "postgres_finalization_adapter",
+      "red": "focused contract compilation failed because the PostgreSQL store had no finalization command, apply status, reconcile status or adapter module",
+      "green": "one bounded command now binds the private reducer plan to exact completed/state-observed receipts and one existing outbox transition"
+    },
+    {
+      "id": "claim_attempt_binding",
+      "red": "the finalization plan did not carry attempt_count or max_attempts, so an otherwise valid plan could not be proven to belong to the claimed outbox attempt",
+      "green": "the reducer now binds both counts and the adapter validates event, maximum attempts, attempt count and claim revision against the locked outbox row"
+    },
+    {
+      "id": "physical_atomic_rollback",
+      "red": "the first disposable PostgreSQL run added the atomic scenario and exposed the old terminal transition fixture count of four versus the new exact count of five",
+      "green": "the terminal fixture accounts for the new independent outbox; an intentionally invalid delivery lease leaves only the accepted receipt and zero transition rows, while a valid finalization commits exactly three receipts and one transition"
+    },
+    {
+      "id": "maintainable_physical_scenarios",
+      "red": "workspace Clippy rejected the 160-line physical scenario under the project too-many-lines gate",
+      "green": "rollback, success/replay and conflict immutability assertions are separate bounded helpers without lint exceptions"
+    }
+  ]
+}

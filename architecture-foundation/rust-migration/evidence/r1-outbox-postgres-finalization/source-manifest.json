@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-outbox-postgres-finalization",
+  "generated_at": "2026-08-22T06:37:18Z",
+  "base_commit": "fe03605965b5b36eb1c71f0e08474b0d4ba6737a",
+  "branch": "codex/converact-platform-rename",
+  "rust_toolchain": "1.94.1-aarch64-apple-darwin",
+  "node_toolchain": "v24.15.0",
+  "physical_postgres": "PostgreSQL 14.18 (Homebrew), disposable local cluster",
+  "hash_algorithm": "sha256",
+  "production_eligible": false,
+  "new_external_dependencies": [],
+  "new_resolved_packages": [],
+  "new_internal_path_dependencies": [
+    "converact-postgres-store -> converact-outbox-worker"
+  ],
+  "files": [
+    {
+      "path": "server-rs/Cargo.toml",
+      "sha256": "beaa3067193cc8d20d8e1280bdda42506db7d8d30d923d0e9af7a689f79708a2"
+    },
+    {
+      "path": "server-rs/Cargo.lock",
+      "sha256": "b829b1d3e31783253d8314cf101d0c0437c2f60a93928f3c25e6544fb1c5e7ee"
+    },
+    {
+      "path": "server-rs/crates/idempotency/src/lib.rs",
+      "sha256": "0c50703a4d6b5f4988479f448dbbc0c7f7ee287088f4565ad92658f1fabb8706"
+    },
+    {
+      "path": "server-rs/crates/outbox-worker/src/lib.rs",
+      "sha256": "edbe709c12dab33c6e303d6230d4725dec62658ed36215090d1a8e51e0d912a9"
+    },
+    {
+      "path": "server-rs/crates/outbox-worker/tests/dependency_boundary.rs",
+      "sha256": "38cc380744db167013214c448ec895fb6a42e79d8da7a9a4df6ae2327881ca9b"
+    },
+    {
+      "path": "server-rs/crates/outbox-worker/tests/workflow.rs",
+      "sha256": "22b2394cfe29020803ca3bb43bc218bca04805b07efbcb0713a6dc2208aa4d82"
+    },
+    {
+      "path": "server-rs/crates/postgres-store/Cargo.toml",
+      "sha256": "34793f09eb471f09746188d3759120ec0d06e1c6d89f25e7db15171949025927"
+    },
+    {
+      "path": "server-rs/crates/postgres-store/src/lib.rs",
+      "sha256": "31d168175aabcc689e5da3092758cdda9bcda5f1e23d6da2e35c9d15eb813477"
+    },
+    {
+      "path": "server-rs/crates/postgres-store/src/outbox_worker.rs",
+      "sha256": "58a6b26c9bb52f7cd015f42f4f7d63c4e1e47fb032f29941d85c5877f1773d19"
+    },
+    {
+      "path": "server-rs/crates/postgres-store/src/platform_event.rs",
+      "sha256": "0b2abacbfe00d62948fe338524bf6c2f9a776e5e85f6e904fd80e96934dfefdb"
+    },
+    {
+      "path": "server-rs/crates/postgres-store/src/platform_outbox.rs",
+      "sha256": "1fcf2282d19ec9bda4d6681e55d444d26f9acdde93f0282f9b809c856c0c0b98"
+    },
+    {
+      "path": "server-rs/crates/postgres-store/tests/outbox_worker_contract.rs",
+      "sha256": "fc7d679cacf07c00ae6f6878abc2da86c0f87ad29c59b092ac7331ed41777bb3"
+    },
+    {
+      "path": "src/migrations/109_converact_platform_event_receipts.sql",
+      "sha256": "44e6581234823fcc4e59b346017f08522e5e968e3dc6e70322b62aa5cb4c1b78"
+    },
+    {
+      "path": "src/migrations/118_converact_platform_event_runtime_fencing.sql",
+      "sha256": "24cd406900b0489793adafa75dd629c997adef92255a2f6e612c357534a19a1e"
+    },
+    {
+      "path": "src/migrations/120_converact_platform_event_runtime_roles.sql",
+      "sha256": "cc15120744712cbcf67d25bb3e1c8ad3efcb14f3d05b0c765166fae87fa1071f"
+    },
+    {
+      "path": "scripts/verify-converact-postgres.sh",
+      "sha256": "c38c2d1443769909ae7de13bff464d86511e3e31acb563d9501853ab25188747"
+    },
+    {
+      "path": "src/converact-init-event-runtime-role.ts",
+      "sha256": "6eed8ac91720c200632e1866294f09dd7e5e59992d232ae57af3ef2153a7df14"
+    },
+    {
+      "path": "test/converact-rust-platform-event-store-contract.test.ts",
+      "sha256": "9d91158c70348a9372bfaabcf60b48f502fb11aa0067c3eeaba1e9a13b01c404"
+    },
+    {
+      "path": "test/converact-platform-event-runtime-role-postgres.test.ts",
+      "sha256": "eed9d840eca4c7f9ee504f6a08d6cf6e2a1ad79a8c42e0f210c9b2424e596343"
+    }
+  ]
+}

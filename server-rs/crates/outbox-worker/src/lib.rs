@@ -130,6 +130,8 @@ pub enum OutboxTransitionDecision {
 pub struct DeliveryFinalizationPlan {
     resolution: DeliveryResolution,
     transition: OutboxTransitionDecision,
+    attempt_count: u16,
+    max_attempts: u16,
 }
 
 impl DeliveryFinalizationPlan {
@@ -141,6 +143,16 @@ impl DeliveryFinalizationPlan {
     #[must_use]
     pub const fn transition(&self) -> &OutboxTransitionDecision {
         &self.transition
+    }
+
+    #[must_use]
+    pub const fn attempt_count(&self) -> u16 {
+        self.attempt_count
+    }
+
+    #[must_use]
+    pub const fn max_attempts(&self) -> u16 {
+        self.max_attempts
     }
 }
 
@@ -345,6 +357,8 @@ fn finalization_action(
     CoordinatorAction::FinalizeAtomically(DeliveryFinalizationPlan {
         resolution,
         transition,
+        attempt_count,
+        max_attempts,
     })
 }
 

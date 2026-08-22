@@ -296,6 +296,7 @@ dependencies = [
  "converact-kernel-ids",
  "converact-migration-routing",
  "converact-migration-store",
+ "converact-outbox-worker",
  "deadpool-postgres",
  "hex",
  "serde_json",

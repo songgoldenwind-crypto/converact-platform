@@ -105,7 +105,10 @@ SELECT id, event_envelope, status, attempt_count, max_attempts,
                  'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') END AS delivered_at,
        CASE WHEN dead_lettered_at IS NULL THEN NULL ELSE
          to_char(dead_lettered_at AT TIME ZONE 'UTC',
-                 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') END AS dead_lettered_at
+                 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') END AS dead_lettered_at,
+       route_authority_kind, route_partition_key, route_generation::text,
+       route_owner_epoch::text, route_object_scope,
+       route_object_starting_generation::text
 FROM converact_platform_outbox
 WHERE tenant_id = $1 AND id = $2
   AND route_authority_kind = $3 AND route_partition_key = $4
@@ -679,7 +682,7 @@ fn stable_error_code(value: &str) -> bool {
     }) && bytes.len() <= 255
 }
 
-struct TransitionValues {
+pub(super) struct TransitionValues {
     transition_id: String,
     outbox_id: String,
     worker_id: String,
@@ -692,7 +695,7 @@ struct TransitionValues {
 }
 
 impl TransitionValues {
-    fn new(command: &OutboxTransitionCommand) -> Result<Self, PlatformStoreError> {
+    pub(super) fn new(command: &OutboxTransitionCommand) -> Result<Self, PlatformStoreError> {
         Ok(Self {
             transition_id: command.transition_id().to_owned(),
             outbox_id: command.outbox_id().to_owned(),
@@ -706,6 +709,18 @@ impl TransitionValues {
             kind: command.kind().as_str(),
             outcome: command.kind().outcome().as_str(),
         })
+    }
+
+    pub(super) fn outbox_id(&self) -> &str {
+        &self.outbox_id
+    }
+
+    pub(super) const fn claim_revision(&self) -> i64 {
+        self.claim_revision
+    }
+
+    pub(super) const fn kind(&self) -> &'static str {
+        self.kind
     }
 
     fn sql_params<'a>(&'a self, fence: &'a FenceValues) -> [&'a (dyn ToSql + Sync); 17] {
@@ -935,7 +950,7 @@ impl PostgresRuntime {
     }
 }
 
-fn fence_tenant_id(
+pub(super) fn fence_tenant_id(
     value: &str,
 ) -> Result<converact_kernel_ids::TenantId, TransactionError<PlatformStoreError>> {
     converact_kernel_ids::TenantId::parse(value)
@@ -1239,7 +1254,7 @@ async fn read_claim_receipts(
     rows.iter().map(decode_outbox_claim).collect()
 }
 
-async fn query_outbox_in_transaction(
+pub(super) async fn query_outbox_in_transaction(
     transaction: &Transaction<'_>,
     fence: &FenceValues,
     outbox_id: &str,
@@ -1261,7 +1276,12 @@ async fn query_outbox_in_transaction(
     if rows.len() > 1 {
         return Err(PlatformStoreError::StoreInvalid);
     }
-    rows.first().map(decode_outbox_snapshot).transpose()
+    if let Some(row) = rows.first() {
+        validate_outbox_row_fence(row, fence)?;
+        decode_outbox_snapshot(row).map(Some)
+    } else {
+        Ok(None)
+    }
 }
 
 fn decode_outbox_snapshot(row: &Row) -> Result<OutboxSnapshot, PlatformStoreError> {
@@ -1354,18 +1374,12 @@ fn decode_outbox_claim(row: &Row) -> Result<OutboxClaim, PlatformStoreError> {
     })
 }
 
-async fn apply_transition_in_transaction(
+pub(super) async fn apply_transition_in_transaction(
     transaction: &Transaction<'_>,
     fence: &FenceValues,
     command: &TransitionValues,
 ) -> Result<OutboxTransitionApplyStatus, PlatformStoreError> {
-    transaction
-        .query_one(
-            TRANSITION_LOCK_SQL,
-            &[&fence.tenant, &command.transition_id],
-        )
-        .await
-        .map_err(map_database_error)?;
+    lock_transition_in_transaction(transaction, fence, command).await?;
     match reconcile_transition_in_transaction(transaction, fence, command).await? {
         OutboxTransitionReconcileStatus::Applied => {
             return Ok(OutboxTransitionApplyStatus::Replay);
@@ -1392,7 +1406,22 @@ async fn apply_transition_in_transaction(
     }
 }
 
-async fn reconcile_transition_in_transaction(
+pub(super) async fn lock_transition_in_transaction(
+    transaction: &Transaction<'_>,
+    fence: &FenceValues,
+    command: &TransitionValues,
+) -> Result<(), PlatformStoreError> {
+    transaction
+        .query_one(
+            TRANSITION_LOCK_SQL,
+            &[&fence.tenant, &command.transition_id],
+        )
+        .await
+        .map(|_| ())
+        .map_err(map_database_error)
+}
+
+pub(super) async fn reconcile_transition_in_transaction(
     transaction: &Transaction<'_>,
     fence: &FenceValues,
     command: &TransitionValues,
@@ -1491,16 +1520,21 @@ mod physical_tests {
     use converact_kernel_ids::{Generation, OwnerEpoch, TenantId};
     use converact_migration_routing::{AuthorityKind, MutationScope, PartitionKey, RouteKey};
     use converact_migration_store::{LeaseToken, WriterFenceBinding};
+    use converact_outbox_worker::{
+        AttemptSnapshot, CoordinatorAction, DeliveryObservation, DurableEffectProgress,
+        DurableOutboxProgress, OutboxWorkerPolicy, action_after_observation,
+    };
     use deadpool_postgres::tokio_postgres::{Client, NoTls, error::SqlState};
     use serde_json::json;
     use sha2::{Digest, Sha256};
 
     use crate::{
         DeliveryLeaseToken, EffectAppendStatus, InboxAppendStatus, OutboxClaimApplyDisposition,
-        OutboxClaimCommand, OutboxClaimReconcileStatus, OutboxEnqueueStatus, OutboxStatus,
-        OutboxTransitionApplyStatus, OutboxTransitionCommand, OutboxTransitionReconcileStatus,
-        PlatformStoreError, PlatformStorePolicy, PostgresRuntime, PostgresRuntimeLimits,
-        PostgresRuntimeSettings, TransactionError,
+        OutboxClaimCommand, OutboxClaimReconcileStatus, OutboxDeliveryFinalizationApplyStatus,
+        OutboxDeliveryFinalizationCommand, OutboxDeliveryFinalizationReconcileStatus,
+        OutboxEnqueueStatus, OutboxStatus, OutboxTransitionApplyStatus, OutboxTransitionCommand,
+        OutboxTransitionReconcileStatus, PlatformStoreError, PlatformStorePolicy, PostgresRuntime,
+        PostgresRuntimeLimits, PostgresRuntimeSettings, TransactionError,
     };
 
     #[tokio::test]
@@ -1525,6 +1559,7 @@ mod physical_tests {
         exercise_event_foundation(&runtime, &fence, &event).await;
         assert_stale_route_writer_rejected(&runtime, &event).await;
         exercise_outbox(&runtime, &fence, &event).await;
+        exercise_atomic_finalization(&runtime, &fence).await;
         exercise_dead_letters(&runtime, &fence).await;
         assert_terminal_database_state().await;
     }
@@ -1798,6 +1833,211 @@ mod physical_tests {
         assert_completed_state_and_history(runtime, fence, policy).await;
     }
 
+    async fn exercise_atomic_finalization(
+        runtime: &PostgresRuntime,
+        fence: &WriterFenceBinding<'_>,
+    ) {
+        let policy =
+            PlatformStorePolicy::new(Duration::from_secs(60), Duration::ZERO, 3, 20).unwrap();
+        let atomic_event = event_with("atomic", 10);
+        assert_eq!(
+            runtime
+                .enqueue_platform_outbox(fence, "outbox-atomic", &atomic_event, policy)
+                .await
+                .unwrap(),
+            OutboxEnqueueStatus::Inserted
+        );
+        let claim_command = OutboxClaimCommand::new(
+            "claim-operation-atomic",
+            "worker-atomic",
+            DeliveryLeaseToken::parse(&"3".repeat(64)).unwrap(),
+        )
+        .unwrap();
+        let claim_batch = runtime
+            .claim_platform_outbox(fence, &claim_command, policy)
+            .await
+            .unwrap();
+        assert_eq!(claim_batch.claims().len(), 1);
+        let claim = &claim_batch.claims()[0];
+        assert_eq!(claim.id(), "outbox-atomic");
+        assert_eq!(
+            runtime
+                .append_platform_effect_receipt(fence, &atomic_effect_receipt("accepted", '7'),)
+                .await
+                .unwrap(),
+            EffectAppendStatus::Inserted
+        );
+        let snapshot = AttemptSnapshot::new(
+            claim.attempt_count(),
+            claim.max_attempts(),
+            DurableEffectProgress::recovered_accepted(),
+            DurableOutboxProgress::Claimed,
+        )
+        .unwrap();
+        let worker_policy =
+            OutboxWorkerPolicy::new(Duration::from_secs(5), Duration::from_secs(7)).unwrap();
+        let CoordinatorAction::FinalizeAtomically(plan) =
+            action_after_observation(DeliveryObservation::Applied, &snapshot, worker_policy)
+        else {
+            panic!("applied observation must produce finalization plan");
+        };
+        let completed = atomic_effect_receipt("completed", '8');
+        let observed = atomic_effect_receipt("state_observed", '9');
+        let claim_revision = claim.transition_revision();
+        assert_atomic_failure_rolls_back(
+            runtime,
+            fence,
+            &plan,
+            &completed,
+            &observed,
+            claim_revision,
+        )
+        .await;
+        assert_atomic_success_and_replay(
+            runtime,
+            fence,
+            &plan,
+            completed,
+            observed,
+            claim_revision,
+            claim_command,
+        )
+        .await;
+        assert_atomic_conflict_is_immutable(runtime, fence, &plan, claim_revision).await;
+    }
+
+    async fn assert_atomic_failure_rolls_back(
+        runtime: &PostgresRuntime,
+        fence: &WriterFenceBinding<'_>,
+        plan: &converact_outbox_worker::DeliveryFinalizationPlan,
+        completed: &EffectReceipt,
+        observed: &EffectReceipt,
+        claim_revision: u64,
+    ) {
+        let invalid_transition = OutboxTransitionCommand::complete(
+            "transition-atomic-invalid",
+            "outbox-atomic",
+            "worker-atomic",
+            claim_revision,
+            DeliveryLeaseToken::parse(&"4".repeat(64)).unwrap(),
+        )
+        .unwrap();
+        let invalid_finalization = OutboxDeliveryFinalizationCommand::new(
+            plan,
+            completed.clone(),
+            observed.clone(),
+            invalid_transition,
+        )
+        .unwrap();
+        assert_eq!(
+            runtime
+                .apply_outbox_delivery_finalization(fence, &invalid_finalization)
+                .await,
+            Err(TransactionError::Work(
+                PlatformStoreError::InvalidTransition
+            ))
+        );
+        assert_eq!(atomic_finalization_row_counts().await, (1, 0));
+    }
+
+    async fn assert_atomic_success_and_replay(
+        runtime: &PostgresRuntime,
+        fence: &WriterFenceBinding<'_>,
+        plan: &converact_outbox_worker::DeliveryFinalizationPlan,
+        completed: EffectReceipt,
+        observed: EffectReceipt,
+        claim_revision: u64,
+        claim_command: OutboxClaimCommand,
+    ) {
+        let transition = OutboxTransitionCommand::complete(
+            "transition-atomic",
+            "outbox-atomic",
+            "worker-atomic",
+            claim_revision,
+            claim_command.into_delivery_token(),
+        )
+        .unwrap();
+        let finalization =
+            OutboxDeliveryFinalizationCommand::new(plan, completed, observed, transition).unwrap();
+        assert_eq!(
+            runtime
+                .reconcile_outbox_delivery_finalization(fence, &finalization)
+                .await
+                .unwrap(),
+            OutboxDeliveryFinalizationReconcileStatus::NotApplied
+        );
+        assert_eq!(
+            runtime
+                .apply_outbox_delivery_finalization(fence, &finalization)
+                .await
+                .unwrap(),
+            OutboxDeliveryFinalizationApplyStatus::Applied
+        );
+        assert_eq!(
+            runtime
+                .apply_outbox_delivery_finalization(fence, &finalization)
+                .await
+                .unwrap(),
+            OutboxDeliveryFinalizationApplyStatus::Replay
+        );
+        assert_eq!(
+            runtime
+                .reconcile_outbox_delivery_finalization(fence, &finalization)
+                .await
+                .unwrap(),
+            OutboxDeliveryFinalizationReconcileStatus::Applied
+        );
+        assert_eq!(atomic_finalization_row_counts().await, (3, 1));
+        let outbox = runtime
+            .query_platform_outbox(fence, "outbox-atomic")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(outbox.status(), OutboxStatus::Delivered);
+        assert_eq!(outbox.transition_revision(), claim_revision + 1);
+    }
+
+    async fn assert_atomic_conflict_is_immutable(
+        runtime: &PostgresRuntime,
+        fence: &WriterFenceBinding<'_>,
+        plan: &converact_outbox_worker::DeliveryFinalizationPlan,
+        claim_revision: u64,
+    ) {
+        let conflicting_transition = OutboxTransitionCommand::complete(
+            "transition-atomic",
+            "outbox-atomic",
+            "worker-atomic",
+            claim_revision,
+            DeliveryLeaseToken::parse(&"3".repeat(64)).unwrap(),
+        )
+        .unwrap();
+        let conflicting_finalization = OutboxDeliveryFinalizationCommand::new(
+            plan,
+            atomic_effect_receipt_with_id("receipt-atomic-completed-conflict", "completed", 'a'),
+            atomic_effect_receipt_with_id(
+                "receipt-atomic-observed-conflict",
+                "state_observed",
+                'b',
+            ),
+            conflicting_transition,
+        )
+        .unwrap();
+        assert_eq!(
+            runtime
+                .reconcile_outbox_delivery_finalization(fence, &conflicting_finalization)
+                .await
+                .unwrap(),
+            OutboxDeliveryFinalizationReconcileStatus::Conflict
+        );
+        assert_eq!(
+            runtime
+                .apply_outbox_delivery_finalization(fence, &conflicting_finalization)
+                .await,
+            Err(TransactionError::Work(PlatformStoreError::Conflict))
+        );
+        assert_eq!(atomic_finalization_row_counts().await, (3, 1));
+    }
+
     async fn assert_completed_state_and_history(
         runtime: &PostgresRuntime,
         fence: &WriterFenceBinding<'_>,
@@ -2019,6 +2259,51 @@ mod physical_tests {
             "observed_at": "2026-08-01T12:00:00.000Z"
         }))
         .unwrap()
+    }
+
+    fn atomic_effect_receipt(stage: &str, digest: char) -> EffectReceipt {
+        atomic_effect_receipt_with_id(&format!("receipt-atomic-{stage}"), stage, digest)
+    }
+
+    fn atomic_effect_receipt_with_id(receipt_id: &str, stage: &str, digest: char) -> EffectReceipt {
+        EffectReceipt::try_from(&json!({
+            "receipt_id": receipt_id,
+            "tenant_id": "tenant-event-a",
+            "effect_id": "effect-atomic",
+            "event_id": "event-atomic",
+            "correlation_id": "correlation-atomic",
+            "stage": stage,
+            "generation": 1,
+            "writer_id": "effect-worker-atomic",
+            "owner_epoch": 7,
+            "receipt_digest": digest.to_string().repeat(64),
+            "observed_at": "2026-08-22T06:20:00.000Z"
+        }))
+        .unwrap()
+    }
+
+    async fn atomic_finalization_row_counts() -> (i64, i64) {
+        let admin_url = std::env::var("CONVERACT_TEST_POSTGRES_ADMIN_URL").unwrap();
+        let (client, connection) = tokio_postgres::connect(&admin_url, NoTls).await.unwrap();
+        let task = tokio::spawn(connection);
+        let row = client
+            .query_one(
+                "SELECT
+                   (SELECT count(*)::bigint
+                    FROM converact_platform_effect_receipts
+                    WHERE tenant_id = 'tenant-event-a'
+                      AND effect_id = 'effect-atomic') AS effect_count,
+                   (SELECT count(*)::bigint
+                    FROM converact_platform_outbox_transitions
+                    WHERE tenant_id = 'tenant-event-a'
+                      AND transition_id LIKE 'transition-atomic%') AS transition_count",
+                &[],
+            )
+            .await
+            .unwrap();
+        drop(client);
+        task.await.unwrap().unwrap();
+        (row.get("effect_count"), row.get("transition_count"))
     }
 
     async fn assert_target_role_cannot_bypass_mutation_functions() {
@@ -2330,12 +2615,13 @@ mod physical_tests {
             .await
             .unwrap()
             .get(0);
-        assert_eq!(transitions, 4);
+        assert_eq!(transitions, 5);
         let terminal_rows: i64 = admin
             .query_one(
                 "SELECT count(*) FROM converact_platform_outbox
                  WHERE tenant_id = 'tenant-event-a'
-                   AND ((id = 'outbox-a' AND status = 'delivered') OR
+                   AND ((id IN ('outbox-a', 'outbox-atomic') AND
+                         status = 'delivered') OR
                         (id IN ('outbox-dead', 'outbox-exhausted') AND
                          status = 'dead_letter'))
                    AND worker_id = '' AND lease_token_hash = ''
@@ -2345,7 +2631,7 @@ mod physical_tests {
             .await
             .unwrap()
             .get(0);
-        assert_eq!(terminal_rows, 3);
+        assert_eq!(terminal_rows, 4);
         let nonterminal: i64 = admin
             .query_one(
                 "SELECT nonterminal_claims::bigint
