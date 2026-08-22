@@ -9,6 +9,7 @@ use sha2_11::Sha256;
 
 const FIXTURE: &str = include_str!("../../../tests/fixtures/platform-hs256-v1.json");
 const VERIFIER_SOURCE: &str = include_str!("../src/hs256.rs");
+const JWT_SOURCE: &str = include_str!("../src/jwt.rs");
 
 #[test]
 fn rust_hs256_verifier_replays_the_active_typescript_contract() {
@@ -139,7 +140,9 @@ fn verifier_returns_closed_errors_without_reading_runtime_state() {
         "TcpStream",
         "File::open",
     ] {
-        assert!(!VERIFIER_SOURCE.contains(forbidden), "found {forbidden}");
+        for source in [VERIFIER_SOURCE, JWT_SOURCE] {
+            assert!(!source.contains(forbidden), "found {forbidden}");
+        }
     }
 }
 
