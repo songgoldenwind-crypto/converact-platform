@@ -1,0 +1,17 @@
+[package]
+name = "converact-internal-mtls-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+converact-internal-mtls = { path = "../internal-mtls" }
+sha2.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+rustix.workspace = true
+
+[lints]
+workspace = true

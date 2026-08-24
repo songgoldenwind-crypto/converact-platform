@@ -49,16 +49,16 @@ unbounded task/queue/retry, no raw material in public errors or Debug.
 - `server-rs/crates/internal-mtls-runtime/src/bundle.rs`
 - `server-rs/crates/internal-mtls-runtime/tests/bundle.rs`
 
-- [ ] Write failing tests for absolute path and target-component bounds,
+- [x] Write failing tests for absolute path and target-component bounds,
   synthetic `..data` generation selection, concurrent swap/removal, escape,
   entry symlink, non-file, mode/owner/GID and every byte budget.
-- [ ] Use descriptor-relative `readlinkat`/`openat`; never resolve four visible
+- [x] Use descriptor-relative `readlinkat`/`openat`; never resolve four visible
   Secret symlinks independently and never scan the directory.
-- [ ] Read only the four fixed names, one file at a time, with total accounting
+- [x] Read only the four fixed names, one file at a time, with total accounting
   and stable value-free errors.
-- [ ] Make non-Unix builds fail closed without pretending production support.
-- [ ] Run focused tests, crate Clippy, docs and format checks.
-- [ ] Commit as `feat(rust): load one atomic mTLS bundle`.
+- [x] Make non-Unix builds fail closed without pretending production support.
+- [x] Run focused tests, crate Clippy, docs and format checks.
+- [x] Commit as `feat(rust): load one atomic mTLS bundle`.
 
 ### Task 4: Publish one complete config generation
 

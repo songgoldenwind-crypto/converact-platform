@@ -8,6 +8,7 @@ members = [
   "crates/event-log",
   "crates/idempotency",
   "crates/internal-mtls",
+  "crates/internal-mtls-runtime",
   "crates/kernel-ids",
   "crates/migration-routing",
   "crates/migration-store",
