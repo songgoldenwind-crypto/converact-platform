@@ -12,6 +12,12 @@ pub trait JwksMonotonicClock: Send + Sync {
     fn now_ms(&self) -> u64;
 }
 
+impl<Clock: JwksMonotonicClock + ?Sized> JwksMonotonicClock for Arc<Clock> {
+    fn now_ms(&self) -> u64 {
+        (**self).now_ms()
+    }
+}
+
 /// Process-local monotonic clock with no wall-time or ambient configuration.
 pub struct SystemJwksMonotonicClock(Instant);
 

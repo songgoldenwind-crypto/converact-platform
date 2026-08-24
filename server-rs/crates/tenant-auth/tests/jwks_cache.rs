@@ -99,6 +99,23 @@ fn refresh_completion_is_single_flight_fenced_and_atomically_replaces_keys() {
 }
 
 #[test]
+fn refresh_lease_is_bound_to_its_originating_cache() {
+    let policy = Rs256JwksCachePolicy::default();
+    let mut first = Rs256JwksCache::new(policy);
+    let mut second = Rs256JwksCache::new(policy);
+    let first_lease = first.begin_scheduled_refresh(100).unwrap().unwrap();
+    let second_lease = second.begin_scheduled_refresh(100).unwrap().unwrap();
+
+    assert_eq!(
+        second.complete_failure(first_lease),
+        Err(Rs256JwksLifecycleError::StaleRefresh)
+    );
+    assert!(second.refresh_in_flight());
+    second.complete_failure(second_lease).unwrap();
+    first.complete_failure(first_lease).unwrap();
+}
+
+#[test]
 fn regressed_completion_fails_closed_without_sticking_or_destroying_last_known_good() {
     let fixture: Value = serde_json::from_str(RS256_FIXTURE).unwrap();
     let mut cache = Rs256JwksCache::new(Rs256JwksCachePolicy::default());

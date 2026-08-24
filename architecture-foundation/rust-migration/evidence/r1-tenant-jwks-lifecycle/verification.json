@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-lifecycle",
+  "generated_at": "2026-08-24T03:25:28Z",
+  "current_state": "typescript_jwks_lifecycle_active_rust_single_issuer_lifecycle_offline_default_disabled",
+  "target_state": "one_validated_issuer_one_cache_namespace_one_verifier_one_refresh_driver_one_monotonic_clock",
+  "production_eligible": false,
+  "checks": [
+    {
+      "id": "focused_lifecycle_contract",
+      "status": "passed",
+      "result": "7/7 tests passed across issuer and clock binding, warm, request refresh, cross-instance fencing, concurrent cancellation, failure recovery and exact readiness expiry"
+    },
+    {
+      "id": "raw_cache_cross_origin_fence",
+      "status": "passed",
+      "result": "the cache rejects a same-generation lease from another cache as StaleRefresh while both originating leases remain independently usable"
+    },
+    {
+      "id": "tenant_auth_and_runtime_regression",
+      "status": "passed",
+      "result": "all 34 converact-tenant-auth tests and all 35 converact-tenant-auth-runtime integration tests passed on Rust 1.94.1"
+    },
+    {
+      "id": "active_typescript_cross_runtime_replay",
+      "status": "passed",
+      "result": "Node 24 passed the five active JWKS decoder, issuer, response, cache and tenant-auth replay suites"
+    },
+    {
+      "id": "rust_workspace_all_targets_locked",
+      "status": "passed",
+      "result": "pinned cargo test --workspace --all-targets --locked exited 0; explicitly gated physical PostgreSQL tests remained ignored"
+    },
+    {
+      "id": "rust_workspace_clippy_format_and_docs",
+      "status": "passed",
+      "result": "pinned Workspace Clippy all targets with -D warnings, rustdoc with -Dwarnings and formatting check exited 0"
+    },
+    {
+      "id": "authority_and_time_boundary",
+      "status": "passed",
+      "result": "one constructor derives token issuer and fetch coordinates from the same validated issuer; verification, refresh and readiness share one injected monotonic clock"
+    },
+    {
+      "id": "source_boundary",
+      "status": "passed",
+      "result": "the implementation starts no task or I/O at construction and contains no scheduler, retry loop, issuer registry, ambient configuration, wall clock, unsafe block or global lock"
+    },
+    {
+      "id": "dependency_and_lockfile_boundary",
+      "status": "passed",
+      "result": "Cargo manifests and Cargo.lock have no diff; this slice added no external package, feature, native source or build script"
+    },
+    {
+      "id": "git_diff_json_and_source_manifest_replay",
+      "status": "passed",
+      "result": "all checkpoint JSON parsed, git diff --check exited 0 and exact file digests replayed before explicit staging"
+    },
+    {
+      "id": "independent_exact_tree_review",
+      "status": "not_run"
+    },
+    {
+      "id": "scheduler_jitter_shutdown_metrics_and_runtime_readiness",
+      "status": "not_run"
+    },
+    {
+      "id": "external_https_rotation_outage_rolling_and_target_matrix",
+      "status": "not_run"
+    },
+    {
+      "id": "mtls_http_websocket_shadow_drain_and_deletion",
+      "status": "not_run"
+    },
+    {
+      "id": "fleet_fault_capacity_performance_and_production",
+      "status": "not_run"
+    }
+  ]
+}

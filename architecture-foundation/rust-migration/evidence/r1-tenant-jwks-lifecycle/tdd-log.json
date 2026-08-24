@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-lifecycle",
+  "generated_at": "2026-08-24T03:25:28Z",
+  "cycles": [
+    {
+      "id": "issuer_lifecycle_composition",
+      "red": "the focused test could not import an issuer lifecycle or call warm, verify_cached and readiness because no single composition boundary existed",
+      "green": "one inert lifecycle now binds the validated fetch issuer, verifier claim issuer, refresh driver and shared monotonic clock"
+    },
+    {
+      "id": "request_refresh_lease",
+      "red": "the lifecycle could warm itself but could not consume the exact optional refresh lease returned by request-time cached verification",
+      "green": "drive_refresh forwards that exact lease to the same cancellation-safe driver without spawning or queueing work"
+    },
+    {
+      "id": "explicit_single_flight_refresh",
+      "red": "the lifecycle had no explicit caller-owned scheduled refresh operation or stable concurrent outcome",
+      "green": "refresh_now enters the existing single-flight gate and reports Completed or InFlight without retry or detached work"
+    },
+    {
+      "id": "cross_cache_lease_fence",
+      "red": "two caches at generation one produced interchangeable leases and the second cache accepted completion with the first cache's lease",
+      "green": "each cache now receives a private non-reused namespace and completion equality requires both namespace and generation"
+    },
+    {
+      "id": "failure_cancellation_and_recovery",
+      "red": "the lifecycle contract lacked proof that failed warm and an aborted concurrent refresh remain closed and later permit a new exact attempt",
+      "green": "focused tests prove failed warm stays unavailable then recovers, and abort releases the exact lease before a new attempt enters"
+    }
+  ]
+}

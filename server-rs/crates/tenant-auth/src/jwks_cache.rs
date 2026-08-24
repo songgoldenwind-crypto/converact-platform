@@ -1,10 +1,19 @@
-use std::{error::Error, fmt, sync::Arc};
+use std::{
+    error::Error,
+    fmt,
+    num::NonZeroU64,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+};
 
 use super::jwks::Rs256JwksSnapshot;
 
 const CURRENT_FRESH_FOR_MS: u64 = 300_000;
 const CURRENT_ON_DEMAND_REFRESH_FLOOR_MS: u64 = 5_000;
 const MAX_FRESH_FOR_MS: u64 = 86_400_000;
+static NEXT_JWKS_CACHE_NAMESPACE: AtomicU64 = AtomicU64::new(1);
 
 /// Invalid bounded cache timing policy.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -72,6 +81,7 @@ impl Default for Rs256JwksCachePolicy {
 /// Opaque single-flight capability for exactly one refresh generation.
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub struct Rs256JwksRefreshLease {
+    namespace: NonZeroU64,
     generation: u64,
 }
 
@@ -87,7 +97,7 @@ impl fmt::Debug for Rs256JwksRefreshLease {
         formatter
             .debug_struct("Rs256JwksRefreshLease")
             .field("generation", &self.generation)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -210,6 +220,7 @@ struct CachedSnapshot {
 /// Network fetch and task scheduling are deliberately caller-owned.
 pub struct Rs256JwksCache {
     policy: Rs256JwksCachePolicy,
+    lease_namespace: Option<NonZeroU64>,
     current: Option<CachedSnapshot>,
     refresh_in_flight: Option<Rs256JwksRefreshLease>,
     next_refresh_generation: u64,
@@ -219,9 +230,10 @@ pub struct Rs256JwksCache {
 
 impl Rs256JwksCache {
     #[must_use]
-    pub const fn new(policy: Rs256JwksCachePolicy) -> Self {
+    pub fn new(policy: Rs256JwksCachePolicy) -> Self {
         Self {
             policy,
+            lease_namespace: allocate_cache_namespace(),
             current: None,
             refresh_in_flight: None,
             next_refresh_generation: 1,
@@ -359,11 +371,15 @@ impl Rs256JwksCache {
         if self.refresh_in_flight.is_some() {
             return Ok(None);
         }
+        let namespace = self
+            .lease_namespace
+            .ok_or(Rs256JwksLifecycleError::RefreshGenerationExhausted)?;
         let next = self
             .next_refresh_generation
             .checked_add(1)
             .ok_or(Rs256JwksLifecycleError::RefreshGenerationExhausted)?;
         let lease = Rs256JwksRefreshLease {
+            namespace,
             generation: self.next_refresh_generation,
         };
         self.next_refresh_generation = next;
@@ -392,6 +408,15 @@ impl Rs256JwksCache {
         self.last_observed_monotonic_ms = Some(monotonic_now_ms);
         Ok(())
     }
+}
+
+fn allocate_cache_namespace() -> Option<NonZeroU64> {
+    NEXT_JWKS_CACHE_NAMESPACE
+        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+            current.checked_add(1)
+        })
+        .ok()
+        .and_then(NonZeroU64::new)
 }
 
 impl fmt::Debug for Rs256JwksCache {

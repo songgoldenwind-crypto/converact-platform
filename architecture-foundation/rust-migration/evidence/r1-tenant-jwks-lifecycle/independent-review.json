@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-lifecycle",
+  "generated_at": "2026-08-24T03:25:28Z",
+  "status": "not_run",
+  "production_eligible": false,
+  "reason": "No independent exact-tree security, cancellation and maintainability reviewer has reviewed this offline default-disabled slice.",
+  "required_scope": [
+    "single validated issuer and shared clock ownership",
+    "startup warm and fail-closed readiness semantics",
+    "cross-cache namespace uniqueness, exhaustion and debug redaction",
+    "scheduled and request-time refresh single-flight behavior",
+    "polled and unpolled cancellation recovery",
+    "absence of hidden task, retry, queue, wall clock and runtime authority",
+    "future scheduler, jitter, shutdown, metrics and readiness composition"
+  ]
+}
