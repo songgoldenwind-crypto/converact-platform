@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-refresh",
+  "generated_at": "2026-08-24T03:05:22Z",
+  "status": "not_run",
+  "production_eligible": false,
+  "reason": "No independent exact-tree security, cancellation and maintainability reviewer has reviewed this offline default-disabled slice.",
+  "required_scope": [
+    "synchronous guard construction and unpolled-future cancellation semantics",
+    "Drop behavior under stale lease, poisoned state and panic unwinding",
+    "success/failure completion ordering and last-known-good retention",
+    "clock-origin ownership and regressed completion fencing",
+    "absence of hidden retry, task, queue, issuer registry and value leakage",
+    "future startup, periodic scheduling, readiness and shutdown composition"
+  ]
+}

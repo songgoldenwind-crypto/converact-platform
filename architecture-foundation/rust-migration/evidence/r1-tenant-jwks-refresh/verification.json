@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-refresh",
+  "generated_at": "2026-08-24T03:05:22Z",
+  "current_state": "typescript_jwks_lifecycle_active_rust_refresh_driver_offline_default_disabled",
+  "target_state": "one_cancellation_safe_exact_lease_fetch_and_install_attempt",
+  "production_eligible": false,
+  "checks": [
+    {
+      "id": "focused_refresh_driver_contract",
+      "status": "passed",
+      "result": "8/8 tests passed across success, failure, last-known-good, polled and unpolled cancellation, clock regression, stale lease and source boundaries"
+    },
+    {
+      "id": "tenant_auth_runtime_regression",
+      "status": "passed",
+      "result": "all 28 tenant-auth-runtime integration tests passed across resolved-address validation, bounded fetch and refresh composition"
+    },
+    {
+      "id": "active_typescript_cross_runtime_replay",
+      "status": "passed",
+      "result": "Node 24 passed the five active JWKS decoder, issuer, response, cache and tenant-auth replay suites"
+    },
+    {
+      "id": "rust_workspace_all_targets_locked",
+      "status": "passed",
+      "result": "pinned cargo test --workspace --all-targets --locked exited 0; explicitly gated physical PostgreSQL tests remained ignored"
+    },
+    {
+      "id": "rust_workspace_clippy_format_and_docs",
+      "status": "passed",
+      "result": "pinned Workspace Clippy all targets with -D warnings, rustdoc without dependencies and formatting check exited 0"
+    },
+    {
+      "id": "cancellation_and_fence_boundary",
+      "status": "passed",
+      "result": "an exact RAII guard exists before first poll; fetch failure, unpolled drop, task abort, stale lease and regressed completion cannot leave the tested lease in flight or install stale keys"
+    },
+    {
+      "id": "dependency_and_lockfile_boundary",
+      "status": "passed",
+      "result": "Cargo manifests and Cargo.lock have no diff; this slice added no external package, feature, native source or build script"
+    },
+    {
+      "id": "git_diff_json_and_source_manifest_replay",
+      "status": "passed",
+      "result": "all checkpoint JSON parsed, git diff --check exited 0 and exact file digests replayed before explicit staging"
+    },
+    {
+      "id": "independent_exact_tree_review",
+      "status": "not_run"
+    },
+    {
+      "id": "issuer_registry_startup_periodic_readiness_and_metrics",
+      "status": "not_run"
+    },
+    {
+      "id": "external_https_rotation_outage_rolling_and_target_matrix",
+      "status": "not_run"
+    },
+    {
+      "id": "mtls_http_websocket_shadow_drain_and_deletion",
+      "status": "not_run"
+    },
+    {
+      "id": "fleet_fault_capacity_performance_and_production",
+      "status": "not_run"
+    }
+  ]
+}

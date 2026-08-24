@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-refresh",
+  "generated_at": "2026-08-24T03:05:22Z",
+  "cycles": [
+    {
+      "id": "leased_refresh_success",
+      "red": "the focused test could not import a snapshot-fetch boundary, monotonic clock or refresh driver because no runtime lease consumer existed",
+      "green": "one generic driver now fetches once and installs a complete validated snapshot only through the exact lease"
+    },
+    {
+      "id": "fetch_failure_completion",
+      "red": "a failed fetch returned the transport error but left refresh_in_flight true",
+      "green": "fetch failure first completes the exact lease as failed, retains last-known-good keys and then reports the closed fetch error"
+    },
+    {
+      "id": "polled_cancellation",
+      "red": "aborting a task while its fetch future was pending left the exact refresh lease stuck",
+      "green": "a private RAII guard releases only its own generation when a polled future is dropped"
+    },
+    {
+      "id": "unpolled_cancellation",
+      "red": "dropping the refresh future before its first poll never entered the async body and left the lease stuck",
+      "green": "the guard is armed synchronously before the future is returned, so even an unpolled drop completes the lease"
+    },
+    {
+      "id": "system_monotonic_clock",
+      "red": "the runtime crate exposed only an injected clock trait and no process-local production implementation",
+      "green": "SystemJwksMonotonicClock reports bounded elapsed Instant milliseconds and exposes no wall-time value"
+    }
+  ]
+}
