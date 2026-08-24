@@ -15,6 +15,7 @@ tokio-rustls.workspace = true
 x509-cert.workspace = true
 
 [dev-dependencies]
+base64.workspace = true
 rcgen.workspace = true
 
 [lints]

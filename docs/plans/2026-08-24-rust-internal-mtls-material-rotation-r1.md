@@ -31,14 +31,14 @@ unbounded task/queue/retry, no raw material in public errors or Debug.
 - `server-rs/crates/internal-mtls/src/lib.rs`
 - `server-rs/crates/internal-mtls/tests/pem_material.rs`
 
-- [ ] Write failing tests for exact section kinds/counts, one key, byte bounds,
+- [x] Write failing tests for exact section kinds/counts, one key, byte bounds,
   wrong DNS/server purpose, wall-time validity and required current CRLs.
-- [ ] Add one consuming bounded PEM constructor using the existing
+- [x] Add one consuming bounded PEM constructor using the existing
   `rustls-pki-types` PEM API; do not add `rustls-pemfile`.
-- [ ] Keep raw PEM/DER/parser/rustls types private and private-key source bytes
+- [x] Keep raw PEM/DER/parser/rustls types private and private-key source bytes
   overwritten on drop.
-- [ ] Run focused tests, crate Clippy, docs and format checks.
-- [ ] Commit as `feat(rust): validate bounded mTLS PEM bundles`.
+- [x] Run focused tests, crate Clippy, docs and format checks.
+- [x] Commit as `feat(rust): validate bounded mTLS PEM bundles`.
 
 ### Task 3: Load exactly one immutable bundle generation
 

@@ -1,16 +1,30 @@
-use std::{error::Error, fmt, sync::Arc};
+use std::{
+    error::Error,
+    fmt,
+    sync::Arc,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use rustls::{
     CertificateError, DigitallySignedStruct, DistinguishedName, RootCertStore, ServerConfig,
     SignatureScheme,
     client::danger::HandshakeSignatureValid,
-    pki_types::{CertificateDer, CertificateRevocationListDer, PrivateKeyDer, UnixTime},
+    pki_types::{
+        CertificateDer, CertificateRevocationListDer, PrivateKeyDer, ServerName, UnixTime,
+        pem::{PemObject, SectionKind},
+    },
     server::{
         NoServerSessionStorage, WebPkiClientVerifier,
         danger::{ClientCertVerified, ClientCertVerifier},
     },
 };
-use x509_cert::{Certificate as ParsedCertificate, der::Decode};
+use x509_cert::{
+    Certificate as ParsedCertificate,
+    certificate::Rfc5280,
+    crl::CertificateList,
+    der::{Decode, asn1::ObjectIdentifier},
+    ext::pkix::{ExtendedKeyUsage, SubjectAltName, name::GeneralName},
+};
 
 const MAX_CERTIFICATES: usize = 8;
 const MAX_CERTIFICATE_BYTES: usize = 64 * 1024;
@@ -19,6 +33,14 @@ const MAX_PRIVATE_KEY_BYTES: usize = 64 * 1024;
 const MAX_CRLS: usize = 8;
 const MAX_CRL_BYTES: usize = 256 * 1024;
 const MAX_CRL_COLLECTION_BYTES: usize = 1024 * 1024;
+const MAX_SERVER_CHAIN_PEM_BYTES: usize = 512 * 1024;
+const MAX_SERVER_PRIVATE_KEY_PEM_BYTES: usize = 128 * 1024;
+const MAX_CLIENT_ROOTS_PEM_BYTES: usize = 512 * 1024;
+const MAX_CLIENT_CRLS_PEM_BYTES: usize = 2 * 1024 * 1024;
+const MAX_PEM_BUNDLE_BYTES: usize = 3_200 * 1024;
+const MIN_VALIDITY_MARGIN: Duration = Duration::from_secs(60);
+const MAX_VALIDITY_MARGIN: Duration = Duration::from_secs(24 * 60 * 60);
+const SERVER_AUTH_OID: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.3.6.1.5.5.7.3.1");
 
 /// Fixed resource limits for internal TLS identity and trust material.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -47,6 +69,121 @@ impl MtlsMaterialPolicy {
         }
     }
 }
+
+/// Owned bounded PEM inputs. Private-key source bytes are overwritten on drop.
+pub struct InternalMtlsPemBundle {
+    server_chain: Vec<u8>,
+    server_private_key: Vec<u8>,
+    client_roots: Vec<u8>,
+    client_crls: Vec<u8>,
+}
+
+impl InternalMtlsPemBundle {
+    #[must_use]
+    pub const fn new(
+        server_chain: Vec<u8>,
+        server_private_key: Vec<u8>,
+        client_roots: Vec<u8>,
+        client_crls: Vec<u8>,
+    ) -> Self {
+        Self {
+            server_chain,
+            server_private_key,
+            client_roots,
+            client_crls,
+        }
+    }
+}
+
+impl Drop for InternalMtlsPemBundle {
+    fn drop(&mut self) {
+        self.server_private_key.fill(0);
+    }
+}
+
+impl fmt::Debug for InternalMtlsPemBundle {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("InternalMtlsPemBundle([REDACTED])")
+    }
+}
+
+/// Exact server identity and minimum remaining-validity policy.
+pub struct MtlsPemPolicy {
+    server_dns_name: Box<str>,
+    validity_margin: Duration,
+}
+
+impl MtlsPemPolicy {
+    /// Creates one bounded exact-DNS, required-CRL PEM policy.
+    ///
+    /// # Errors
+    ///
+    /// Rejects non-lowercase DNS identities and a validity margin outside
+    /// `1 min..=24 h`.
+    pub fn new(server_dns_name: &str, validity_margin: Duration) -> Result<Self, MtlsPemError> {
+        let server_name = ServerName::try_from(server_dns_name.to_owned())
+            .map_err(|_| MtlsPemError::PolicyInvalid)?;
+        if !matches!(server_name, ServerName::DnsName(_))
+            || server_dns_name
+                .bytes()
+                .any(|byte| byte.is_ascii_uppercase())
+            || !(MIN_VALIDITY_MARGIN..=MAX_VALIDITY_MARGIN).contains(&validity_margin)
+        {
+            return Err(MtlsPemError::PolicyInvalid);
+        }
+        Ok(Self {
+            server_dns_name: server_dns_name.into(),
+            validity_margin,
+        })
+    }
+}
+
+impl fmt::Debug for MtlsPemPolicy {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("MtlsPemPolicy([REDACTED])")
+    }
+}
+
+/// Stable value-free bounded PEM loading failure.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MtlsPemError {
+    PolicyInvalid,
+    BundleBoundsExceeded,
+    ServerChainInvalid,
+    PrivateKeyInvalid,
+    ClientRootsInvalid,
+    ClientCrlInvalid,
+    ServerIdentityInvalid,
+    ServerTimeInvalid,
+    CrlTimeInvalid,
+    ConfigurationInvalid,
+}
+
+impl MtlsPemError {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::PolicyInvalid => "internal_mtls_pem_policy_invalid",
+            Self::BundleBoundsExceeded => "internal_mtls_pem_bundle_bounds_exceeded",
+            Self::ServerChainInvalid => "internal_mtls_pem_server_chain_invalid",
+            Self::PrivateKeyInvalid => "internal_mtls_pem_private_key_invalid",
+            Self::ClientRootsInvalid => "internal_mtls_pem_client_roots_invalid",
+            Self::ClientCrlInvalid => "internal_mtls_pem_client_crl_invalid",
+            Self::ServerIdentityInvalid => "internal_mtls_pem_server_identity_invalid",
+            Self::ServerTimeInvalid => "internal_mtls_pem_server_time_invalid",
+            Self::CrlTimeInvalid => "internal_mtls_pem_crl_time_invalid",
+            Self::ConfigurationInvalid => "internal_mtls_pem_configuration_invalid",
+        }
+    }
+}
+
+impl fmt::Display for MtlsPemError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl Error for MtlsPemError {}
 
 /// Stable value-free failure while building internal mTLS material.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -88,9 +225,70 @@ impl Error for MtlsMaterialError {}
 pub struct InternalMtlsServerConfig {
     inner: Arc<ServerConfig>,
     material_policy: MtlsMaterialPolicy,
+    validated_until_epoch_seconds: Option<u64>,
 }
 
 impl InternalMtlsServerConfig {
+    /// Builds one strict server config from an owned bounded PEM bundle.
+    ///
+    /// # Errors
+    ///
+    /// Rejects unexpected PEM sections, invalid counts, identity/purpose/time
+    /// mismatch, absent or stale CRLs, and every existing DER material error.
+    pub fn from_pem_bundle(
+        bundle: InternalMtlsPemBundle,
+        pem_policy: &MtlsPemPolicy,
+        validation_time: SystemTime,
+        material_policy: &MtlsMaterialPolicy,
+    ) -> Result<Self, MtlsPemError> {
+        validate_pem_bundle_bounds(&bundle)?;
+        let validation_epoch_seconds = validation_time
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| MtlsPemError::ServerTimeInvalid)?
+            .as_secs();
+        let required_valid_until = validation_epoch_seconds
+            .checked_add(pem_policy.validity_margin.as_secs())
+            .ok_or(MtlsPemError::ServerTimeInvalid)?;
+
+        let server_chain = parse_certificate_pem(
+            &bundle.server_chain,
+            MtlsPemError::ServerChainInvalid,
+            material_policy.certificate_count,
+        )?;
+        let server_private_key = parse_private_key_pem(&bundle.server_private_key)?;
+        let client_roots = parse_certificate_pem(
+            &bundle.client_roots,
+            MtlsPemError::ClientRootsInvalid,
+            material_policy.certificate_count,
+        )?;
+        let client_crls = parse_crl_pem(&bundle.client_crls, material_policy.crl_count)?;
+
+        let server_valid_until = validate_server_identity(
+            server_chain
+                .first()
+                .ok_or(MtlsPemError::ServerChainInvalid)?,
+            pem_policy,
+            validation_epoch_seconds,
+            required_valid_until,
+        )?;
+        let crl_valid_until =
+            validate_crl_times(&client_crls, validation_epoch_seconds, required_valid_until)?;
+        let server_refs = server_chain.iter().map(Vec::as_slice).collect::<Vec<_>>();
+        let root_refs = client_roots.iter().map(Vec::as_slice).collect::<Vec<_>>();
+        let crl_refs = client_crls.iter().map(Vec::as_slice).collect::<Vec<_>>();
+        let mut config = Self::from_der(
+            &server_refs,
+            server_private_key.as_slice(),
+            &root_refs,
+            &crl_refs,
+            material_policy,
+        )
+        .map_err(MtlsPemError::from)?;
+        config.validated_until_epoch_seconds = Some(server_valid_until.min(crl_valid_until));
+        drop(bundle);
+        Ok(config)
+    }
+
     /// Builds one client-auth-mandatory server configuration from DER inputs.
     ///
     /// # Errors
@@ -184,6 +382,7 @@ impl InternalMtlsServerConfig {
         Ok(Self {
             inner: Arc::new(config),
             material_policy: *policy,
+            validated_until_epoch_seconds: None,
         })
     }
 
@@ -194,6 +393,13 @@ impl InternalMtlsServerConfig {
             self.inner.alpn_protocols[0].as_slice(),
             self.inner.alpn_protocols[1].as_slice(),
         ]
+    }
+
+    /// Returns the earliest server-certificate/CRL deadline only for configs
+    /// built by the time-qualified PEM boundary.
+    #[must_use]
+    pub const fn validated_until_epoch_seconds(&self) -> Option<u64> {
+        self.validated_until_epoch_seconds
     }
 
     pub(crate) fn rustls_config(&self) -> Arc<ServerConfig> {
@@ -209,6 +415,34 @@ impl InternalMtlsServerConfig {
             certificates.len(),
             &self.material_policy,
         )
+    }
+}
+
+impl From<MtlsMaterialError> for MtlsPemError {
+    fn from(error: MtlsMaterialError) -> Self {
+        match error {
+            MtlsMaterialError::MaterialBoundsExceeded => Self::BundleBoundsExceeded,
+            MtlsMaterialError::ServerChainInvalid => Self::ServerChainInvalid,
+            MtlsMaterialError::PrivateKeyInvalid => Self::PrivateKeyInvalid,
+            MtlsMaterialError::ClientRootsInvalid => Self::ClientRootsInvalid,
+            MtlsMaterialError::ClientCrlInvalid => Self::ClientCrlInvalid,
+            MtlsMaterialError::ServerIdentityInvalid => Self::ServerIdentityInvalid,
+            MtlsMaterialError::ConfigurationInvalid => Self::ConfigurationInvalid,
+        }
+    }
+}
+
+struct SecretDer(Vec<u8>);
+
+impl SecretDer {
+    fn as_slice(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl Drop for SecretDer {
+    fn drop(&mut self) {
+        self.0.fill(0);
     }
 }
 
@@ -303,6 +537,176 @@ impl ClientCertVerifier for BoundedClientCertVerifier {
     fn requires_raw_public_keys(&self) -> bool {
         self.inner.requires_raw_public_keys()
     }
+}
+
+fn validate_pem_bundle_bounds(bundle: &InternalMtlsPemBundle) -> Result<(), MtlsPemError> {
+    let lengths = [
+        (bundle.server_chain.len(), MAX_SERVER_CHAIN_PEM_BYTES),
+        (
+            bundle.server_private_key.len(),
+            MAX_SERVER_PRIVATE_KEY_PEM_BYTES,
+        ),
+        (bundle.client_roots.len(), MAX_CLIENT_ROOTS_PEM_BYTES),
+        (bundle.client_crls.len(), MAX_CLIENT_CRLS_PEM_BYTES),
+    ];
+    let mut total = 0usize;
+    for (length, limit) in lengths {
+        if length > limit {
+            return Err(MtlsPemError::BundleBoundsExceeded);
+        }
+        total = total
+            .checked_add(length)
+            .ok_or(MtlsPemError::BundleBoundsExceeded)?;
+    }
+    if total > MAX_PEM_BUNDLE_BYTES {
+        return Err(MtlsPemError::BundleBoundsExceeded);
+    }
+    Ok(())
+}
+
+fn parse_certificate_pem(
+    pem: &[u8],
+    invalid_error: MtlsPemError,
+    count_limit: usize,
+) -> Result<Vec<Vec<u8>>, MtlsPemError> {
+    let sections = parse_pem_sections(pem, invalid_error)?;
+    if sections.is_empty() {
+        return Err(invalid_error);
+    }
+    if sections.len() > count_limit {
+        return Err(MtlsPemError::BundleBoundsExceeded);
+    }
+    sections
+        .into_iter()
+        .map(|(kind, der)| {
+            if kind == SectionKind::Certificate {
+                Ok(der)
+            } else {
+                Err(invalid_error)
+            }
+        })
+        .collect()
+}
+
+fn parse_private_key_pem(pem: &[u8]) -> Result<SecretDer, MtlsPemError> {
+    let mut sections = parse_pem_sections(pem, MtlsPemError::PrivateKeyInvalid)?;
+    if sections.len() != 1 {
+        return Err(MtlsPemError::PrivateKeyInvalid);
+    }
+    let (kind, der) = sections.pop().ok_or(MtlsPemError::PrivateKeyInvalid)?;
+    if matches!(
+        kind,
+        SectionKind::RsaPrivateKey | SectionKind::PrivateKey | SectionKind::EcPrivateKey
+    ) {
+        Ok(SecretDer(der))
+    } else {
+        Err(MtlsPemError::PrivateKeyInvalid)
+    }
+}
+
+fn parse_crl_pem(pem: &[u8], count_limit: usize) -> Result<Vec<Vec<u8>>, MtlsPemError> {
+    if pem.is_empty() {
+        return Ok(Vec::new());
+    }
+    let sections = parse_pem_sections(pem, MtlsPemError::ClientCrlInvalid)?;
+    if sections.len() > count_limit {
+        return Err(MtlsPemError::BundleBoundsExceeded);
+    }
+    sections
+        .into_iter()
+        .map(|(kind, der)| {
+            if kind == SectionKind::Crl {
+                Ok(der)
+            } else {
+                Err(MtlsPemError::ClientCrlInvalid)
+            }
+        })
+        .collect()
+}
+
+fn parse_pem_sections(
+    pem: &[u8],
+    invalid_error: MtlsPemError,
+) -> Result<Vec<(SectionKind, Vec<u8>)>, MtlsPemError> {
+    let declared_sections = pem
+        .split(|byte| *byte == b'\n' || *byte == b'\r')
+        .filter(|line| line.starts_with(b"-----BEGIN "))
+        .count();
+    let sections = <(SectionKind, Vec<u8>)>::pem_slice_iter(pem)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| invalid_error)?;
+    if declared_sections != sections.len() {
+        return Err(invalid_error);
+    }
+    Ok(sections)
+}
+
+fn validate_server_identity(
+    leaf_der: &[u8],
+    policy: &MtlsPemPolicy,
+    validation_time: u64,
+    required_valid_until: u64,
+) -> Result<u64, MtlsPemError> {
+    let certificate =
+        ParsedCertificate::from_der(leaf_der).map_err(|_| MtlsPemError::ServerIdentityInvalid)?;
+    let validity = certificate.tbs_certificate().validity();
+    let not_before = validity.not_before.to_unix_duration().as_secs();
+    let not_after = validity.not_after.to_unix_duration().as_secs();
+    if validation_time < not_before || required_valid_until > not_after {
+        return Err(MtlsPemError::ServerTimeInvalid);
+    }
+
+    let (_, subject_alt_name) = certificate
+        .tbs_certificate()
+        .get_extension::<SubjectAltName>()
+        .map_err(|_| MtlsPemError::ServerIdentityInvalid)?
+        .ok_or(MtlsPemError::ServerIdentityInvalid)?;
+    let [GeneralName::DnsName(dns_name)] = subject_alt_name.0.as_slice() else {
+        return Err(MtlsPemError::ServerIdentityInvalid);
+    };
+    if !dns_name
+        .as_str()
+        .eq_ignore_ascii_case(&policy.server_dns_name)
+    {
+        return Err(MtlsPemError::ServerIdentityInvalid);
+    }
+
+    let (_, extended_key_usage) = certificate
+        .tbs_certificate()
+        .get_extension::<ExtendedKeyUsage>()
+        .map_err(|_| MtlsPemError::ServerIdentityInvalid)?
+        .ok_or(MtlsPemError::ServerIdentityInvalid)?;
+    if !extended_key_usage.0.contains(&SERVER_AUTH_OID) {
+        return Err(MtlsPemError::ServerIdentityInvalid);
+    }
+    Ok(not_after)
+}
+
+fn validate_crl_times(
+    crls: &[Vec<u8>],
+    validation_time: u64,
+    required_valid_until: u64,
+) -> Result<u64, MtlsPemError> {
+    if crls.is_empty() {
+        return Err(MtlsPemError::CrlTimeInvalid);
+    }
+    let mut earliest_next_update = u64::MAX;
+    for crl_der in crls {
+        let crl = CertificateList::<Rfc5280>::from_der(crl_der)
+            .map_err(|_| MtlsPemError::ClientCrlInvalid)?;
+        let this_update = crl.tbs_cert_list.this_update.to_unix_duration().as_secs();
+        let next_update = crl
+            .tbs_cert_list
+            .next_update
+            .ok_or(MtlsPemError::CrlTimeInvalid)?
+            .to_unix_duration()
+            .as_secs();
+        if this_update > validation_time || next_update < required_valid_until {
+            return Err(MtlsPemError::CrlTimeInvalid);
+        }
+        earliest_next_update = earliest_next_update.min(next_update);
+    }
+    Ok(earliest_next_update)
 }
 
 fn validate_collection(

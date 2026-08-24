@@ -15,6 +15,7 @@ fn strict_der_material_builds_a_redacted_mandatory_client_auth_config() {
         "InternalMtlsServerConfig([REDACTED])"
     );
     assert_eq!(config.alpn_protocols(), [b"h2".as_slice(), b"http/1.1"]);
+    assert_eq!(config.validated_until_epoch_seconds(), None);
 }
 
 #[test]

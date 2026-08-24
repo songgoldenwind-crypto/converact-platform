@@ -11,7 +11,10 @@ pub use listener::{
     InternalMtlsListenerPolicy, InternalMtlsListenerPolicyError, InternalMtlsListenerStats,
     InternalMtlsStream,
 };
-pub use material::{InternalMtlsServerConfig, MtlsMaterialError, MtlsMaterialPolicy};
+pub use material::{
+    InternalMtlsPemBundle, InternalMtlsServerConfig, MtlsMaterialError, MtlsMaterialPolicy,
+    MtlsPemError, MtlsPemPolicy,
+};
 pub use peer_certificate::{
     MtlsCertificatePolicy, PeerCertificateError, peer_identity_from_verified_leaf_der,
 };
