@@ -73,30 +73,31 @@ tokio-rustls 0.26.4, RustCrypto x509-cert 0.3.0, rcgen 0.14.8 for tests only.
   map its value-free errors without exposing DER or URI values.
 - [x] Run the focused projection test and the full `converact-tenant-auth`
   crate tests; both must pass.
-- [ ] Commit only the parser/package files as
+- [x] Commit only the parser/package files as
   `feat(rust): project verified mTLS certificates`.
 
 ### Task 3: Build bounded rustls client-certificate verification
 
-- [ ] Write failing `tests/material.rs` cases for missing roots, empty or
-  oversized chains, wrong client CA, absent client certificate, wrong EKU,
-  expired material, CRL input, TLS versions, fixed ALPN and redacted errors.
-- [ ] Implement a `BoundedClientCertVerifier` wrapper that applies chain count,
+- [x] Write failing material tests for missing roots, empty or oversized
+  chains, wrong client CA, mandatory client authentication, wrong EKU,
+  expired material, valid/malformed CRL input, fixed ALPN and redacted errors.
+- [x] Implement a `BoundedClientCertVerifier` wrapper that applies chain count,
   per-certificate and total-byte limits before delegating every rustls
   signature and client-certificate verification method to
   `WebPkiClientVerifier`.
-- [ ] Implement `InternalMtlsServerConfig::from_der` from an injected server
+- [x] Implement `InternalMtlsServerConfig::from_der` from an injected server
   chain, private key, client roots and CRLs. Require client authentication,
   TLS 1.2/1.3 and ALPN `[h2, http/1.1]`.
-- [ ] Run focused material tests, Clippy and rustdoc with warnings denied.
+- [x] Run focused material tests, Clippy and rustdoc with warnings denied.
 - [ ] Commit only the material/verifier files as
   `feat(rust): verify bounded mTLS chains`.
 
 ### Task 4: Implement bounded concurrent handshakes
 
 - [ ] Write failing `tests/listener.rs` cases for one valid client, no client
-  certificate, wrong CA, stalled handshake timeout, configured capacity,
-  simultaneous failed/valid isolation and listener-drop cancellation.
+  certificate, wrong CA, TLS 1.2/1.3 acceptance and older-version rejection,
+  stalled handshake timeout, configured capacity, simultaneous failed/valid
+  isolation and listener-drop cancellation.
 - [ ] Implement `InternalMtlsListenerPolicy` with handshake capacity
   `1..=256` and timeout `100 ms..=10 s`.
 - [ ] Implement an Axum `Listener` owning one bounded `JoinSet`. Accept only

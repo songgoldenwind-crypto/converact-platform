@@ -133,6 +133,9 @@ The first contract fixes these values:
 | certificates in client chain | maximum `8` |
 | one certificate DER | maximum `64 KiB` |
 | complete client chain DER | maximum `256 KiB` |
+| server certificate chain / client trust roots | maximum `8` entries, `64 KiB` each and `256 KiB` total |
+| server private key DER | maximum `64 KiB` |
+| client CRLs | maximum `8` entries, `256 KiB` each and `1 MiB` total |
 | URI SAN entries | maximum `64` |
 | one URI SAN | maximum `2,048` bytes |
 
@@ -170,9 +173,11 @@ continues to forbid unsafe code. No OpenSSL library or C/C++ TLS binding is
 introduced.
 
 The server configuration uses TLS 1.2 and 1.3, fixes ALPN to `h2` and
-`http/1.1`, requires client authentication, and accepts injected CRLs. This
-slice does not claim revocation completeness until a later runtime config
-requires a current CRL or an approved short-lived SPIFFE certificate policy.
+`http/1.1`, requires client authentication, and accepts injected CRLs. Session
+storage and TLS 1.3 tickets are disabled in this first contract so trust or CRL
+rotation cannot inherit an earlier authenticated session. This slice does not
+claim revocation completeness until a later runtime config requires a current
+CRL or an approved short-lived SPIFFE certificate policy.
 
 ## 7. HTTP lifecycle integration
 
