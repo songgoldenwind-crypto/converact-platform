@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-internal-mtls-transport",
+  "generated_at": "2026-08-24T05:36:05Z",
+  "cycles": [
+    {
+      "id": "verified_leaf_projection",
+      "red": "the focused certificate tests could not import peer_identity_from_verified_leaf_der because the internal-mtls crate and parser did not exist",
+      "green": "bounded RustCrypto DER parsing projects exactly one verified URI SAN identity and rejects malformed, duplicate, ambiguous or oversized inputs with stable value-free errors"
+    },
+    {
+      "id": "bounded_material_and_client_verifier",
+      "red": "material tests could not construct a strict InternalMtlsServerConfig or enforce peer-chain bounds, client purpose, time and revocation",
+      "green": "the server config validates fixed material budgets, mandatory webpki client authentication, configured CRLs, TLS versions, ALPN and disabled session resumption"
+    },
+    {
+      "id": "bounded_listener_handshakes",
+      "red": "listener tests had no Axum Listener capable of isolating valid, missing-certificate, wrong-CA and stalled TLS clients",
+      "green": "one bounded JoinSet accepts verified TLS 1.2/1.3 streams, stops accepting at capacity, times out stalled sockets and isolates failures"
+    },
+    {
+      "id": "listener_drop_cancellation",
+      "red": "self-review required proof that dropping the listener could not detach an in-flight unauthenticated handshake",
+      "green": "the listener owns and aborts every handshake child on drop, with a focused cancellation test"
+    },
+    {
+      "id": "api_generic_listener_lifecycle",
+      "red": "the loopback mTLS API test failed to compile because serve_with_listener_runtime did not exist",
+      "green": "one generic Axum lifecycle serves the verified ConnectInfo and reproduces the current bounded forced child-task shutdown outcome while TCP wrappers remain compatible"
+    },
+    {
+      "id": "tool_path_corrections",
+      "red": "one TypeScript invocation selected system LibreSSL without copy_extensions and one Cargo invocation selected Rust 1.87 because their PATH environments were scoped incorrectly",
+      "green": "unchanged tests passed under the required OpenSSL 3.5.0 and pinned Rust 1.94.1 paths; the environment mistakes are disclosed in the README"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-internal-mtls-transport",
+  "generated_at": "2026-08-24T05:36:05Z",
+  "status": "not_run",
+  "reason": "No independent reviewer was authorized or used for this slice.",
+  "required_review": [
+    "exact certificate-chain, client-auth purpose, time, CRL and URI SAN semantics",
+    "bounded unauthenticated handshake work and listener cancellation",
+    "SPIFFE trust-domain and workload-path confused-deputy resistance",
+    "public error redaction, raw-material encapsulation, unsafe and dependency review",
+    "generic Axum lifecycle compatibility and online cutover prerequisites"
+  ]
+}

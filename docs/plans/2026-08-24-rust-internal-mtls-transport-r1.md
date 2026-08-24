@@ -123,24 +123,24 @@ tokio-rustls 0.26.4, RustCrypto x509-cert 0.3.0, rcgen 0.14.8 for tests only.
   assert the exact Cell/fault-domain/node identity returned over loopback TLS.
 - [x] Run all `converact-api`, `converact-internal-mtls` and active TypeScript
   dialog-shadow contract tests.
-- [ ] Commit only the generic lifecycle and integration tests as
+- [x] Commit only the generic lifecycle and integration tests as
   `refactor(rust): share listener shutdown lifecycle`.
 
 ### Task 6: Verify and record the offline checkpoint
 
-- [ ] Run pinned `cargo test --workspace --all-targets --locked`.
-- [ ] Run pinned `cargo clippy --workspace --all-targets --locked -- -D warnings`.
-- [ ] Run pinned `RUSTDOCFLAGS=-Dwarnings cargo doc --workspace --no-deps --locked`.
-- [ ] Run pinned `cargo fmt --all -- --check`.
-- [ ] Run Node 24 TypeScript typecheck and the active dialog-shadow/mTLS
+- [x] Run pinned `cargo test --workspace --all-targets --locked`.
+- [x] Run pinned `cargo clippy --workspace --all-targets --locked -- -D warnings`.
+- [x] Run pinned `RUSTDOCFLAGS=-Dwarnings cargo doc --workspace --no-deps --locked`.
+- [x] Run pinned `cargo fmt --all -- --check`.
+- [x] Run Node 24 TypeScript typecheck and the active dialog-shadow/mTLS
   differential suites.
-- [ ] Write README, RED/GREEN log, dependency manifest, source manifest,
+- [x] Write README, RED/GREEN log, dependency manifest, source manifest,
   verification and independent-review status under
   `evidence/r1-internal-mtls-transport/`; every physical or runtime claim stays
   `not_run`.
-- [ ] Parse every JSON artifact, replay every SHA-256, run `git diff --check`,
+- [x] Parse every JSON artifact, replay every SHA-256, run `git diff --check`,
   and verify the historical G03 README remains unstaged.
-- [ ] Commit only the clean evidence files as
+- [x] Commit only the clean evidence files as
   `docs(rust): record internal mTLS transport evidence`.
 
 ## Self-review result
