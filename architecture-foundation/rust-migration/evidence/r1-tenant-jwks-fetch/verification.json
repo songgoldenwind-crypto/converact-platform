@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-fetch",
+  "generated_at": "2026-08-24T01:47:10Z",
+  "current_state": "typescript_jwks_fetch_cache_verifier_active_rust_fetch_adapter_offline_default_disabled",
+  "target_state": "bounded_single_generation_dns_pinned_http_tls_jwks_fetch_before_cache_composition",
+  "production_eligible": false,
+  "checks": [
+    {
+      "id": "rust_fetch_fault_contract",
+      "status": "passed",
+      "result": "13/13 focused fetch tests passed across deadline bounds, redaction, resolver failure/cancellation, pinned loopback fetch, mixed answers, direct IP, redirect, retry, head rejection, stalled body and caller cancellation"
+    },
+    {
+      "id": "caller_cancellation_repeat",
+      "status": "passed",
+      "result": "the synchronized caller-cancellation test passed five consecutive focused runs after accepting both EOF and TCP reset as closed"
+    },
+    {
+      "id": "resolved_address_regression",
+      "status": "passed",
+      "result": "7/7 resolved-address policy tests passed alongside the fetch suite"
+    },
+    {
+      "id": "active_typescript_cross_runtime_replay",
+      "status": "passed",
+      "result": "Node 24 passed the five active JWKS decoder, issuer, response, cache and tenant-auth replay suites"
+    },
+    {
+      "id": "rust_workspace_all_targets_locked",
+      "status": "passed",
+      "result": "pinned cargo test --workspace --all-targets --locked exited 0; explicitly gated physical PostgreSQL tests remained ignored"
+    },
+    {
+      "id": "rust_workspace_clippy_format_and_docs",
+      "status": "passed",
+      "result": "pinned workspace Clippy all targets with -D warnings, rustdoc without dependencies and formatting check exited 0"
+    },
+    {
+      "id": "dependency_archive_license_and_advisory_boundary",
+      "status": "passed",
+      "result": "38/38 directly hashed registry archives matched Cargo.lock; licenses are permissive; all 11 matching advisories in RustSec commit bf5c0d245a92671908518d7e765914d437954ed6 place the selected versions in patched or withdrawn ranges"
+    },
+    {
+      "id": "rustsec_database_freshness",
+      "status": "passed",
+      "result": "read-only git ls-remote reported the same RustSec advisory-db HEAD bf5c0d245a92671908518d7e765914d437954ed6 as the local database"
+    },
+    {
+      "id": "fixed_tls_configuration_source_boundary",
+      "status": "passed",
+      "result": "exact-pinned Rustls receives a local Mozilla RootCertStore and Reqwest receives it through tls_backend_preconfigured; source guards reject platform-verifier calls, dangerous certificate switches, redirects, proxies and retries"
+    },
+    {
+      "id": "git_diff_json_and_source_manifest_replay",
+      "status": "passed",
+      "result": "all checkpoint JSON parsed, git diff --check exited 0 and all 22 source-manifest file digests replayed exactly before explicit staging"
+    },
+    {
+      "id": "independent_exact_tree_review",
+      "status": "not_run"
+    },
+    {
+      "id": "positive_tls_hostname_and_non_macos_target_matrix",
+      "status": "not_run"
+    },
+    {
+      "id": "enterprise_private_ca_root_update_and_revocation_policy",
+      "status": "not_run"
+    },
+    {
+      "id": "automated_full_lockfile_audit",
+      "status": "not_run",
+      "reason": "cargo-audit and cargo-deny are not installed; neither was installed during this slice"
+    },
+    {
+      "id": "cache_verifier_readiness_and_runtime_facade",
+      "status": "not_run"
+    },
+    {
+      "id": "mtls_http_websocket_shadow_drain_and_deletion",
+      "status": "not_run"
+    },
+    {
+      "id": "fleet_fault_capacity_performance_and_production",
+      "status": "not_run"
+    }
+  ]
+}

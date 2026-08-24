@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-fetch",
+  "generated_at": "2026-08-24T01:47:10Z",
+  "cycles": [
+    {
+      "id": "bounded_dns_http_adapter",
+      "red": "the focused integration test could not import JwksDnsResolveError, JwksDnsResolver, JwksFetchPolicy, JwksFetcher or the required Tokio I/O extension traits",
+      "green": "one generic resolver boundary and fresh-client fetcher now execute resolution, full-set address validation, address pinning, request and response collection under one bounded deadline"
+    },
+    {
+      "id": "loopback_transport_fault_matrix",
+      "red": "the first loopback corpus used jwks.test over HTTP, which the already-frozen issuer boundary correctly rejected before transport",
+      "green": "the corpus now uses explicit localhost development transport and proves one resolver generation, redirect denial, no retry, response-head cancellation, stalled-body timeout and direct-IP DNS bypass"
+    },
+    {
+      "id": "fixed_local_tls_roots",
+      "red": "the source guard failed because the first implementation delegated trust to rustls-platform-verifier and did not contain a fixed RootCertStore",
+      "green": "the adapter supplies exact webpki-roots to a preconfigured Rustls client; source guards reject the platform verifier call, dangerous certificate switches, proxy constructors and default-provider installation"
+    },
+    {
+      "id": "resolver_and_caller_cancellation",
+      "red": "the adapter had no direct proof that total timeout drops the resolver future or that caller cancellation releases an active response connection",
+      "green": "a drop probe proves resolver-future cancellation and a synchronized loopback server proves caller cancellation closes or resets the active socket"
+    },
+    {
+      "id": "cancellation_assertion_portability",
+      "red": "one full crate run failed because the test accepted only normal EOF while cancellation may legally surface as TCP reset",
+      "green": "the test now treats only EOF or read error as closed, rejects a silent timeout, and passed five consecutive focused repetitions"
+    },
+    {
+      "id": "workspace_lint_corrections",
+      "red": "workspace Clippy rejected FromIterator::from_iter and an unnested or-pattern in the socket-close helper",
+      "green": "the root store uses collect::<RootCertStore>() and the close pattern is nested; focused and workspace Clippy now pass with -D warnings"
+    }
+  ]
+}

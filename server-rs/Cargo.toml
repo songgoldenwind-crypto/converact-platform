@@ -35,18 +35,21 @@ deadpool-postgres = { version = "=0.14.1", default-features = false, features = 
 hex = "=0.4.3"
 hmac = "=0.13.0"
 ring = { version = "=0.17.14", default-features = false, features = ["alloc"] }
+reqwest = { version = "=0.13.4", default-features = false, features = ["rustls-no-provider"] }
+rustls = { version = "=0.23.43", default-features = false, features = ["ring", "std", "tls12"] }
 ryu = "=1.0.23"
 rustix = { version = "=1.1.4", features = ["fs", "process"] }
 serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = "=1.0.149"
 sha2 = "=0.10.9"
 sha2_11 = { package = "sha2", version = "=0.11.0" }
-tokio = { version = "=1.53.1", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { version = "=1.53.1", features = ["io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-postgres = { version = "=0.7.18", default-features = false }
 tower = { version = "=0.5.3", features = ["util"] }
 tracing = "=0.1.44"
 tracing-subscriber = { version = "=0.3.22", features = ["fmt", "json"] }
 url = { version = "=2.5.8", default-features = false, features = ["std"] }
+webpki-roots = { version = "=1.0.9", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

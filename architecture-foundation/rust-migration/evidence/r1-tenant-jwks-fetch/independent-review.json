@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-fetch",
+  "generated_at": "2026-08-24T01:47:10Z",
+  "status": "not_run",
+  "production_eligible": false,
+  "reason": "No independent exact-tree security, native-boundary and maintainability reviewer has reviewed this slice.",
+  "required_scope": [
+    "one-generation DNS resolution, atomic destination validation and Reqwest address pinning",
+    "redirect, retry, proxy, decompression, timeout and cancellation behavior",
+    "Rustls provider, Mozilla root snapshot, hostname verification and absence of ambient trust",
+    "compiled-but-unused rustls-platform-verifier platform bindings and BuiltRustls branch proof",
+    "response-head/body cancellation and closed value-free diagnostics",
+    "dependency feature expansion, licenses, advisories, unsafe/native source and target conditions",
+    "future enterprise private CA, revocation, root update, cache cardinality and readiness obligations"
+  ]
+}

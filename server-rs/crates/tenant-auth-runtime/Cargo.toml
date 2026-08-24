@@ -7,6 +7,14 @@ publish.workspace = true
 
 [dependencies]
 converact-tenant-auth = { path = "../tenant-auth" }
+reqwest.workspace = true
+rustls.workspace = true
+tokio.workspace = true
+webpki-roots.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+tokio.workspace = true
 
 [lints]
 workspace = true

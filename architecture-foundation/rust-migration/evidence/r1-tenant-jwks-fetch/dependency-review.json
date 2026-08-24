@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-fetch",
+  "reviewed_at": "2026-08-24T01:47:10Z",
+  "scope": "JWKS DNS/HTTP/TLS adapter dependency and feature delta from commit 3b39444a3fe51dd311bffc601708307d12b8e023",
+  "status": "boundary_review_passed_with_remaining_gates",
+  "selected_stack": [
+    {
+      "name": "reqwest",
+      "version": "0.13.4",
+      "exact_pin": true,
+      "default_features": false,
+      "enabled_features": ["rustls-no-provider"],
+      "use": "HTTP/1.1 request construction, pinned resolver integration, response streaming and cancellation",
+      "runtime_controls": ["fresh client per refresh", "no proxy", "no redirect", "no retry", "no idle pool", "no decompression", "total timeout"]
+    },
+    {
+      "name": "rustls",
+      "version": "0.23.43",
+      "exact_pin": true,
+      "default_features": false,
+      "enabled_features": ["ring", "std", "tls12"],
+      "use": "explicit crypto provider and local WebPKI certificate/name verification"
+    },
+    {
+      "name": "webpki-roots",
+      "version": "1.0.9",
+      "exact_pin": true,
+      "default_features": false,
+      "use": "compiled Mozilla public root snapshot; no runtime file or network lookup"
+    }
+  ],
+  "new_resolved_packages": [
+    { "name": "combine", "version": "4.6.7", "license": "MIT", "checksum": "ba5a308b75df32fe02788e748662718f03fde005016435c444eea572398219fd" },
+    { "name": "core-foundation", "version": "0.10.1", "license": "MIT OR Apache-2.0", "checksum": "b2a6cd9ae233e7f62ba4e9353e81a88df7fc8a5987b8d445b4d90c879bd156f6" },
+    { "name": "core-foundation-sys", "version": "0.8.7", "license": "MIT OR Apache-2.0", "checksum": "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b" },
+    { "name": "hyper-rustls", "version": "0.27.9", "license": "Apache-2.0 OR ISC OR MIT", "checksum": "33ca68d021ef39cf6463ab54c1d0f5daf03377b70561305bb89a8f83aab66e0f" },
+    { "name": "ipnet", "version": "2.12.1", "license": "MIT OR Apache-2.0", "checksum": "6a756c3fac73139e83f14c2d742155dd2b78d3ee56597b419a0579b7bdd6dd78" },
+    { "name": "jni", "version": "0.22.4", "license": "MIT OR Apache-2.0", "checksum": "5efd9a482cf3a427f00d6b35f14332adc7902ce91efb778580e180ff90fa3498" },
+    { "name": "jni-macros", "version": "0.22.4", "license": "MIT OR Apache-2.0", "checksum": "a00109accc170f0bdb141fed3e393c565b6f5e072365c3bd58f5b062591560a3" },
+    { "name": "jni-sys", "version": "0.4.1", "license": "MIT OR Apache-2.0", "checksum": "c6377a88cb3910bee9b0fa88d4f42e1d2da8e79915598f65fb0c7ee14c878af2" },
+    { "name": "jni-sys-macros", "version": "0.4.1", "license": "MIT OR Apache-2.0", "checksum": "38c0b942f458fe50cdac086d2f946512305e5631e720728f2a61aabcd47a6264" },
+    { "name": "openssl-probe", "version": "0.2.1", "license": "MIT OR Apache-2.0", "checksum": "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe" },
+    { "name": "reqwest", "version": "0.13.4", "license": "MIT OR Apache-2.0", "checksum": "219c5811de6525e5416c7d5d53bb656d3afdbc6c5af816e0802bcfa42dbdc1c3" },
+    { "name": "rustc_version", "version": "0.4.1", "license": "MIT OR Apache-2.0", "checksum": "cfcb3a22ef46e85b45de6ee7e79d063319ebb6594faafcf1c225ea92ab6e9b92" },
+    { "name": "rustls", "version": "0.23.43", "license": "Apache-2.0 OR ISC OR MIT", "checksum": "0283386ce02abc0151e1761d08802dfe86c173b0b494af5cbc086574e453da06" },
+    { "name": "rustls-native-certs", "version": "0.8.4", "license": "Apache-2.0 OR ISC OR MIT", "checksum": "dab5152771c58876a2146916e53e35057e1a4dfa2b9df0f0305b07f611fdea4d" },
+    { "name": "rustls-pki-types", "version": "1.15.1", "license": "MIT OR Apache-2.0", "checksum": "2f4925028c7eb5d1fcdaf196971378ed9d2c1c4efc7dc5d011256f76c99c0a96" },
+    { "name": "rustls-platform-verifier", "version": "0.7.0", "license": "MIT OR Apache-2.0", "checksum": "26d1e2536ce4f35f4846aa13bff16bd0ff40157cdb14cc056c7b14ba41233ba0" },
+    { "name": "rustls-platform-verifier-android", "version": "0.1.1", "license": "MIT OR Apache-2.0", "checksum": "f87165f0995f63a9fbeea62b64d10b4d9d8e78ec6d7d51fb2125fda7bb36788f" },
+    { "name": "rustls-webpki", "version": "0.103.15", "license": "ISC", "checksum": "f3c3cf1d8b1e7d4927e2d154c3fcb02979afb9939629c62cd9048d4f07b60ac2" },
+    { "name": "same-file", "version": "1.0.6", "license": "Unlicense/MIT", "checksum": "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502" },
+    { "name": "schannel", "version": "0.1.29", "license": "MIT", "checksum": "91c1b7e4904c873ef0710c1f407dde2e6287de2bebc1bbbf7d430bb7cbffd939" },
+    { "name": "security-framework", "version": "3.7.0", "license": "MIT OR Apache-2.0", "checksum": "b7f4bc775c73d9a02cde8bf7b2ec4c9d12743edf609006c7facc23998404cd1d" },
+    { "name": "security-framework-sys", "version": "2.17.0", "license": "MIT OR Apache-2.0", "checksum": "6ce2691df843ecc5d231c0b14ece2acc3efb62c0a398c7e1d875f3983ce020e3" },
+    { "name": "semver", "version": "1.0.28", "license": "MIT OR Apache-2.0", "checksum": "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd" },
+    { "name": "simd_cesu8", "version": "1.2.0", "license": "Apache-2.0 OR MIT", "checksum": "11031e251abf8611c80f460e19dbdeb54a66db918e49c65a7065b46ac7aec520" },
+    { "name": "simdutf8", "version": "0.1.5", "license": "MIT OR Apache-2.0", "checksum": "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e" },
+    { "name": "subtle", "version": "2.6.1", "license": "BSD-3-Clause", "checksum": "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292" },
+    { "name": "thiserror", "version": "2.0.20", "license": "MIT OR Apache-2.0", "checksum": "ec86235f5fcc2a73650310756d2ac5b138a5780bbbdfae3eeccec992c435ba4f" },
+    { "name": "thiserror-impl", "version": "2.0.20", "license": "MIT OR Apache-2.0", "checksum": "bc04cd3e1236dd4a98afca4569f2deb3f120e5422a4023be2cb683f8486292af" },
+    { "name": "tokio-rustls", "version": "0.26.4", "license": "MIT OR Apache-2.0", "checksum": "1729aa945f29d91ba541258c8df89027d5792d85a8841fb65e8bf0f4ede4ef61" },
+    { "name": "tower-http", "version": "0.6.11", "license": "MIT", "checksum": "4cfcf7e2740e6fc6d4d688b4ef00650406bb94adf4731e43c096c3a19fe40840" },
+    { "name": "try-lock", "version": "0.2.5", "license": "MIT", "checksum": "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b" },
+    { "name": "walkdir", "version": "2.5.0", "license": "Unlicense/MIT", "checksum": "29790946404f91d9c5d06f9874efddea1dc06c5efe94541a7d6863108e3a5e4b" },
+    { "name": "want", "version": "0.3.1", "license": "MIT", "checksum": "bfa7760aed19e106de2c7c0b581b509f2f25d3dacaf737cb82ac61bc6d760b0e" },
+    { "name": "wasm-bindgen-futures", "version": "0.4.77", "license": "MIT OR Apache-2.0", "checksum": "6b7777d5cc23d0e91404e53ce2d5e8ec7acae3026b16233dba62cd3246457950" },
+    { "name": "webpki-root-certs", "version": "1.0.9", "license": "CDLA-Permissive-2.0", "checksum": "b96554aa2acc8ccdb7e1c9a58a7a68dd5d13bccc69cd124cb09406db612a1c9b" },
+    { "name": "webpki-roots", "version": "1.0.9", "license": "CDLA-Permissive-2.0", "checksum": "7dcd9d09a39985f5344844e66b0c530a33843579125f23e21e9f0f220850f22a" },
+    { "name": "winapi-util", "version": "0.1.11", "license": "Unlicense OR MIT", "checksum": "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22" },
+    { "name": "zeroize", "version": "1.9.0", "license": "Apache-2.0 OR MIT", "checksum": "e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e" }
+  ],
+  "archive_verification": {
+    "archives_checked": 38,
+    "lockfile_checksum_matches": 38,
+    "mismatches": 0
+  },
+  "feature_review": {
+    "forbidden_or_absent": ["reqwest default features", "default-tls", "native-tls", "system-proxy", "http2", "http3", "gzip", "brotli", "deflate", "zstd", "rustls aws-lc-rs"],
+    "compiled_transitive_features": ["rustls-platform-verifier default", "tower retry/timeout", "tower-http follow-redirect", "hyper-util client-legacy/client-proxy", "ring default/dev_urandom_fallback"],
+    "runtime_boundary": "product source installs the complete BuiltRustls config and explicitly selects no redirect, retry, proxy, decompression or idle pooling; loopback tests and source guards cover these controls",
+    "limitation": "feature presence is not proof of runtime unreachability after a dependency upgrade; exact pins, source guards and compile tests must be replayed for every bump"
+  },
+  "native_and_unsafe_boundary": {
+    "workspace_owned_unsafe": "forbidden",
+    "existing_ring_boundary_expanded": "rustls reuses ring 0.17.14 and activates ring default/dev_urandom_fallback in addition to the previously reviewed alloc feature; ring's checked-in C/assembly and build.rs remain the native cryptographic boundary",
+    "macos_target": "the Reqwest feature compiles rustls-platform-verifier plus CoreFoundation/Security Framework FFI; the product BuiltRustls branch does not call that verifier",
+    "linux_target": "the same transitive verifier resolves rustls-native-certs and openssl-probe; the product BuiltRustls branch does not call them",
+    "lockfile_other_targets": "Android JNI, Windows schannel/winapi and WASM packages are target-conditional lockfile entries, not macOS/Linux product paths",
+    "new_package_build_scripts_observed": ["rustls 0.23.43", "thiserror 2.0.20", "jni 0.22.4 (Android target)", "jni-macros 0.22.4 (Android target)"],
+    "packaged_native_source_observed": "walkdir contains compare/nftw.c outside its build target; platform framework crates expose OS FFI; no new product-owned unsafe block exists",
+    "independent_exhaustive_source_audit": "not_run",
+    "non_macos_target_build": "not_run"
+  },
+  "advisory_review": {
+    "database": "RustSec/advisory-db",
+    "database_commit": "bf5c0d245a92671908518d7e765914d437954ed6",
+    "local_matches_remote_head_at_review": true,
+    "matching_package_advisories": [
+      { "id": "RUSTSEC-2023-0053", "package": "rustls-webpki", "selected": "0.103.15", "result": "patched" },
+      { "id": "RUSTSEC-2026-0049", "package": "rustls-webpki", "selected": "0.103.15", "patched": ">=0.103.10", "result": "not affected" },
+      { "id": "RUSTSEC-2026-0098", "package": "rustls-webpki", "selected": "0.103.15", "patched": ">=0.103.12,<0.104.0-alpha.1", "result": "not affected" },
+      { "id": "RUSTSEC-2026-0099", "package": "rustls-webpki", "selected": "0.103.15", "patched": ">=0.103.12,<0.104.0-alpha.1", "result": "not affected" },
+      { "id": "RUSTSEC-2026-0104", "package": "rustls-webpki", "selected": "0.103.15", "patched": ">=0.103.13,<0.104.0-alpha.1", "result": "not affected" },
+      { "id": "RUSTSEC-2024-0336", "package": "rustls", "selected": "0.23.43", "patched": ">=0.23.5", "result": "not affected" },
+      { "id": "RUSTSEC-2024-0399", "package": "rustls", "selected": "0.23.43", "patched": ">=0.23.18", "result": "not affected" },
+      { "id": "RUSTSEC-2017-0003", "package": "security-framework", "selected": "3.7.0", "patched": ">=0.1.12", "result": "not affected" },
+      { "id": "RUSTSEC-2020-0019", "package": "tokio-rustls", "selected": "0.26.4", "patched": ">=0.13.1", "result": "not affected" },
+      { "id": "RUSTSEC-2021-0135", "package": "tower-http", "selected": "0.6.11", "result": "withdrawn and selected version is above patched range" },
+      { "id": "RUSTSEC-2022-0043", "package": "tower-http", "selected": "0.6.11", "patched": ">=0.2.1", "result": "not affected" }
+    ]
+  },
+  "provider_documentation": [
+    "https://docs.rs/reqwest/0.13.4/reqwest/tls/",
+    "https://docs.rs/rustls/0.23.43/rustls/struct.RootCertStore.html",
+    "https://docs.rs/webpki-roots/1.0.9/webpki_roots/static.TLS_SERVER_ROOTS.html"
+  ],
+  "automated_full_lockfile_advisory_scan": {
+    "status": "not_run",
+    "reason": "cargo-audit and cargo-deny are not installed; no tool was installed or unpinned during this slice"
+  },
+  "production_eligible": false
+}
