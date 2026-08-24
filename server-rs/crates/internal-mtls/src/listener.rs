@@ -25,7 +25,8 @@ use tokio::{
 use tokio_rustls::{TlsAcceptor, server::TlsStream};
 
 use crate::{
-    InternalMtlsServerConfig, MtlsCertificatePolicy, peer_identity_from_verified_leaf_der,
+    InternalMtlsConfigSlot, InternalMtlsServerConfig, MtlsCertificatePolicy,
+    config_slot::InternalMtlsConfigReceiver, peer_identity_from_verified_leaf_der,
 };
 
 const MIN_HANDSHAKE_CAPACITY: usize = 1;
@@ -262,8 +263,7 @@ impl fmt::Debug for InternalMtlsListenerStats {
 /// Axum listener that admits only bounded, authenticated mTLS streams.
 pub struct InternalMtlsListener {
     listener: TcpListener,
-    tls_acceptor: TlsAcceptor,
-    server_config: InternalMtlsServerConfig,
+    config_receiver: InternalMtlsConfigReceiver,
     trust_domain: Arc<SpiffeTrustDomain>,
     certificate_policy: MtlsCertificatePolicy,
     policy: InternalMtlsListenerPolicy,
@@ -287,7 +287,28 @@ impl InternalMtlsListener {
         let listener = TcpListener::bind(address).await?;
         Ok(Self::from_listener(
             listener,
-            server_config,
+            InternalMtlsConfigReceiver::fixed(server_config),
+            trust_domain,
+            policy,
+        ))
+    }
+
+    /// Binds a listener to one atomically replaceable configuration slot.
+    ///
+    /// # Errors
+    ///
+    /// Returns the operating-system bind error without publishing or changing
+    /// the supplied slot.
+    pub async fn bind_with_config_slot(
+        address: SocketAddr,
+        config_slot: &InternalMtlsConfigSlot,
+        trust_domain: SpiffeTrustDomain,
+        policy: InternalMtlsListenerPolicy,
+    ) -> io::Result<Self> {
+        let listener = TcpListener::bind(address).await?;
+        Ok(Self::from_listener(
+            listener,
+            config_slot.subscribe(),
             trust_domain,
             policy,
         ))
@@ -295,14 +316,13 @@ impl InternalMtlsListener {
 
     fn from_listener(
         listener: TcpListener,
-        server_config: InternalMtlsServerConfig,
+        config_receiver: InternalMtlsConfigReceiver,
         trust_domain: SpiffeTrustDomain,
         policy: InternalMtlsListenerPolicy,
     ) -> Self {
         Self {
             listener,
-            tls_acceptor: TlsAcceptor::from(server_config.rustls_config()),
-            server_config,
+            config_receiver,
             trust_domain: Arc::new(trust_domain),
             certificate_policy: MtlsCertificatePolicy::strict(),
             policy,
@@ -317,8 +337,8 @@ impl InternalMtlsListener {
     }
 
     fn spawn_handshake(&mut self, socket: TcpStream, remote_address: SocketAddr) {
-        let acceptor = self.tls_acceptor.clone();
-        let server_config = self.server_config.clone();
+        let server_config = self.config_receiver.current_config();
+        let acceptor = TlsAcceptor::from(server_config.rustls_config());
         let trust_domain = self.trust_domain.clone();
         let certificate_policy = self.certificate_policy;
         let timeout = self.policy.handshake_timeout;

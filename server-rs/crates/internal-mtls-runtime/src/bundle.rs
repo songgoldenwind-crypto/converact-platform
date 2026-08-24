@@ -1,6 +1,6 @@
 use std::{error::Error, fmt, path::PathBuf};
 
-use converact_internal_mtls::InternalMtlsPemBundle;
+use converact_internal_mtls::{InternalMtlsConfigFingerprint, InternalMtlsPemBundle};
 use sha2::{Digest as _, Sha256};
 
 #[cfg(unix)]
@@ -146,14 +146,7 @@ impl fmt::Display for InternalMtlsBundleLoadError {
 impl Error for InternalMtlsBundleLoadError {}
 
 /// Content-derived revision used only for atomic idempotency comparison.
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
-pub struct InternalMtlsBundleRevision([u8; 32]);
-
-impl fmt::Debug for InternalMtlsBundleRevision {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("InternalMtlsBundleRevision([REDACTED])")
-    }
-}
+pub type InternalMtlsBundleRevision = InternalMtlsConfigFingerprint;
 
 /// One complete single-generation PEM bundle.
 pub struct LoadedInternalMtlsPemBundle {
@@ -307,7 +300,7 @@ fn bundle_revision(files: [(&str, &[u8]); 4]) -> InternalMtlsBundleRevision {
         digest.update((contents.len() as u64).to_be_bytes());
         digest.update(contents);
     }
-    InternalMtlsBundleRevision(digest.finalize().into())
+    InternalMtlsConfigFingerprint::from_sha256(digest.finalize().into())
 }
 
 fn validate_total_bytes(lengths: [usize; 4]) -> Result<(), InternalMtlsBundleLoadError> {

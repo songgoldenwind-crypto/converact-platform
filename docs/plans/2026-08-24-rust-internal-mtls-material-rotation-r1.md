@@ -68,16 +68,16 @@ unbounded task/queue/retry, no raw material in public errors or Debug.
 - `server-rs/crates/internal-mtls/src/lib.rs`
 - `server-rs/crates/internal-mtls/tests/listener_rotation.rs`
 
-- [ ] Write failing tests for same-bundle idempotency, checked revision,
+- [x] Write failing tests for same-bundle idempotency, checked revision,
   valid replacement, failed replacement retention and revision exhaustion.
-- [ ] Add one watch-backed config slot. Preserve the existing fixed listener
+- [x] Add one watch-backed config slot. Preserve the existing fixed listener
   constructor as a compatibility wrapper.
-- [ ] Clone one published config immediately after accept and drop the watch
+- [x] Clone one published config immediately after accept and drop the watch
   borrow before handshake await.
-- [ ] Prove old in-flight handshake/new handshake generation isolation and
+- [x] Prove old in-flight handshake/new handshake generation isolation and
   unchanged bounded shutdown behavior.
-- [ ] Run listener tests repeatedly, Clippy, docs and format checks.
-- [ ] Commit as `feat(rust): rotate mTLS config atomically`.
+- [x] Run listener tests repeatedly, Clippy, docs and format checks.
+- [x] Commit as `feat(rust): rotate mTLS config atomically`.
 
 ### Task 5: Add bounded reload scheduling and readiness
 
