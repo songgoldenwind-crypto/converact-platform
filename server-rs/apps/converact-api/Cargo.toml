@@ -15,10 +15,15 @@ converact-runtime-health = { path = "../../crates/runtime-health" }
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
+tower.workspace = true
 
 [dev-dependencies]
+converact-internal-mtls = { path = "../../crates/internal-mtls" }
+converact-tenant-auth = { path = "../../crates/tenant-auth" }
+rcgen.workspace = true
+rustls.workspace = true
 serde_json.workspace = true
-tower.workspace = true
+tokio-rustls.workspace = true
 
 [[test]]
 name = "health_contract_replay"

@@ -3,6 +3,7 @@
 pub mod http;
 
 use std::{
+    convert::Infallible,
     error::Error,
     fmt,
     future::{Future, IntoFuture},
@@ -10,9 +11,15 @@ use std::{
     time::Duration,
 };
 
-use axum::Router;
+use axum::{
+    Router,
+    extract::Request,
+    response::Response,
+    serve::{IncomingStream, Listener},
+};
 use converact_runtime_health::{HealthTaskGroup, TaskShutdown};
 use tokio::{net::TcpListener, sync::oneshot, time::timeout};
+use tower::Service;
 
 /// A bounded server lifecycle failure.
 #[derive(Debug)]
@@ -57,8 +64,33 @@ pub async fn serve<F>(
 where
     F: Future<Output = ()> + Send,
 {
+    serve_with_listener(listener, app, shutdown, shutdown_timeout).await
+}
+
+/// Serves one make-service through any Axum listener and one drain deadline.
+///
+/// # Errors
+///
+/// Returns [`ServeError::Io`] for listener failures and
+/// [`ServeError::ShutdownDeadlineExceeded`] if graceful draining exceeds the
+/// configured deadline.
+pub async fn serve_with_listener<L, M, S, F>(
+    listener: L,
+    make_service: M,
+    shutdown: F,
+    shutdown_timeout: Duration,
+) -> Result<(), ServeError>
+where
+    L: Listener,
+    L::Addr: fmt::Debug,
+    M: for<'a> Service<IncomingStream<'a, L>, Error = Infallible, Response = S> + Send + 'static,
+    for<'a> <M as Service<IncomingStream<'a, L>>>::Future: Send,
+    S: Service<Request, Response = Response, Error = Infallible> + Clone + Send + 'static,
+    S::Future: Send,
+    F: Future<Output = ()> + Send,
+{
     let (drain_tx, drain_rx) = oneshot::channel();
-    let server = axum::serve(listener, app)
+    let server = axum::serve(listener, make_service)
         .with_graceful_shutdown(async move {
             let _ = drain_rx.await;
         })
@@ -86,15 +118,43 @@ where
 pub async fn serve_runtime<F>(
     listener: TcpListener,
     app: Router,
-    mut tasks: HealthTaskGroup,
+    tasks: HealthTaskGroup,
     shutdown: F,
     shutdown_timeout: Duration,
 ) -> Result<TaskShutdown, ServeError>
 where
     F: Future<Output = ()> + Send,
 {
+    serve_with_listener_runtime(listener, app, tasks, shutdown, shutdown_timeout).await
+}
+
+/// Serves any Axum listener and owns bounded runtime children under one
+/// shutdown deadline.
+///
+/// # Errors
+///
+/// Returns [`ServeError::Io`] for listener failures and
+/// [`ServeError::ShutdownDeadlineExceeded`] if graceful draining exceeds the
+/// configured deadline. Child tasks are always signalled, aborted at the same
+/// deadline if necessary, and fully joined before return.
+pub async fn serve_with_listener_runtime<L, M, S, F>(
+    listener: L,
+    make_service: M,
+    mut tasks: HealthTaskGroup,
+    shutdown: F,
+    shutdown_timeout: Duration,
+) -> Result<TaskShutdown, ServeError>
+where
+    L: Listener,
+    L::Addr: fmt::Debug,
+    M: for<'a> Service<IncomingStream<'a, L>, Error = Infallible, Response = S> + Send + 'static,
+    for<'a> <M as Service<IncomingStream<'a, L>>>::Future: Send,
+    S: Service<Request, Response = Response, Error = Infallible> + Clone + Send + 'static,
+    S::Future: Send,
+    F: Future<Output = ()> + Send,
+{
     let (drain_tx, drain_rx) = oneshot::channel();
-    let server = axum::serve(listener, app)
+    let server = axum::serve(listener, make_service)
         .with_graceful_shutdown(async move {
             let _ = drain_rx.await;
         })

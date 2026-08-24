@@ -108,20 +108,20 @@ tokio-rustls 0.26.4, RustCrypto x509-cert 0.3.0, rcgen 0.14.8 for tests only.
   must remain private.
 - [x] Run focused listener tests repeatedly under Tokio's multi-thread runtime
   and prove the observed in-flight count never exceeds policy.
-- [ ] Commit only the listener files as
+- [x] Commit only the listener files as
   `feat(rust): accept bounded mTLS handshakes`.
 
 ### Task 5: Preserve the existing API lifecycle
 
-- [ ] Write a failing API runtime test that passes a test listener and
+- [x] Write a failing API runtime test that passes a test listener and
   make-service through a new generic `serve_with_listener_runtime` core while
   asserting the same drain deadline and child-task outcome as current TCP.
-- [ ] Extract the shared generic lifecycle; keep `serve` and `serve_runtime`
+- [x] Extract the shared generic lifecycle; keep `serve` and `serve_runtime`
   signatures and behavior unchanged as TCP compatibility wrappers.
-- [ ] Add a test-only Axum route using
+- [x] Add a test-only Axum route using
   `into_make_service_with_connect_info::<InternalMtlsConnectionInfo>()` and
   assert the exact Cell/fault-domain/node identity returned over loopback TLS.
-- [ ] Run all `converact-api`, `converact-internal-mtls` and active TypeScript
+- [x] Run all `converact-api`, `converact-internal-mtls` and active TypeScript
   dialog-shadow contract tests.
 - [ ] Commit only the generic lifecycle and integration tests as
   `refactor(rust): share listener shutdown lifecycle`.
