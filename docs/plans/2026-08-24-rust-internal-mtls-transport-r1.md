@@ -89,24 +89,24 @@ tokio-rustls 0.26.4, RustCrypto x509-cert 0.3.0, rcgen 0.14.8 for tests only.
   chain, private key, client roots and CRLs. Require client authentication,
   TLS 1.2/1.3 and ALPN `[h2, http/1.1]`.
 - [x] Run focused material tests, Clippy and rustdoc with warnings denied.
-- [ ] Commit only the material/verifier files as
+- [x] Commit only the material/verifier files as
   `feat(rust): verify bounded mTLS chains`.
 
 ### Task 4: Implement bounded concurrent handshakes
 
-- [ ] Write failing `tests/listener.rs` cases for one valid client, no client
+- [x] Write failing `tests/listener.rs` cases for one valid client, no client
   certificate, wrong CA, TLS 1.2/1.3 acceptance and older-version rejection,
   stalled handshake timeout, configured capacity, simultaneous failed/valid
   isolation and listener-drop cancellation.
-- [ ] Implement `InternalMtlsListenerPolicy` with handshake capacity
+- [x] Implement `InternalMtlsListenerPolicy` with handshake capacity
   `1..=256` and timeout `100 ms..=10 s`.
-- [ ] Implement an Axum `Listener` owning one bounded `JoinSet`. Accept only
+- [x] Implement an Axum `Listener` owning one bounded `JoinSet`. Accept only
   when a slot exists, apply one monotonic timeout per socket, close rejected
   connections, and return only a successfully projected identity.
-- [ ] Implement `InternalMtlsConnectionInfo` containing remote `SocketAddr` and
+- [x] Implement `InternalMtlsConnectionInfo` containing remote `SocketAddr` and
   `Arc<MtlsPeerIdentity>` for accepted connections. Raw DER and rustls types
   must remain private.
-- [ ] Run focused listener tests repeatedly under Tokio's multi-thread runtime
+- [x] Run focused listener tests repeatedly under Tokio's multi-thread runtime
   and prove the observed in-flight count never exceeds policy.
 - [ ] Commit only the listener files as
   `feat(rust): accept bounded mTLS handshakes`.

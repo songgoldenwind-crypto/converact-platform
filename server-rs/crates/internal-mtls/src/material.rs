@@ -87,6 +87,7 @@ impl Error for MtlsMaterialError {}
 #[derive(Clone)]
 pub struct InternalMtlsServerConfig {
     inner: Arc<ServerConfig>,
+    material_policy: MtlsMaterialPolicy,
 }
 
 impl InternalMtlsServerConfig {
@@ -182,6 +183,7 @@ impl InternalMtlsServerConfig {
 
         Ok(Self {
             inner: Arc::new(config),
+            material_policy: *policy,
         })
     }
 
@@ -192,6 +194,21 @@ impl InternalMtlsServerConfig {
             self.inner.alpn_protocols[0].as_slice(),
             self.inner.alpn_protocols[1].as_slice(),
         ]
+    }
+
+    pub(crate) fn rustls_config(&self) -> Arc<ServerConfig> {
+        self.inner.clone()
+    }
+
+    pub(crate) fn verified_peer_chain_is_bounded(
+        &self,
+        certificates: &[CertificateDer<'_>],
+    ) -> bool {
+        certificate_chain_is_bounded(
+            certificates.iter(),
+            certificates.len(),
+            &self.material_policy,
+        )
     }
 }
 
@@ -220,20 +237,12 @@ impl BoundedClientCertVerifier {
             .len()
             .checked_add(1)
             .ok_or_else(chain_bounds_error)?;
-        if certificate_count > self.policy.certificate_count {
+        if !certificate_chain_is_bounded(
+            std::iter::once(end_entity).chain(intermediates),
+            certificate_count,
+            &self.policy,
+        ) {
             return Err(chain_bounds_error());
-        }
-        let mut total_bytes = 0usize;
-        for certificate in std::iter::once(end_entity).chain(intermediates) {
-            if certificate.len() > self.policy.certificate_bytes {
-                return Err(chain_bounds_error());
-            }
-            total_bytes = total_bytes
-                .checked_add(certificate.len())
-                .ok_or_else(chain_bounds_error)?;
-            if total_bytes > self.policy.certificate_collection_bytes {
-                return Err(chain_bounds_error());
-            }
         }
         Ok(())
     }
@@ -322,6 +331,30 @@ fn validate_collection(
 
 fn chain_bounds_error() -> rustls::Error {
     rustls::Error::InvalidCertificate(CertificateError::ApplicationVerificationFailure)
+}
+
+fn certificate_chain_is_bounded<'a>(
+    certificates: impl Iterator<Item = &'a CertificateDer<'a>>,
+    certificate_count: usize,
+    policy: &MtlsMaterialPolicy,
+) -> bool {
+    if certificate_count == 0 || certificate_count > policy.certificate_count {
+        return false;
+    }
+    let mut total_bytes = 0usize;
+    for certificate in certificates {
+        if certificate.len() > policy.certificate_bytes {
+            return false;
+        }
+        let Some(next_total) = total_bytes.checked_add(certificate.len()) else {
+            return false;
+        };
+        if next_total > policy.certificate_collection_bytes {
+            return false;
+        }
+        total_bytes = next_total;
+    }
+    true
 }
 
 #[cfg(test)]
