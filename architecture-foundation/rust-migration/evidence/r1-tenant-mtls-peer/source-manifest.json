@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-mtls-peer",
+  "generated_at": "2026-08-24T03:55:29Z",
+  "base_commit": "307589815df12c8beb8d8c4cde9223978f2a96b2",
+  "branch": "codex/converact-platform-rename",
+  "rust_toolchain": "1.94.1-aarch64-apple-darwin",
+  "node_runtime": "24.15.0",
+  "hash_algorithm": "sha256",
+  "production_eligible": false,
+  "new_external_dependencies": [],
+  "new_resolved_packages": [],
+  "files": [
+    { "path": "server-rs/Cargo.toml", "sha256": "e0d11de04140e63ac5e59a379f9415aa135ece30071af1307e0f5cd5d700bf41" },
+    { "path": "server-rs/Cargo.lock", "sha256": "286520d9d7016ce7b09635baab3221ce1f60258a3354bec0ef32c6271886f39a" },
+    { "path": "server-rs/crates/tenant-auth/Cargo.toml", "sha256": "bed6f772f77cbb73d00025fbdfa99fc3711ca3596f5bbcf5a1d5ee9d85371ff2" },
+    { "path": "server-rs/crates/tenant-auth/src/lib.rs", "sha256": "1f66b8b75e72af9c7beb5ab64f1e375aeb0e5446c185569e88ed5b803dbb845c" },
+    { "path": "server-rs/crates/tenant-auth/src/mtls_peer.rs", "sha256": "cfa8bb4d43ecec6e02db49575832afee97444486a1f2ab81db8a34f84792f284" },
+    { "path": "server-rs/crates/tenant-auth/tests/mtls_peer.rs", "sha256": "0c635bdae9f483743f476664221c24b8c35bea97b996a1d70dfe96d875e6a57d" },
+    { "path": "server-rs/tests/fixtures/platform-mtls-peer-v1.json", "sha256": "d707fac00532c5dfc09c270178a8ba3c7a8d7c77f8a75024e81695d62a220290" },
+    { "path": "src/agent-runtime/converact/voice/dialog-shadow-server.ts", "sha256": "512b493a4f91ec145319a5a2ae601526ad2c9203e493629ed89b39e194dd754a" },
+    { "path": "src/agent-runtime/converact/voice/dialog-shadow-runtime.ts", "sha256": "c46139658a7cab5f7e95c24f9e056eea107ed2968e76f18404b4108ad8d9ffc9" },
+    { "path": "src/agent-runtime/converact/voice/dialog-owner-takeover.ts", "sha256": "1da09068a1481bf1ed73877fdb61a45f23c90ecb0b7c53f2d4d43bc5717c812e" },
+    { "path": "test/converact-rust-mtls-peer-contract.test.ts", "sha256": "270b50d16553945f8f8c485c26a1782ebffb2fd4644707eaf7c7ab91ca5cdb3d" },
+    { "path": "test/converact-dialog-shadow-server.test.ts", "sha256": "eab99b61c0101a8dd84906381dc89a7be4b616d9497101ae2f57400cd62c5c01" },
+    { "path": "test/converact-dialog-shadow-http.test.ts", "sha256": "a61c2ed199f695bcbf0b1bf4bd4a1aa6837920c1d830d58dbd41317c654ebb21" },
+    { "path": "test/converact-dialog-shadow-runtime.test.ts", "sha256": "c15252500948ba6184d0e4862ff5d37321e471fece20d1a50e576cd459622bd7" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-mtls-peer/README.md", "sha256": "6aeb4ca95abc999a63b74e39fd2aa37856244021a3b5d4bda2e5dd8dc02a77fb" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-mtls-peer/tdd-log.json", "sha256": "7b46cff0e7c97bfdd482d84f2cb1f89b6cfa033303e1f968d3b40d472d65a47e" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-mtls-peer/verification.json", "sha256": "f3e69d2ec67498e7a17dd60ab1231a6d5f39a767354a27beb6172b5121ce3022" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-mtls-peer/independent-review.json", "sha256": "b772f905838aaabb6bdd22fae8e09a53fbe2dd9a1da075586f2e28ce21b30543" }
+  ]
+}

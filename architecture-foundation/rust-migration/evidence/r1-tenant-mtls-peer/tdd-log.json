@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-mtls-peer",
+  "generated_at": "2026-08-24T03:55:29Z",
+  "cycles": [
+    {
+      "id": "active_typescript_compatibility_boundary",
+      "red": "the Node contract could not import a pure dialogPeerIdentityFromVerifiedUriSans function because peer mapping was embedded in the TLS request adapter",
+      "green": "the active server delegates its unchanged authorized and URI SAN projection to one exported pure compatibility helper and all existing dialog-shadow regression tests pass"
+    },
+    {
+      "id": "rust_peer_mapping_contract",
+      "red": "the focused Rust test could not compile because the mtls_peer module and public peer identity types did not exist",
+      "green": "the Rust mapper replays all 15 active TypeScript allow/reject cases and exact stable error categories"
+    },
+    {
+      "id": "custom_scheme_host_semantics",
+      "red": "the first corpus draft assumed an uppercase SPIFFE host would be canonicalized, but the active Node URL behavior and Rust url behavior both rejected it",
+      "green": "the corpus now records the observed exact-source behavior as uppercase_host_is_rejected without weakening trust-domain matching"
+    },
+    {
+      "id": "bounded_certificate_projection",
+      "red": "current parity alone did not cap synthetic URI SAN projection count or value size before parsing",
+      "green": "the target Rust boundary rejects more than 64 URI SANs or any value above 2048 bytes with a value-free error"
+    },
+    {
+      "id": "fixed_path_parse",
+      "red": "the first green implementation collected six path segments into a temporary vector",
+      "green": "the final parser consumes the exact six positions through one iterator and allocates only successful owned identity fields"
+    },
+    {
+      "id": "unauthorized_early_rejection_review",
+      "red": "self-review found the compatibility extraction moved the authorized check after certificate retrieval and therefore changed the original early-rejection work boundary",
+      "green": "the server again returns before certificate retrieval for an unauthorized socket while the pure helper independently keeps its fail-closed authorized input contract"
+    }
+  ]
+}

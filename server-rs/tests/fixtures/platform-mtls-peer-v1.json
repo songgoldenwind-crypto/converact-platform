@@ -1,0 +1,152 @@
+{
+  "schema_version": 1,
+  "source": "src/agent-runtime/converact/voice/dialog-shadow-server.ts",
+  "trust_domain": "identity.converact.test",
+  "cases": [
+    {
+      "name": "valid_node_identity",
+      "authorized": true,
+      "uri_subject_alt_names": [
+        "spiffe://identity.converact.test/cells/cell-a/fault-domains/az-1/nodes/node-1"
+      ],
+      "expected": "allowed",
+      "identity": {
+        "spiffe_id": "spiffe://identity.converact.test/cells/cell-a/fault-domains/az-1/nodes/node-1",
+        "cell_id": "cell-a",
+        "fault_domain": "az-1",
+        "node_id": "node-1"
+      }
+    },
+    {
+      "name": "uppercase_host_is_rejected",
+      "authorized": true,
+      "uri_subject_alt_names": [
+        "spiffe://IDENTITY.CONVERACT.TEST/cells/cell:a/fault-domains/zone.2/nodes/node_2"
+      ],
+      "expected": "rejected",
+      "error": "identity_invalid"
+    },
+    {
+      "name": "unrelated_uri_is_ignored",
+      "authorized": true,
+      "uri_subject_alt_names": [
+        "urn:example:unrelated",
+        "spiffe://identity.converact.test/cells/cell-b/fault-domains/az-2/nodes/node-2"
+      ],
+      "expected": "allowed",
+      "identity": {
+        "spiffe_id": "spiffe://identity.converact.test/cells/cell-b/fault-domains/az-2/nodes/node-2",
+        "cell_id": "cell-b",
+        "fault_domain": "az-2",
+        "node_id": "node-2"
+      }
+    },
+    {
+      "name": "tls_peer_is_not_authorized",
+      "authorized": false,
+      "uri_subject_alt_names": [
+        "spiffe://identity.converact.test/cells/cell-a/fault-domains/az-1/nodes/node-1"
+      ],
+      "expected": "rejected",
+      "error": "peer_unverified"
+    },
+    {
+      "name": "spiffe_identity_is_missing",
+      "authorized": true,
+      "uri_subject_alt_names": ["urn:example:unrelated"],
+      "expected": "rejected",
+      "error": "identity_count_invalid"
+    },
+    {
+      "name": "two_spiffe_identities_are_ambiguous",
+      "authorized": true,
+      "uri_subject_alt_names": [
+        "spiffe://identity.converact.test/cells/cell-a/fault-domains/az-1/nodes/node-1",
+        "spiffe://identity.converact.test/cells/cell-b/fault-domains/az-2/nodes/node-2"
+      ],
+      "expected": "rejected",
+      "error": "identity_count_invalid"
+    },
+    {
+      "name": "wrong_trust_domain",
+      "authorized": true,
+      "uri_subject_alt_names": [
+        "spiffe://other.example.test/cells/cell-a/fault-domains/az-1/nodes/node-1"
+      ],
+      "expected": "rejected",
+      "error": "identity_invalid"
+    },
+    {
+      "name": "userinfo_is_forbidden",
+      "authorized": true,
+      "uri_subject_alt_names": [
+        "spiffe://user@identity.converact.test/cells/cell-a/fault-domains/az-1/nodes/node-1"
+      ],
+      "expected": "rejected",
+      "error": "identity_invalid"
+    },
+    {
+      "name": "port_is_forbidden",
+      "authorized": true,
+      "uri_subject_alt_names": [
+        "spiffe://identity.converact.test:8443/cells/cell-a/fault-domains/az-1/nodes/node-1"
+      ],
+      "expected": "rejected",
+      "error": "identity_invalid"
+    },
+    {
+      "name": "query_is_forbidden",
+      "authorized": true,
+      "uri_subject_alt_names": [
+        "spiffe://identity.converact.test/cells/cell-a/fault-domains/az-1/nodes/node-1?role=owner"
+      ],
+      "expected": "rejected",
+      "error": "identity_invalid"
+    },
+    {
+      "name": "fragment_is_forbidden",
+      "authorized": true,
+      "uri_subject_alt_names": [
+        "spiffe://identity.converact.test/cells/cell-a/fault-domains/az-1/nodes/node-1#owner"
+      ],
+      "expected": "rejected",
+      "error": "identity_invalid"
+    },
+    {
+      "name": "percent_encoded_path_is_forbidden",
+      "authorized": true,
+      "uri_subject_alt_names": [
+        "spiffe://identity.converact.test/cells/cell%2Da/fault-domains/az-1/nodes/node-1"
+      ],
+      "expected": "rejected",
+      "error": "identity_invalid"
+    },
+    {
+      "name": "path_has_missing_segment",
+      "authorized": true,
+      "uri_subject_alt_names": [
+        "spiffe://identity.converact.test/cells/cell-a/nodes/node-1"
+      ],
+      "expected": "rejected",
+      "error": "identity_invalid"
+    },
+    {
+      "name": "path_has_extra_segment",
+      "authorized": true,
+      "uri_subject_alt_names": [
+        "spiffe://identity.converact.test/cells/cell-a/fault-domains/az-1/nodes/node-1/extra"
+      ],
+      "expected": "rejected",
+      "error": "identity_invalid"
+    },
+    {
+      "name": "component_must_start_alphanumeric",
+      "authorized": true,
+      "uri_subject_alt_names": [
+        "spiffe://identity.converact.test/cells/-cell/fault-domains/az-1/nodes/node-1"
+      ],
+      "expected": "rejected",
+      "error": "identity_invalid"
+    }
+  ]
+}

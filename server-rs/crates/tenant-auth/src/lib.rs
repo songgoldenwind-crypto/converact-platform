@@ -15,6 +15,7 @@ mod jwks_issuer;
 mod jwks_response;
 mod jwks_verifier;
 mod jwt;
+mod mtls_peer;
 mod rs256;
 
 pub use hs256::Hs256PlatformTokenVerifier;
@@ -34,6 +35,7 @@ pub use jwt::{
     AuthenticatedPlatformIdentity, PlatformIdentityRole, PlatformTokenVerificationError,
     PlatformTokenVerifierConfigError,
 };
+pub use mtls_peer::{MtlsPeerIdentity, MtlsPeerIdentityError, SpiffeTrustDomain};
 pub use rs256::Rs256PlatformTokenVerifier;
 
 const MAX_TEXT_UTF16_UNITS: usize = 256;

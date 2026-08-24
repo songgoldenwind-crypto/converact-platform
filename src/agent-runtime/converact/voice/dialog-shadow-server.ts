@@ -122,8 +122,22 @@ function peerIdentity(
   }
   const certificate = socket.getPeerX509Certificate();
   const san = certificate?.subjectAltName || '';
-  const identities = [...san.matchAll(/(?:^|,\s*)URI:([^,]+)(?=,\s*|$)/g)]
-    .map((match) => match[1] || '')
+  const uriSubjectAltNames = [...san.matchAll(/(?:^|,\s*)URI:([^,]+)(?=,\s*|$)/g)]
+    .map((match) => match[1] || '');
+  return dialogPeerIdentityFromVerifiedUriSans({
+    authorized: socket.authorized,
+    uri_subject_alt_names: uriSubjectAltNames,
+    trust_domain: trustDomain
+  });
+}
+
+export function dialogPeerIdentityFromVerifiedUriSans(input: {
+  authorized: boolean;
+  uri_subject_alt_names: readonly string[];
+  trust_domain: string;
+}): DialogPeerIdentity | undefined {
+  if (!input.authorized) return undefined;
+  const identities = input.uri_subject_alt_names
     .filter((value) => value.startsWith('spiffe://'));
   if (identities.length !== 1) return undefined;
   let uri: URL;
@@ -132,7 +146,7 @@ function peerIdentity(
   } catch {
     return undefined;
   }
-  if (uri.protocol !== 'spiffe:' || uri.hostname !== trustDomain ||
+  if (uri.protocol !== 'spiffe:' || uri.hostname !== input.trust_domain ||
       uri.username || uri.password || uri.port || uri.search || uri.hash ||
       uri.pathname.includes('%')) {
     return undefined;

@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-mtls-peer",
+  "generated_at": "2026-08-24T03:55:29Z",
+  "current_state": "typescript_dialog_shadow_mtls_mapping_active_rust_peer_mapper_offline_default_disabled",
+  "target_state": "verified_tls_adapter_projection_to_one_bounded_spiffe_cell_fault_domain_node_identity",
+  "production_eligible": false,
+  "checks": [
+    {
+      "id": "focused_rust_mtls_contract",
+      "status": "passed",
+      "result": "3/3 tests passed across 15 current-source vectors, exact closed errors, bounds, redaction and pure-source structure"
+    },
+    {
+      "id": "active_typescript_mtls_replay",
+      "status": "passed",
+      "result": "Node 24 passed all 15 shared mTLS/SPIFFE vectors and the unauthorized-before-certificate-read source boundary"
+    },
+    {
+      "id": "dialog_shadow_runtime_regression",
+      "status": "passed",
+      "result": "the two existing server tests and five existing HTTP tests passed after compatibility extraction"
+    },
+    {
+      "id": "tenant_auth_crate_regression",
+      "status": "passed",
+      "result": "all converact-tenant-auth unit, integration and doc tests passed"
+    },
+    {
+      "id": "selected_cross_runtime_contracts",
+      "status": "passed",
+      "result": "Node 24 passed 14 selected active JWKS, tenant-auth, mTLS and dialog-shadow tests"
+    },
+    {
+      "id": "typescript_typecheck",
+      "status": "passed",
+      "result": "npm run typecheck exited 0 on Node 24"
+    },
+    {
+      "id": "rust_workspace_all_targets_locked",
+      "status": "passed",
+      "result": "pinned cargo test --workspace --all-targets --locked exited 0; three pre-existing physical PostgreSQL tests remained ignored"
+    },
+    {
+      "id": "rust_workspace_clippy_format_and_docs",
+      "status": "passed",
+      "result": "pinned Workspace Clippy all targets with -D warnings, rustdoc with -Dwarnings and formatting check exited 0"
+    },
+    {
+      "id": "bounded_fail_closed_mapping",
+      "status": "passed",
+      "result": "unauthorized, missing, ambiguous, oversized, wrong-domain and malformed projections fail closed before returning an identity"
+    },
+    {
+      "id": "allocation_and_authority_boundary",
+      "status": "passed",
+      "result": "fixed-position path parsing owns no temporary vector, task, queue, registry, global lock, I/O, x509 parser or authorization policy"
+    },
+    {
+      "id": "dependency_and_lockfile_boundary",
+      "status": "passed",
+      "result": "Cargo manifests, Cargo.lock and external dependencies have no diff"
+    },
+    {
+      "id": "git_diff_json_and_source_manifest_replay",
+      "status": "passed",
+      "result": "all checkpoint JSON parsed, git diff --check exited 0 and every exact file digest replayed before explicit staging"
+    },
+    {
+      "id": "independent_exact_tree_review",
+      "status": "not_run"
+    },
+    {
+      "id": "rust_tls_x509_chain_and_san_adapter",
+      "status": "not_run"
+    },
+    {
+      "id": "pki_rotation_revocation_http_websocket_and_readiness",
+      "status": "not_run"
+    },
+    {
+      "id": "shadow_drain_active_zero_and_typescript_deletion",
+      "status": "not_run"
+    },
+    {
+      "id": "physical_fleet_fault_capacity_performance_and_production",
+      "status": "not_run"
+    }
+  ]
+}

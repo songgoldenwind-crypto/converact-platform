@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-mtls-peer",
+  "generated_at": "2026-08-24T03:55:29Z",
+  "status": "not_run",
+  "reason": "No independent reviewer was authorized or used for this slice.",
+  "required_review": [
+    "exact-source TypeScript compatibility and intentional target bounds",
+    "TLS/x509 responsibility boundary and confused-deputy resistance",
+    "SPIFFE trust-domain and workload-path parsing",
+    "error value hiding, allocation bounds and maintainability",
+    "future transport wiring, PKI lifecycle and route cutover"
+  ]
+}
