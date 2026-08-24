@@ -39,6 +39,7 @@ impl Error for Rs256JwksWarmError {}
 
 /// One validated issuer, one verifier, one refresh driver and one clock owner.
 pub struct Rs256JwksIssuerLifecycle<Fetcher, Clock> {
+    cache_policy: Rs256JwksCachePolicy,
     verifier: Arc<Rs256CachedTokenVerifier>,
     driver: Rs256JwksRefreshDriver<Fetcher, Arc<Clock>>,
     clock: Arc<Clock>,
@@ -71,6 +72,7 @@ impl<Fetcher: JwksSnapshotFetcher, Clock: JwksMonotonicClock>
         let driver =
             Rs256JwksRefreshDriver::new(issuer, Arc::clone(&verifier), fetcher, Arc::clone(&clock));
         Ok(Self {
+            cache_policy,
             verifier,
             driver,
             clock,
@@ -146,6 +148,10 @@ impl<Fetcher: JwksSnapshotFetcher, Clock: JwksMonotonicClock>
     #[must_use]
     pub fn readiness(&self) -> Rs256JwksReadiness {
         self.verifier.readiness(self.clock.now_ms())
+    }
+
+    pub(crate) const fn cache_policy(&self) -> Rs256JwksCachePolicy {
+        self.cache_policy
     }
 }
 

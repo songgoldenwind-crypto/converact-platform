@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-scheduler",
+  "generated_at": "2026-08-24T03:38:40Z",
+  "current_state": "typescript_jwks_lifecycle_active_rust_periodic_scheduler_offline_default_disabled",
+  "target_state": "one_caller_owned_bounded_jittered_scheduler_per_issuer_lifecycle",
+  "production_eligible": false,
+  "checks": [
+    {
+      "id": "focused_scheduler_contract",
+      "status": "passed",
+      "result": "8/8 tests passed across configuration, jitter, timing, failure recovery, single-flight, cooperative cancellation and closed-channel behavior"
+    },
+    {
+      "id": "tenant_auth_runtime_regression",
+      "status": "passed",
+      "result": "all 43 converact-tenant-auth-runtime integration tests passed on Rust 1.94.1"
+    },
+    {
+      "id": "active_typescript_cross_runtime_replay",
+      "status": "passed",
+      "result": "Node 24 passed the five active JWKS decoder, issuer, response, cache and tenant-auth replay suites"
+    },
+    {
+      "id": "rust_workspace_all_targets_locked",
+      "status": "passed",
+      "result": "pinned cargo test --workspace --all-targets --locked exited 0; explicitly gated physical PostgreSQL tests remained ignored"
+    },
+    {
+      "id": "rust_workspace_clippy_format_and_docs",
+      "status": "passed",
+      "result": "pinned Workspace Clippy all targets with -D warnings, rustdoc with -Dwarnings and formatting check exited 0"
+    },
+    {
+      "id": "bounded_schedule_boundary",
+      "status": "passed",
+      "result": "non-zero jitter is at most half the period, maximum delay is strictly below the exact lifecycle freshness window and 10,000 deterministic samples remained in bounds"
+    },
+    {
+      "id": "shutdown_and_single_flight_boundary",
+      "status": "passed",
+      "result": "sleep shutdown starts no work, active-fetch shutdown releases the exact lease, dropped control exits, and an existing owner produces InFlight without another fetch"
+    },
+    {
+      "id": "queue_and_task_authority_boundary",
+      "status": "passed",
+      "result": "the scheduler owns no spawn and publishes only through one fixed-capacity watch latest-value channel; no catch-up or immediate retry loop exists"
+    },
+    {
+      "id": "dependency_and_lockfile_boundary",
+      "status": "passed",
+      "result": "Cargo.lock and production dependencies have no diff; only the existing Tokio dev dependency enables virtual-time test support"
+    },
+    {
+      "id": "git_diff_json_and_source_manifest_replay",
+      "status": "passed",
+      "result": "all checkpoint JSON parsed, git diff --check exited 0 and exact file digests replayed before explicit staging"
+    },
+    {
+      "id": "independent_exact_tree_review",
+      "status": "not_run"
+    },
+    {
+      "id": "configuration_seed_task_group_metrics_and_runtime_readiness",
+      "status": "not_run"
+    },
+    {
+      "id": "external_https_rotation_outage_rolling_and_target_matrix",
+      "status": "not_run"
+    },
+    {
+      "id": "mtls_http_websocket_shadow_drain_and_deletion",
+      "status": "not_run"
+    },
+    {
+      "id": "fleet_fault_capacity_performance_and_production",
+      "status": "not_run"
+    }
+  ]
+}
