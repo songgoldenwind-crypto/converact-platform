@@ -155,9 +155,11 @@ roots, private keys and remote-provided text never enter Debug or Display.
 
 - rustls `0.23.43` with the existing ring provider remains the TLS and
   certificate-chain verifier;
-- tokio-rustls `0.26.4` provides asynchronous server handshakes;
-- x509-parser `0.18.1` with default features disabled parses the verified leaf
-  certificate only and does not perform a second signature verification;
+- tokio-rustls `0.26.4` with default features disabled and only `ring` plus
+  `tls12` enabled provides asynchronous server handshakes without AWS-LC;
+- RustCrypto x509-cert `0.3.0` with default features disabled parses the
+  verified leaf certificate only and does not perform a second signature
+  verification;
 - rcgen `0.14.8` is test-only and generates isolated CA/server/client material
   in memory.
 

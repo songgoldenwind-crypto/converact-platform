@@ -10,7 +10,7 @@ prevents unbounded work; a generic API serve core preserves the current HTTP
 drain behavior for both TCP and future mTLS listeners.
 
 **Tech stack:** Rust 1.94.1, Tokio 1.53.1, Axum 0.8.9, rustls 0.23.43,
-tokio-rustls 0.26.4, x509-parser 0.18.1, rcgen 0.14.8 for tests only.
+tokio-rustls 0.26.4, RustCrypto x509-cert 0.3.0, rcgen 0.14.8 for tests only.
 
 ---
 
@@ -44,33 +44,34 @@ tokio-rustls 0.26.4, x509-parser 0.18.1, rcgen 0.14.8 for tests only.
 
 ### Task 1: Freeze dependency and public-boundary RED tests
 
-- [ ] Add `crates/internal-mtls` as an empty Workspace member and exact-pin
-  `tokio-rustls = "=0.26.4"`,
-  `x509-parser = { version = "=0.18.1", default-features = false }` and
+- [x] Add `crates/internal-mtls` as an empty Workspace member and exact-pin
+  `tokio-rustls = { version = "=0.26.4", default-features = false, features = ["ring", "tls12"] }`,
+  `x509-cert = { version = "=0.3.0", default-features = false }` and
   test-only `rcgen = "=0.14.8"` in Workspace dependencies.
-- [ ] Write `tests/peer_certificate.rs` importing
+- [x] Write `tests/peer_certificate.rs` importing
   `peer_identity_from_verified_leaf_der`, `MtlsCertificatePolicy` and the
   stable error enum before those exports exist.
-- [ ] Generate in-memory client certificates containing URI, DNS and duplicate
+- [x] Generate in-memory client certificates containing URI, DNS and duplicate
   URI SAN values; assert exact allowed/rejected outcomes and value-free error
   strings.
-- [ ] Run
+- [x] Run
   `cargo test -p converact-internal-mtls --test peer_certificate --locked` and
   record the compile failure caused by the missing public types.
-- [ ] Inspect all newly resolved archives, licenses, advisories, build scripts,
+- [x] Inspect all newly resolved archives, licenses, advisories, build scripts,
   native source and unsafe occurrences; stop if the selected dependency tree
   introduces an unreviewed native/FFI boundary.
 
 ### Task 2: Implement bounded verified-leaf projection
 
-- [ ] Implement `MtlsCertificatePolicy::new` with the fixed certificate,
-  chain, URI count and URI byte ranges from the design.
-- [ ] Parse the complete DER input with x509-parser, reject trailing bytes and
-  anything other than one subjectAltName extension, and collect at most 64 URI
-  general names without copying non-URI SANs.
-- [ ] Call `MtlsPeerIdentity::from_tls_peer(true, &uri_sans, trust_domain)`;
+- [x] Implement `MtlsCertificatePolicy::strict` with the fixed verified-leaf,
+  URI count and URI byte bounds from the design. Chain bounds belong to the
+  material/verifier policy in Task 3.
+- [x] Parse the complete DER input with RustCrypto x509-cert, reject trailing
+  bytes and anything other than one subjectAltName extension, and collect at
+  most 64 URI general names without copying non-URI SANs.
+- [x] Call `MtlsPeerIdentity::from_tls_peer(true, &uri_sans, trust_domain)`;
   map its value-free errors without exposing DER or URI values.
-- [ ] Run the focused projection test and the full `converact-tenant-auth`
+- [x] Run the focused projection test and the full `converact-tenant-auth`
   crate tests; both must pass.
 - [ ] Commit only the parser/package files as
   `feat(rust): project verified mTLS certificates`.
