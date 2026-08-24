@@ -13,6 +13,7 @@ mod jwks;
 mod jwks_cache;
 mod jwks_issuer;
 mod jwks_response;
+mod jwks_verifier;
 mod jwt;
 mod rs256;
 
@@ -26,6 +27,9 @@ pub use jwks_issuer::{
     JwksEndpointHost, JwksIssuerError, JwksIssuerTransportPolicy, ValidatedJwksIssuer,
 };
 pub use jwks_response::{Rs256JwksResponseCollector, Rs256JwksResponseError};
+pub use jwks_verifier::{
+    Rs256CachedTokenVerificationError, Rs256CachedTokenVerifier, Rs256JwksReadiness,
+};
 pub use jwt::{
     AuthenticatedPlatformIdentity, PlatformIdentityRole, PlatformTokenVerificationError,
     PlatformTokenVerifierConfigError,

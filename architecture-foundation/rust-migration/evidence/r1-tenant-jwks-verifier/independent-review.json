@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-verifier",
+  "generated_at": "2026-08-24T02:09:07Z",
+  "status": "not_run",
+  "production_eligible": false,
+  "reason": "No independent exact-tree security, concurrency and maintainability reviewer has reviewed this offline default-disabled slice.",
+  "required_scope": [
+    "prepared-token semantic parity and bounded token key-id hardening",
+    "issuer-local atomic monotonic high-water behavior under adversarial interleavings",
+    "RwLock poisoning, writer progress and absence of RSA verification under a lock guard",
+    "single-flight lease fencing, last-known-good expiry and completion races",
+    "value-free errors, debug redaction and key snapshot lifetime",
+    "future fetch cancellation, issuer cardinality, startup readiness and shutdown ownership"
+  ]
+}

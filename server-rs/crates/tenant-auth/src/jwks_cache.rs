@@ -1,4 +1,4 @@
-use std::{error::Error, fmt};
+use std::{error::Error, fmt, sync::Arc};
 
 use super::jwks::Rs256JwksSnapshot;
 
@@ -97,6 +97,7 @@ pub enum Rs256JwksLifecycleError {
     ClockRegressed,
     StaleRefresh,
     RefreshGenerationExhausted,
+    StateUnavailable,
 }
 
 impl Rs256JwksLifecycleError {
@@ -106,6 +107,7 @@ impl Rs256JwksLifecycleError {
             Self::ClockRegressed => "platform_rs256_jwks_clock_regressed",
             Self::StaleRefresh => "platform_rs256_jwks_refresh_stale",
             Self::RefreshGenerationExhausted => "platform_rs256_jwks_refresh_generation_exhausted",
+            Self::StateUnavailable => "platform_rs256_jwks_state_unavailable",
         }
     }
 }
@@ -126,6 +128,27 @@ pub enum Rs256JwksUnavailableReason {
     KeyUnknown,
     ClockRegressed,
     RefreshGenerationExhausted,
+    StateUnavailable,
+}
+
+impl Rs256JwksUnavailableReason {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Unwarmed => "platform_rs256_jwks_unwarmed",
+            Self::Expired => "platform_rs256_jwks_expired",
+            Self::KeyUnknown => "platform_rs256_jwks_key_unknown",
+            Self::ClockRegressed => "platform_rs256_jwks_clock_regressed",
+            Self::RefreshGenerationExhausted => "platform_rs256_jwks_refresh_generation_exhausted",
+            Self::StateUnavailable => "platform_rs256_jwks_state_unavailable",
+        }
+    }
+}
+
+impl fmt::Display for Rs256JwksUnavailableReason {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
 }
 
 /// One bounded key-resolution result. Key material stays private to the crate
@@ -179,7 +202,7 @@ impl fmt::Debug for Rs256JwksResolution {
 }
 
 struct CachedSnapshot {
-    keys: Rs256JwksSnapshot,
+    keys: Arc<Rs256JwksSnapshot>,
     refreshed_at_ms: u64,
 }
 
@@ -270,7 +293,7 @@ impl Rs256JwksCache {
         self.take_exact_refresh(lease)?;
         self.observe_time(monotonic_now_ms)?;
         self.current = Some(CachedSnapshot {
-            keys,
+            keys: Arc::new(keys),
             refreshed_at_ms: monotonic_now_ms,
         });
         Ok(())
@@ -292,6 +315,29 @@ impl Rs256JwksCache {
     #[must_use]
     pub const fn refresh_in_flight(&self) -> bool {
         self.refresh_in_flight.is_some()
+    }
+
+    pub(super) fn fresh_snapshot(
+        &self,
+        monotonic_now_ms: u64,
+    ) -> Result<Arc<Rs256JwksSnapshot>, Rs256JwksUnavailableReason> {
+        if self
+            .last_observed_monotonic_ms
+            .is_some_and(|last| monotonic_now_ms < last)
+        {
+            return Err(Rs256JwksUnavailableReason::ClockRegressed);
+        }
+        let current = self
+            .current
+            .as_ref()
+            .ok_or(Rs256JwksUnavailableReason::Unwarmed)?;
+        if monotonic_now_ms < current.refreshed_at_ms {
+            return Err(Rs256JwksUnavailableReason::ClockRegressed);
+        }
+        if monotonic_now_ms - current.refreshed_at_ms >= self.policy.fresh_for_ms {
+            return Err(Rs256JwksUnavailableReason::Expired);
+        }
+        Ok(Arc::clone(&current.keys))
     }
 
     fn begin_on_demand_refresh(

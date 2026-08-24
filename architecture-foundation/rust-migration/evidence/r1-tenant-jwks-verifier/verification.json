@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-verifier",
+  "generated_at": "2026-08-24T02:09:07Z",
+  "current_state": "typescript_jwks_cache_verifier_active_rust_facade_offline_default_disabled",
+  "target_state": "issuer_local_bounded_cache_verifier_with_short_lock_snapshot_single_flight_and_readiness",
+  "production_eligible": false,
+  "checks": [
+    {
+      "id": "focused_facade_contract",
+      "status": "passed",
+      "result": "9/9 tests passed across pre-cache rejection, authentication, single-flight unavailability, last-known-good, expiry, readiness, fixed concurrency and clock-regression recovery"
+    },
+    {
+      "id": "tenant_auth_regression",
+      "status": "passed",
+      "result": "all tenant-auth library and integration tests passed, including the unchanged immutable RS256 contract corpus"
+    },
+    {
+      "id": "active_typescript_cross_runtime_replay",
+      "status": "passed",
+      "result": "Node 24 passed the five active JWKS decoder, issuer, response, cache and tenant-auth replay suites"
+    },
+    {
+      "id": "rust_workspace_all_targets_locked",
+      "status": "passed",
+      "result": "pinned cargo test --workspace --all-targets --locked exited 0; explicitly gated physical PostgreSQL tests remained ignored"
+    },
+    {
+      "id": "rust_workspace_clippy_format_and_docs",
+      "status": "passed",
+      "result": "pinned Workspace Clippy all targets with -D warnings, rustdoc without dependencies and formatting check exited 0"
+    },
+    {
+      "id": "bounded_lock_and_source_boundary",
+      "status": "passed",
+      "result": "one issuer-local lock protects bounded lifecycle state; immutable Arc snapshots cross the lock boundary; production source has no runtime I/O/task dependency or panic-style path"
+    },
+    {
+      "id": "dependency_and_lockfile_boundary",
+      "status": "passed",
+      "result": "Cargo manifests and Cargo.lock have no diff; this slice added no external package, feature, native source or build script"
+    },
+    {
+      "id": "git_diff_json_and_source_manifest_replay",
+      "status": "passed",
+      "result": "all checkpoint JSON parsed, git diff --check exited 0 and exact file digests were recorded for replay before explicit staging"
+    },
+    {
+      "id": "independent_exact_tree_review",
+      "status": "not_run"
+    },
+    {
+      "id": "runtime_fetch_cancellation_and_shutdown_composition",
+      "status": "not_run"
+    },
+    {
+      "id": "issuer_cardinality_startup_periodic_readiness_and_metrics",
+      "status": "not_run"
+    },
+    {
+      "id": "provider_rotation_outage_rolling_and_target_matrix",
+      "status": "not_run"
+    },
+    {
+      "id": "mtls_http_websocket_shadow_drain_and_deletion",
+      "status": "not_run"
+    },
+    {
+      "id": "fleet_fault_capacity_performance_and_production",
+      "status": "not_run"
+    }
+  ]
+}

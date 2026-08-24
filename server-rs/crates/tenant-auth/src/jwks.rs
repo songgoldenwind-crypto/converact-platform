@@ -206,7 +206,7 @@ fn decode_canonical_base64url(input: &str) -> Option<Vec<u8>> {
     (URL_SAFE_NO_PAD.encode(&bytes) == input).then_some(bytes)
 }
 
-fn valid_key_id(value: &str) -> bool {
+pub(super) fn valid_key_id(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 256
         && value.bytes().all(|byte| {

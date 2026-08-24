@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-verifier",
+  "generated_at": "2026-08-24T02:09:07Z",
+  "cycles": [
+    {
+      "id": "cache_verifier_facade",
+      "red": "the focused test could not import Rs256CachedTokenVerifier or Rs256CachedTokenVerificationError because no cache-plus-verifier facade existed",
+      "green": "one issuer-local facade now separates rejected tokens from unavailable key state and composes the existing cache, RS256 verifier and refresh lease lifecycle"
+    },
+    {
+      "id": "short_lock_immutable_snapshot",
+      "red": "the cache held an owned non-shareable snapshot and exposed only a Ready marker, so a request could not retain an immutable request-local view while releasing lifecycle locks before RSA verification",
+      "green": "the cache privately owns an Arc snapshot; the facade clones it under a short issuer-local lock and runs key lookup, RSA verification and claim policy after the guard leaves scope"
+    },
+    {
+      "id": "single_flight_and_readiness",
+      "red": "there was no concurrent entrypoint proving one refresh lease, last-known-good use during refresh, expiry withdrawal or value-only readiness",
+      "green": "fixed concurrent tests produce exactly one unknown-key lease, known-key verification succeeds during refresh, and readiness is warm-plus-fresh without being revoked by one unknown key"
+    },
+    {
+      "id": "monotonic_concurrency_fence",
+      "red": "read-only verification could not update the mutable cache clock without holding a write lock, leaving no shared regression fence across fast-path readers",
+      "green": "one issuer-local AtomicU64 high-water mark fences every facade clock observation; the cache retains its exact completion fence and a regressed completion clears its lease without installing keys"
+    },
+    {
+      "id": "untrusted_key_id_bound",
+      "red": "an oversized token kid reached an unwarmed cache, returned temporary Unavailable and started refresh work",
+      "green": "token preparation reuses the 256-byte closed JWK key-id grammar, returns HeaderInvalid and leaves refresh idle"
+    }
+  ]
+}
