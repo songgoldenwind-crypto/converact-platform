@@ -1,4 +1,4 @@
-use std::{error::Error, fmt};
+use std::{error::Error, fmt, net::IpAddr};
 
 use url::{Host, Url};
 
@@ -30,6 +30,33 @@ impl Error for JwksIssuerError {}
 pub struct ValidatedJwksIssuer {
     claim_issuer: Box<str>,
     jwks_url: Box<str>,
+    endpoint_host: OwnedJwksEndpointHost,
+    endpoint_port: u16,
+    uses_https: bool,
+}
+
+#[derive(Clone, Eq, PartialEq)]
+enum OwnedJwksEndpointHost {
+    Domain(Box<str>),
+    Ip(IpAddr),
+}
+
+/// Vendor-neutral network host coordinates derived from a validated issuer.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub enum JwksEndpointHost<'a> {
+    /// Canonical ASCII domain name requiring an approved DNS resolution.
+    Domain(&'a str),
+    /// Parsed IP literal that does not require DNS resolution.
+    Ip(IpAddr),
+}
+
+impl fmt::Debug for JwksEndpointHost<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Domain(_) => formatter.write_str("JwksEndpointHost::Domain([REDACTED])"),
+            Self::Ip(_) => formatter.write_str("JwksEndpointHost::Ip([REDACTED])"),
+        }
+    }
 }
 
 impl ValidatedJwksIssuer {
@@ -70,6 +97,13 @@ impl ValidatedJwksIssuer {
         {
             return Err(JwksIssuerError);
         }
+        let endpoint_host = match host {
+            Host::Domain(domain) => OwnedJwksEndpointHost::Domain(domain.into()),
+            Host::Ipv4(address) => OwnedJwksEndpointHost::Ip(address.into()),
+            Host::Ipv6(address) => OwnedJwksEndpointHost::Ip(address.into()),
+        };
+        let endpoint_port = endpoint.port_or_known_default().ok_or(JwksIssuerError)?;
+        let uses_https = endpoint.scheme() == "https";
 
         endpoint
             .path_segments_mut()
@@ -81,6 +115,9 @@ impl ValidatedJwksIssuer {
         Ok(Self {
             claim_issuer: input.into(),
             jwks_url: endpoint.as_str().into(),
+            endpoint_host,
+            endpoint_port,
+            uses_https,
         })
     }
 
@@ -94,6 +131,28 @@ impl ValidatedJwksIssuer {
     #[must_use]
     pub fn jwks_url(&self) -> &str {
         &self.jwks_url
+    }
+
+    /// Returns the canonical domain or parsed IP without exposing URL parser
+    /// types to the runtime adapter.
+    #[must_use]
+    pub fn endpoint_host(&self) -> JwksEndpointHost<'_> {
+        match &self.endpoint_host {
+            OwnedJwksEndpointHost::Domain(domain) => JwksEndpointHost::Domain(domain),
+            OwnedJwksEndpointHost::Ip(address) => JwksEndpointHost::Ip(*address),
+        }
+    }
+
+    /// Returns the explicit or scheme-default endpoint port.
+    #[must_use]
+    pub const fn endpoint_port(&self) -> u16 {
+        self.endpoint_port
+    }
+
+    /// Reports whether the canonical endpoint requires TLS.
+    #[must_use]
+    pub const fn uses_https(&self) -> bool {
+        self.uses_https
     }
 }
 

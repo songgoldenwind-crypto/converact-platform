@@ -22,7 +22,9 @@ pub use jwks_cache::{
     Rs256JwksCache, Rs256JwksCacheConfigError, Rs256JwksCachePolicy, Rs256JwksLifecycleError,
     Rs256JwksRefreshLease, Rs256JwksResolution, Rs256JwksUnavailableReason,
 };
-pub use jwks_issuer::{JwksIssuerError, JwksIssuerTransportPolicy, ValidatedJwksIssuer};
+pub use jwks_issuer::{
+    JwksEndpointHost, JwksIssuerError, JwksIssuerTransportPolicy, ValidatedJwksIssuer,
+};
 pub use jwks_response::{Rs256JwksResponseCollector, Rs256JwksResponseError};
 pub use jwt::{
     AuthenticatedPlatformIdentity, PlatformIdentityRole, PlatformTokenVerificationError,

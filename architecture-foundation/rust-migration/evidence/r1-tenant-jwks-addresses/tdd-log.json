@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-addresses",
+  "generated_at": "2026-08-24T01:11:21Z",
+  "cycles": [
+    {
+      "id": "vendor_neutral_issuer_coordinates",
+      "red": "the focused tenant-auth test could not import JwksEndpointHost or call endpoint_host, endpoint_port and uses_https",
+      "green": "a validated issuer now stores and exposes redacted vendor-neutral domain/IP, port and TLS coordinates without exposing url crate types"
+    },
+    {
+      "id": "atomic_resolved_address_policy",
+      "red": "the new runtime crate test could not include resolved_addresses.rs or import any bounded resolved-address policy, result or error",
+      "green": "seven focused tests validate the 16-answer budget, full-set rejection, deduplication, port binding, public/loopback scopes, NAT64 payload and redaction"
+    },
+    {
+      "id": "workspace_lint_corrections",
+      "red": "workspace Clippy rejected a hand-coded unspecified address and a potentially truncating NAT64 u128-to-u32 cast",
+      "green": "the implementation uses Ipv4Addr::UNSPECIFIED and extracts the final four IPv6 octets without a numeric cast"
+    }
+  ]
+}

@@ -1,4 +1,8 @@
-use converact_tenant_auth::{JwksIssuerError, JwksIssuerTransportPolicy, ValidatedJwksIssuer};
+use std::net::{IpAddr, Ipv6Addr};
+
+use converact_tenant_auth::{
+    JwksEndpointHost, JwksIssuerError, JwksIssuerTransportPolicy, ValidatedJwksIssuer,
+};
 use serde::Deserialize;
 
 const FIXTURE: &str = include_str!("../../../tests/fixtures/platform-jwks-issuer-v1.json");
@@ -120,6 +124,33 @@ fn issuer_boundary_is_bounded_fail_closed_and_redacted() {
         JwksIssuerError.to_string(),
         "platform_rs256_jwks_issuer_invalid"
     );
+}
+
+#[test]
+fn issuer_exposes_vendor_neutral_network_coordinates() {
+    let domain = ValidatedJwksIssuer::parse(
+        "https://identity.example.test:8443/tenant",
+        JwksIssuerTransportPolicy::HttpsOnly,
+    )
+    .expect("valid domain issuer");
+    assert_eq!(
+        domain.endpoint_host(),
+        JwksEndpointHost::Domain("identity.example.test")
+    );
+    assert_eq!(domain.endpoint_port(), 8443);
+    assert!(domain.uses_https());
+
+    let loopback = ValidatedJwksIssuer::parse(
+        "http://[::1]/tenant",
+        JwksIssuerTransportPolicy::ExplicitLoopbackHttp,
+    )
+    .expect("valid loopback issuer");
+    assert_eq!(
+        loopback.endpoint_host(),
+        JwksEndpointHost::Ip(IpAddr::V6(Ipv6Addr::LOCALHOST))
+    );
+    assert_eq!(loopback.endpoint_port(), 80);
+    assert!(!loopback.uses_https());
 }
 
 #[test]

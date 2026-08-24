@@ -339,6 +339,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "converact-tenant-auth-runtime"
+version = "0.1.0"
+dependencies = [
+ "converact-tenant-auth",
+]
+
+[[package]]
 name = "converact-testkit"
 version = "0.1.0"
 

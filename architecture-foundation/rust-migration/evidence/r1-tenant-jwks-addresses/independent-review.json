@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-addresses",
+  "generated_at": "2026-08-24T01:11:21Z",
+  "status": "not_run",
+  "production_eligible": false,
+  "reason": "No independent exact-tree security and maintainability reviewer has reviewed this slice.",
+  "required_scope": [
+    "IANA special-purpose address classification and conservative exceptions",
+    "DNS answer cardinality, deduplication and atomic rejection",
+    "NAT64 embedded IPv4 handling",
+    "issuer coordinate redaction and domain boundary",
+    "future resolver pinning and enterprise-private IdP design obligations"
+  ]
+}

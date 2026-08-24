@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-addresses",
+  "generated_at": "2026-08-24T01:11:21Z",
+  "current_state": "typescript_jwks_fetch_active_rust_address_policy_offline_default_disabled",
+  "target_state": "bounded_atomic_resolved_address_validation_before_one_generation_http_pinning",
+  "production_eligible": false,
+  "checks": [
+    {
+      "id": "rust_target_address_contract",
+      "status": "passed",
+      "result": "7/7 focused runtime tests passed across public IPv4/IPv6, special-purpose rejection, NAT64, mixed answers, loopback, bounds and redaction"
+    },
+    {
+      "id": "issuer_network_coordinates",
+      "status": "passed",
+      "result": "4/4 issuer tests passed, including domain/custom-port/TLS and parsed IPv6-loopback/default-port coordinates"
+    },
+    {
+      "id": "iana_special_purpose_registry_review",
+      "status": "passed",
+      "result": "the conservative static classifier was compared with the official IANA IPv4 and IPv6 special-purpose registries last updated 2025-10-09"
+    },
+    {
+      "id": "rust_workspace_all_targets_locked",
+      "status": "passed",
+      "result": "pinned cargo test --workspace --all-targets --locked exited 0; explicitly gated physical PostgreSQL tests remained ignored"
+    },
+    {
+      "id": "rust_workspace_clippy_format_and_docs",
+      "status": "passed",
+      "result": "pinned formatting, workspace Clippy all targets with -D warnings and workspace rustdoc without dependencies exited 0"
+    },
+    {
+      "id": "dependency_boundary",
+      "status": "passed",
+      "result": "Cargo.lock adds one internal workspace package with only the existing tenant-auth edge; no external registry package, build script or native source was added"
+    },
+    {
+      "id": "git_diff_json_and_source_manifest_replay",
+      "status": "passed",
+      "result": "JSON parsing, git diff --check and exact source-manifest replay exited 0; the staged set was empty before explicit staging"
+    },
+    {
+      "id": "independent_exact_tree_review",
+      "status": "not_run"
+    },
+    {
+      "id": "enterprise_private_idp_policy",
+      "status": "not_run"
+    },
+    {
+      "id": "rust_dns_http_tls_redirect_proxy_timeout_and_cancellation",
+      "status": "not_run"
+    },
+    {
+      "id": "cache_verifier_readiness_and_runtime_facade",
+      "status": "not_run"
+    },
+    {
+      "id": "mtls_http_websocket_shadow_drain_and_deletion",
+      "status": "not_run"
+    },
+    {
+      "id": "fleet_fault_capacity_performance_and_production",
+      "status": "not_run"
+    }
+  ]
+}

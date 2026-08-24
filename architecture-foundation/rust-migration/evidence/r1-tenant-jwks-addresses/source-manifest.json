@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "checkpoint": "RM01-R1-tenant-jwks-addresses",
+  "generated_at": "2026-08-24T01:11:21Z",
+  "base_commit": "97b604fd95860051f1415bb329cbd2a4d8ed5a30",
+  "branch": "codex/converact-platform-rename",
+  "rust_toolchain": "1.94.1-aarch64-apple-darwin",
+  "hash_algorithm": "sha256",
+  "production_eligible": false,
+  "new_external_dependencies": [],
+  "new_resolved_registry_packages": [],
+  "new_internal_packages": [
+    {
+      "name": "converact-tenant-auth-runtime",
+      "dependencies": ["converact-tenant-auth"],
+      "network_io_in_this_slice": false,
+      "native_or_build_script_source": false
+    }
+  ],
+  "authoritative_external_references": [
+    {
+      "url": "https://www.iana.org/assignments/iana-ipv4-special-registry/",
+      "registry_last_updated": "2025-10-09",
+      "reviewed_at": "2026-08-24"
+    },
+    {
+      "url": "https://www.iana.org/assignments/iana-ipv6-special-registry/",
+      "registry_last_updated": "2025-10-09",
+      "reviewed_at": "2026-08-24"
+    }
+  ],
+  "files": [
+    { "path": "server-rs/Cargo.toml", "sha256": "eb180b771109ac3dad7f86cffdd8507f4d030ca50756c46432bf02d65764fdb7" },
+    { "path": "server-rs/Cargo.lock", "sha256": "d0765ac8201c42a92d8e13913027a4d88fe2cafe725a051eda21c91c1914639d" },
+    { "path": "server-rs/crates/tenant-auth/src/lib.rs", "sha256": "fe8c1ae72d1cd1f6758efe2ee03d13d74b6df4cf4523ebce3a332b956593ace9" },
+    { "path": "server-rs/crates/tenant-auth/src/jwks_issuer.rs", "sha256": "1926036e5291dadfdd5d14aa8042ce214a4ea48d496501a957f479b09ce52c2f" },
+    { "path": "server-rs/crates/tenant-auth/tests/jwks_issuer.rs", "sha256": "6e976a49628d6621e09c53f881bf69e620b9d5e709770cdeafddfa0903de3840" },
+    { "path": "server-rs/crates/tenant-auth-runtime/Cargo.toml", "sha256": "cb579b6a79dc1525518fc563b58031b982f5e577318e7bf92a3b0daa2b86e1f8" },
+    { "path": "server-rs/crates/tenant-auth-runtime/src/lib.rs", "sha256": "067311f9c0b79e817cca34339e5aa916ac83549eae876aed226bb823903464ef" },
+    { "path": "server-rs/crates/tenant-auth-runtime/src/resolved_addresses.rs", "sha256": "2e6ffe2e823e6b1d52604244caabc8c6b6fe6bf77a610a840f7269128171613e" },
+    { "path": "server-rs/crates/tenant-auth-runtime/tests/resolved_addresses.rs", "sha256": "aec73ab89cb3bd34e5bd04b111292e1666029b24a3fa80a5925aa9daa06a572f" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-jwks-addresses/README.md", "sha256": "2d88e741c522385e75770b8e19905d53488427d0e0e10f3767d5010cfd74993f" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-jwks-addresses/tdd-log.json", "sha256": "9ea2f8f511e85904fb7ec24600d539d10187452dd6160d6e842ae8063d04a746" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-jwks-addresses/verification.json", "sha256": "a7bc5bdb2ce2f90da21967006d43d8d55b1c41c8ba1fbb2a18a81f260a69a031" },
+    { "path": "architecture-foundation/rust-migration/evidence/r1-tenant-jwks-addresses/independent-review.json", "sha256": "fdbe86e2a62ddc279c1cf3914403f33fd0d4fd4b6a89d2956cf86108e6761b75" }
+  ]
+}

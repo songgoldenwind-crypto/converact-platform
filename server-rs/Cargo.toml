@@ -16,6 +16,7 @@ members = [
   "crates/postgres-store",
   "crates/runtime-health",
   "crates/tenant-auth",
+  "crates/tenant-auth-runtime",
   "crates/testkit",
 ]
 resolver = "3"
