@@ -21,12 +21,12 @@
     },
     {
       "path": "docs/design/README.md",
-      "sha256": "a33e86fecc06e4e225d95e3422a2684f1a716afbde1b8adebdb25f07e2e425df",
+      "sha256": "4eebddfccb7a6eab2d700e28c3584b428e27276694ebd229e26567f90703a04e",
       "kind": "context"
     },
     {
       "path": "docs/design/2026-08-31-ai-outbound-active-call-platform-r1.md",
-      "sha256": "8824764e904752499367d7d6ac4c00d85eba6d25e7f7cc6d310107c357f0521d",
+      "sha256": "79974e8bec98cea7d629f870ea778613acd94363dd53f004066f04e0ecafa694",
       "kind": "design"
     },
     {
@@ -76,8 +76,18 @@
     },
     {
       "path": "docs/plans/2026-08-31-ai-outbound-campaign-scheduling-r1.md",
-      "sha256": "f6283627e6fc23baecf22deae725498dbc7767372e2fa7649394ef8e7b413385",
+      "sha256": "b3bdd39921ee932a78681d06cb483768e4a6dc4333012289c82c47a106be2226",
       "kind": "plan"
+    },
+    {
+      "path": "architecture-foundation/ai-outbound/evidence/r1-campaign-scheduling/README.md",
+      "sha256": "bcd559b33a9bd81f8d22d1120e7a4e07f87dec667d1e76e0b133ed2b79de630c",
+      "kind": "evidence"
+    },
+    {
+      "path": "architecture-foundation/ai-outbound/evidence/r1-campaign-scheduling/verification.json",
+      "sha256": "aaea13b88a5393e564513d55f131d50cccd30a5948a1a217acbaaabdd6b2a052",
+      "kind": "evidence"
     },
     {
       "path": "architecture-foundation/ai-outbound/evidence/r1-post-call-finalization/README.md",

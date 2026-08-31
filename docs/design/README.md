@@ -26,7 +26,7 @@ Converact Agent Runtime / Converact Resolve`。本文导航的是已经迁入仓
 | 13 | [Conversation Result & Quality R1](./2026-08-31-conversation-result-quality-r1.md) | final transcript、outcome、evaluation、Bad Case 与异步故障隔离 | `controlled_rust_core_store_worker_api_passed / physical_integrations_not_run / production_not_run` |
 | 14 | [Conversation Result & Quality R1 计划](../plans/2026-08-31-conversation-result-quality-r1.md) | D7 Rust Core、Store、Worker 与 API 的精准 TDD 顺序 | `controlled_rust_slices_passed / migration_gates_not_run` |
 | 15 | [AI 外呼 Durable Post-call Finalization R1](../plans/2026-08-31-ai-outbound-post-call-finalization-r1.md) | 通话终态原子入库、异步结果/质检 job、reconcile 与故障隔离 | `controlled_rust_slices_passed / physical_atomic_transaction_not_run / production_not_run` |
-| 16 | [AI 外呼 Campaign Scheduling & Retry R1](../plans/2026-08-31-ai-outbound-campaign-scheduling-r1.md) | Campaign 联系人有界调度、确定性失败重试、Attempt 身份与 unknown-outcome 禁止重拨 | `accepted_execution_slice / implementation_not_run / production_not_run` |
+| 16 | [AI 外呼 Campaign Scheduling & Retry R1](../plans/2026-08-31-ai-outbound-campaign-scheduling-r1.md) | Campaign 联系人有界调度、确定性失败重试、Attempt 身份与 unknown-outcome 禁止重拨 | `controlled_core_store_worker_passed / physical_integrations_not_run / production_not_run` |
 
 权威冲突时按领域裁决，而不是简单“新文件覆盖所有旧文件”：
 
@@ -116,3 +116,4 @@ flowchart TD
 | 2026-08-31 | Durable Post-call Finalization R1 | 固定通话终态与异步 transcript/result/evaluation 的原子 settlement、durable job、租约和 reconcile 边界 |
 | 2026-08-31 | Durable Post-call Finalization R1 checkpoint | Rust Core/Store/Worker/API 与受控原子失败语义已有本地证据；物理 PostgreSQL 合并事务、真实通话与生产仍为 `not_run` |
 | 2026-08-31 | Campaign Scheduling & Retry R1 | 固定只对确定性可重试终态创建新 Attempt、unknown/reconcile 禁止重拨、Campaign/Contact Gate 与精准测试顺序 |
+| 2026-08-31 | Campaign Scheduling & Retry R1 checkpoint | Rust Core/Store/Worker 与有界 Attempt inspection 已有本地受控证据；物理 PostgreSQL、真实 Campaign/通话和生产仍为 `not_run` |

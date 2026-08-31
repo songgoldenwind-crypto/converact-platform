@@ -1,0 +1,100 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-08-31",
+  "evidence_class": [
+    "local_contract",
+    "controlled_test_double"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "commit": "1a6ff24602ce2dfee30e2e4a92e7d9347010c85e",
+    "tree": "89caa6a6dbe26eddee639e77b5cdf89183f298c8"
+  },
+  "environment": {
+    "os": "Darwin 25.2.0 arm64",
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)",
+    "command_path_prefix": "/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin:/Users/songjinfeng/.cargo/bin",
+    "rustc_path": "/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc"
+  },
+  "commands": [
+    {
+      "id": "retry_core",
+      "working_directory": "server-rs",
+      "command": "cargo +1.94.1 test -p converact-ai-outbound-core --test retry",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "id": "retry_store_contract",
+      "working_directory": "server-rs",
+      "command": "cargo +1.94.1 test -p converact-ai-outbound-store --test retry_contract",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "id": "retry_postgresql_harness_compile",
+      "working_directory": "server-rs",
+      "command": "cargo +1.94.1 test -p converact-ai-outbound-store --test postgres --no-run",
+      "exit_code": 0,
+      "result": "compiled_not_run"
+    },
+    {
+      "id": "retry_worker",
+      "working_directory": "server-rs",
+      "command": "cargo +1.94.1 test -p converact-voice-agent-worker --test campaign_retry_worker",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "id": "retry_attempt_http_compatibility",
+      "working_directory": "server-rs",
+      "command": "cargo +1.94.1 test -p converact-voice-agent-worker --test http",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 5,
+      "failed": 0
+    },
+    {
+      "id": "retry_scoped_clippy",
+      "working_directory": "server-rs",
+      "command": "cargo +1.94.1 clippy -p converact-ai-outbound-core -p converact-ai-outbound-store -p converact-voice-agent-worker --all-targets -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "retry_scoped_format",
+      "working_directory": "server-rs",
+      "command": "cargo +1.94.1 fmt -p converact-ai-outbound-core -p converact-ai-outbound-store -p converact-voice-agent-worker -- --check",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "not_run": [
+    "physical_postgresql_retry_insert_replay_rls_race_crash_recovery",
+    "real_campaign_contact_import_writer_scheduler_authorization",
+    "real_active_call_rustpbx_speech_sip_pstn_media_recording_cdr",
+    "deployed_api_dashboard_and_legacy_typescript_writer_migration",
+    "performance",
+    "capacity",
+    "long_run",
+    "fault_campaign",
+    "independent_code_review",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_read": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}

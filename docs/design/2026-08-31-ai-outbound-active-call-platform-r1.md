@@ -755,6 +755,8 @@ Reconciler 查询：
   独立且列表不返回 transcript text；
 - terminal Attempt 与 post-call job 的受控原子边界、独立 Finalization Worker、D7 projection
   reuse 和有界进度查询已通过；物理 PostgreSQL 合并事务仍为 `not_run`；
+- 确定性终态的 Campaign 重试 Core、原子 Store 合同、Worker 编排和有界 inspection 已通过；
+  物理 PostgreSQL、真实 Campaign/Contact writer 和真实重拨仍为 `not_run`；
 - Campaign/Agent dashboard、生产路由/授权接线、现有 TS API shadow parity、writer switch、
   drain/active-zero 与物理集成：`not_run`。
 
@@ -859,7 +861,8 @@ Reconciler 查询：
 截至 2026-08-31，上述设计门已完成，D1-D4 的首条受控 Rust tracer bullet、D5 Tool Broker
 Core/Store/Worker 与通用 Tool Adapter、D6 Handoff 以及 D7 Result/Quality 的 Rust
 Core/Store/Worker/API、D8 post-call finalization 的本地 Rust 切片均已有受控证据。这只证明
-`controlled_test_double` 与本地合同层。
+`controlled_test_double` 与本地合同层。Campaign Scheduling & Retry 的 Core/Store/Worker
+本地切片也已通过，未知结果禁止重拨；物理事务和真实 Campaign 调度仍未证明。
 物理 PostgreSQL、真实 RustPBX/Active Call/Speech、SIP/PSTN/媒体、真实 Tool/审批/模型供应商、
 生产路由授权、Dashboard、旧 writer 迁移、性能、容量和生产部署均保持 `not_run`，后续必须按
 独立 Evidence Gate 逐项推进。
@@ -888,3 +891,4 @@ Core/Store/Worker/API、D8 post-call finalization 的本地 Rust 切片均已有
 | 2026-08-31 | R1 generic Tool Adapter checkpoint | `customer.lookup` 与 `task.create_follow_up` 的 Rust typed Provider Port 切片已有本地受控证据；真实 Provider 与生产仍为 `not_run` |
 | 2026-08-31 | R1 Result/Quality checkpoint | final transcript、snapshot、result、evaluation、Bad Case、durable reconcile、tenant PostgreSQL Adapter 与权限化 Rust API 已有本地受控证据；物理集成、旧 writer 迁移、UI 与生产仍为 `not_run` |
 | 2026-08-31 | R1 Post-call Finalization checkpoint | terminal/enqueue 受控原子失败语义、durable queue、独立 Worker、D7 projection reuse 与有界进度查询已有本地证据；物理 PostgreSQL 合并事务和真实通话仍为 `not_run` |
+| 2026-08-31 | R1 Campaign Retry checkpoint | 确定性失败重试、Attempt lineage、Campaign/Contact Gate、幂等 replay、unknown-outcome 禁止重拨和有界 inspection 已有本地证据；物理 PostgreSQL、真实 Campaign/通话与生产仍为 `not_run` |
