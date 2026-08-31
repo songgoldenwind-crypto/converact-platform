@@ -2907,3 +2907,134 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_ivekit_sip_effect_active_repair_token
 CREATE INDEX IF NOT EXISTS idx_ivekit_sip_effect_terminal_retention
   ON ivekit_sip_protocol_effects(tenant_id, audit_until, protocol_effect_id)
   WHERE terminal_at IS NOT NULL AND payload_retained = 1;
+
+-- ===== Converact AI outbound (Rust/PostgreSQL authority; SQLite development mirror) =====
+
+CREATE TABLE IF NOT EXISTS converact_agent_releases (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  id TEXT NOT NULL,
+  definition_id TEXT NOT NULL,
+  state TEXT NOT NULL CHECK (state IN ('published', 'retired')),
+  name TEXT NOT NULL,
+  language TEXT NOT NULL,
+  content_hash TEXT NOT NULL CHECK (length(content_hash) = 64),
+  components TEXT NOT NULL CHECK (json_valid(components) AND json_type(components) = 'object'),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  retired_at TEXT,
+  PRIMARY KEY (tenant_id, id)
+);
+
+CREATE TABLE IF NOT EXISTS converact_outbound_campaigns (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  id TEXT NOT NULL,
+  agent_release_id TEXT NOT NULL,
+  audience_id TEXT NOT NULL,
+  dial_policy_revision TEXT NOT NULL,
+  state TEXT NOT NULL CHECK (state IN (
+    'draft', 'scheduled', 'running', 'paused', 'draining',
+    'completed', 'cancelled', 'archived'
+  )),
+  schedule TEXT NOT NULL CHECK (json_valid(schedule) AND json_type(schedule) = 'object'),
+  active_attempts INTEGER NOT NULL DEFAULT 0 CHECK (active_attempts >= 0),
+  revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, id),
+  FOREIGN KEY (tenant_id, agent_release_id)
+    REFERENCES converact_agent_releases(tenant_id, id) ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS converact_outbound_campaign_contacts (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  id TEXT NOT NULL,
+  campaign_id TEXT NOT NULL,
+  external_contact_id TEXT NOT NULL,
+  destination TEXT NOT NULL,
+  consent_id TEXT NOT NULL,
+  recording_mode TEXT NOT NULL CHECK (
+    recording_mode IN ('disabled', 'always', 'after_disclosure', 'on_demand')
+  ),
+  retention_until TEXT NOT NULL,
+  state TEXT NOT NULL DEFAULT 'queued' CHECK (
+    state IN ('queued', 'active', 'completed', 'suppressed', 'cancelled')
+  ),
+  scheduled_for TEXT NOT NULL,
+  attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, id),
+  UNIQUE (tenant_id, campaign_id, external_contact_id),
+  FOREIGN KEY (tenant_id, campaign_id)
+    REFERENCES converact_outbound_campaigns(tenant_id, id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS converact_outbound_call_attempts (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  id TEXT NOT NULL,
+  campaign_id TEXT NOT NULL,
+  campaign_contact_id TEXT NOT NULL,
+  attempt_number INTEGER NOT NULL CHECK (attempt_number > 0),
+  previous_attempt_id TEXT,
+  interaction_id TEXT NOT NULL,
+  call_id TEXT,
+  channel_agent_session_id TEXT,
+  agent_release_id TEXT NOT NULL,
+  execution_generation INTEGER NOT NULL CHECK (execution_generation > 0),
+  state TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  compliance_reason TEXT,
+  consent_id TEXT NOT NULL,
+  recording_mode TEXT NOT NULL CHECK (
+    recording_mode IN ('disabled', 'always', 'after_disclosure', 'on_demand')
+  ),
+  retention_until TEXT NOT NULL,
+  lease_owner TEXT NOT NULL DEFAULT '',
+  lease_token_hash TEXT NOT NULL DEFAULT '' CHECK (
+    lease_token_hash = '' OR length(lease_token_hash) = 64
+  ),
+  lease_expires_at TEXT,
+  revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
+  scheduled_for TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  terminal_at TEXT,
+  PRIMARY KEY (tenant_id, id),
+  UNIQUE (tenant_id, idempotency_key),
+  UNIQUE (tenant_id, campaign_contact_id, attempt_number),
+  FOREIGN KEY (tenant_id, campaign_id)
+    REFERENCES converact_outbound_campaigns(tenant_id, id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id, campaign_contact_id)
+    REFERENCES converact_outbound_campaign_contacts(tenant_id, id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id, agent_release_id)
+    REFERENCES converact_agent_releases(tenant_id, id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id, previous_attempt_id)
+    REFERENCES converact_outbound_call_attempts(tenant_id, id) ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS converact_outbound_attempt_events (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  event_id TEXT NOT NULL,
+  call_attempt_id TEXT NOT NULL,
+  execution_generation INTEGER NOT NULL CHECK (execution_generation > 0),
+  event_type TEXT NOT NULL,
+  schema_version INTEGER NOT NULL CHECK (schema_version = 1),
+  idempotency_key TEXT NOT NULL,
+  payload_hash TEXT NOT NULL CHECK (length(payload_hash) = 64),
+  payload TEXT NOT NULL CHECK (json_valid(payload)),
+  occurred_at TEXT NOT NULL,
+  received_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, event_id),
+  UNIQUE (tenant_id, call_attempt_id, idempotency_key),
+  FOREIGN KEY (tenant_id, call_attempt_id)
+    REFERENCES converact_outbound_call_attempts(tenant_id, id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_converact_outbound_attempt_claim
+  ON converact_outbound_call_attempts (tenant_id, scheduled_for, id)
+  WHERE state = 'planned';
+
+CREATE INDEX IF NOT EXISTS idx_converact_outbound_attempt_events_order
+  ON converact_outbound_attempt_events (
+    tenant_id, call_attempt_id, execution_generation, occurred_at, event_id
+  );

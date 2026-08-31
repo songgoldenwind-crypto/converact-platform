@@ -248,6 +248,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "converact-ai-outbound-store"
+version = "0.1.0"
+dependencies = [
+ "converact-kernel-ids",
+ "converact-voice-agent-contracts",
+ "serde_json",
+ "tokio",
+ "tokio-postgres",
+]
+
+[[package]]
 name = "converact-api"
 version = "0.1.0"
 dependencies = [

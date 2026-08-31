@@ -5,6 +5,7 @@ members = [
   "crates/active-call-adapter",
   "crates/audit",
   "crates/ai-outbound-core",
+  "crates/ai-outbound-store",
   "crates/config",
   "crates/contracts",
   "crates/event-log",
