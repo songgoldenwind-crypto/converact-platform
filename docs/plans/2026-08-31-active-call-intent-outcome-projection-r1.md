@@ -1,6 +1,6 @@
 # Active Call intent → Outcome projection R1 implementation plan
 
-> **Status:** `implementation_in_progress / physical_integrations_not_run / production_not_run`
+> **Status:** `controlled_contract_passed / physical_integrations_not_run / production_not_run`
 
 **Goal:** Carry the intent already recognized by the pinned Active Call Playbook into Converact's
 release-bound conversation result path without replacing Active Call's VAD, turn detection,
@@ -47,3 +47,8 @@ Active Call Playbook intent
 - no real Active Call process or model invocation;
 - no server/container changes, local Docker, performance or broad regression suite;
 - no claim that Active Call's intent quality is proven by local contract tests.
+
+## Evidence
+
+The controlled implementation result is recorded in
+[R1 Active Call intent → Outcome evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-intent-outcome/README.md).

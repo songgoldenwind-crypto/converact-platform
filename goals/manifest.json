@@ -21,7 +21,7 @@
     },
     {
       "path": "docs/design/README.md",
-      "sha256": "6b994959be1ed0766fbef14ee403eec92fa02e7bef855b338778c167eabeda8d",
+      "sha256": "22989b275f020670b501dc90633674d9d98a62fd18e11372b011cacae722a820",
       "kind": "context"
     },
     {
@@ -131,8 +131,18 @@
     },
     {
       "path": "docs/plans/2026-08-31-active-call-intent-outcome-projection-r1.md",
-      "sha256": "5623055973ba135143e805615815838e97778c643e975c87e806314f54f753e1",
+      "sha256": "ecf18d26846c562d7652949d7bec2e77497c9c27e8b0e369cf1b2f7f7e365ec9",
       "kind": "plan"
+    },
+    {
+      "path": "architecture-foundation/ai-outbound/evidence/r1-active-call-intent-outcome/README.md",
+      "sha256": "4b5672ff191ae739538545656bc034c8df54c9415760adc11728cc17b301c33d",
+      "kind": "evidence"
+    },
+    {
+      "path": "architecture-foundation/ai-outbound/evidence/r1-active-call-intent-outcome/verification.json",
+      "sha256": "1274eda2605247843b545e68aa11f1143e04008ceec5dda20e2cb1be3756f8c0",
+      "kind": "evidence"
     },
     {
       "path": "architecture-foundation/ai-outbound/evidence/r1-active-call-intent-candidate/README.md",

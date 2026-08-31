@@ -1,0 +1,110 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-08-31",
+  "evidence_class": [
+    "local_contract",
+    "controlled_test_double"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "commit": "f3a56b854751c1fbf0ac1c3df598087ca31e3923",
+    "tree": "8be087e6a1809df75d90743bbcd70850206ec9b3"
+  },
+  "active_call": {
+    "version": "0.3.83",
+    "commit": "6224d948cc0941ac48b4a5426477aeaf639c2e98",
+    "runtime_executed": false
+  },
+  "environment": {
+    "os": "Darwin 25.2.0 arm64",
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)"
+  },
+  "commands": [
+    {
+      "id": "intent_outcome_result_core",
+      "working_directory": "server-rs",
+      "command": "PATH=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin:$PATH RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc cargo test -p converact-conversation-result-core --test result_quality",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 5,
+      "failed": 0
+    },
+    {
+      "id": "intent_outcome_active_call_mapping",
+      "working_directory": "server-rs",
+      "command": "PATH=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin:$PATH RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc cargo test -p converact-active-call-adapter --test mapping",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 8,
+      "failed": 0
+    },
+    {
+      "id": "intent_outcome_terminal_projection",
+      "working_directory": "server-rs",
+      "command": "PATH=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin:$PATH RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc cargo test -p converact-voice-agent-worker --test active_call_intent_projection",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 2,
+      "failed": 0
+    },
+    {
+      "id": "intent_outcome_result_projection",
+      "working_directory": "server-rs",
+      "command": "PATH=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin:$PATH RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc cargo test -p converact-voice-agent-worker --test conversation_projection_runtime",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 12,
+      "failed": 0
+    },
+    {
+      "id": "intent_outcome_scoped_format",
+      "working_directory": ".",
+      "command": "rustup run 1.94.1 rustfmt --edition 2024 --check server-rs/apps/converact-voice-agent-worker/src/active_call_intent.rs server-rs/apps/converact-voice-agent-worker/src/conversation_finalization.rs server-rs/apps/converact-voice-agent-worker/src/conversation_projection.rs server-rs/apps/converact-voice-agent-worker/src/lib.rs server-rs/apps/converact-voice-agent-worker/src/result_generation.rs server-rs/apps/converact-voice-agent-worker/tests/active_call_intent_projection.rs server-rs/apps/converact-voice-agent-worker/tests/conversation_projection_runtime.rs server-rs/crates/conversation-result-core/src/lib.rs server-rs/crates/conversation-result-core/src/result.rs server-rs/crates/conversation-result-core/tests/result_quality.rs",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "intent_outcome_result_core_clippy",
+      "working_directory": "server-rs",
+      "command": "PATH=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin:$PATH RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc cargo clippy -p converact-conversation-result-core --lib --test result_quality -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "intent_outcome_active_call_mapping_clippy",
+      "working_directory": "server-rs",
+      "command": "PATH=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin:$PATH RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc cargo clippy -p converact-active-call-adapter --lib --test mapping -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "intent_outcome_worker_clippy",
+      "working_directory": "server-rs",
+      "command": "PATH=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin:$PATH RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc cargo clippy -p converact-voice-agent-worker --lib --test active_call_intent_projection --test conversation_projection_runtime -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "not_run": [
+    "real_active_call_process_playbook_model_and_intent_quality",
+    "real_speech_runtime_rustpbx_sip_pstn_rtp_srtp_audio_campaign_outcome",
+    "physical_postgresql_and_durable_result_provider",
+    "deployed_runtime",
+    "performance",
+    "capacity",
+    "long_run",
+    "fault_campaign",
+    "independent_code_review",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_read": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}

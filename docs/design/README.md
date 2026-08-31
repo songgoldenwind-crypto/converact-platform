@@ -31,7 +31,7 @@ Converact Agent Runtime / Converact Resolve`。本文导航的是已经迁入仓
 | 18 | [Active Call Realtime Event & Output Control Parity R1](../plans/2026-08-31-active-call-realtime-event-parity-r1.md) | 复用 Active Call 的 VAD/EOU/打断/DTMF/Hold/Inactivity 信号及暂停/恢复/打断输出命令 | `controlled_adapter_contract_passed / live_runtime_not_run / production_not_run` |
 | 19 | [Active Call Handoff Adapter R1](../plans/2026-08-31-active-call-handoff-adapter-r1.md) | 将替换 AI session 查询和人工 generation 后的旧播放清理接入真实 Rust 私有进程端口；不冒充 RustPBX 媒体切换 | `controlled_loopback_contract_passed / physical_media_switch_not_run / production_not_run` |
 | 20 | [Active Call Intent Candidate Parity R1](../plans/2026-08-31-active-call-intent-candidate-r1.md) | 保留 Playbook 已识别的 `intent` 为有界、脱敏的终态候选，不复制分类器，也不绕过 Release OutcomeSchema | `controlled_adapter_contract_passed / schema_projection_not_run / live_runtime_not_run / production_not_run` |
-| 21 | [Active Call Intent → Outcome Projection R1](../plans/2026-08-31-active-call-intent-outcome-projection-r1.md) | 将已识别候选绑定到精确 Agent Release/OutcomeSchema、durable result 输入和最终结果核对 | `implementation_in_progress / physical_integrations_not_run / production_not_run` |
+| 21 | [Active Call Intent → Outcome Projection R1](../plans/2026-08-31-active-call-intent-outcome-projection-r1.md) | 将已识别候选绑定到精确 Agent Release/OutcomeSchema、durable result 输入和最终结果核对 | `controlled_contract_passed / physical_integrations_not_run / production_not_run` |
 
 权威冲突时按领域裁决，而不是简单“新文件覆盖所有旧文件”：
 
