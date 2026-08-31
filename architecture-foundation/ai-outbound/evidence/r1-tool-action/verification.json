@@ -1,0 +1,107 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-08-31",
+  "evidence_class": [
+    "local_contract",
+    "controlled_test_double"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "commit": "91e8b5558faf61903beb7bee6f05ee29fb4928d8",
+    "tree": "10c81ccdbc07b7e494dfce9249f120eea1b72315"
+  },
+  "environment": {
+    "os": "Darwin 25.2.0 arm64",
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)"
+  },
+  "commands": [
+    {
+      "id": "tool_broker_core_behaviors",
+      "working_directory": "server-rs",
+      "command": "cargo test -p converact-tool-broker-core",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "id": "tool_action_schema",
+      "working_directory": "server-rs",
+      "command": "cargo test -p converact-tool-broker-store --test schema",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "id": "active_call_tool_runtime",
+      "working_directory": "server-rs",
+      "command": "cargo test -p converact-voice-agent-worker --test tool_runtime",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "id": "shared_voice_contracts",
+      "working_directory": "server-rs",
+      "command": "cargo test -p converact-voice-agent-contracts",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 6,
+      "failed": 0
+    },
+    {
+      "id": "postgres_store_compile",
+      "working_directory": "server-rs",
+      "command": "cargo check -p converact-postgres-store",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "store_core_scoped_clippy",
+      "working_directory": "server-rs",
+      "command": "cargo clippy -p converact-tool-broker-core -p converact-tool-broker-store -p converact-postgres-store --all-targets -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "worker_contract_scoped_clippy",
+      "working_directory": "server-rs",
+      "command": "cargo clippy -p converact-voice-agent-worker -p converact-voice-agent-contracts --all-targets -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "rust_format",
+      "working_directory": "server-rs",
+      "command": "cargo fmt --all -- --check",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "not_run": [
+    "physical_postgresql_migration_and_transactions",
+    "real_action_provider",
+    "external_approval_service",
+    "real_active_call_tool_round_trip",
+    "real_active_call_tool_result_command",
+    "livekit_vilte_tool_round_trip",
+    "real_rustpbx_sip_pstn",
+    "performance",
+    "capacity",
+    "long_run",
+    "fault_campaign",
+    "independent_code_review",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}

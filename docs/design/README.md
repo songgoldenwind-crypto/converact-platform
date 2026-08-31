@@ -18,7 +18,7 @@ Converact Agent Runtime / Converact Resolve`。本文导航的是已经迁入仓
 | 5 | [Resolve Assist Profile R1](./2026-07-31-ai-native-multimodal-resolution-platform-r1.md) | 首个 `resolution` Profile、Offer、Pilot、B1、ROI 和 Stop Gate | `retained_vertical_profile / proposed_for_profile_review` |
 | 6 | [AI 外呼与 Voice Agent 平台 R1](./2026-08-31-ai-outbound-active-call-platform-r1.md) | 行业通用 AI 外呼、Active Call 电话 Channel Agent、Campaign/Attempt/Tool/Handoff 权威和功能优先实施边界 | `accepted_design / controlled_tracer_bullet_passed / production_not_run` |
 | 7 | [AI 外呼 Active Call Tracer Bullet R1 计划](../plans/2026-08-31-ai-outbound-active-call-tracer-bullet-r1.md) | Rust Agent/Campaign/Attempt、Active Call、RustPBX RWI、持久化与首条功能闭环的逐步 TDD 计划 | `planned` |
-| 8 | [AI 外呼 Tool Broker 与 Action Receipt R1](./2026-08-31-ai-outbound-tool-action-r1.md) | Tool Proposal、Policy/Approval、幂等 Action、Receipt、恢复和 generation fence | `accepted_from_ai_outbound_r1 / implementation_not_started` |
+| 8 | [AI 外呼 Tool Broker 与 Action Receipt R1](./2026-08-31-ai-outbound-tool-action-r1.md) | Tool Proposal、Policy/Approval、幂等 Action、Receipt、恢复和 generation fence | `controlled_core_and_worker_slice_passed / physical_integrations_not_run / production_not_run` |
 | 9 | [Tool Broker TDD 实施计划](../plans/2026-08-31-ai-outbound-tool-action-r1.md) | 独立 Rust Tool Broker、持久化 Adapter 与 Active Call Worker 接线 | `planned` |
 
 权威冲突时按领域裁决，而不是简单“新文件覆盖所有旧文件”：
@@ -99,3 +99,4 @@ flowchart TD
 | 2026-08-31 | AI outbound R1 navigation | 增加 Active Call 电话 Channel Agent 与行业通用 AI 外呼设计入口 |
 | 2026-08-31 | AI outbound R1 checkpoint | 首条 Rust 受控 tracer bullet 已有本地证据；真实 SIP/PSTN、供应商、性能与生产仍为 `not_run` |
 | 2026-08-31 | Tool Action R1 | 固定跨通道 Tool Broker、审批、Effect Receipt、恢复和最小精准测试策略 |
+| 2026-08-31 | Tool Action R1 checkpoint | Rust Broker、持久化 Adapter 与 Active Call Worker 桥接已有本地受控证据；真实 Provider/PostgreSQL/通话与生产仍为 `not_run` |

@@ -2,7 +2,7 @@
 
 > 日期：2026-08-31
 >
-> 状态：`accepted_from_ai_outbound_r1 / implementation_not_started`
+> 状态：`controlled_core_and_worker_slice_passed / physical_integrations_not_run / production_not_run`
 >
 > 上位设计：[AI 外呼与 Voice Agent 平台 R1](./2026-08-31-ai-outbound-active-call-platform-r1.md)
 
@@ -88,6 +88,7 @@ Policy 的闭集结果为 `Denied`、`Allowed`、`ApprovalRequired`：
 - `Prepared`：本进程本轮唯一一次可执行权限；
 - `Replay(ActionReceipt)`：已存在最终结果，禁止再次执行；
 - `ReconcileRequired`：已有 accepted 但无最终观察，只允许 query；
+- `InProgress`：另一有效租约正在处理，只能等待，禁止 execute/query；
 - `Conflict`：相同键绑定了不同 payload 或 Authority。
 
 Action Adapter 结果为 `Applied`、`NotApplied` 或 `OutcomeUnknown`。`OutcomeUnknown` 不能转成失败，
@@ -137,3 +138,17 @@ generation 时，Broker 才返回 `Consumable` ToolResult。旧 generation 返�
 
 这些不影响先完成独立 Rust 合同、Broker、持久化 Adapter 和受控功能切片，但不得从受控测试继承
 更高证据等级。
+
+## 10. 实现与证据状态
+
+已实现并通过受控测试：
+
+- `converact-tool-broker-core` 的 Proposal、Definition、Policy/Approval、Action Receipt、
+  prepare/execute/finalize、replay、unknown reconcile 与 generation fence；
+- `converact-tool-broker-store` 和 PostgreSQL tenant-transaction wrapper；
+- migration 125 与 SQLite development mirror；
+- Active Call normalized Tool Proposal 到 Rust Worker/Broker 的桥接，以及仅当前 `Consumable`
+  结果回传的门禁。
+
+证据见 [R1 Tool Action evidence](../../architecture-foundation/ai-outbound/evidence/r1-tool-action/README.md)。
+证据等级仅为 `local_contract + controlled_test_double`；本节不改变第 9 节任何 `not_run` 项。

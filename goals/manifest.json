@@ -21,7 +21,7 @@
     },
     {
       "path": "docs/design/README.md",
-      "sha256": "b98b16195b97a029ca8282263a0c3bfd6da327697e35a090d2533b13c406bd70",
+      "sha256": "63d36a6565d666ba1419ea1173f7ade5132c8093cdbe31a852a18f8e615d056b",
       "kind": "context"
     },
     {
@@ -36,13 +36,23 @@
     },
     {
       "path": "docs/design/2026-08-31-ai-outbound-tool-action-r1.md",
-      "sha256": "af652f6f531b4c0a9ebcd2912a2a915403c5ecefb75c9f6e888c251e9487394d",
+      "sha256": "400625f03a8797bad6eeae2ea60ee3fbc8d9a9cda204a22a2a17f23357acd8b3",
       "kind": "design"
     },
     {
       "path": "docs/plans/2026-08-31-ai-outbound-tool-action-r1.md",
       "sha256": "36363c687078fbd82eb51301f93a242a6014609cffd56627841211eeca130c5b",
       "kind": "plan"
+    },
+    {
+      "path": "architecture-foundation/ai-outbound/evidence/r1-tool-action/README.md",
+      "sha256": "9ebc8441c173e60f19e8082c0b0653ed18b880a00fac48d20b0e97cf9ca64833",
+      "kind": "evidence"
+    },
+    {
+      "path": "architecture-foundation/ai-outbound/evidence/r1-tool-action/verification.json",
+      "sha256": "966aa166516bd3d5d8fd3093df2dbe02ca66fbd69b67107b312424214f143b4a",
+      "kind": "evidence"
     },
     {
       "path": "infra/converact/active-call/UPSTREAM.md",
