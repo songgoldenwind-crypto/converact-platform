@@ -484,6 +484,16 @@ name = "converact-outbox-worker"
 version = "0.1.0"
 
 [[package]]
+name = "converact-post-call-finalization-core"
+version = "0.1.0"
+dependencies = [
+ "converact-contracts",
+ "converact-voice-agent-contracts",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "converact-postgres-store"
 version = "0.1.0"
 dependencies = [

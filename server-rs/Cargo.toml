@@ -24,6 +24,7 @@ members = [
   "crates/migration-tooling",
   "crates/observability",
   "crates/outbox-worker",
+  "crates/post-call-finalization-core",
   "crates/postgres-store",
   "crates/runtime-health",
   "crates/rustpbx-rwi-adapter",
