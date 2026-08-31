@@ -117,8 +117,8 @@ Kamailio / Trunk / PSTN
 | Active Call 构建/测试 | 固定源码本地构建通过；上游测试因外部 `sipbot` 缺失为 `blocked_external`；Converact Adapter 11 项本地测试通过 | 自有 lockfile、构建和合同测试 | runtime/production `not_run` |
 | 多轮实时语音 | 受控端口完成 reserve/originate/attach/disclosure/start/finalize；未启动真实进程 | Active Call 驱动的真实功能闭环 | real media/provider `not_run` |
 | Tool/Action | Rust Proposal/Policy/Approval/Broker/Receipt、持久化 Adapter、Active Call Worker 桥接及通用查询/变更 Adapter 已通过本地受控测试 | 接入真实 Provider | controlled slice passed；real provider/physical PostgreSQL `not_run` |
-| AI/人工协作 | 有产品与通信设计 | durable prepare/commit/abort/reconcile | `not_run` |
-| Transcript/Outcome/QM | 受控 Worker 已验证 final segment count 与 bounded outcome；完整 transcript/summary/QM 未实现 | 统一 ID、幂等投影和异步补偿 | complete projection `not_run` |
+| AI/人工协作 | Rust Handoff Core/Store/Worker 的 commit/abort/replay/unknown-query 已通过本地受控测试 | 接入真实人席、RustPBX 与 Active Call | physical integration/production `not_run` |
+| Transcript/Outcome/QM | Rust final transcript/snapshot/result/evaluation/Bad Case、durable reconcile 与权限化查询 API 已通过本地受控测试 | 接入真实 Speech/模型/UI 并迁移旧 writer | physical integration/writer switch/production `not_run` |
 | 性能/容量/长稳 | 旧证据不能继承到新链路 | 功能稳定后单独执行 | `not_run` |
 
 `target`、`implemented`、`tested` 和 `production_eligible` 是不同状态。实现代码不能自动把任何
