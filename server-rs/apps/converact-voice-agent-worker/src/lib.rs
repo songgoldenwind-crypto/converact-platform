@@ -5,6 +5,7 @@
 mod active_call_handoff;
 mod active_call_intent;
 mod active_call_playbook_artifact;
+mod active_call_playbook_resolver;
 mod campaign_admin;
 mod campaign_admin_http;
 mod campaign_retry;
@@ -32,6 +33,10 @@ pub use active_call_intent::{
 };
 pub use active_call_playbook_artifact::{
     ActiveCallPlaybookArtifact, ActiveCallPlaybookArtifactError,
+};
+pub use active_call_playbook_resolver::{
+    ActiveCallArtifactSource, ActiveCallArtifactSourcePort, ActiveCallPlaybookResolver,
+    ActiveCallPlaybookResolverError,
 };
 pub use campaign_admin::{
     AdminMutationResource, CampaignAdminAccess, CampaignAdminError, CampaignAdminPort,
