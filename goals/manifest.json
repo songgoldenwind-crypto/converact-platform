@@ -21,12 +21,12 @@
     },
     {
       "path": "docs/design/README.md",
-      "sha256": "0b439f56a2b735d62a5b12b80736cb97aa38fde7ec7d32038b5badaf6ef4c8fd",
+      "sha256": "79c5122d24250214e30f82b58c0a39359666c8390e3e4712ea256e717f431b34",
       "kind": "context"
     },
     {
       "path": "docs/design/2026-08-31-ai-outbound-active-call-platform-r1.md",
-      "sha256": "6bfef56e18e5c40aa4eeed57d96a56d68e9918eb8019c756f1d336512e044fa4",
+      "sha256": "7bb0119380026585f3711d9c47ece150a51ddf361f78186b1e582b77af865bfc",
       "kind": "design"
     },
     {
@@ -51,7 +51,7 @@
     },
     {
       "path": "docs/design/2026-08-31-ai-human-ai-handoff-r1.md",
-      "sha256": "37a816f2100cdfb938ad13c5bed45c2aca523321e969f9591444ba7fea0174c5",
+      "sha256": "3603024e41508557c1528c80c305b9fdc34899dddde2bc36437d6390f52ad3d5",
       "kind": "design"
     },
     {
@@ -107,6 +107,21 @@
     {
       "path": "architecture-foundation/ai-outbound/evidence/r1-active-call-output-control/verification.json",
       "sha256": "87fa7fc89863a738437dccc2770f85b9c9cf0852c5d7c39fd06196e3bcc05b88",
+      "kind": "evidence"
+    },
+    {
+      "path": "docs/plans/2026-08-31-active-call-handoff-adapter-r1.md",
+      "sha256": "9c5aa03e297e941ca3ee9f2c5986ff56b63f7082b83240e4294524274b4e9418",
+      "kind": "plan"
+    },
+    {
+      "path": "architecture-foundation/ai-outbound/evidence/r1-active-call-handoff-adapter/README.md",
+      "sha256": "92ed0b62185c42cd5b009f63ac2bfa7e7b873d26852645a87de4bd0513176508",
+      "kind": "evidence"
+    },
+    {
+      "path": "architecture-foundation/ai-outbound/evidence/r1-active-call-handoff-adapter/verification.json",
+      "sha256": "900d80f3e4a55aa06efcbe164afe44d0e1bf99526b987c69ba647222e9edf822",
       "kind": "evidence"
     },
     {

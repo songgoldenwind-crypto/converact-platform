@@ -1,6 +1,7 @@
 # Active Call Handoff Adapter R1 implementation plan
 
-> **Status:** `implementation_in_progress / physical_media_switch_not_run / production_not_run`
+> **Status:** `controlled_loopback_contract_passed / physical_media_switch_not_run /
+> production_not_run`
 
 **Goal:** Replace the `ChannelAgentHandoffPort` test double with a bounded Rust adapter for the
 pinned Active Call process, without treating playback commands as Agent ownership or media-routing
@@ -53,3 +54,6 @@ Pause/Resume as proof of AI/human ownership.
 R1 proves only the concrete private-process Handoff adapter contract. It does not prove that an
 answered human can hear or speak to a real caller. Human/AI media activation must be implemented
 and observed through the RustPBX media authority before the physical Handoff can be marked passed.
+
+The controlled result is recorded in
+[R1 Active Call Handoff Adapter evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-handoff-adapter/README.md).

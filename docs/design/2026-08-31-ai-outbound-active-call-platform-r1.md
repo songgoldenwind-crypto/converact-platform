@@ -118,7 +118,7 @@ Kamailio / Trunk / PSTN
 | Active Call 构建/测试 | 固定源码本地构建通过；上游测试因外部 `sipbot` 缺失为 `blocked_external`；Converact Adapter 11 项本地测试通过 | 自有 lockfile、构建和合同测试 | runtime/production `not_run` |
 | 多轮实时语音 | 受控端口完成 reserve/originate/attach/disclosure/start/finalize；未启动真实进程 | Active Call 驱动的真实功能闭环 | real media/provider `not_run` |
 | Tool/Action | Rust Proposal/Policy/Approval/Broker/Receipt、持久化 Adapter、Active Call Worker 桥接及通用查询/变更 Adapter 已通过本地受控测试 | 接入真实 Provider | controlled slice passed；real provider/physical PostgreSQL `not_run` |
-| AI/人工协作 | Rust Handoff Core/Store/Worker 的 commit/abort/replay/unknown-query 已通过本地受控测试 | 接入真实人席、RustPBX 与 Active Call | physical integration/production `not_run` |
+| AI/人工协作 | Rust Handoff Core/Store/Worker 的 commit/abort/replay/unknown-query 和具体 Active Call 私有进程端口已通过本地受控/loopback 测试 | 接入真实人席、RustPBX 媒体切换与 Active Call | physical integration/production `not_run` |
 | Transcript/Outcome/QM | Rust final transcript/snapshot/result/evaluation/Bad Case、durable reconcile 与权限化查询 API 已通过本地受控测试 | 接入真实 Speech/模型/UI 并迁移旧 writer | physical integration/writer switch/production `not_run` |
 | Post-call Finalization | Rust terminal/enqueue 受控原子边界、durable queue、Worker、D7 projection reuse 与进度查询已通过本地精准测试 | 接入物理 PostgreSQL 合并事务和真实终态输入 | physical transaction/real call/production `not_run` |
 | 性能/容量/长稳 | 旧证据不能继承到新链路 | 功能稳定后单独执行 | `not_run` |
@@ -745,6 +745,8 @@ Reconciler 查询：
 - durable command/receipt Store 与惰性 PostgreSQL Adapter：本地受控测试已通过，物理数据库
   `not_run`；
 - commit/abort/replay/unknown-query 与 AI resume generation 切换：Worker test double 已通过；
+- 具体 Active Call Handoff 端口的 replacement-session 查询、缺失判定和 human-generation
+  旧播放清理：本地 loopback 合同已通过；`/command` 只证明入队，不冒充执行或媒体切换证据；
 - 真实 RustPBX 人工 Leg、Active Call 进程、人席、SIP/PSTN/媒体/录音与生产：`not_run`。
 
 ### D7：结果、质检和现有 UI
@@ -872,6 +874,9 @@ Core/Store/Worker/API、D8 post-call finalization 的本地 Rust 切片均已有
 `dtmf`、`hold` 和 `inactivity` 信号，并避免复制字幕、Play URL、EOU 文本或在 `Debug`
 泄露按键。Adapter 同时只开放 Pause、Resume 与非 graceful Interrupt 三个输出控制命令，
 不开放 Hangup、REFER 或 Bridge；真实 VAD/打断质量、命令投递与端到端电话路径仍未证明。
+具体 `ChannelAgentHandoffPort` 已在本地 loopback 下接入 Active Call client：替换 session 不存在
+时确定失败，人工 generation 提交后只清理旧 AI 当前播放，新 AI generation 不错误恢复一个并未
+暂停的播放轨。该证据不包含 Active Call 命令执行回执或 RustPBX 媒体-owner 切换。
 物理 PostgreSQL、真实 RustPBX/Active Call/Speech、SIP/PSTN/媒体、真实 Tool/审批/模型供应商、
 生产路由授权、Dashboard、旧 writer 迁移、性能、容量和生产部署均保持 `not_run`，后续必须按
 独立 Evidence Gate 逐项推进。
@@ -894,6 +899,8 @@ Core/Store/Worker/API、D8 post-call finalization 的本地 Rust 切片均已有
 - [Active Call Realtime Event Parity R1 实施计划](../plans/2026-08-31-active-call-realtime-event-parity-r1.md)
 - [Active Call Realtime Event Parity R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-realtime-events/README.md)
 - [Active Call Output Control R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-output-control/README.md)
+- [Active Call Handoff Adapter R1 计划](../plans/2026-08-31-active-call-handoff-adapter-r1.md)
+- [Active Call Handoff Adapter R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-handoff-adapter/README.md)
 
 ## 23. 变更记录
 
@@ -909,3 +916,4 @@ Core/Store/Worker/API、D8 post-call finalization 的本地 Rust 切片均已有
 | 2026-08-31 | R1 Campaign Authoring checkpoint | Agent Release 发布、Campaign 创建/生命周期、批量 Contact 导入和初始 Attempt 的 Core、Store SQL 合同与权限化 HTTP 已有本地受控证据；具体 PostgreSQL Runtime 组合、真实 UI/通话与生产仍为 `not_run` |
 | 2026-08-31 | R1 Active Call realtime event checkpoint | `speaking`、EOU、播放打断、DTMF、Hold 与 Inactivity 已通过安全 Rust 映射合同；真实 Active Call/RustPBX/SIP/PSTN、音频质量与生产仍为 `not_run` |
 | 2026-08-31 | R1 Active Call output control checkpoint | Pause、Resume 与非 graceful Interrupt 已通过固定 wire 合同，fade 上限为两秒且未开放 Hangup/REFER/Bridge；真实命令投递、人工接管与生产仍为 `not_run` |
+| 2026-08-31 | R1 Active Call Handoff Adapter checkpoint | 具体 Rust `ChannelAgentHandoffPort` 已通过 replacement-session 与 human-generation interrupt 的 loopback 合同；命令执行、RustPBX 媒体切换、真实通话和生产仍为 `not_run` |

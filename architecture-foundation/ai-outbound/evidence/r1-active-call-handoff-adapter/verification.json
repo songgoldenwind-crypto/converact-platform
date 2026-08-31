@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-08-31",
+  "evidence_class": [
+    "local_loopback_contract"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "commit": "838475792f9f1a172a79c5516c1be0b7422594ce",
+    "tree": "80d0fa152fe4b20f57d206ebc0e4398b622969de"
+  },
+  "active_call": {
+    "version": "0.3.83",
+    "commit": "6224d948cc0941ac48b4a5426477aeaf639c2e98",
+    "runtime_executed": false
+  },
+  "commands": [
+    {
+      "id": "active_call_handoff_adapter_loopback",
+      "working_directory": "server-rs",
+      "command": "cargo +1.94.1 test -p converact-voice-agent-worker active_call_handoff --lib",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "id": "handoff_runtime_compatibility",
+      "working_directory": "server-rs",
+      "command": "cargo +1.94.1 test -p converact-voice-agent-worker --test handoff_runtime",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "id": "active_call_handoff_scoped_format",
+      "working_directory": "server-rs",
+      "command": "cargo +1.94.1 fmt -p converact-voice-agent-worker -- --check",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "active_call_handoff_scoped_clippy",
+      "working_directory": "server-rs",
+      "command": "cargo +1.94.1 clippy -p converact-voice-agent-worker --all-targets -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "not_run": [
+    "real_active_call_runtime_and_command_execution_receipt",
+    "rustpbx_human_ai_media_owner_switch_and_observation",
+    "real_human_seat_sip_pstn_rtp_srtp_audio_vad_asr_tts_llm_recording",
+    "physical_postgresql",
+    "deployed_runtime",
+    "performance",
+    "capacity",
+    "long_run",
+    "fault_campaign",
+    "independent_code_review",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_read": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}
