@@ -1,6 +1,7 @@
 # Active Call intent-candidate parity R1 implementation plan
 
-> **Status:** `implementation_in_progress / live_runtime_not_run / production_not_run`
+> **Status:** `controlled_adapter_contract_passed / schema_projection_not_run /
+> live_runtime_not_run / production_not_run`
 
 **Goal:** Preserve the pinned Active Call Playbook's existing intent variable as bounded candidate
 evidence, without adding a second classifier or letting an arbitrary runtime variable become the
@@ -36,3 +37,6 @@ Converact will ingest only `extra.intent`:
 This slice proves local wire/mapping parity only. It does not prove the quality of Active Call's
 intent inference, map a candidate to a published `OutcomeSchema`, run a model or place a real call.
 Those remain separate functional evidence gates.
+
+The controlled mapping result is recorded in
+[R1 Active Call intent-candidate evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-intent-candidate/README.md).

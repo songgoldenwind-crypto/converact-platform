@@ -21,12 +21,12 @@
     },
     {
       "path": "docs/design/README.md",
-      "sha256": "79c5122d24250214e30f82b58c0a39359666c8390e3e4712ea256e717f431b34",
+      "sha256": "245f9ad96e77eb292e0dfc051c18dc54c8caf88a6a95094dd446e7fbcdd53ab9",
       "kind": "context"
     },
     {
       "path": "docs/design/2026-08-31-ai-outbound-active-call-platform-r1.md",
-      "sha256": "19e404754bd348794f72169b05e6cc4cab2481f10b7486dec334ec8023620fc4",
+      "sha256": "d03dcb03a34d96af3d0f5d619ab94ce95b7e3a1c9a6ab210758318fd67a60c95",
       "kind": "design"
     },
     {
@@ -122,6 +122,21 @@
     {
       "path": "architecture-foundation/ai-outbound/evidence/r1-active-call-handoff-adapter/verification.json",
       "sha256": "d34d425ca54a4aacff89672596f65662411d1bbf023ce28b908afb5146e3b70e",
+      "kind": "evidence"
+    },
+    {
+      "path": "docs/plans/2026-08-31-active-call-intent-candidate-r1.md",
+      "sha256": "581f32ca29c29472dab5a8e0e1d2100e029d58fd2c8842dad560e40f0cab5084",
+      "kind": "plan"
+    },
+    {
+      "path": "architecture-foundation/ai-outbound/evidence/r1-active-call-intent-candidate/README.md",
+      "sha256": "ec41fc10154847fac5e5471ff9b37d6e60d1688c652ae9ccf541a838b5c4cdcb",
+      "kind": "evidence"
+    },
+    {
+      "path": "architecture-foundation/ai-outbound/evidence/r1-active-call-intent-candidate/verification.json",
+      "sha256": "362df0893ee72fd80c37dd51a8714389dc1ee4fe5eb09c110a89608a5541caa1",
       "kind": "evidence"
     },
     {

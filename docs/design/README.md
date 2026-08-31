@@ -30,6 +30,7 @@ Converact Agent Runtime / Converact Resolve`。本文导航的是已经迁入仓
 | 17 | [AI 外呼 Campaign Authoring R1](../plans/2026-08-31-ai-outbound-campaign-authoring-r1.md) | Agent 发布、Campaign 创建/生命周期、Contact 批量导入与首个 Attempt 原子创建 | `controlled_core_store_http_passed / concrete_postgres_runtime_adapter_not_run / production_not_run` |
 | 18 | [Active Call Realtime Event & Output Control Parity R1](../plans/2026-08-31-active-call-realtime-event-parity-r1.md) | 复用 Active Call 的 VAD/EOU/打断/DTMF/Hold/Inactivity 信号及暂停/恢复/打断输出命令 | `controlled_adapter_contract_passed / live_runtime_not_run / production_not_run` |
 | 19 | [Active Call Handoff Adapter R1](../plans/2026-08-31-active-call-handoff-adapter-r1.md) | 将替换 AI session 查询和人工 generation 后的旧播放清理接入真实 Rust 私有进程端口；不冒充 RustPBX 媒体切换 | `controlled_loopback_contract_passed / physical_media_switch_not_run / production_not_run` |
+| 20 | [Active Call Intent Candidate Parity R1](../plans/2026-08-31-active-call-intent-candidate-r1.md) | 保留 Playbook 已识别的 `intent` 为有界、脱敏的终态候选，不复制分类器，也不绕过 Release OutcomeSchema | `controlled_adapter_contract_passed / schema_projection_not_run / live_runtime_not_run / production_not_run` |
 
 权威冲突时按领域裁决，而不是简单“新文件覆盖所有旧文件”：
 
@@ -126,3 +127,4 @@ flowchart TD
 | 2026-08-31 | Active Call realtime event parity R1 checkpoint | 六类固定源码 wire shape 与脱敏/边界行为已有本地合同证据；真实进程、音频质量、打断时延、SIP/PSTN 与生产仍为 `not_run` |
 | 2026-08-31 | Active Call output control R1 checkpoint | Pause/Resume/非 graceful Interrupt 的固定 wire shape 与 fade bound 已通过；Adapter 未开放 Hangup/REFER/Bridge，真实命令投递和人工接管仍为 `not_run` |
 | 2026-08-31 | Active Call Handoff Adapter R1 checkpoint | `ChannelAgentHandoffPort` 已接入私有 Active Call client，并以 session 存在性和人工 generation 后的旧播放清理完成 loopback 合同；RustPBX 媒体切换和真实通话仍为 `not_run` |
+| 2026-08-31 | Active Call intent candidate R1 checkpoint | `hangup.extra.intent` 已进入有界脱敏 Rust 候选，其他上游 `extra` 全部丢弃；候选到 Release OutcomeSchema 的正式投影与真实意图质量仍为 `not_run` |
