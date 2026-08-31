@@ -487,6 +487,31 @@ impl IntentState {
     pub fn previous_confirmed_intent(&self) -> Option<&str> {
         self.previous_confirmed_intent.as_deref()
     }
+
+    #[must_use]
+    pub fn confirmed_intent(&self) -> Option<&str> {
+        self.confirmed_intent.as_deref()
+    }
+
+    pub(crate) const fn context(&self) -> &EnvelopeContext {
+        &self.context
+    }
+
+    pub(crate) const fn catalog_revision_id(&self) -> &IntentCatalogRevisionId {
+        &self.catalog_revision_id
+    }
+
+    pub(crate) const fn last_turn_index(&self) -> u32 {
+        self.last_turn_index
+    }
+
+    pub(crate) const fn last_observed_at_ms(&self) -> u64 {
+        self.last_observed_at_ms
+    }
+
+    pub(crate) fn last_observation_hash(&self) -> Option<&str> {
+        self.last_observation_hash.as_deref()
+    }
 }
 
 impl fmt::Debug for IntentState {

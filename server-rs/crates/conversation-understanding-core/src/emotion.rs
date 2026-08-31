@@ -706,6 +706,26 @@ impl EmotionState {
     pub const fn consecutive_distress_turns(&self) -> u16 {
         self.consecutive_distress_turns
     }
+
+    pub(crate) const fn context(&self) -> &EnvelopeContext {
+        &self.context
+    }
+
+    pub(crate) const fn catalog_revision_id(&self) -> &EmotionCatalogRevisionId {
+        &self.catalog_revision_id
+    }
+
+    pub(crate) const fn last_turn_index(&self) -> u32 {
+        self.last_turn_index
+    }
+
+    pub(crate) const fn last_observed_at_ms(&self) -> u64 {
+        self.last_observed_at_ms
+    }
+
+    pub(crate) fn last_fusion_hash(&self) -> Option<&str> {
+        self.last_fusion_hash.as_deref()
+    }
 }
 
 impl fmt::Debug for EmotionState {

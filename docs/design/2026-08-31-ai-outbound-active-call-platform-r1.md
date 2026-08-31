@@ -577,6 +577,23 @@ LLM 写入 `user_sentiment` 变量。固定源码中没有独立声学情绪分�
 真实声学/文本模型 Adapter、实际融合算法、校准数据、durable Store、Dialogue Policy 消费、真实
 音频质量和生产均为 `not_run`。原始音频和 transcript 内容不进入该 Core，只持有受控 evidence ID。
 
+### 9.7 Customer State 与 Dialogue Policy
+
+Rust `conversation-understanding-core` 已将同一 tenant/Interaction/Attempt/Call/Release/Agent
+session/execution generation 下的 `IntentState` 与 `EmotionState` 合并为不可变
+`CustomerStateSnapshot`。快照绑定两个 Catalog revision、最后 turn、各自 evidence hash、状态与
+canonical payload hash；跨 generation/authority 或早于来源证据的 snapshot clock 均 fail-closed。
+日志只显示状态、计数和是否存在证据，不输出客户意图或情绪标签，也不持有 transcript/audio。
+
+Release-bound `DialoguePolicy` 只把 Customer State 确定性映射为有界建议：继续发现、继续 Workflow、
+澄清意图、先回应情绪、先回应情绪再澄清、建议人工接管。高压力只在连续确认轮数达到版本化阈值且
+趋势继续恶化时产生 `propose_human_handoff`；该值不是 Handoff command，真实接管仍必须通过独立
+Handoff Core 的路由、prepare/commit、generation fencing 与 receipt。相同原则适用于 Tool、DNC、
+挂机和任何业务写入：理解与对话策略只产出证据/建议，不能绕过各领域 Authority。
+
+当前 Customer State/Dialogue recommendation 仅有本地内存合同；durable Store、Worker 实时接线、
+Active Call Prompt/Scene 消费、Handoff 提案桥接、策略运营配置和真实通话验证仍为 `not_run`。
+
 ## 10. AI 与人工座席闭环
 
 ### 10.1 Context Packet
@@ -1011,6 +1028,7 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 - [Active Call Intent → Outcome Projection R1 计划](../plans/2026-08-31-active-call-intent-outcome-projection-r1.md)
 - [Active Call Intent → Outcome Projection R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-intent-outcome/README.md)
 - [Emotion Understanding Core R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-emotion-understanding-core/README.md)
+- [Customer State and Dialogue Policy R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-customer-state-dialogue-policy/README.md)
 - [Active Call Reservation Overlay R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-reservation-overlay/README.md)
 - [Active Call Reservation Adapter R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-reservation-adapter/README.md)
 - [Agent Release reservation binding evidence](../../architecture-foundation/ai-outbound/evidence/r1-agent-release-reservation-binding/README.md)
@@ -1047,3 +1065,4 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 | 2026-09-01 | R1 RustPBX TelephonyPort checkpoint | Rust 具体端口、immutable dial contract、精确 originate/inspect/Agent-leg/hangup wire 和 unknown-outcome 已通过本地 loopback；ivekit.87 O(1) inspect 精确源码测试通过且已删除进程内 known-call 全局锁；物理 Store/runtime、真实进程/SIP/媒体和生产仍为 `not_run` |
 | 2026-09-01 | R1 Intent Understanding Core checkpoint | Release-bound 层级 Catalog、Slot allow-list、top-k、basis-point confidence、证据来源和 `unknown/provisional/clarification_required/confirmed/changed` Rust 状态机已有本地合同证据；真实分类 Provider、融合、校准、Store、Active Call 实时接入和质量仍为 `not_run` |
 | 2026-09-01 | R1 Emotion Understanding Core checkpoint | Release-bound Catalog、声学/文本证据约束、top-k/confidence/intensity、同 authority/turn 融合与确认后压力趋势 Rust 状态机已有本地合同证据；真实模型/融合算法、校准、Store、Policy 消费、音频与生产仍为 `not_run` |
+| 2026-09-01 | R1 Customer State/Dialogue Policy checkpoint | 同 authority 的 Intent/Emotion 快照、Release-bound Policy、情绪优先澄清与恶化压力人工接管建议已有本地合同证据；建议不具有 Handoff/Tool/电话动作权，Store、Worker/Active Call 接线和生产仍为 `not_run` |

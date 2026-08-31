@@ -21,6 +21,13 @@ pub enum UnderstandingError {
     StaleEmotionFusion,
     EmotionRevisionExhausted,
     EmotionCanonicalPayloadInvalid,
+    InvalidCustomerState,
+    CustomerStateAuthorityMismatch,
+    CustomerStateCanonicalPayloadInvalid,
+    InvalidDialoguePolicy,
+    DialoguePolicyReleaseMismatch,
+    StaleDialogueEvaluation,
+    DialogueRecommendationCanonicalPayloadInvalid,
     CanonicalPayloadInvalid,
 }
 
@@ -47,6 +54,19 @@ impl UnderstandingError {
             Self::EmotionRevisionExhausted => "conversation_emotion_revision_exhausted",
             Self::EmotionCanonicalPayloadInvalid => {
                 "conversation_emotion_canonical_payload_invalid"
+            }
+            Self::InvalidCustomerState => "conversation_customer_state_invalid",
+            Self::CustomerStateAuthorityMismatch => {
+                "conversation_customer_state_authority_mismatch"
+            }
+            Self::CustomerStateCanonicalPayloadInvalid => {
+                "conversation_customer_state_canonical_payload_invalid"
+            }
+            Self::InvalidDialoguePolicy => "conversation_dialogue_policy_invalid",
+            Self::DialoguePolicyReleaseMismatch => "conversation_dialogue_policy_release_mismatch",
+            Self::StaleDialogueEvaluation => "conversation_dialogue_evaluation_stale",
+            Self::DialogueRecommendationCanonicalPayloadInvalid => {
+                "conversation_dialogue_recommendation_canonical_payload_invalid"
             }
             Self::CanonicalPayloadInvalid => "conversation_intent_canonical_payload_invalid",
         }
