@@ -366,6 +366,7 @@ dependencies = [
  "converact-contracts",
  "converact-conversation-result-core",
  "converact-voice-agent-contracts",
+ "serde",
  "serde_json",
  "tokio-postgres",
 ]

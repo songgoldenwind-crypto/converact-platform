@@ -58,3 +58,22 @@ fn result_projection_adapter_owns_atomic_prepare_and_finalize_transactions() {
         );
     }
 }
+
+#[test]
+fn conversation_quality_queries_are_tenant_transaction_bound() {
+    let source = include_str!("../src/conversation_result.rs");
+
+    for required in [
+        "load_latest_result",
+        "list_transcript",
+        "list_evaluations",
+        "list_bad_cases",
+        "with_tenant_transaction",
+        "parse_tenant",
+    ] {
+        assert!(
+            source.contains(required),
+            "missing tenant query boundary {required}"
+        );
+    }
+}

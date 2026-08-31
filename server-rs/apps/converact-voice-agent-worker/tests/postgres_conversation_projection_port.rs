@@ -1,7 +1,7 @@
 use converact_postgres_store::PostgresConversationResultStore;
 use converact_voice_agent_worker::{
     ConversationEvaluationDurabilityPort, ConversationEvidenceDurabilityPort,
-    ConversationProjectionDurabilityPort,
+    ConversationProjectionDurabilityPort, ConversationQualityQueryPort,
 };
 
 #[test]
@@ -9,8 +9,10 @@ fn postgres_conversation_result_store_implements_worker_projection_port() {
     fn assert_port<T: ConversationProjectionDurabilityPort>() {}
     fn assert_evaluation_port<T: ConversationEvaluationDurabilityPort>() {}
     fn assert_evidence_port<T: ConversationEvidenceDurabilityPort>() {}
+    fn assert_query_port<T: ConversationQualityQueryPort>() {}
 
     assert_port::<PostgresConversationResultStore>();
     assert_evaluation_port::<PostgresConversationResultStore>();
     assert_evidence_port::<PostgresConversationResultStore>();
+    assert_query_port::<PostgresConversationResultStore>();
 }

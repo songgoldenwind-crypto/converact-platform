@@ -13,6 +13,7 @@ use serde_json::json;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ConversationResultStoreError {
     InvalidCommand,
+    InvalidQuery,
     InvalidEvaluationProjection,
     NumericOverflow,
     SerializationFailed,
@@ -26,6 +27,7 @@ impl ConversationResultStoreError {
     pub const fn code(self) -> &'static str {
         match self {
             Self::InvalidCommand => "conversation_projection_command_invalid",
+            Self::InvalidQuery => "conversation_result_query_invalid",
             Self::InvalidEvaluationProjection => "conversation_evaluation_projection_invalid",
             Self::NumericOverflow => "conversation_result_store_numeric_overflow",
             Self::SerializationFailed => "conversation_result_store_serialization_failed",

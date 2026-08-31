@@ -4,6 +4,7 @@
 
 mod model;
 mod postgres;
+mod query;
 
 pub use model::{
     ConversationResultStoreError, EvaluationProjectionWrite, ProjectionCommand,
@@ -12,3 +13,7 @@ pub use model::{
     canonical_bad_case_payload_hash,
 };
 pub use postgres::ConversationResultSqlStore;
+pub use query::{
+    BadCaseView, ConversationEvaluationView, ConversationResultView, EntityCursor, QueryLimit,
+    QueryPage, TranscriptSegmentView,
+};

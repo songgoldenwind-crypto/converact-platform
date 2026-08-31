@@ -5,12 +5,16 @@ use converact_conversation_result_core::{
     TranscriptSnapshot,
 };
 use converact_conversation_result_store::{
-    ConversationResultSqlStore, ConversationResultStoreError, EvaluationProjectionWrite,
+    BadCaseView, ConversationEvaluationView, ConversationResultSqlStore,
+    ConversationResultStoreError, ConversationResultView, EntityCursor, EvaluationProjectionWrite,
     ProjectionCommand, ProjectionCommandKind, ProjectionFinalizeDecision,
-    ProjectionPrepareDecision, ProjectionWriteDecision, TranscriptAppendDecision,
+    ProjectionPrepareDecision, ProjectionWriteDecision, QueryLimit, QueryPage,
+    TranscriptAppendDecision, TranscriptSegmentView,
 };
 use converact_kernel_ids::TenantId;
-use converact_voice_agent_contracts::{BadCaseId, EnvelopeContext, ExecutionGeneration};
+use converact_voice_agent_contracts::{
+    BadCaseId, EnvelopeContext, ExecutionGeneration, InteractionId,
+};
 
 use crate::{PostgresRuntime, TransactionError};
 
@@ -308,6 +312,128 @@ impl PostgresConversationResultStore {
             .map(map_projection_decision)
             .map_err(map_transaction_error)
     }
+
+    /// Loads the latest immutable result for one tenant-bound Interaction.
+    ///
+    /// # Errors
+    ///
+    /// Returns only sanitized identifier, tenant, Store or transaction failure categories.
+    pub async fn load_latest_result(
+        &self,
+        tenant_id: &str,
+        interaction_id: &str,
+    ) -> Result<Option<ConversationResultView>, PostgresConversationResultStoreError> {
+        let tenant = parse_tenant(tenant_id)?;
+        let interaction = parse_interaction(interaction_id)?;
+        let tenant_id = tenant_id.to_owned();
+        let interaction_id = interaction.as_str().to_owned();
+        let sql = self.sql;
+        self.runtime
+            .with_tenant_transaction(&tenant, move |transaction| {
+                Box::pin(async move {
+                    sql.load_latest_result(transaction, &tenant_id, &interaction_id)
+                        .await
+                })
+            })
+            .await
+            .map_err(map_transaction_error)
+    }
+
+    /// Lists one bounded authorized transcript page under a tenant transaction.
+    ///
+    /// # Errors
+    ///
+    /// Returns only sanitized identifier, cursor, tenant, Store or transaction failures.
+    pub async fn list_transcript(
+        &self,
+        tenant_id: &str,
+        interaction_id: &str,
+        cursor: Option<&EntityCursor>,
+        limit: QueryLimit,
+    ) -> Result<QueryPage<TranscriptSegmentView>, PostgresConversationResultStoreError> {
+        let tenant = parse_tenant(tenant_id)?;
+        let interaction = parse_interaction(interaction_id)?;
+        let tenant_id = tenant_id.to_owned();
+        let interaction_id = interaction.as_str().to_owned();
+        let cursor = cursor.cloned();
+        let sql = self.sql;
+        self.runtime
+            .with_tenant_transaction(&tenant, move |transaction| {
+                Box::pin(async move {
+                    sql.list_transcript(
+                        transaction,
+                        &tenant_id,
+                        &interaction_id,
+                        cursor.as_ref(),
+                        limit,
+                    )
+                    .await
+                })
+            })
+            .await
+            .map_err(map_transaction_error)
+    }
+
+    /// Lists one bounded evaluation page without transcript text.
+    ///
+    /// # Errors
+    ///
+    /// Returns only sanitized identifier, cursor, tenant, Store or transaction failures.
+    pub async fn list_evaluations(
+        &self,
+        tenant_id: &str,
+        interaction_id: &str,
+        cursor: Option<&EntityCursor>,
+        limit: QueryLimit,
+    ) -> Result<QueryPage<ConversationEvaluationView>, PostgresConversationResultStoreError> {
+        let tenant = parse_tenant(tenant_id)?;
+        let interaction = parse_interaction(interaction_id)?;
+        let tenant_id = tenant_id.to_owned();
+        let interaction_id = interaction.as_str().to_owned();
+        let cursor = cursor.cloned();
+        let sql = self.sql;
+        self.runtime
+            .with_tenant_transaction(&tenant, move |transaction| {
+                Box::pin(async move {
+                    sql.list_evaluations(
+                        transaction,
+                        &tenant_id,
+                        &interaction_id,
+                        cursor.as_ref(),
+                        limit,
+                    )
+                    .await
+                })
+            })
+            .await
+            .map_err(map_transaction_error)
+    }
+
+    /// Lists one bounded tenant Bad Case page without transcript or summary content.
+    ///
+    /// # Errors
+    ///
+    /// Returns only sanitized cursor, tenant, Store or transaction failure categories.
+    pub async fn list_bad_cases(
+        &self,
+        tenant_id: &str,
+        cursor: Option<&EntityCursor>,
+        limit: QueryLimit,
+    ) -> Result<QueryPage<BadCaseView>, PostgresConversationResultStoreError> {
+        let tenant = parse_tenant(tenant_id)?;
+        let tenant_id = tenant_id.to_owned();
+        let cursor = cursor.cloned();
+        let sql = self.sql;
+        self.runtime
+            .with_tenant_transaction(&tenant, move |transaction| {
+                Box::pin(async move {
+                    sql.list_bad_cases(transaction, &tenant_id, cursor.as_ref(), limit)
+                        .await
+                })
+            })
+            .await
+            .map_err(map_transaction_error)
+    }
 }
 
 impl fmt::Debug for PostgresConversationResultStore {
@@ -325,6 +451,12 @@ fn tenant(context: &EnvelopeContext) -> Result<TenantId, PostgresConversationRes
 fn parse_tenant(value: &str) -> Result<TenantId, PostgresConversationResultStoreError> {
     TenantId::parse(value).map_err(|_| PostgresConversationResultStoreError {
         code: "conversation_result_store_tenant_invalid",
+    })
+}
+
+fn parse_interaction(value: &str) -> Result<InteractionId, PostgresConversationResultStoreError> {
+    InteractionId::parse(value).map_err(|_| PostgresConversationResultStoreError {
+        code: "conversation_result_store_interaction_invalid",
     })
 }
 

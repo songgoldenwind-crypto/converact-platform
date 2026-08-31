@@ -4,6 +4,9 @@
 
 mod conversation_projection;
 mod conversation_projection_postgres;
+mod conversation_quality;
+mod conversation_quality_http;
+mod conversation_quality_postgres;
 mod handoff_runtime;
 mod http;
 mod lifecycle;
@@ -20,6 +23,10 @@ pub use conversation_projection::{
     DurableProjectionWriteDecision, DurableTranscriptAppendDecision, EvaluationProjectionProgress,
     ProjectionObservation, ResultProjectionProgress, TerminalEvidenceProgress,
 };
+pub use conversation_quality::{
+    ConversationQualityAccess, ConversationQualityQueryError, ConversationQualityQueryPort,
+};
+pub use conversation_quality_http::conversation_quality_router;
 pub use handoff_runtime::{
     AiResumeCommandIds, AiResumeRequest, ChannelAgentHandoffPort, DurableCreateDecision,
     DurablePrepareDecision, EffectObservation, GenerationCommit, HandoffDurabilityPort,
