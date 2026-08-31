@@ -85,7 +85,22 @@ where
                 classify_receipt(&action, receipt)
             }
             PrepareDecision::Replay(receipt) => classify_receipt(&action, *receipt),
-            PrepareDecision::ReconcileRequired => Ok(BrokerResult::Pending),
+            PrepareDecision::ReconcileRequired => {
+                let observation = self
+                    .action
+                    .query(&action)
+                    .await
+                    .map_err(|_| BrokerError::ActionUnavailable)?;
+                if !observation.is_definitive() {
+                    return Ok(BrokerResult::Pending);
+                }
+                let receipt = self
+                    .store
+                    .finalize(&action, observation, now_ms)
+                    .await
+                    .map_err(|_| BrokerError::StoreUnavailable)?;
+                classify_receipt(&action, receipt)
+            }
             PrepareDecision::Conflict => Err(BrokerError::Conflict),
         }
     }

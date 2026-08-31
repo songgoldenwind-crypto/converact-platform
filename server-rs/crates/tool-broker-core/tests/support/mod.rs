@@ -11,7 +11,13 @@ use serde_json::json;
 
 pub const NOW_MS: u64 = 2_000;
 
+#[allow(dead_code)] // Each integration-test crate compiles this shared support independently.
 pub fn proposal() -> ToolProposal {
+    proposal_with_generation(3)
+}
+
+#[allow(dead_code)] // Each integration-test crate compiles this shared support independently.
+pub fn proposal_with_generation(generation: u64) -> ToolProposal {
     let arguments = json!({"customer_id": "customer-001"});
     ToolProposal::try_new(ToolProposalInput {
         context: EnvelopeContext::try_new(EnvelopeContextInput {
@@ -24,7 +30,7 @@ pub fn proposal() -> ToolProposal {
             call_id: None,
             agent_release_id: AgentReleaseId::parse("agent-release-001").unwrap(),
             channel_agent_session_id: None,
-            execution_generation: ExecutionGeneration::new(3).unwrap(),
+            execution_generation: ExecutionGeneration::new(generation).unwrap(),
             trace_id: "trace-001".to_owned(),
         })
         .unwrap(),

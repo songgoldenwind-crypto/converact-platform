@@ -8,7 +8,7 @@ use crate::{
 };
 
 /// Proof that all fail-closed pre-execution checks passed for one Proposal.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct AuthorizedToolAction {
     proposal: ToolProposal,
     definition: ToolDefinition,
