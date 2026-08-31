@@ -61,7 +61,8 @@ pub trait VoiceAgentRepository: Send + Sync + 'static {
         id: &str,
     ) -> impl Future<Output = Result<Option<AttemptResource>, RepositoryError>> + Send;
 
-    fn save_completed_attempt(
+    /// Atomically persists the terminal projection and enqueues its post-call job.
+    fn complete_attempt_and_enqueue(
         &self,
         tenant: &AuthenticatedTenant,
         attempt: AttemptResource,

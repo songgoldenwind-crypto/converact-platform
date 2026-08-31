@@ -2,7 +2,6 @@
 
 use std::{
     collections::{HashMap, HashSet},
-    future::{Future, ready},
     sync::{Arc, Mutex},
 };
 
@@ -30,9 +29,8 @@ use converact_voice_agent_contracts::{
 };
 use converact_voice_agent_worker::{
     AdmissionReadiness, AgentReleaseResource, AttemptResource, AuthenticatedTenant,
-    CampaignResource, ConversationEvidence, ConversationEvidencePort, Outcome, ReconcileReceipt,
-    RepositoryError, ShutdownToken, VoiceAgentRepository, VoiceAgentWorker, WorkerConfig,
-    WorkerError, router,
+    CampaignResource, ReconcileReceipt, RepositoryError, ShutdownToken, VoiceAgentRepository,
+    VoiceAgentWorker, WorkerConfig, WorkerError, router,
 };
 use tower::ServiceExt;
 
@@ -41,7 +39,6 @@ type ControlledWorker = VoiceAgentWorker<
     FakeAgent,
     FakeTelephony,
     FakeAttemptStore,
-    FakeEvidence,
     InMemoryRepository,
 >;
 
@@ -70,7 +67,6 @@ impl TestWorker {
             FakeAgent(Arc::clone(&state)),
             FakeTelephony(Arc::clone(&state)),
             FakeAttemptStore(Arc::clone(&state)),
-            FakeEvidence,
             repository.clone(),
             config,
             readiness.clone(),
@@ -173,6 +169,28 @@ impl TestWorker {
 
     pub fn request_shutdown(&self) {
         self.shutdown.cancel();
+    }
+
+    pub fn fail_atomic_completion(&self) {
+        self.repository.state.lock().unwrap().fail_atomic_completion = true;
+    }
+
+    pub fn has_attempt(&self, tenant: &str, attempt_id: &str) -> bool {
+        self.repository
+            .state
+            .lock()
+            .unwrap()
+            .attempts
+            .contains_key(&(tenant.to_owned(), attempt_id.to_owned()))
+    }
+
+    pub fn finalization_job_count(&self) -> usize {
+        self.repository
+            .state
+            .lock()
+            .unwrap()
+            .finalization_jobs
+            .len()
     }
 }
 
@@ -284,22 +302,6 @@ impl AttemptStorePort for FakeAttemptStore {
     }
 }
 
-#[derive(Clone, Copy)]
-struct FakeEvidence;
-
-impl ConversationEvidencePort for FakeEvidence {
-    fn final_evidence(
-        &self,
-        _attempt_id: &CallAttemptId,
-    ) -> impl Future<Output = Result<ConversationEvidence, WorkerError>> + Send {
-        ready(Ok(ConversationEvidence::new(
-            2,
-            Outcome::try_new("customer_interested").unwrap(),
-        )
-        .unwrap()))
-    }
-}
-
 #[derive(Clone, Default)]
 struct InMemoryRepository {
     state: Arc<Mutex<RepositoryState>>,
@@ -332,7 +334,9 @@ struct RepositoryState {
     releases: HashMap<(String, String), AgentReleaseResource>,
     campaigns: HashMap<(String, String), CampaignResource>,
     attempts: HashMap<(String, String), AttemptResource>,
+    finalization_jobs: HashSet<(String, String)>,
     reconciliations: HashSet<(String, String, String)>,
+    fail_atomic_completion: bool,
 }
 
 impl VoiceAgentRepository for InMemoryRepository {
@@ -378,15 +382,18 @@ impl VoiceAgentRepository for InMemoryRepository {
             .cloned())
     }
 
-    async fn save_completed_attempt(
+    async fn complete_attempt_and_enqueue(
         &self,
         tenant: &AuthenticatedTenant,
         attempt: AttemptResource,
     ) -> Result<(), RepositoryError> {
-        self.state.lock().unwrap().attempts.insert(
-            (tenant.as_str().to_owned(), attempt.id().to_owned()),
-            attempt,
-        );
+        let mut state = self.state.lock().unwrap();
+        if state.fail_atomic_completion {
+            return Err(RepositoryError::unavailable());
+        }
+        let key = (tenant.as_str().to_owned(), attempt.id().to_owned());
+        state.attempts.insert(key.clone(), attempt);
+        state.finalization_jobs.insert(key);
         Ok(())
     }
 

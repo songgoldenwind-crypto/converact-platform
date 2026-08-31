@@ -1,4 +1,4 @@
-use std::{error::Error, fmt, future::Future};
+use std::{error::Error, fmt};
 
 use converact_ai_outbound_core::{
     AttemptStorePort, ChannelAgentPort, CompliancePort, OutboundOrchestrator, TelephonyPort,
@@ -7,17 +7,9 @@ use converact_voice_agent_contracts::CallAttemptId;
 use converact_voice_agent_contracts::{AgentReleaseState, CampaignState};
 
 use crate::{
-    AdmissionReadiness, AttemptResource, AuthenticatedTenant, ConversationEvidence,
-    RepositoryError, ShutdownToken, VoiceAgentRepository, WorkerConfig,
+    AdmissionReadiness, AttemptResource, AuthenticatedTenant, RepositoryError, ShutdownToken,
+    VoiceAgentRepository, WorkerConfig,
 };
-
-/// Retrieves bounded terminal evidence after the agent runtime has finalized a session.
-pub trait ConversationEvidencePort {
-    fn final_evidence(
-        &self,
-        attempt_id: &CallAttemptId,
-    ) -> impl Future<Output = Result<ConversationEvidence, WorkerError>> + Send;
-}
 
 /// Stable worker failure safe for logs and retry policy.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -52,25 +44,23 @@ impl fmt::Display for WorkerError {
 impl Error for WorkerError {}
 
 /// Fixed-concurrency process authority over new outbound Attempt claims.
-pub struct VoiceAgentWorker<C, A, T, S, E, R> {
+pub struct VoiceAgentWorker<C, A, T, S, R> {
     compliance: C,
     agent: A,
     telephony: T,
     attempt_store: S,
-    evidence: E,
     repository: R,
     config: WorkerConfig,
     readiness: AdmissionReadiness,
     shutdown: ShutdownToken,
 }
 
-impl<C, A, T, S, E, R> VoiceAgentWorker<C, A, T, S, E, R>
+impl<C, A, T, S, R> VoiceAgentWorker<C, A, T, S, R>
 where
     C: CompliancePort,
     A: ChannelAgentPort,
     T: TelephonyPort,
     S: AttemptStorePort,
-    E: ConversationEvidencePort,
     R: VoiceAgentRepository,
 {
     #[allow(clippy::too_many_arguments)]
@@ -80,7 +70,6 @@ where
         agent: A,
         telephony: T,
         attempt_store: S,
-        evidence: E,
         repository: R,
         config: WorkerConfig,
         readiness: AdmissionReadiness,
@@ -91,7 +80,6 @@ where
             agent,
             telephony,
             attempt_store,
-            evidence,
             repository,
             config,
             readiness,
@@ -104,7 +92,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns only stable machine codes from admission, orchestration, evidence or storage.
+    /// Returns only stable machine codes from admission, orchestration or atomic storage.
     pub async fn run_attempt(
         &self,
         tenant: &AuthenticatedTenant,
@@ -145,11 +133,10 @@ where
             .run_one_attempt(attempt_id)
             .await
             .map_err(|error| WorkerError::new(error.code()))?;
-        let evidence = self.evidence.final_evidence(attempt_id).await?;
         let resource =
-            AttemptResource::completed(campaign_id, campaign.release_id(), &attempt, &evidence);
+            AttemptResource::terminal_pending(campaign_id, campaign.release_id(), &attempt);
         self.repository
-            .save_completed_attempt(tenant, resource.clone())
+            .complete_attempt_and_enqueue(tenant, resource.clone())
             .await?;
         Ok(resource)
     }

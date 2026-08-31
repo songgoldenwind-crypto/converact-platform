@@ -5,14 +5,12 @@ use serde::Serialize;
 
 const MAX_TENANT_BYTES: usize = 255;
 const MAX_OUTCOME_BYTES: usize = 100;
-const MAX_TRANSCRIPT_SEGMENTS: u32 = 1_000_000;
 
 /// Invalid bounded inspection or final-conversation data.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ModelError {
     InvalidTenant,
     InvalidOutcome,
-    InvalidTranscriptSegmentCount,
 }
 
 impl std::fmt::Display for ModelError {
@@ -20,7 +18,6 @@ impl std::fmt::Display for ModelError {
         formatter.write_str(match self {
             Self::InvalidTenant => "voice_agent_tenant_invalid",
             Self::InvalidOutcome => "voice_agent_outcome_invalid",
-            Self::InvalidTranscriptSegmentCount => "voice_agent_transcript_count_invalid",
         })
     }
 }
@@ -67,6 +64,30 @@ pub struct Outcome {
     code: Box<str>,
 }
 
+/// Bounded public progress for durable post-call work.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PostCallState {
+    Pending,
+    Processing,
+    ReconcileRequired,
+    Projected,
+    Incomplete,
+}
+
+impl PostCallState {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Processing => "processing",
+            Self::ReconcileRequired => "reconcile_required",
+            Self::Projected => "projected",
+            Self::Incomplete => "incomplete",
+        }
+    }
+}
+
 impl Outcome {
     /// Creates a bounded machine outcome.
     ///
@@ -83,40 +104,6 @@ impl Outcome {
     #[must_use]
     pub fn code(&self) -> &str {
         &self.code
-    }
-}
-
-/// Final bounded evidence projected from the channel-agent event stream.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ConversationEvidence {
-    final_transcript_segments: u32,
-    outcome: Outcome,
-}
-
-impl ConversationEvidence {
-    /// Creates terminal conversation evidence without retaining transcript text.
-    ///
-    /// # Errors
-    ///
-    /// Rejects an unbounded transcript segment count.
-    pub fn new(final_transcript_segments: u32, outcome: Outcome) -> Result<Self, ModelError> {
-        if final_transcript_segments > MAX_TRANSCRIPT_SEGMENTS {
-            return Err(ModelError::InvalidTranscriptSegmentCount);
-        }
-        Ok(Self {
-            final_transcript_segments,
-            outcome,
-        })
-    }
-
-    #[must_use]
-    pub const fn final_transcript_segments(&self) -> u32 {
-        self.final_transcript_segments
-    }
-
-    #[must_use]
-    pub const fn outcome(&self) -> &Outcome {
-        &self.outcome
     }
 }
 
@@ -198,26 +185,25 @@ pub struct AttemptResource {
     release_id: String,
     state: CallAttemptState,
     disclosure_completed: bool,
-    final_transcript_segments: u32,
+    post_call_state: PostCallState,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    final_transcript_segments: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     outcome: Option<Outcome>,
 }
 
 impl AttemptResource {
     #[must_use]
-    pub fn completed(
-        campaign_id: &str,
-        release_id: &str,
-        attempt: &CallAttempt,
-        evidence: &ConversationEvidence,
-    ) -> Self {
+    pub fn terminal_pending(campaign_id: &str, release_id: &str, attempt: &CallAttempt) -> Self {
         Self {
             id: attempt.id().as_str().to_owned(),
             campaign_id: campaign_id.to_owned(),
             release_id: release_id.to_owned(),
             state: attempt.state(),
             disclosure_completed: attempt.disclosure_completed(),
-            final_transcript_segments: evidence.final_transcript_segments(),
-            outcome: Some(evidence.outcome().clone()),
+            post_call_state: PostCallState::Pending,
+            final_transcript_segments: None,
+            outcome: None,
         }
     }
 
@@ -237,7 +223,12 @@ impl AttemptResource {
     }
 
     #[must_use]
-    pub const fn final_transcript_segments(&self) -> u32 {
+    pub const fn post_call_state(&self) -> PostCallState {
+        self.post_call_state
+    }
+
+    #[must_use]
+    pub const fn final_transcript_segments(&self) -> Option<u32> {
         self.final_transcript_segments
     }
 

@@ -36,12 +36,12 @@ pub use handoff_runtime::{
 pub use http::router;
 pub use lifecycle::{AdmissionReadiness, ShutdownToken, WorkerConfig, WorkerConfigError};
 pub use model::{
-    AgentReleaseResource, AttemptResource, AuthenticatedTenant, CampaignResource,
-    ConversationEvidence, ModelError, Outcome, WorkerResource,
+    AgentReleaseResource, AttemptResource, AuthenticatedTenant, CampaignResource, ModelError,
+    Outcome, PostCallState, WorkerResource,
 };
 pub use repository::{ReconcileReceipt, RepositoryError, VoiceAgentRepository};
 pub use tool_runtime::{
     ToolBinding, ToolBindingPort, ToolBrokerPort, ToolEventOutcome, ToolResultPort, ToolRuntime,
     ToolRuntimeError,
 };
-pub use worker::{ConversationEvidencePort, VoiceAgentWorker, WorkerError};
+pub use worker::{VoiceAgentWorker, WorkerError};
