@@ -521,6 +521,8 @@ dependencies = [
  "converact-migration-routing",
  "converact-migration-store",
  "converact-outbox-worker",
+ "converact-post-call-finalization-core",
+ "converact-post-call-finalization-store",
  "converact-tool-broker-core",
  "converact-tool-broker-store",
  "converact-voice-agent-contracts",

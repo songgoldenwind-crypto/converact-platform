@@ -11,6 +11,7 @@ use deadpool_postgres::{
 
 mod conversation_result;
 mod handoff;
+mod post_call_finalization;
 mod tool_action;
 
 pub use conversation_result::{
@@ -21,6 +22,10 @@ pub use conversation_result::{
 pub use handoff::{
     PostgresHandoffCreateDecision, PostgresHandoffPrepareDecision, PostgresHandoffStore,
     PostgresHandoffStoreError,
+};
+pub use post_call_finalization::{
+    PostgresEnqueueFinalizationDecision, PostgresPostCallFinalizationStore,
+    PostgresPostCallFinalizationStoreError,
 };
 pub use tool_action::PostgresToolActionStore;
 
