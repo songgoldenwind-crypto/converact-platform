@@ -15,6 +15,7 @@ pub use evaluation::{
 };
 pub use result::{
     ConversationResult, ConversationResultInput, OutcomeSchema, OutcomeSchemaInput, ResultRevision,
+    ValidatedIntentEvidence,
 };
 pub use transcript::{
     TranscriptGenerationStatus, TranscriptSegment, TranscriptSegmentInput, TranscriptSnapshot,

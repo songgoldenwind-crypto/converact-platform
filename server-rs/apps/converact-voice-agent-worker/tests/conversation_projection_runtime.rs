@@ -28,7 +28,7 @@ use converact_voice_agent_worker::{
     DurableProjectionWriteDecision, DurableTranscriptAppendDecision, EvaluationProjectionProgress,
     FinalizationEvidenceObservation, FinalizationEvidenceSourcePort, FinalizationProjectionPort,
     FinalizationProjectionProgress, FinalizationWorkerError, ProjectionObservation,
-    ResultProjectionProgress, TerminalEvidenceProgress,
+    ResultGenerationEvidence, ResultProjectionProgress, TerminalEvidenceProgress,
 };
 
 #[tokio::test]
@@ -121,6 +121,98 @@ async fn final_segments_accept_out_of_order_and_historical_generation_before_sna
     assert_eq!(state.lock().unwrap().snapshot_calls, 1);
 }
 
+#[test]
+fn result_generation_evidence_binds_schema_candidate_and_snapshot() {
+    let schema = outcome_schema();
+    let snapshot = terminal_snapshot();
+    let accepted = schema.validate_intent_candidate("support").unwrap();
+
+    let evidence =
+        ResultGenerationEvidence::try_new(&snapshot, schema.id().clone(), Some(accepted), 1)
+            .unwrap();
+
+    assert_eq!(evidence.outcome_schema_revision_id(), schema.id());
+    assert_eq!(evidence.intent_evidence().unwrap().intent(), "support");
+    assert_eq!(evidence.payload_hash().len(), 64);
+    assert!(!format!("{evidence:?}").contains("support"));
+}
+
+#[tokio::test]
+async fn accepted_intent_is_forwarded_and_provider_drift_is_rejected() {
+    let schema = outcome_schema();
+    let snapshot = terminal_snapshot();
+    let evidence = ResultGenerationEvidence::try_new(
+        &snapshot,
+        schema.id().clone(),
+        Some(schema.validate_intent_candidate("support").unwrap()),
+        1,
+    )
+    .unwrap();
+    let provider_result = result_with_intent("sales");
+    let state = Arc::new(Mutex::new(State::default()));
+    let durability = Durability(Arc::clone(&state));
+    let provider = CapturingProvider {
+        state: Arc::clone(&state),
+        result: provider_result.clone(),
+    };
+    let runtime = ConversationProjectionRuntime::new(&durability, &provider);
+
+    let error = runtime
+        .project_result_with_evidence(
+            "tenant-a",
+            &command_with_payload_hash(&provider_result, evidence.payload_hash()),
+            &evidence,
+        )
+        .await
+        .unwrap_err();
+
+    assert_eq!(
+        error.code(),
+        "conversation_projection_intent_evidence_mismatch"
+    );
+    let state = state.lock().unwrap();
+    assert_eq!(state.seen_intent.as_deref(), Some("support"));
+    assert_eq!(state.finalize_applied_calls, 0);
+}
+
+#[tokio::test]
+async fn query_replay_cannot_bypass_accepted_intent_evidence() {
+    let schema = outcome_schema();
+    let snapshot = terminal_snapshot();
+    let evidence = ResultGenerationEvidence::try_new(
+        &snapshot,
+        schema.id().clone(),
+        Some(schema.validate_intent_candidate("support").unwrap()),
+        1,
+    )
+    .unwrap();
+    let provider_result = result_with_intent("sales");
+    let state = Arc::new(Mutex::new(State::default()));
+    let durability = ReplayAppliedDurability(Arc::clone(&state));
+    let provider = CapturingProvider {
+        state: Arc::clone(&state),
+        result: provider_result.clone(),
+    };
+    let runtime = ConversationProjectionRuntime::new(&durability, &provider);
+
+    let error = runtime
+        .project_result_with_evidence(
+            "tenant-a",
+            &command_with_payload_hash(&provider_result, evidence.payload_hash()),
+            &evidence,
+        )
+        .await
+        .unwrap_err();
+
+    assert_eq!(
+        error.code(),
+        "conversation_projection_intent_evidence_mismatch"
+    );
+    let state = state.lock().unwrap();
+    assert_eq!(state.query_calls, 1);
+    assert_eq!(state.finalize_applied_calls, 0);
+}
+
 #[tokio::test]
 async fn bad_case_identity_is_platform_derived_before_atomic_evaluation_finalize() {
     let result = result();
@@ -152,6 +244,7 @@ async fn bad_case_identity_is_platform_derived_before_atomic_evaluation_finalize
 
 #[tokio::test]
 async fn finalization_projector_reuses_terminal_result_and_evaluation_pipeline() {
+    let schema = outcome_schema();
     let result = result();
     let evaluation = evaluation(&result);
     let segments = vec![segment(1, 1, "segment-001")];
@@ -167,11 +260,19 @@ async fn finalization_projector_reuses_terminal_result_and_evaluation_pipeline()
         frozen_at_ms: 4_000,
     })
     .unwrap();
+    let generation_evidence = ResultGenerationEvidence::try_new(
+        &snapshot,
+        schema.id().clone(),
+        Some(schema.validate_intent_candidate("support").unwrap()),
+        result.revision().get(),
+    )
+    .unwrap();
     let evidence = ConversationFinalizationEvidence::try_new(
         segments,
         snapshot,
-        command(&result),
+        command_with_payload_hash(&result, generation_evidence.payload_hash()),
         evaluation_command(&result),
+        generation_evidence,
     )
     .unwrap();
     let source = EvidenceSource(FinalizationEvidenceObservation::Ready(Box::new(evidence)));
@@ -191,6 +292,107 @@ async fn finalization_projector_reuses_terminal_result_and_evaluation_pipeline()
     assert_eq!(state.snapshot_calls, 1);
     assert_eq!(state.finalize_applied_calls, 1);
     assert_eq!(state.finalize_evaluation_calls, 1);
+}
+
+#[test]
+fn finalization_rejects_a_result_command_not_bound_to_generation_evidence() {
+    let schema = outcome_schema();
+    let result = result();
+    let snapshot = terminal_snapshot();
+    let generation_evidence = ResultGenerationEvidence::try_new(
+        &snapshot,
+        schema.id().clone(),
+        Some(schema.validate_intent_candidate("support").unwrap()),
+        result.revision().get(),
+    )
+    .unwrap();
+
+    let rejected = ConversationFinalizationEvidence::try_new(
+        vec![segment(1, 1, "segment-001")],
+        snapshot,
+        command(&result),
+        evaluation_command(&result),
+        generation_evidence,
+    );
+
+    let Err(error) = rejected else {
+        panic!("unbound result command must be rejected")
+    };
+    assert_eq!(
+        error.code(),
+        "conversation_finalization_result_evidence_hash_mismatch"
+    );
+}
+
+#[test]
+fn finalization_rejects_generation_evidence_from_another_snapshot() {
+    let schema = outcome_schema();
+    let result = result();
+    let generation_snapshot = TranscriptSnapshot::try_new(TranscriptSnapshotInput {
+        id: TranscriptSnapshotId::parse("snapshot-002").unwrap(),
+        context: context(1),
+        revision: TranscriptSnapshotRevision::new(1).unwrap(),
+        current_generation: ExecutionGeneration::new(1).unwrap(),
+        segments: vec![segment(1, 2, "segment-002")],
+        call_terminal_observed: true,
+        agent_terminal_observed: true,
+        transcript_terminal_observed: true,
+        frozen_at_ms: 4_001,
+    })
+    .unwrap();
+    let generation_evidence = ResultGenerationEvidence::try_new(
+        &generation_snapshot,
+        schema.id().clone(),
+        Some(schema.validate_intent_candidate("support").unwrap()),
+        result.revision().get(),
+    )
+    .unwrap();
+
+    let rejected = ConversationFinalizationEvidence::try_new(
+        vec![segment(1, 1, "segment-001")],
+        terminal_snapshot(),
+        command_with_payload_hash(&result, generation_evidence.payload_hash()),
+        evaluation_command(&result),
+        generation_evidence,
+    );
+
+    let Err(error) = rejected else {
+        panic!("generation evidence from another snapshot must be rejected")
+    };
+    assert_eq!(
+        error.code(),
+        "conversation_finalization_result_evidence_snapshot_mismatch"
+    );
+}
+
+#[test]
+fn finalization_rejects_generation_evidence_for_another_result_revision() {
+    let schema = outcome_schema();
+    let result = result();
+    let snapshot = terminal_snapshot();
+    let generation_evidence = ResultGenerationEvidence::try_new(
+        &snapshot,
+        schema.id().clone(),
+        Some(schema.validate_intent_candidate("support").unwrap()),
+        result.revision().get() + 1,
+    )
+    .unwrap();
+
+    let rejected = ConversationFinalizationEvidence::try_new(
+        vec![segment(1, 1, "segment-001")],
+        snapshot,
+        command_with_payload_hash(&result, generation_evidence.payload_hash()),
+        evaluation_command(&result),
+        generation_evidence,
+    );
+
+    let Err(error) = rejected else {
+        panic!("generation evidence for another result revision must be rejected")
+    };
+    assert_eq!(
+        error.code(),
+        "conversation_finalization_result_evidence_revision_mismatch"
+    );
 }
 
 #[tokio::test]
@@ -235,6 +437,7 @@ struct State {
     finalize_evaluation_calls: usize,
     bad_case_id: Option<String>,
     snapshot_calls: usize,
+    seen_intent: Option<String>,
 }
 
 impl ConversationEvaluationDurabilityPort for Durability {
@@ -379,6 +582,7 @@ impl ConversationProjectionProviderPort for FullProvider {
     async fn generate_result(
         &self,
         _command: &ProjectionCommand,
+        _evidence: Option<&ResultGenerationEvidence>,
     ) -> Result<ProjectionObservation<ConversationResult>, ConversationProjectionPortError> {
         Ok(ProjectionObservation::Applied(self.result.clone()))
     }
@@ -414,10 +618,39 @@ struct Provider {
     result: ConversationResult,
 }
 
+struct CapturingProvider {
+    state: Arc<Mutex<State>>,
+    result: ConversationResult,
+}
+
+impl ConversationProjectionProviderPort for CapturingProvider {
+    async fn generate_result(
+        &self,
+        _command: &ProjectionCommand,
+        evidence: Option<&ResultGenerationEvidence>,
+    ) -> Result<ProjectionObservation<ConversationResult>, ConversationProjectionPortError> {
+        let mut state = self.state.lock().unwrap();
+        state.generate_calls += 1;
+        state.seen_intent = evidence
+            .and_then(ResultGenerationEvidence::intent_evidence)
+            .map(|intent| intent.intent().to_owned());
+        Ok(ProjectionObservation::Applied(self.result.clone()))
+    }
+
+    async fn query_result(
+        &self,
+        _command: &ProjectionCommand,
+    ) -> Result<ProjectionObservation<ConversationResult>, ConversationProjectionPortError> {
+        self.state.lock().unwrap().query_calls += 1;
+        Ok(ProjectionObservation::Applied(self.result.clone()))
+    }
+}
+
 impl ConversationProjectionProviderPort for Provider {
     async fn generate_result(
         &self,
         _command: &ProjectionCommand,
+        _evidence: Option<&ResultGenerationEvidence>,
     ) -> Result<ProjectionObservation<ConversationResult>, ConversationProjectionPortError> {
         self.state.lock().unwrap().generate_calls += 1;
         Ok(ProjectionObservation::OutcomeUnknown)
@@ -433,11 +666,15 @@ impl ConversationProjectionProviderPort for Provider {
 }
 
 fn command(result: &ConversationResult) -> ProjectionCommand {
+    command_with_payload_hash(result, &"f".repeat(64))
+}
+
+fn command_with_payload_hash(result: &ConversationResult, payload_hash: &str) -> ProjectionCommand {
     ProjectionCommand::try_new(ProjectionCommandInput {
         id: ResultProjectionCommandId::parse("projection-result-001").unwrap(),
         interaction_id: result.context().interaction_id().clone(),
         kind: ProjectionCommandKind::PersistResult,
-        payload_hash: "f".repeat(64),
+        payload_hash: payload_hash.to_owned(),
         expected_result_revision: Some(result.revision().get()),
         expected_generation: result.context().execution_generation(),
     })
@@ -488,15 +725,11 @@ fn evaluation(result: &ConversationResult) -> Evaluation {
 }
 
 fn result() -> ConversationResult {
-    let schema = OutcomeSchema::try_new(OutcomeSchemaInput {
-        id: OutcomeSchemaRevisionId::parse("outcome-schema-001").unwrap(),
-        agent_release_id: AgentReleaseId::parse("agent-release-001").unwrap(),
-        intents: vec!["support".to_owned()],
-        dispositions: vec!["completed".to_owned()],
-        outcome_codes: vec!["resolved".to_owned()],
-        attribute_keys: Vec::new(),
-    })
-    .unwrap();
+    result_with_intent("support")
+}
+
+fn result_with_intent(intent: &str) -> ConversationResult {
+    let schema = outcome_schema();
     ConversationResult::try_new(
         ConversationResultInput {
             id: ConversationResultId::parse("result-001").unwrap(),
@@ -519,7 +752,7 @@ fn result() -> ConversationResult {
                 .unwrap(),
             transcript_snapshot_digest: "a".repeat(64),
             summary_artifact_ref: "artifact:summary-001".to_owned(),
-            intent: "support".to_owned(),
+            intent: intent.to_owned(),
             disposition: "completed".to_owned(),
             outcome_code: "resolved".to_owned(),
             confidence_bps: 9_000,
@@ -528,6 +761,34 @@ fn result() -> ConversationResult {
         },
         &schema,
     )
+    .unwrap()
+}
+
+fn outcome_schema() -> OutcomeSchema {
+    OutcomeSchema::try_new(OutcomeSchemaInput {
+        id: OutcomeSchemaRevisionId::parse("outcome-schema-001").unwrap(),
+        agent_release_id: AgentReleaseId::parse("agent-release-001").unwrap(),
+        intents: vec!["support".to_owned(), "sales".to_owned()],
+        dispositions: vec!["completed".to_owned()],
+        outcome_codes: vec!["resolved".to_owned()],
+        attribute_keys: Vec::new(),
+    })
+    .unwrap()
+}
+
+fn terminal_snapshot() -> TranscriptSnapshot {
+    let segments = vec![segment(1, 1, "segment-001")];
+    TranscriptSnapshot::try_new(TranscriptSnapshotInput {
+        id: TranscriptSnapshotId::parse("snapshot-001").unwrap(),
+        context: context(1),
+        revision: TranscriptSnapshotRevision::new(1).unwrap(),
+        current_generation: ExecutionGeneration::new(1).unwrap(),
+        segments,
+        call_terminal_observed: true,
+        agent_terminal_observed: true,
+        transcript_terminal_observed: true,
+        frozen_at_ms: 4_000,
+    })
     .unwrap()
 }
 

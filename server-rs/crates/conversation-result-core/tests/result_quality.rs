@@ -76,6 +76,23 @@ fn result_is_bound_to_release_schema_revision_and_canonical_values() {
 }
 
 #[test]
+fn intent_candidate_becomes_release_bound_redacted_evidence() {
+    let schema = outcome_schema();
+    let evidence = schema.validate_intent_candidate("support").unwrap();
+
+    assert_eq!(evidence.intent(), "support");
+    assert_eq!(evidence.outcome_schema_revision_id(), schema.id());
+    assert_eq!(evidence.agent_release_id(), schema.agent_release_id());
+    assert_eq!(evidence.payload_hash().len(), 64);
+    assert!(!format!("{evidence:?}").contains("support"));
+
+    assert_eq!(
+        schema.validate_intent_candidate("invented"),
+        Err(ResultError::OutcomeSchemaMismatch)
+    );
+}
+
+#[test]
 fn terminal_transcript_snapshot_is_bounded_ordered_and_content_addressed() {
     let segment = TranscriptSegment::try_new(segment_input(2, "final segment")).unwrap();
     let snapshot = TranscriptSnapshot::try_new(TranscriptSnapshotInput {

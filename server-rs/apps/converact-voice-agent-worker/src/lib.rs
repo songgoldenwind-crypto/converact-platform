@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 mod active_call_handoff;
+mod active_call_intent;
 mod campaign_admin;
 mod campaign_admin_http;
 mod campaign_retry;
@@ -19,10 +20,14 @@ mod model;
 mod post_call_finalization;
 mod post_call_finalization_postgres;
 mod repository;
+mod result_generation;
 mod tool_runtime;
 mod worker;
 
 pub use active_call_handoff::ActiveCallHandoffPort;
+pub use active_call_intent::{
+    ActiveCallIntentProjectionError, resolve_active_call_intent_evidence,
+};
 pub use campaign_admin::{
     AdminMutationResource, CampaignAdminAccess, CampaignAdminError, CampaignAdminPort,
 };
@@ -64,6 +69,7 @@ pub use post_call_finalization::{
     FinalizationProjectionProgress, FinalizationQueuePort, FinalizationWorkerError,
 };
 pub use repository::{ReconcileReceipt, RepositoryError, VoiceAgentRepository};
+pub use result_generation::ResultGenerationEvidence;
 pub use tool_runtime::{
     ToolBinding, ToolBindingPort, ToolBrokerPort, ToolEventOutcome, ToolResultPort, ToolRuntime,
     ToolRuntimeError,

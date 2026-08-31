@@ -9,7 +9,8 @@ use crate::{
     ConversationEvidenceDurabilityPort, ConversationProjectionDurabilityPort,
     ConversationProjectionPortError, ConversationProjectionProviderPort,
     ConversationProjectionRuntime, EvaluationProjectionProgress, FinalizationProjectionPort,
-    FinalizationProjectionProgress, FinalizationWorkerError, ResultProjectionProgress,
+    FinalizationProjectionProgress, FinalizationWorkerError, ResultGenerationEvidence,
+    ResultProjectionProgress,
 };
 
 /// Complete final-only input needed to reuse the D7 result and quality pipeline.
@@ -19,6 +20,7 @@ pub struct ConversationFinalizationEvidence {
     snapshot: TranscriptSnapshot,
     result_command: ProjectionCommand,
     evaluation_command: ProjectionCommand,
+    result_generation_evidence: ResultGenerationEvidence,
 }
 
 impl ConversationFinalizationEvidence {
@@ -32,6 +34,7 @@ impl ConversationFinalizationEvidence {
         snapshot: TranscriptSnapshot,
         result_command: ProjectionCommand,
         evaluation_command: ProjectionCommand,
+        result_generation_evidence: ResultGenerationEvidence,
     ) -> Result<Self, FinalizationWorkerError> {
         let context = snapshot.context();
         if result_command.kind() != ProjectionCommandKind::PersistResult
@@ -47,11 +50,29 @@ impl ConversationFinalizationEvidence {
                 "conversation_finalization_evidence_invalid",
             ));
         }
+        if result_command.payload_hash() != result_generation_evidence.payload_hash() {
+            return Err(FinalizationWorkerError::new(
+                "conversation_finalization_result_evidence_hash_mismatch",
+            ));
+        }
+        if !result_generation_evidence.matches_snapshot(&snapshot) {
+            return Err(FinalizationWorkerError::new(
+                "conversation_finalization_result_evidence_snapshot_mismatch",
+            ));
+        }
+        if result_command.expected_result_revision()
+            != Some(result_generation_evidence.expected_result_revision())
+        {
+            return Err(FinalizationWorkerError::new(
+                "conversation_finalization_result_evidence_revision_mismatch",
+            ));
+        }
         Ok(Self {
             segments,
             snapshot,
             result_command,
             evaluation_command,
+            result_generation_evidence,
         })
     }
 }
@@ -122,7 +143,11 @@ where
             .await
             .map_err(projection_error)?;
         let result = match runtime
-            .project_result(tenant_id, &evidence.result_command)
+            .project_result_with_evidence(
+                tenant_id,
+                &evidence.result_command,
+                &evidence.result_generation_evidence,
+            )
             .await
             .map_err(projection_error)?
         {

@@ -66,6 +66,15 @@ pub struct OutcomeSchema {
     attribute_keys: Box<[Box<str>]>,
 }
 
+/// Immutable intent evidence validated against one exact Agent Release schema.
+#[derive(Clone, Eq, PartialEq)]
+pub struct ValidatedIntentEvidence {
+    outcome_schema_revision_id: OutcomeSchemaRevisionId,
+    agent_release_id: AgentReleaseId,
+    intent: Box<str>,
+    payload_hash: Box<str>,
+}
+
 impl OutcomeSchema {
     /// Validates a bounded release-specific closed outcome schema.
     ///
@@ -101,6 +110,68 @@ impl OutcomeSchema {
     #[must_use]
     pub const fn agent_release_id(&self) -> &AgentReleaseId {
         &self.agent_release_id
+    }
+
+    /// Converts one untrusted intent candidate into release-bound evidence.
+    ///
+    /// # Errors
+    ///
+    /// Rejects candidates outside this schema's closed intent set.
+    pub fn validate_intent_candidate(
+        &self,
+        candidate: &str,
+    ) -> Result<ValidatedIntentEvidence, ResultError> {
+        if !contains(&self.intents, candidate) {
+            return Err(ResultError::OutcomeSchemaMismatch);
+        }
+        let payload_hash = canonical_sha256(&json!({
+            "outcome_schema_revision_id": self.id.as_str(),
+            "agent_release_id": self.agent_release_id.as_str(),
+            "intent": candidate,
+        }))
+        .map_err(|_| ResultError::CanonicalPayloadInvalid)?;
+        Ok(ValidatedIntentEvidence {
+            outcome_schema_revision_id: self.id.clone(),
+            agent_release_id: self.agent_release_id.clone(),
+            intent: candidate.into(),
+            payload_hash: payload_hash.into(),
+        })
+    }
+}
+
+impl ValidatedIntentEvidence {
+    #[must_use]
+    pub const fn outcome_schema_revision_id(&self) -> &OutcomeSchemaRevisionId {
+        &self.outcome_schema_revision_id
+    }
+
+    #[must_use]
+    pub const fn agent_release_id(&self) -> &AgentReleaseId {
+        &self.agent_release_id
+    }
+
+    #[must_use]
+    pub fn intent(&self) -> &str {
+        &self.intent
+    }
+
+    #[must_use]
+    pub fn payload_hash(&self) -> &str {
+        &self.payload_hash
+    }
+}
+
+impl fmt::Debug for ValidatedIntentEvidence {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ValidatedIntentEvidence")
+            .field(
+                "outcome_schema_revision_id",
+                &self.outcome_schema_revision_id,
+            )
+            .field("agent_release_id", &self.agent_release_id)
+            .field("payload_hash", &self.payload_hash)
+            .finish_non_exhaustive()
     }
 }
 

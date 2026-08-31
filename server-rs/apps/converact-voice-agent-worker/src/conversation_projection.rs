@@ -9,6 +9,8 @@ use converact_conversation_result_store::{ProjectionCommand, ProjectionCommandKi
 use converact_voice_agent_contracts::{BadCaseId, ExecutionGeneration};
 use serde_json::json;
 
+use crate::ResultGenerationEvidence;
+
 /// Durable effect-oracle permission returned before invoking a projection Provider.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DurableProjectionPrepareDecision {
@@ -152,6 +154,7 @@ pub trait ConversationProjectionProviderPort: Sync {
     fn generate_result(
         &self,
         command: &ProjectionCommand,
+        evidence: Option<&ResultGenerationEvidence>,
     ) -> impl Future<
         Output = Result<ProjectionObservation<ConversationResult>, ConversationProjectionPortError>,
     > + Send;
@@ -215,6 +218,35 @@ where
         tenant_id: &str,
         command: &ProjectionCommand,
     ) -> Result<ResultProjectionProgress, ConversationProjectionPortError> {
+        self.project_result_inner(tenant_id, command, None).await
+    }
+
+    /// Runs or resumes one result projection with immutable schema and intent evidence.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a command digest or Provider result that drifts from the accepted evidence.
+    pub async fn project_result_with_evidence(
+        &self,
+        tenant_id: &str,
+        command: &ProjectionCommand,
+        evidence: &ResultGenerationEvidence,
+    ) -> Result<ResultProjectionProgress, ConversationProjectionPortError> {
+        if command.payload_hash() != evidence.payload_hash() {
+            return Err(ConversationProjectionPortError::new(
+                "conversation_projection_generation_evidence_hash_mismatch",
+            ));
+        }
+        self.project_result_inner(tenant_id, command, Some(evidence))
+            .await
+    }
+
+    async fn project_result_inner(
+        &self,
+        tenant_id: &str,
+        command: &ProjectionCommand,
+        evidence: Option<&ResultGenerationEvidence>,
+    ) -> Result<ResultProjectionProgress, ConversationProjectionPortError> {
         if command.kind() != ProjectionCommandKind::PersistResult {
             return Err(ConversationProjectionPortError::new(
                 "conversation_projection_command_kind_invalid",
@@ -222,9 +254,10 @@ where
         }
         let (observation, replayed_applied) =
             match self.durability.prepare(tenant_id, command).await? {
-                DurableProjectionPrepareDecision::Execute => {
-                    (self.provider.generate_result(command).await?, false)
-                }
+                DurableProjectionPrepareDecision::Execute => (
+                    self.provider.generate_result(command, evidence).await?,
+                    false,
+                ),
                 DurableProjectionPrepareDecision::Query => {
                     (self.provider.query_result(command).await?, false)
                 }
@@ -250,6 +283,22 @@ where
                     return Err(ConversationProjectionPortError::new(
                         "conversation_projection_result_fence_invalid",
                     ));
+                }
+                if let Some(evidence) = evidence {
+                    if result.outcome_schema_revision_id() != evidence.outcome_schema_revision_id()
+                    {
+                        return Err(ConversationProjectionPortError::new(
+                            "conversation_projection_generation_evidence_mismatch",
+                        ));
+                    }
+                    if evidence
+                        .intent_evidence()
+                        .is_some_and(|intent| result.intent() != intent.intent())
+                    {
+                        return Err(ConversationProjectionPortError::new(
+                            "conversation_projection_intent_evidence_mismatch",
+                        ));
+                    }
                 }
                 self.durability
                     .finalize_result_applied(command, &result)
