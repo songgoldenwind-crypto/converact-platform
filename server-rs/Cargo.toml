@@ -20,6 +20,7 @@ members = [
   "crates/tenant-auth",
   "crates/tenant-auth-runtime",
   "crates/testkit",
+  "crates/voice-agent-contracts",
 ]
 resolver = "3"
 
