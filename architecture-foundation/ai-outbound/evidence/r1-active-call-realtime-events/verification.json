@@ -1,0 +1,70 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-08-31",
+  "evidence_class": [
+    "local_contract"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "commit": "89f198828dc287cdf37054aaaaa058dd17b3da34",
+    "tree": "1aa5ff30967a46a09bec2ad61bd9a545c08c60b5"
+  },
+  "active_call": {
+    "version": "0.3.83",
+    "commit": "6224d948cc0941ac48b4a5426477aeaf639c2e98",
+    "source_lock": "infra/converact/active-call/source-lock.json",
+    "runtime_executed": false
+  },
+  "environment": {
+    "os": "Darwin 25.2.0 arm64",
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)"
+  },
+  "commands": [
+    {
+      "id": "active_call_realtime_mapping",
+      "working_directory": "server-rs",
+      "command": "cargo +1.94.1 test -p converact-active-call-adapter --test mapping --test command --test client",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 13,
+      "failed": 0
+    },
+    {
+      "id": "active_call_realtime_scoped_format",
+      "working_directory": "server-rs",
+      "command": "cargo +1.94.1 fmt -p converact-active-call-adapter -- --check",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "active_call_realtime_scoped_clippy",
+      "working_directory": "server-rs",
+      "command": "cargo +1.94.1 clippy -p converact-active-call-adapter --all-targets -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "not_run": [
+    "live_pinned_active_call_process_and_dependency_runtime_qualification",
+    "real_audio_vad_endpointing_false_interruption_quality",
+    "barge_in_stop_latency_audio_loss_tts_playback",
+    "live_dtmf_hold_resume_transfer_inactivity_policy",
+    "rustpbx_sip_pstn_rtp_srtp_recording_cdr_campaign_call",
+    "performance",
+    "capacity",
+    "long_run",
+    "fault_campaign",
+    "independent_code_review",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_read": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}

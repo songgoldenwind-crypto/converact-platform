@@ -1,6 +1,6 @@
 # Active Call realtime event parity R1 implementation plan
 
-> **Status:** `approved_execution_slice / implementation_not_run / production_not_run`
+> **Status:** `controlled_adapter_contract_passed / live_runtime_not_run / production_not_run`
 
 **Goal:** Preserve the pinned Active Call runtime's existing VAD, turn, barge-in, DTMF and call-state
 signals behind the Converact Rust adapter without reimplementing speech algorithms or granting Active
@@ -45,6 +45,7 @@ no TTS subtitle, Play URL, utterance text or raw DTMF in `Debug` output.
 
 ## Completion boundary
 
-R1 is locally complete when the exact fixtures map with the frozen safety rules and the existing
-adapter behavior remains green. It is not evidence that a real customer can interrupt a deployed
-call until the pinned Active Call process and RustPBX path are exercised separately.
+R1 is locally complete at adapter-contract level: the exact wire fixtures map with the frozen
+safety rules and the existing command/client behavior remains green. This is not evidence that a
+real customer can interrupt a deployed call; the pinned Active Call process and RustPBX path still
+require separate live evidence.

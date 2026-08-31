@@ -868,7 +868,9 @@ Core/Store/Worker/API、D8 post-call finalization 的本地 Rust 切片均已有
 `controlled_test_double` 与本地合同层。Campaign Scheduling & Retry 的 Core/Store/Worker
 本地切片也已通过，未知结果禁止重拨；Campaign Authoring 的 Core、Store SQL 合同与
 权限化 HTTP 边界亦已通过。具体 PostgreSQL Runtime Adapter、物理事务和真实 Campaign
-调度仍未证明。
+调度仍未证明。Active Call Adapter 已受控映射上游现有 `speaking`、`eou`、`interruption`、
+`dtmf`、`hold` 和 `inactivity` 信号，并避免复制字幕、Play URL、EOU 文本或在 `Debug`
+泄露按键；真实 VAD/打断质量与端到端电话路径仍未证明。
 物理 PostgreSQL、真实 RustPBX/Active Call/Speech、SIP/PSTN/媒体、真实 Tool/审批/模型供应商、
 生产路由授权、Dashboard、旧 writer 迁移、性能、容量和生产部署均保持 `not_run`，后续必须按
 独立 Evidence Gate 逐项推进。
@@ -888,6 +890,8 @@ Core/Store/Worker/API、D8 post-call finalization 的本地 Rust 切片均已有
 - [Conversation Result & Quality R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-conversation-result-quality/README.md)
 - [Campaign Authoring R1 实施计划](../plans/2026-08-31-ai-outbound-campaign-authoring-r1.md)
 - [Campaign Authoring R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-campaign-authoring/README.md)
+- [Active Call Realtime Event Parity R1 实施计划](../plans/2026-08-31-active-call-realtime-event-parity-r1.md)
+- [Active Call Realtime Event Parity R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-realtime-events/README.md)
 
 ## 23. 变更记录
 
@@ -901,3 +905,4 @@ Core/Store/Worker/API、D8 post-call finalization 的本地 Rust 切片均已有
 | 2026-08-31 | R1 Post-call Finalization checkpoint | terminal/enqueue 受控原子失败语义、durable queue、独立 Worker、D7 projection reuse 与有界进度查询已有本地证据；物理 PostgreSQL 合并事务和真实通话仍为 `not_run` |
 | 2026-08-31 | R1 Campaign Retry checkpoint | 确定性失败重试、Attempt lineage、Campaign/Contact Gate、幂等 replay、unknown-outcome 禁止重拨和有界 inspection 已有本地证据；物理 PostgreSQL、真实 Campaign/通话与生产仍为 `not_run` |
 | 2026-08-31 | R1 Campaign Authoring checkpoint | Agent Release 发布、Campaign 创建/生命周期、批量 Contact 导入和初始 Attempt 的 Core、Store SQL 合同与权限化 HTTP 已有本地受控证据；具体 PostgreSQL Runtime 组合、真实 UI/通话与生产仍为 `not_run` |
+| 2026-08-31 | R1 Active Call realtime event checkpoint | `speaking`、EOU、播放打断、DTMF、Hold 与 Inactivity 已通过安全 Rust 映射合同；真实 Active Call/RustPBX/SIP/PSTN、音频质量与生产仍为 `not_run` |

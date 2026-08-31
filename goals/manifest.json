@@ -21,12 +21,12 @@
     },
     {
       "path": "docs/design/README.md",
-      "sha256": "02ef755161edb88cd238e4aa183da7af37b0fcc0221c5b43322708fc590df9fd",
+      "sha256": "f5eaa85a42f0aa3a2caf3c2a42aa5c0363751c066072d4a57bf028783f4ec3f8",
       "kind": "context"
     },
     {
       "path": "docs/design/2026-08-31-ai-outbound-active-call-platform-r1.md",
-      "sha256": "c90eeadc456f6d6efd6429e86b69538689b2577c9be5c8f18fd93b6ee2a5f475",
+      "sha256": "5d428d47ee1fc0fbacd2ff76270a82bc4a181b57064a49bd46ec2308ea848149",
       "kind": "design"
     },
     {
@@ -86,8 +86,18 @@
     },
     {
       "path": "docs/plans/2026-08-31-active-call-realtime-event-parity-r1.md",
-      "sha256": "a2e78543954d4fbcbd908a07ae8e84c4cdcba324fce64143af39b7688546cef5",
+      "sha256": "64015c24f32979f963c4f41b47d348c78bffcb12e3b3689daa864a53216c0cf0",
       "kind": "plan"
+    },
+    {
+      "path": "architecture-foundation/ai-outbound/evidence/r1-active-call-realtime-events/README.md",
+      "sha256": "5a2df2f4945798023f6d67d4d7455f4b246b18e62f42d8eaf371d9b341be9005",
+      "kind": "evidence"
+    },
+    {
+      "path": "architecture-foundation/ai-outbound/evidence/r1-active-call-realtime-events/verification.json",
+      "sha256": "f696d39c024170964534402dc81d86cd4bb38aa3c20caaf61d6baae50ec220b7",
+      "kind": "evidence"
     },
     {
       "path": "architecture-foundation/ai-outbound/evidence/r1-campaign-authoring/README.md",
