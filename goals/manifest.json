@@ -85,6 +85,11 @@
       "kind": "plan"
     },
     {
+      "path": "docs/plans/2026-08-31-active-call-realtime-event-parity-r1.md",
+      "sha256": "a2e78543954d4fbcbd908a07ae8e84c4cdcba324fce64143af39b7688546cef5",
+      "kind": "plan"
+    },
+    {
       "path": "architecture-foundation/ai-outbound/evidence/r1-campaign-authoring/README.md",
       "sha256": "64dec03174f65dfc9258fb985f5a36af4060e4f354d2a18820bb76f298111fe4",
       "kind": "evidence"
