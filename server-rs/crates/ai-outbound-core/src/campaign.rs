@@ -15,6 +15,22 @@ pub enum CampaignCommand {
     Archive,
 }
 
+impl CampaignCommand {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Schedule => "schedule",
+            Self::Start => "start",
+            Self::Pause => "pause",
+            Self::Resume => "resume",
+            Self::Drain => "drain",
+            Self::Complete => "complete",
+            Self::Cancel => "cancel",
+            Self::Archive => "archive",
+        }
+    }
+}
+
 /// A Campaign aggregate with bounded active-attempt accounting.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Campaign {

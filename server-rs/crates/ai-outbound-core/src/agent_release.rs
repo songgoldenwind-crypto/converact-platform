@@ -149,6 +149,18 @@ impl AgentRelease {
     pub const fn components(&self) -> &ReleaseComponentDigests {
         &self.components
     }
+
+    /// Returns the bounded display name persisted with this immutable Release.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Returns the bounded language tag persisted with this immutable Release.
+    #[must_use]
+    pub fn language(&self) -> &str {
+        &self.language
+    }
 }
 
 #[derive(Serialize)]
