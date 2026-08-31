@@ -124,23 +124,27 @@ pub struct Harness {
 
 impl Harness {
     pub fn new() -> Self {
-        Self::configured(false, false, false)
+        Self::configured(AgentReservationOutcome::Reserved, false, false)
     }
 
     pub fn with_agent_reservation_failure() -> Self {
-        Self::configured(true, false, false)
+        Self::configured(AgentReservationOutcome::Unavailable, false, false)
+    }
+
+    pub fn with_agent_reservation_timeout() -> Self {
+        Self::configured(AgentReservationOutcome::OutcomeUnknown, false, false)
     }
 
     pub fn crash_after_originate() -> Self {
-        Self::configured(false, true, false)
+        Self::configured(AgentReservationOutcome::Reserved, true, false)
     }
 
     pub fn with_disclosure_timeout() -> Self {
-        Self::configured(false, false, true)
+        Self::configured(AgentReservationOutcome::Reserved, false, true)
     }
 
     fn configured(
-        agent_reservation_fails: bool,
+        agent_reservation_outcome: AgentReservationOutcome,
         crash_after_originate: bool,
         disclosure_times_out: bool,
     ) -> Self {
@@ -149,7 +153,7 @@ impl Harness {
         let state = Arc::new(Mutex::new(HarnessState {
             operations: Vec::with_capacity(MAX_OPERATIONS),
             attempt,
-            agent_reservation_fails,
+            agent_reservation_outcome,
             crash_after_originate,
             disclosure_times_out,
             agent_query_count: 0,
@@ -207,13 +211,20 @@ impl Harness {
 struct HarnessState {
     operations: Vec<&'static str>,
     attempt: CallAttempt,
-    agent_reservation_fails: bool,
+    agent_reservation_outcome: AgentReservationOutcome,
     crash_after_originate: bool,
     disclosure_times_out: bool,
     agent_query_count: usize,
     rustpbx_originate_count: usize,
     retry_count: usize,
     reserved_agent_release: Option<AgentReleaseBinding>,
+}
+
+#[derive(Clone, Copy)]
+enum AgentReservationOutcome {
+    Reserved,
+    Unavailable,
+    OutcomeUnknown,
 }
 
 impl HarnessState {
@@ -241,12 +252,16 @@ impl ChannelAgentPort for FakeAgent {
         let mut state = self.0.lock().unwrap();
         state.record("agent.reserve");
         state.reserved_agent_release = Some(request.release);
-        if state.agent_reservation_fails {
-            Err(PortError::unavailable("agent_capacity_unavailable"))
-        } else {
-            Ok(AgentReservation {
+        match state.agent_reservation_outcome {
+            AgentReservationOutcome::Reserved => Ok(AgentReservation {
                 session_id: ChannelAgentSessionId::parse("agent-session-001").unwrap(),
-            })
+            }),
+            AgentReservationOutcome::Unavailable => {
+                Err(PortError::unavailable("agent_capacity_unavailable"))
+            }
+            AgentReservationOutcome::OutcomeUnknown => {
+                Err(PortError::outcome_unknown("agent_reservation_timeout"))
+            }
         }
     }
 

@@ -64,6 +64,19 @@ async fn unavailable_agent_prevents_customer_dial() {
 }
 
 #[tokio::test]
+async fn unknown_agent_reservation_freezes_attempt_before_customer_dial() {
+    let harness = Harness::with_agent_reservation_timeout();
+
+    assert_eq!(
+        harness.run_one_attempt().await.unwrap_err().code(),
+        "outcome_unknown"
+    );
+    assert_eq!(harness.attempt_state(), CallAttemptState::OutcomeUnknown);
+    assert_eq!(harness.rustpbx_originate_count(), 0);
+    assert_eq!(harness.retry_count(), 0);
+}
+
+#[tokio::test]
 async fn crash_after_originate_reconciles_before_retry() {
     let harness = Harness::crash_after_originate();
 

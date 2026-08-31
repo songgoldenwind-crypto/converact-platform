@@ -275,7 +275,14 @@ const fn is_after_answer(state: CallAttemptState) -> bool {
 }
 
 const fn has_external_effect(state: CallAttemptState) -> bool {
-    matches!(state, CallAttemptState::Dialing | CallAttemptState::Ringing) || is_after_answer(state)
+    // The reservation intent is persisted while the Attempt is ComplianceApproved. A timed-out
+    // reservation may therefore have taken effect even though capacity was never observed.
+    matches!(
+        state,
+        CallAttemptState::ComplianceApproved
+            | CallAttemptState::Dialing
+            | CallAttemptState::Ringing
+    ) || is_after_answer(state)
 }
 
 const fn can_cancel(state: CallAttemptState) -> bool {

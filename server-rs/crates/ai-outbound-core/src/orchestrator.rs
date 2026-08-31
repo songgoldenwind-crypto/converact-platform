@@ -115,13 +115,20 @@ where
         self.store
             .persist_intent(&attempt, EffectIntent::ReserveAgent)
             .await?;
-        let reservation = self
+        let reservation = match self
             .agent
             .reserve(ReserveAgent {
                 attempt_id: attempt.id().clone(),
                 release: release.clone(),
             })
-            .await?;
+            .await
+        {
+            Ok(reservation) => reservation,
+            Err(error) if error.kind() == PortFailureKind::OutcomeUnknown => {
+                return self.mark_unknown(attempt, "outcome_unknown").await;
+            }
+            Err(error) => return Err(error.into()),
+        };
         attempt = transition(&attempt, AttemptCommand::ReserveAgentCapacity)?;
         self.store.persist_observation(&attempt).await?;
 
