@@ -41,73 +41,34 @@ impl CallAttempt {
         ) {
             return Err(DomainError::ReconcileRequired);
         }
-        let next = match (self.state, command) {
-            (CallAttemptState::Planned, AttemptCommand::Claim) => CallAttemptState::Claimed,
-            (CallAttemptState::Claimed, AttemptCommand::ApproveCompliance) => {
-                CallAttemptState::ComplianceApproved
-            }
-            (CallAttemptState::Claimed, AttemptCommand::BlockCompliance) => {
-                CallAttemptState::ComplianceBlocked
-            }
-            (CallAttemptState::ComplianceApproved, AttemptCommand::ReserveAgentCapacity) => {
-                CallAttemptState::AgentCapacityReserved
-            }
-            (CallAttemptState::AgentCapacityReserved, AttemptCommand::Dial) => {
-                CallAttemptState::Dialing
-            }
-            (CallAttemptState::Dialing, AttemptCommand::ObserveRinging) => {
-                CallAttemptState::Ringing
-            }
+        if matches!(
+            (self.state, command, self.disclosure_completed),
             (
-                CallAttemptState::Dialing | CallAttemptState::Ringing,
-                AttemptCommand::ObserveAnswered,
-            ) => CallAttemptState::Answered,
-            (CallAttemptState::Answered, AttemptCommand::AttachAgent) => {
-                CallAttemptState::AgentConnecting
-            }
-            (CallAttemptState::AgentConnecting, AttemptCommand::AwaitDisclosure) => {
-                CallAttemptState::DisclosurePending
-            }
-            (CallAttemptState::Conversing, AttemptCommand::RequestHandoff) => {
-                CallAttemptState::HandoffPending
-            }
-            (CallAttemptState::HandoffPending, AttemptCommand::CommitHumanHandoff) => {
-                CallAttemptState::HumanActive
-            }
-            (CallAttemptState::HumanActive, AttemptCommand::ResumeAi) => {
-                CallAttemptState::AiResuming
-            }
+                CallAttemptState::DisclosurePending,
+                AttemptCommand::StartConversation,
+                false
+            )
+        ) {
+            return Err(DomainError::DisclosureRequired);
+        }
+        if matches!(
+            (self.state, command, self.disclosure_completed),
             (
-                CallAttemptState::Conversing | CallAttemptState::HumanActive,
-                AttemptCommand::Finalize,
-            ) => CallAttemptState::Finalizing,
-            (CallAttemptState::Finalizing, AttemptCommand::Complete) => CallAttemptState::Completed,
-            (CallAttemptState::Dialing | CallAttemptState::Ringing, AttemptCommand::MarkBusy) => {
-                CallAttemptState::Busy
-            }
-            (
-                CallAttemptState::Dialing | CallAttemptState::Ringing,
-                AttemptCommand::MarkNoAnswer,
-            ) => CallAttemptState::NoAnswer,
-            (
-                CallAttemptState::Dialing | CallAttemptState::Ringing,
-                AttemptCommand::MarkRejected,
-            ) => CallAttemptState::Rejected,
-            (state, AttemptCommand::MarkFailedBeforeAnswer) if is_before_answer(state) => {
-                CallAttemptState::FailedBeforeAnswer
-            }
-            (state, AttemptCommand::MarkFailedAfterAnswer) if is_after_answer(state) => {
-                CallAttemptState::FailedAfterAnswer
-            }
-            (state, AttemptCommand::MarkOutcomeUnknown) if has_external_effect(state) => {
-                CallAttemptState::OutcomeUnknown
-            }
-            (CallAttemptState::OutcomeUnknown, AttemptCommand::RequireReconcile) => {
-                CallAttemptState::ReconcileRequired
-            }
-            (state, AttemptCommand::Cancel) if can_cancel(state) => CallAttemptState::Cancelled,
-            _ => return Err(DomainError::InvalidTransition),
-        };
+                CallAttemptState::DisclosurePending,
+                AttemptCommand::CompleteDisclosure,
+                false
+            )
+        ) {
+            let mut attempt = self.clone();
+            attempt.revision = attempt
+                .revision
+                .checked_add(1)
+                .ok_or(DomainError::RevisionExhausted)?;
+            attempt.disclosure_completed = true;
+            return Ok(attempt);
+        }
+        let next = next_attempt_state(self.state, command, self.disclosure_completed)
+            .ok_or(DomainError::InvalidTransition)?;
         let mut attempt = self.clone();
         attempt.revision = attempt
             .revision
@@ -168,6 +129,122 @@ impl CallAttempt {
     #[must_use]
     pub const fn revision(&self) -> u64 {
         self.revision
+    }
+
+    /// Returns whether mandatory AI identity and recording disclosure completed.
+    #[must_use]
+    pub const fn disclosure_completed(&self) -> bool {
+        self.disclosure_completed
+    }
+}
+
+fn next_attempt_state(
+    state: CallAttemptState,
+    command: AttemptCommand,
+    disclosure_completed: bool,
+) -> Option<CallAttemptState> {
+    pre_conversation_transition(state, command, disclosure_completed)
+        .or_else(|| handoff_transition(state, command))
+        .or_else(|| outcome_transition(state, command))
+}
+
+fn pre_conversation_transition(
+    state: CallAttemptState,
+    command: AttemptCommand,
+    disclosure_completed: bool,
+) -> Option<CallAttemptState> {
+    match (state, command) {
+        (CallAttemptState::Planned, AttemptCommand::Claim) => Some(CallAttemptState::Claimed),
+        (CallAttemptState::Claimed, AttemptCommand::ApproveCompliance) => {
+            Some(CallAttemptState::ComplianceApproved)
+        }
+        (CallAttemptState::Claimed, AttemptCommand::BlockCompliance) => {
+            Some(CallAttemptState::ComplianceBlocked)
+        }
+        (CallAttemptState::ComplianceApproved, AttemptCommand::ReserveAgentCapacity) => {
+            Some(CallAttemptState::AgentCapacityReserved)
+        }
+        (CallAttemptState::AgentCapacityReserved, AttemptCommand::Dial) => {
+            Some(CallAttemptState::Dialing)
+        }
+        (CallAttemptState::Dialing, AttemptCommand::ObserveRinging) => {
+            Some(CallAttemptState::Ringing)
+        }
+        (
+            CallAttemptState::Dialing | CallAttemptState::Ringing,
+            AttemptCommand::ObserveAnswered,
+        ) => Some(CallAttemptState::Answered),
+        (CallAttemptState::Answered, AttemptCommand::AttachAgent) => {
+            Some(CallAttemptState::AgentConnecting)
+        }
+        (CallAttemptState::AgentConnecting, AttemptCommand::AwaitDisclosure) => {
+            Some(CallAttemptState::DisclosurePending)
+        }
+        (CallAttemptState::DisclosurePending, AttemptCommand::StartConversation)
+            if disclosure_completed =>
+        {
+            Some(CallAttemptState::Conversing)
+        }
+        _ => None,
+    }
+}
+
+fn handoff_transition(
+    state: CallAttemptState,
+    command: AttemptCommand,
+) -> Option<CallAttemptState> {
+    match (state, command) {
+        (CallAttemptState::Conversing, AttemptCommand::RequestHandoff) => {
+            Some(CallAttemptState::HandoffPending)
+        }
+        (CallAttemptState::HandoffPending, AttemptCommand::CommitHumanHandoff) => {
+            Some(CallAttemptState::HumanActive)
+        }
+        (CallAttemptState::HumanActive, AttemptCommand::ResumeAi) => {
+            Some(CallAttemptState::AiResuming)
+        }
+        (CallAttemptState::AiResuming, AttemptCommand::StartConversation) => {
+            Some(CallAttemptState::Conversing)
+        }
+        (
+            CallAttemptState::Conversing | CallAttemptState::HumanActive,
+            AttemptCommand::Finalize,
+        ) => Some(CallAttemptState::Finalizing),
+        (CallAttemptState::Finalizing, AttemptCommand::Complete) => {
+            Some(CallAttemptState::Completed)
+        }
+        _ => None,
+    }
+}
+
+fn outcome_transition(
+    state: CallAttemptState,
+    command: AttemptCommand,
+) -> Option<CallAttemptState> {
+    match (state, command) {
+        (CallAttemptState::Dialing | CallAttemptState::Ringing, AttemptCommand::MarkBusy) => {
+            Some(CallAttemptState::Busy)
+        }
+        (CallAttemptState::Dialing | CallAttemptState::Ringing, AttemptCommand::MarkNoAnswer) => {
+            Some(CallAttemptState::NoAnswer)
+        }
+        (CallAttemptState::Dialing | CallAttemptState::Ringing, AttemptCommand::MarkRejected) => {
+            Some(CallAttemptState::Rejected)
+        }
+        (state, AttemptCommand::MarkFailedBeforeAnswer) if is_before_answer(state) => {
+            Some(CallAttemptState::FailedBeforeAnswer)
+        }
+        (state, AttemptCommand::MarkFailedAfterAnswer) if is_after_answer(state) => {
+            Some(CallAttemptState::FailedAfterAnswer)
+        }
+        (state, AttemptCommand::MarkOutcomeUnknown) if has_external_effect(state) => {
+            Some(CallAttemptState::OutcomeUnknown)
+        }
+        (CallAttemptState::OutcomeUnknown, AttemptCommand::RequireReconcile) => {
+            Some(CallAttemptState::ReconcileRequired)
+        }
+        (state, AttemptCommand::Cancel) if can_cancel(state) => Some(CallAttemptState::Cancelled),
+        _ => None,
     }
 }
 

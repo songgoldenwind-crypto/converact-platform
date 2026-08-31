@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 
 use converact_ai_outbound_core::{
-    AgentDraft, AttemptCommand, CallAttempt, Campaign, CampaignCommand, ReleaseComponentDigests,
+    AgentDraft, AttemptCommand, CallAttempt, Campaign, CampaignCommand, ComplianceInput,
+    ConsentBasis, EvidenceStatus, GateStatus, ReleaseComponentDigests,
 };
 use converact_voice_agent_contracts::{
     AgentDefinitionId, AgentReleaseId, CallAttemptId, CampaignId,
@@ -76,4 +77,25 @@ fn dialling_attempt() -> CallAttempt {
         .unwrap()
         .apply(AttemptCommand::Dial)
         .unwrap()
+}
+
+pub fn disclosure_pending_attempt() -> CallAttempt {
+    dialling_attempt()
+        .apply(AttemptCommand::ObserveAnswered)
+        .unwrap()
+        .apply(AttemptCommand::AttachAgent)
+        .unwrap()
+        .apply(AttemptCommand::AwaitDisclosure)
+        .unwrap()
+}
+
+pub const fn compliance_input() -> ComplianceInput {
+    ComplianceInput {
+        consent_basis: Some(ConsentBasis::Explicit),
+        timezone: EvidenceStatus::Confirmed,
+        dial_window: GateStatus::Allowed,
+        do_not_call: GateStatus::Allowed,
+        frequency: GateStatus::Allowed,
+        release: GateStatus::Allowed,
+    }
 }

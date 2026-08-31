@@ -3,6 +3,7 @@
 mod agent_release;
 mod call_attempt;
 mod campaign;
+mod compliance;
 
 use std::{error::Error, fmt};
 
@@ -11,6 +12,10 @@ pub use agent_release::{
 };
 pub use call_attempt::CallAttempt;
 pub use campaign::{Campaign, CampaignCommand};
+pub use compliance::{
+    ComplianceDecision, ComplianceInput, ComplianceReason, ConsentBasis, EvidenceStatus,
+    GateStatus, evaluate_compliance,
+};
 pub use converact_voice_agent_contracts::AttemptCommand;
 
 /// Stable rejection categories shared by the outbound authority aggregates.
