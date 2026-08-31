@@ -510,6 +510,7 @@ dependencies = [
  "converact-voice-agent-contracts",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

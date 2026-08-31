@@ -12,5 +12,8 @@ converact-voice-agent-contracts = { path = "../voice-agent-contracts" }
 serde.workspace = true
 serde_json.workspace = true
 
+[dev-dependencies]
+tokio.workspace = true
+
 [lints]
 workspace = true
