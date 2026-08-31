@@ -21,12 +21,12 @@
     },
     {
       "path": "docs/design/README.md",
-      "sha256": "38e8934b6604b6ee76c460360dfd5d5abaa5a93cb1d306d0bfcc4b49cb2c8e2c",
+      "sha256": "7740fd54fc927546104ed8551934c406d810372552dd147d7380b6e32f427a0f",
       "kind": "context"
     },
     {
       "path": "docs/design/2026-08-31-ai-outbound-active-call-platform-r1.md",
-      "sha256": "6158faad1c12975c408416c9afd2b3f28da410d5ff7cb4ca1b0fef3dfd8eb146",
+      "sha256": "eaf31faed3039d7046b4d249693e7e63a7d2e86dd5eb3fc937e87dff2435cefb",
       "kind": "design"
     },
     {
@@ -61,12 +61,12 @@
     },
     {
       "path": "docs/design/2026-08-31-conversation-result-quality-r1.md",
-      "sha256": "c7f56720d46f77f83eb724bd9fd8c4feaa169a9c1121c10d7cdca5cf9f0612b8",
+      "sha256": "2999400ddfa5af6253f2f8fe541592dc7d7dbb812a4cda02a4894f08c0a04b14",
       "kind": "design"
     },
     {
       "path": "docs/plans/2026-08-31-conversation-result-quality-r1.md",
-      "sha256": "6e5c5b41c1517111cdeba991ca8ff9d42dee57dada0745a30f7d1d2e6b98ea07",
+      "sha256": "df850cdd3627cf9b41a9df3259f33cd1e6c743d423a622ce2d5873cb60855c2b",
       "kind": "plan"
     },
     {
@@ -97,6 +97,16 @@
     {
       "path": "architecture-foundation/ai-outbound/evidence/r1-human-handoff/verification.json",
       "sha256": "138e4ed066ff24cedd979c0c49ae9946ba59382c6000486bd882e91cd3af6270",
+      "kind": "evidence"
+    },
+    {
+      "path": "architecture-foundation/ai-outbound/evidence/r1-conversation-result-quality/README.md",
+      "sha256": "b5a14cd5da94dbadfc3994925e9e26d1fa19c9a4bbe572cf0803655a7f9f2aa7",
+      "kind": "evidence"
+    },
+    {
+      "path": "architecture-foundation/ai-outbound/evidence/r1-conversation-result-quality/verification.json",
+      "sha256": "b8d6004f4dc91bd1967f6958f9786e244a45eba2c6d7fbec497018d6ac3234c0",
       "kind": "evidence"
     },
     {

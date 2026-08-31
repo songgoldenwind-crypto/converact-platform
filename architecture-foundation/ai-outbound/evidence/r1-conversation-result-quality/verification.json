@@ -1,0 +1,93 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-08-31",
+  "evidence_class": [
+    "local_contract",
+    "controlled_test_double"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "commit": "e488544bc44bc105c9605143222a5ea2b61822e7",
+    "tree": "4b8d301a301467ed0e795286f70451d8c9066a9f"
+  },
+  "environment": {
+    "os": "Darwin 25.2.0 arm64",
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)"
+  },
+  "commands": [
+    {
+      "id": "conversation_result_core",
+      "working_directory": "server-rs",
+      "command": "cargo test -p converact-conversation-result-core",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "id": "conversation_result_store",
+      "working_directory": "server-rs",
+      "command": "cargo test -p converact-conversation-result-store",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 8,
+      "failed": 0
+    },
+    {
+      "id": "conversation_result_postgres_adapter",
+      "working_directory": "server-rs",
+      "command": "cargo test -p converact-postgres-store --test conversation_result_store_contract",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "id": "conversation_result_worker_and_http",
+      "working_directory": "server-rs",
+      "command": "cargo test -p converact-voice-agent-worker --test conversation_projection_runtime --test conversation_quality_http --test postgres_conversation_projection_port",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 8,
+      "failed": 0
+    },
+    {
+      "id": "conversation_result_scoped_clippy",
+      "working_directory": "server-rs",
+      "command": "cargo clippy -p converact-conversation-result-core -p converact-conversation-result-store -p converact-postgres-store -p converact-voice-agent-worker --all-targets -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "conversation_result_scoped_format",
+      "working_directory": "server-rs",
+      "command": "cargo fmt -p converact-conversation-result-core -p converact-conversation-result-store -p converact-postgres-store -p converact-voice-agent-worker -- --check",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "not_run": [
+    "physical_postgresql_migration_rls_trigger_transaction_lease",
+    "real_active_call_speech_runtime_rustpbx_ingestion",
+    "real_result_llm_evaluator_provider",
+    "production_http_router_and_authorization_policy_binding",
+    "legacy_typescript_shadow_parity_writer_switch_drain_active_zero_deletion",
+    "sip_pstn_rtp_srtp_recording_dtmf_hold_transfer_livekit",
+    "browser_dashboard_human_quality_review",
+    "performance",
+    "capacity",
+    "long_run",
+    "fault_campaign",
+    "independent_code_review",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}

@@ -747,11 +747,13 @@ Reconciler 查询：
 
 ### D7：结果、质检和现有 UI
 
-- final transcript；
-- summary/intent/disposition/outcome；
-- evaluation 和 bad case；
-- Campaign/Agent dashboard；
-- 现有 API 兼容和 writer 切换。
+- final transcript、terminal snapshot 与 generation 分类：本地 Rust 合同已通过；
+- summary/intent/disposition/outcome 版本投影与 durable effect reconcile：本地受控测试已通过；
+- evaluation、rubric 复算和 deterministic Bad Case：本地 Rust 合同已通过；
+- tenant-bound Rust result/transcript/evaluation/Bad Case API：本地受控测试已通过，全文权限
+  独立且列表不返回 transcript text；
+- Campaign/Agent dashboard、生产路由/授权接线、现有 TS API shadow parity、writer switch、
+  drain/active-zero 与物理集成：`not_run`。
 
 ### D8：功能验收
 
@@ -851,10 +853,12 @@ Reconciler 查询：
 - 实施计划按 TDD 划分可验证纵向切片；
 - 代码阶段只修改明确相关文件，并保留仓库现有用户改动。
 
-截至 2026-08-31，上述设计门已完成，D1-D4 的首条受控 Rust tracer bullet 与 D5 Tool Broker
-Core/Store/Worker 桥接、通用查询/变更 Adapter 已通过；这只证明 `controlled_test_double` 与本地合同层。物理 PostgreSQL、
-真实 RustPBX、真实 Active Call、SIP/PSTN、真实 Tool/审批供应商、录音、完整 final transcript、
-人工切换、质检、性能、容量和生产部署均保持 `not_run`，后续必须按独立 Evidence Gate 逐项推进。
+截至 2026-08-31，上述设计门已完成，D1-D4 的首条受控 Rust tracer bullet、D5 Tool Broker
+Core/Store/Worker 与通用 Tool Adapter、D6 Handoff 以及 D7 Result/Quality 的 Rust
+Core/Store/Worker/API 均已有本地受控证据。这只证明 `controlled_test_double` 与本地合同层。
+物理 PostgreSQL、真实 RustPBX/Active Call/Speech、SIP/PSTN/媒体、真实 Tool/审批/模型供应商、
+生产路由授权、Dashboard、旧 writer 迁移、性能、容量和生产部署均保持 `not_run`，后续必须按
+独立 Evidence Gate 逐项推进。
 
 ## 22. 关联文档
 
@@ -867,6 +871,8 @@ Core/Store/Worker 桥接、通用查询/变更 Adapter 已通过；这只证明 
 - [AI 外呼 Active Call Tracer Bullet R1 实施计划](../plans/2026-08-31-ai-outbound-active-call-tracer-bullet-r1.md)
 - [AI → Human → AI Handoff R1](./2026-08-31-ai-human-ai-handoff-r1.md)
 - [AI → Human → AI Handoff R1 实施计划](../plans/2026-08-31-ai-human-ai-handoff-r1.md)
+- [Conversation Result & Quality R1](./2026-08-31-conversation-result-quality-r1.md)
+- [Conversation Result & Quality R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-conversation-result-quality/README.md)
 
 ## 23. 变更记录
 
@@ -876,3 +882,4 @@ Core/Store/Worker 桥接、通用查询/变更 Adapter 已通过；这只证明 
 | 2026-08-31 | R1 implementation checkpoint | 记录 Rust 合同、领域、schema、适配器与受控 Worker tracer bullet；真实集成和生产资格仍为 `not_run` |
 | 2026-08-31 | R1 Tool checkpoint | Tool Broker/Receipt/Store/Active Call Worker 桥接已有本地受控证据；真实 Provider、物理 PostgreSQL 与生产仍为 `not_run` |
 | 2026-08-31 | R1 generic Tool Adapter checkpoint | `customer.lookup` 与 `task.create_follow_up` 的 Rust typed Provider Port 切片已有本地受控证据；真实 Provider 与生产仍为 `not_run` |
+| 2026-08-31 | R1 Result/Quality checkpoint | final transcript、snapshot、result、evaluation、Bad Case、durable reconcile、tenant PostgreSQL Adapter 与权限化 Rust API 已有本地受控证据；物理集成、旧 writer 迁移、UI 与生产仍为 `not_run` |

@@ -1,6 +1,6 @@
 # Conversation Result & Quality R1
 
-> 状态：`accepted_design / implementation_not_run / production_not_run`
+> 状态：`controlled_rust_core_store_worker_api_passed / physical_integrations_not_run / production_not_run`
 >
 > 日期：2026-08-31
 >
@@ -17,8 +17,10 @@ D7 要把一次电话 Interaction 的最终对话证据变成可查询、可重�
 - transcript、outcome、evaluation 任一异步链失败都不影响已建立通话，也不触发重拨；
 - 旧 TypeScript QM/API 只作为兼容基线，完成 writer switch 前不是新对象权威。
 
-当前 Rust Worker 仅持有 `final_transcript_segments` 和 bounded outcome code；旧 TypeScript
-`qm_evaluations` 使用自由 JSON、`call_session_id` 和运行时建表。它们不能证明完整投影或生产资格。
+当前 Rust 已实现 final segment、terminal snapshot、版本化 result、rubric evaluation、Bad Case、
+durable projection oracle、PostgreSQL tenant adapter 和受权限保护的查询 API，并有本地受控证据。
+旧 TypeScript `qm_evaluations` 仍使用自由 JSON、`call_session_id` 和运行时建表；它尚未完成 shadow
+parity、writer switch 或 active-zero，因此不能成为新对象权威，也不能据此声明生产资格。
 
 ## 2. Authority
 
@@ -128,12 +130,17 @@ database clock、lease/fence 和 `FOR UPDATE SKIP LOCKED`。文本列受长度�
 
 ## 7. 精准验证与状态
 
-首轮仅证明：
+截至 2026-08-31，首轮本地受控证据已证明：
 
 - Rust ID、bounded model、payload hash、rubric calculation 和 Bad Case derivation；
 - PostgreSQL schema/CAS/idempotency/receipt 的静态和受控合同；
 - Worker 在 duplicate、out-of-order、stale generation、provider unknown 下收敛；
 - Rust API tenant isolation、bounded pagination 和无全文列表响应。
 
+证据入口：
+
+- [Conversation Result & Quality R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-conversation-result-quality/README.md)
+- [machine-readable verification](../../architecture-foundation/ai-outbound/evidence/r1-conversation-result-quality/verification.json)
+
 物理 PostgreSQL、真实 Active Call/Speech/RustPBX、真实 LLM evaluator、真实 UI、性能、容量、
-长稳、生产部署和旧 writer switch 在有直接证据前保持 `not_run`。
+长稳、生产部署、生产路由/授权接线和旧 writer shadow parity/switch 在有直接证据前保持 `not_run`。
