@@ -9,6 +9,8 @@ publish.workspace = true
 [dependencies]
 axum.workspace = true
 converact-active-call-adapter = { path = "../../crates/active-call-adapter" }
+converact-agent-handoff-core = { path = "../../crates/agent-handoff-core" }
+converact-agent-handoff-store = { path = "../../crates/agent-handoff-store" }
 converact-ai-outbound-core = { path = "../../crates/ai-outbound-core" }
 converact-contracts = { path = "../../crates/contracts" }
 converact-runtime-health = { path = "../../crates/runtime-health" }

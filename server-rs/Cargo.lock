@@ -573,6 +573,8 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "converact-active-call-adapter",
+ "converact-agent-handoff-core",
+ "converact-agent-handoff-store",
  "converact-ai-outbound-core",
  "converact-contracts",
  "converact-runtime-health",
