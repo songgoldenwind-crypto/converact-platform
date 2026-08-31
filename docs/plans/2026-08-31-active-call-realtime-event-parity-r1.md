@@ -49,3 +49,11 @@ R1 is locally complete at adapter-contract level: the exact wire fixtures map wi
 safety rules and the existing command/client behavior remains green. This is not evidence that a
 real customer can interrupt a deployed call; the pinned Active Call process and RustPBX path still
 require separate live evidence.
+
+## Follow-on output-control checkpoint
+
+The same adapter now encodes the exact `pause`, `resume` and non-graceful `interrupt` commands used
+to silence and later resume Agent output during AI/human ownership changes. Fade-out is bounded to
+two seconds. The safe command enum deliberately exposes no hangup, REFER or bridge operation, so
+telephone control stays behind RustPBX. Live command delivery and handoff behavior remain
+`not_run`.

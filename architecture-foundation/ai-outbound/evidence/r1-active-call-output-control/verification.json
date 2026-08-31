@@ -1,0 +1,63 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-08-31",
+  "evidence_class": [
+    "local_contract"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "commit": "21858b3705a9d1d365d138ba255853169b9d365e",
+    "tree": "bac014e683bc5e281d08ac63e764b8a8b44d3d4f"
+  },
+  "active_call": {
+    "version": "0.3.83",
+    "commit": "6224d948cc0941ac48b4a5426477aeaf639c2e98",
+    "runtime_executed": false
+  },
+  "commands": [
+    {
+      "id": "active_call_output_control_compatibility",
+      "working_directory": "server-rs",
+      "command": "cargo +1.94.1 test -p converact-active-call-adapter --test command --test mapping --test client",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 15,
+      "failed": 0
+    },
+    {
+      "id": "active_call_output_control_scoped_format",
+      "working_directory": "server-rs",
+      "command": "cargo +1.94.1 fmt -p converact-active-call-adapter -- --check",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "active_call_output_control_scoped_clippy",
+      "working_directory": "server-rs",
+      "command": "cargo +1.94.1 clippy -p converact-active-call-adapter --all-targets -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "not_run": [
+    "live_pause_resume_interrupt_delivery",
+    "real_ai_human_ai_owner_generation_switch",
+    "active_call_rustpbx_sip_pstn_rtp_srtp_audio_tts_recording",
+    "barge_in_latency_quality",
+    "performance",
+    "capacity",
+    "long_run",
+    "fault_campaign",
+    "independent_code_review",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_read": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}
