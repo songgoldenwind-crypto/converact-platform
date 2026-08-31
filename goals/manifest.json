@@ -21,12 +21,12 @@
     },
     {
       "path": "docs/design/README.md",
-      "sha256": "a4e2107cefd4ae32bac2fb3b3cc26273249f94ae8905bb4fb1ccdcf82e423e2a",
+      "sha256": "837691ea2040be2a99939f5eb5772cb6af72ddd86aeb727cf3e90513716bf0af",
       "kind": "context"
     },
     {
       "path": "docs/design/2026-08-31-ai-outbound-active-call-platform-r1.md",
-      "sha256": "245f2d307f3a5cd3bcf72071f8aa7592620caf2e4a6746ed055b3a82bb76cd89",
+      "sha256": "f7adbba3c3fbb8196889211aeac7c2c5facdf94cd11cf8ea94e889f94c7d4aad",
       "kind": "design"
     },
     {
@@ -47,6 +47,16 @@
     {
       "path": "docs/plans/2026-08-31-ai-outbound-business-tool-adapters-r1.md",
       "sha256": "04b61f927f10c632059114b87c13becdec22ecd29816893e9f613fada6bf13f3",
+      "kind": "plan"
+    },
+    {
+      "path": "docs/design/2026-08-31-ai-human-ai-handoff-r1.md",
+      "sha256": "9fab0294bccb98e661e3ff436e0310efde6f92dc3a635c936553d6e19d4d573c",
+      "kind": "design"
+    },
+    {
+      "path": "docs/plans/2026-08-31-ai-human-ai-handoff-r1.md",
+      "sha256": "5f3e776f53946d40681524acffdd9e16569dc5bb751682c9e83dde70f86e7b4b",
       "kind": "plan"
     },
     {

@@ -865,6 +865,8 @@ Core/Store/Worker 桥接、通用查询/变更 Adapter 已通过；这只证明 
 - [Active Call source lock](../../infra/converact/active-call/source-lock.json)
 - [Active Call upstream notice](../../infra/converact/active-call/UPSTREAM.md)
 - [AI 外呼 Active Call Tracer Bullet R1 实施计划](../plans/2026-08-31-ai-outbound-active-call-tracer-bullet-r1.md)
+- [AI → Human → AI Handoff R1](./2026-08-31-ai-human-ai-handoff-r1.md)
+- [AI → Human → AI Handoff R1 实施计划](../plans/2026-08-31-ai-human-ai-handoff-r1.md)
 
 ## 23. 变更记录
 

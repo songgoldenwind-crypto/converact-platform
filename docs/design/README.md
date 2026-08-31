@@ -21,6 +21,8 @@ Converact Agent Runtime / Converact Resolve`。本文导航的是已经迁入仓
 | 8 | [AI 外呼 Tool Broker 与 Action Receipt R1](./2026-08-31-ai-outbound-tool-action-r1.md) | Tool Proposal、Policy/Approval、幂等 Action、Receipt、恢复和 generation fence | `controlled_core_and_worker_slice_passed / physical_integrations_not_run / production_not_run` |
 | 9 | [Tool Broker TDD 实施计划](../plans/2026-08-31-ai-outbound-tool-action-r1.md) | 独立 Rust Tool Broker、持久化 Adapter 与 Active Call Worker 接线 | `planned` |
 | 10 | [通用业务 Tool Adapter R1 计划](../plans/2026-08-31-ai-outbound-business-tool-adapters-r1.md) | 行业无关客户查询与跟进任务变更 Adapter | `controlled_slice_passed / real_provider_not_run` |
+| 11 | [AI → Human → AI Handoff R1](./2026-08-31-ai-human-ai-handoff-r1.md) | 电话 Channel 人工接管、Context Packet、owner generation 与恢复 | `accepted_implementation_slice / production_not_run` |
+| 12 | [AI → Human → AI Handoff R1 计划](../plans/2026-08-31-ai-human-ai-handoff-r1.md) | D6 Rust Core、Store、Worker 的精准 TDD 顺序 | `planned` |
 
 权威冲突时按领域裁决，而不是简单“新文件覆盖所有旧文件”：
 
@@ -103,3 +105,4 @@ flowchart TD
 | 2026-08-31 | Tool Action R1 checkpoint | Rust Broker、持久化 Adapter 与 Active Call Worker 桥接已有本地受控证据；真实 Provider/PostgreSQL/通话与生产仍为 `not_run` |
 | 2026-08-31 | Generic Tool Adapter R1 | 固定 `customer.lookup` 与 `task.create_follow_up` 的 Rust Provider Port 切片 |
 | 2026-08-31 | Generic Tool Adapter R1 checkpoint | 两个通用 Adapter 的本地受控行为、幂等和 unknown-query 收敛已有证据；真实 Provider 与生产仍为 `not_run` |
+| 2026-08-31 | AI/Human Handoff R1 | 固定电话 Channel 的 durable Context Packet、owner generation、接管与 AI 恢复边界 |
