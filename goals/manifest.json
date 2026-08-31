@@ -21,7 +21,7 @@
     },
     {
       "path": "docs/design/README.md",
-      "sha256": "245f9ad96e77eb292e0dfc051c18dc54c8caf88a6a95094dd446e7fbcdd53ab9",
+      "sha256": "6b994959be1ed0766fbef14ee403eec92fa02e7bef855b338778c167eabeda8d",
       "kind": "context"
     },
     {
@@ -127,6 +127,11 @@
     {
       "path": "docs/plans/2026-08-31-active-call-intent-candidate-r1.md",
       "sha256": "581f32ca29c29472dab5a8e0e1d2100e029d58fd2c8842dad560e40f0cab5084",
+      "kind": "plan"
+    },
+    {
+      "path": "docs/plans/2026-08-31-active-call-intent-outcome-projection-r1.md",
+      "sha256": "5623055973ba135143e805615815838e97778c643e975c87e806314f54f753e1",
       "kind": "plan"
     },
     {
