@@ -1747,6 +1747,26 @@ the process is then killed is an unprotected double failure. Tenants requiring
 zero terminal-CDR loss under that fault combination must use `VOICE-HA-T1`;
 ordinary mode must not be described as providing it.
 
+## Active Call internal-leg session binding
+
+ivekit.86 extends only the existing `call.leg_add` command. The ordinary customer
+`call.originate` wire remains unchanged and carries an empty `extra_headers`
+object. After the customer leg answers, Converact may add one internal Active
+Call SIP leg with `agent_session_id`; RustPBX validates that value as a non-empty,
+ASCII, 255-byte identifier before it enters `CallCommand` and emits exactly one
+`X-Converact-Agent-Session` header on that leg's INVITE. A missing binding emits
+no header, so queue agents and every other dynamic leg retain their previous
+wire shape. The typed value redacts its `Debug` representation and rejects CRLF
+or other header-injection input.
+
+Both RustPBX dynamic-leg implementations consume the same header builder: the
+ordinary B2BUA session path and the standalone RWI-originated-call owner. Three
+focused exact-source tests prove the bounded identifier, RWI field preservation,
+and exact/absent header behavior. The patch was replayed against the complete
+ivekit.85 queue and every resulting changed-file digest matched the tested tree.
+No server, container, real SIP peer, RTP media, end-to-end Agent attachment or
+production path was exercised; those states remain `not_run`.
+
 ## Reproducibility
 
 - RustPBX: `6c49ee76baa54fdbf8f98020cc9bee158c7c15de`

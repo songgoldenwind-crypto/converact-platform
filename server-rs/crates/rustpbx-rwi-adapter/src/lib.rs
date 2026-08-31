@@ -8,6 +8,6 @@ pub use client::{
     SecretValue,
 };
 pub use envelope::{
-    BridgeRequest, HangupRequest, ListCallsRequest, OriginateRequest, RwiCommand, RwiError,
-    SubscribeRequest, encode_command,
+    AddAgentLegRequest, BridgeRequest, HangupRequest, ListCallsRequest, OriginateRequest,
+    RwiCommand, RwiError, SubscribeRequest, encode_command,
 };

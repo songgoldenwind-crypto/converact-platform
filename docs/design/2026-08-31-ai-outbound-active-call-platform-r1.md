@@ -908,6 +908,14 @@ Release artifact resolver、稳定 ID 预留、SIP 附着观察、media-ready、
 terminal 查询；同 session 查询与 mutation 串行，较早状态不能清除 disclosure/start 的未知结果，
 mutation 不自动重试，也不把 not-found 解释成安全重建。真实进程、durable Worker
 协调、重启恢复、真实媒体与生产仍为 `not_run`。
+固定 RustPBX 的真实 RWI wire 也已完成一条本地契约切片：客户侧 `call.originate` 使用上游
+`call_id / destination / caller_id / timeout_secs / extra_headers / trunk` 字段且
+`extra_headers` 固定为空；它不携带 Agent 会话身份。客户接听后，平台使用独立
+`call.leg_add` 请求携带有界 `agent_session_id`。ivekit.86 只在该内部 leg 的 INVITE 上生成
+`X-Converact-Agent-Session`，普通队列或其他动态 leg 在值缺失时不生成该头；CRLF、超长和非法
+标识在进入 `CallCommand` 前 fail-closed，Debug 不显示原值。平台 wire 测试、固定源码三个精确
+单测、补丁重放文件摘要及动态-leg 集成目标编译已通过。真实 RustPBX/Active Call 进程、客户接听
+事件到 leg-add 的 durable 编排、SIP 头在线观测、RTP 音频与端到端会话附着仍为 `not_run`。
 平台现在还会从 tenant、物理 Attempt 和精确 Release 稳定派生 Active Call Session ID；Agent
 不得替换该身份。Release 的八个组件摘要随预留继续传递，有界 Playbook artifact 会校验声明摘要
 并隐藏 Prompt 内容。但该边界不冒充源组件到 Playbook 的确定性编译证明。固定源码 overlay 和

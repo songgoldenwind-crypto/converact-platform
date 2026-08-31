@@ -82,10 +82,11 @@ impl FakeRwiServer {
     pub fn originate_request() -> OriginateRequest {
         OriginateRequest {
             action_id: "attempt-001:originate".to_owned(),
-            to: "+8613800138000".to_owned(),
-            from: Some("+8610000000000".to_owned()),
-            timeout_seconds: 30,
-            interaction_id: "interaction-001".to_owned(),
+            call_id: "call-001".to_owned(),
+            destination: "+8613800138000".to_owned(),
+            caller_id: Some("+8610000000000".to_owned()),
+            timeout_secs: 30,
+            trunk: Some("carrier-a".to_owned()),
         }
     }
 

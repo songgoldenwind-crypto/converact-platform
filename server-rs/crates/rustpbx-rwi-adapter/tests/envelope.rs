@@ -1,19 +1,77 @@
-use converact_rustpbx_rwi_adapter::{BridgeRequest, OriginateRequest, RwiCommand, encode_command};
+use converact_rustpbx_rwi_adapter::{
+    AddAgentLegRequest, BridgeRequest, OriginateRequest, RwiCommand, encode_command,
+};
 
 #[test]
-fn originate_and_bridge_use_the_frozen_rwi_v1_actions() {
+fn originate_uses_the_exact_pinned_rustpbx_wire_without_agent_headers() {
     let originate = encode_command(RwiCommand::Originate(OriginateRequest {
         action_id: "attempt-001:originate".to_owned(),
-        to: "+8613800138000".to_owned(),
-        from: Some("+8610000000000".to_owned()),
-        timeout_seconds: 30,
-        interaction_id: "interaction-001".to_owned(),
+        call_id: "call-001".to_owned(),
+        destination: "+8613800138000".to_owned(),
+        caller_id: Some("+8610000000000".to_owned()),
+        timeout_secs: 30,
+        trunk: Some("carrier-a".to_owned()),
     }))
     .unwrap();
     assert_eq!(originate["action"], "call.originate");
     assert_eq!(originate["action_id"], "attempt-001:originate");
-    assert_eq!(originate["params"]["to"], "+8613800138000");
+    assert_eq!(originate["params"]["call_id"], "call-001");
+    assert_eq!(originate["params"]["destination"], "+8613800138000");
+    assert_eq!(originate["params"]["caller_id"], "+8610000000000");
+    assert_eq!(originate["params"]["timeout_secs"], 30);
+    assert_eq!(originate["params"]["trunk"], "carrier-a");
+    assert_eq!(originate["params"]["extra_headers"], serde_json::json!({}));
+}
 
+#[test]
+fn only_the_internal_agent_leg_carries_the_bounded_session_binding() {
+    let leg = encode_command(RwiCommand::AddAgentLeg(AddAgentLegRequest {
+        action_id: "attempt-001:agent-leg".to_owned(),
+        call_id: "call-001".to_owned(),
+        target: "sip:agent@active-call.internal:5060".to_owned(),
+        leg_id: "leg-agent-001".to_owned(),
+        agent_session_id: "ac.session-001".to_owned(),
+    }))
+    .unwrap();
+
+    assert_eq!(leg["action"], "call.leg_add");
+    assert_eq!(leg["params"]["call_id"], "call-001");
+    assert_eq!(
+        leg["params"]["target"],
+        "sip:agent@active-call.internal:5060"
+    );
+    assert_eq!(leg["params"]["leg_id"], "leg-agent-001");
+    assert_eq!(leg["params"]["agent_session_id"], "ac.session-001");
+    assert!(leg["params"].get("extra_headers").is_none());
+}
+
+#[test]
+fn agent_leg_rejects_header_injection_and_non_sip_targets() {
+    let request = |target: &str, agent_session_id: &str| {
+        RwiCommand::AddAgentLeg(AddAgentLegRequest {
+            action_id: "attempt-001:agent-leg".to_owned(),
+            call_id: "call-001".to_owned(),
+            target: target.to_owned(),
+            leg_id: "leg-agent-001".to_owned(),
+            agent_session_id: agent_session_id.to_owned(),
+        })
+    };
+
+    let injected = encode_command(request(
+        "sip:agent@active-call.internal:5060",
+        "ac.session-001\r\nX-Injected: yes",
+    ));
+    assert_eq!(injected.unwrap_err().code(), "rustpbx_identifier_invalid");
+
+    let wrong_transport = encode_command(request("https://active-call.internal", "ac.session-001"));
+    assert_eq!(
+        wrong_transport.unwrap_err().code(),
+        "rustpbx_destination_invalid"
+    );
+}
+
+#[test]
+fn bridge_uses_the_frozen_rwi_v1_action() {
     let bridge = encode_command(RwiCommand::Bridge(BridgeRequest {
         action_id: "attempt-001:bridge".to_owned(),
         leg_a: "leg-customer".to_owned(),

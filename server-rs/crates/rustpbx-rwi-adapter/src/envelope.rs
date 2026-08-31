@@ -13,10 +13,21 @@ const MAX_TIMEOUT_SECONDS: u32 = 120;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct OriginateRequest {
     pub action_id: String,
-    pub to: String,
-    pub from: Option<String>,
-    pub timeout_seconds: u32,
-    pub interaction_id: String,
+    pub call_id: String,
+    pub destination: String,
+    pub caller_id: Option<String>,
+    pub timeout_secs: u32,
+    pub trunk: Option<String>,
+}
+
+/// One internal Active Call SIP leg bound to a pre-reserved Agent session.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AddAgentLegRequest {
+    pub action_id: String,
+    pub call_id: String,
+    pub target: String,
+    pub leg_id: String,
+    pub agent_session_id: String,
 }
 
 /// One bridge request between two distinct call legs.
@@ -54,6 +65,7 @@ pub enum RwiCommand {
     Subscribe(SubscribeRequest),
     ListCalls(ListCallsRequest),
     Originate(OriginateRequest),
+    AddAgentLeg(AddAgentLegRequest),
     Hangup(HangupRequest),
     Bridge(BridgeRequest),
     Unsupported { action: String },
@@ -117,6 +129,7 @@ pub fn encode_command(command: RwiCommand) -> Result<Value, RwiError> {
             })
         }
         RwiCommand::Originate(request) => encode_originate(&request)?,
+        RwiCommand::AddAgentLeg(request) => encode_agent_leg(&request)?,
         RwiCommand::Hangup(request) => encode_hangup(&request)?,
         RwiCommand::Bridge(request) => encode_bridge(&request)?,
         RwiCommand::Unsupported { .. } => return Err(RwiError::CapabilityUnavailable),
@@ -148,22 +161,45 @@ fn encode_subscribe(request: &SubscribeRequest) -> Result<Value, RwiError> {
 
 fn encode_originate(request: &OriginateRequest) -> Result<Value, RwiError> {
     validate_identifier(&request.action_id)?;
-    validate_identifier(&request.interaction_id)?;
-    validate_destination(&request.to)?;
-    if let Some(from) = &request.from {
-        validate_destination(from)?;
+    validate_identifier(&request.call_id)?;
+    validate_destination(&request.destination)?;
+    if let Some(caller_id) = &request.caller_id {
+        validate_destination(caller_id)?;
     }
-    if request.timeout_seconds == 0 || request.timeout_seconds > MAX_TIMEOUT_SECONDS {
+    if let Some(trunk) = &request.trunk {
+        validate_identifier(trunk)?;
+    }
+    if request.timeout_secs == 0 || request.timeout_secs > MAX_TIMEOUT_SECONDS {
         return Err(RwiError::InvalidTimeout);
     }
     Ok(json!({
         "action": "call.originate",
         "action_id": request.action_id,
         "params": {
-            "to": request.to,
-            "from": request.from,
-            "timeout_seconds": request.timeout_seconds,
-            "interaction_id": request.interaction_id,
+            "call_id": request.call_id,
+            "destination": request.destination,
+            "caller_id": request.caller_id,
+            "timeout_secs": request.timeout_secs,
+            "extra_headers": {},
+            "trunk": request.trunk,
+        },
+    }))
+}
+
+fn encode_agent_leg(request: &AddAgentLegRequest) -> Result<Value, RwiError> {
+    validate_identifier(&request.action_id)?;
+    validate_identifier(&request.call_id)?;
+    validate_identifier(&request.leg_id)?;
+    validate_identifier(&request.agent_session_id)?;
+    validate_sip_target(&request.target)?;
+    Ok(json!({
+        "action": "call.leg_add",
+        "action_id": request.action_id,
+        "params": {
+            "call_id": request.call_id,
+            "target": request.target,
+            "leg_id": request.leg_id,
+            "agent_session_id": request.agent_session_id,
         },
     }))
 }
@@ -244,6 +280,14 @@ fn validate_destination(value: &str) -> Result<(), RwiError> {
         .split_once('@')
         .ok_or(RwiError::InvalidDestination)?;
     if user.is_empty() || host.is_empty() || host.contains('@') {
+        return Err(RwiError::InvalidDestination);
+    }
+    Ok(())
+}
+
+fn validate_sip_target(value: &str) -> Result<(), RwiError> {
+    validate_destination(value)?;
+    if !value.starts_with("sip:") && !value.starts_with("sips:") {
         return Err(RwiError::InvalidDestination);
     }
     Ok(())

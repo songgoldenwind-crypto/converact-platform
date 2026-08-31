@@ -1,0 +1,400 @@
+diff --git a/src/call/app/controller.rs b/src/call/app/controller.rs
+index d57fb893..86bbb7a2 100644
+--- a/src/call/app/controller.rs
++++ b/src/call/app/controller.rs
+@@ -418,6 +418,7 @@ impl CallController {
+         self.session.send_command(CallCommand::LegAdd {
+             target: target.clone(),
+             leg_id: Some(LegId::from(call_id.clone())),
++            agent_session_id: None,
+         })?;
+ 
+         info!(target = %target, call_id = %call_id, "Queue: originated call to agent");
+diff --git a/src/call/domain/command.rs b/src/call/domain/command.rs
+index 4297b2e1..3cb1673e 100644
+--- a/src/call/domain/command.rs
++++ b/src/call/domain/command.rs
+@@ -12,7 +12,8 @@
+ //! 2. Each command has explicit leg targeting via `LegId`
+ //! 3. Media commands include capability-aware options
+ 
+-use serde::{Deserialize, Serialize};
++use serde::{Deserialize, Deserializer, Serialize};
++use std::fmt;
+ use tokio::sync::mpsc;
+ 
+ use super::{HangupCommand, LegId, MediaSource, RingbackPolicy};
+@@ -22,6 +23,60 @@ pub type CallCommandTx = mpsc::Sender<CallCommand>;
+ /// Type alias for CallCommand receiver.
+ pub type CallCommandRx = mpsc::Receiver<CallCommand>;
+ 
++const MAX_AGENT_SESSION_ID_BYTES: usize = 255;
++
++/// Validated binding between one internal SIP leg and one Channel Agent session.
++///
++/// The value is deliberately opaque to Call Core. It can only be constructed from the bounded
++/// identifier grammar accepted by the Converact RWI adapter, preventing SIP header injection at
++/// every `CallCommand` construction boundary.
++#[derive(Clone, Eq, PartialEq, Serialize)]
++#[serde(transparent)]
++pub struct AgentSessionId(Box<str>);
++
++impl AgentSessionId {
++    /// Returns the validated identifier for the internal Agent-leg SIP header.
++    #[must_use]
++    pub fn as_str(&self) -> &str {
++        &self.0
++    }
++}
++
++impl fmt::Debug for AgentSessionId {
++    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
++        formatter.write_str("AgentSessionId([REDACTED])")
++    }
++}
++
++impl TryFrom<String> for AgentSessionId {
++    type Error = &'static str;
++
++    fn try_from(value: String) -> Result<Self, Self::Error> {
++        let bytes = value.as_bytes();
++        let Some((&first, remainder)) = bytes.split_first() else {
++            return Err("agent_session_id_invalid");
++        };
++        if bytes.len() > MAX_AGENT_SESSION_ID_BYTES
++            || !first.is_ascii_alphanumeric()
++            || !remainder.iter().all(|byte| {
++                byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-')
++            })
++        {
++            return Err("agent_session_id_invalid");
++        }
++        Ok(Self(value.into_boxed_str()))
++    }
++}
++
++impl<'de> Deserialize<'de> for AgentSessionId {
++    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
++    where
++        D: Deserializer<'de>,
++    {
++        Self::try_from(String::deserialize(deserializer)?).map_err(serde::de::Error::custom)
++    }
++}
++
+ /// Unified command for session control
+ #[derive(Debug, Clone, Serialize, Deserialize)]
+ #[serde(tag = "type", rename_all = "snake_case")]
+@@ -412,6 +467,9 @@ pub enum CallCommand {
+         target: String,
+         /// Optional leg ID (auto-generated if not provided)
+         leg_id: Option<LegId>,
++        /// Optional Converact binding carried only on the internal Channel Agent INVITE.
++        #[serde(default, skip_serializing_if = "Option::is_none")]
++        agent_session_id: Option<AgentSessionId>,
+     },
+ 
+     /// Remove a leg from the session
+@@ -599,6 +657,18 @@ impl CallCommand {
+ mod tests {
+     use super::*;
+ 
++    #[test]
++    fn agent_session_id_accepts_only_the_bounded_header_safe_grammar() {
++        let valid = AgentSessionId::try_from("ac.session_001:leg-2".to_string()).unwrap();
++        assert_eq!(valid.as_str(), "ac.session_001:leg-2");
++        assert_eq!(format!("{valid:?}"), "AgentSessionId([REDACTED])");
++
++        assert!(AgentSessionId::try_from(String::new()).is_err());
++        assert!(AgentSessionId::try_from("-bad-prefix".to_string()).is_err());
++        assert!(AgentSessionId::try_from("session\r\nX-Injected: yes".to_string()).is_err());
++        assert!(AgentSessionId::try_from("a".repeat(256)).is_err());
++    }
++
+     #[test]
+     fn call_command_requires_media() {
+         let play = CallCommand::Play {
+diff --git a/src/proxy/agent_session.rs b/src/proxy/agent_session.rs
+new file mode 100644
+index 00000000..95b38ee9
+--- /dev/null
++++ b/src/proxy/agent_session.rs
+@@ -0,0 +1,33 @@
++use crate::call::domain::AgentSessionId;
++
++const CONVERACT_AGENT_SESSION_HEADER: &str = "X-Converact-Agent-Session";
++
++/// Builds the private header for an internal Channel Agent leg only.
++pub(crate) fn invite_headers(
++    session_id: Option<&AgentSessionId>,
++) -> Option<Vec<rsipstack::sip::Header>> {
++    session_id.map(|session_id| {
++        vec![rsipstack::sip::Header::Other(
++            CONVERACT_AGENT_SESSION_HEADER.to_string(),
++            session_id.as_str().to_string(),
++        )]
++    })
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn invite_header_is_exact_and_absent_without_an_agent_binding() {
++        let session_id = AgentSessionId::try_from("ac.session-001".to_string()).unwrap();
++        let headers = invite_headers(Some(&session_id)).unwrap();
++
++        assert!(matches!(
++            headers.as_slice(),
++            [rsipstack::sip::Header::Other(name, value)]
++                if name == "X-Converact-Agent-Session" && value == "ac.session-001"
++        ));
++        assert!(invite_headers(None).is_none());
++    }
++}
+diff --git a/src/proxy/mod.rs b/src/proxy/mod.rs
+index 8cfc2257..895defe6 100644
+--- a/src/proxy/mod.rs
++++ b/src/proxy/mod.rs
+@@ -9,6 +9,7 @@ use tokio_util::sync::CancellationToken;
+ 
+ pub mod acl;
+ pub mod active_call_registry;
++pub(crate) mod agent_session;
+ pub mod auth;
+ pub mod call;
+ pub mod capability_headers;
+diff --git a/src/proxy/proxy_call/sip_session.rs b/src/proxy/proxy_call/sip_session.rs
+index be99cfd6..92db8f33 100644
+--- a/src/proxy/proxy_call/sip_session.rs
++++ b/src/proxy/proxy_call/sip_session.rs
+@@ -1,8 +1,8 @@
+ use crate::call::app::PendingQueuePlan;
+ use crate::call::app::{ApplicationContext, CallInfo};
+ use crate::call::domain::{
+-    CallCommand, HangupCascade, HangupCommand, LegId, LegState, MediaPathMode, MediaRuntimeProfile,
+-    MediaSource, RingbackPolicy,
++    AgentSessionId, CallCommand, HangupCascade, HangupCommand, LegId, LegState, MediaPathMode,
++    MediaRuntimeProfile, MediaSource, RingbackPolicy,
+ };
+ use crate::call::domain::{Leg, SessionState};
+ use crate::call::runtime::BridgeConfig;
+@@ -10118,12 +10118,14 @@ impl SipSession {
+ 
+             CallCommand::LeaveMixer => Self::ok_or_failure(self.handle_leave_mixer().await),
+ 
+-            CallCommand::LegAdd { target, leg_id } => {
+-                match self.handle_add_leg(target, leg_id).await {
+-                    Ok(new_leg_id) => CommandResult::success_with_leg(new_leg_id),
+-                    Err(e) => CommandResult::failure(e.to_string()),
+-                }
+-            }
++            CallCommand::LegAdd {
++                target,
++                leg_id,
++                agent_session_id,
++            } => match self.handle_add_leg(target, leg_id, agent_session_id).await {
++                Ok(new_leg_id) => CommandResult::success_with_leg(new_leg_id),
++                Err(e) => CommandResult::failure(e.to_string()),
++            },
+ 
+             CallCommand::LegRemove { leg_id } => {
+                 Self::ok_or_failure(self.handle_remove_leg(leg_id).await)
+@@ -10253,7 +10255,12 @@ impl SipSession {
+     }
+ 
+     /// Add a new leg to the session dynamically.
+-    async fn handle_add_leg(&mut self, target: String, leg_id: Option<LegId>) -> Result<LegId> {
++    async fn handle_add_leg(
++        &mut self,
++        target: String,
++        leg_id: Option<LegId>,
++        agent_session_id: Option<AgentSessionId>,
++    ) -> Result<LegId> {
+         let new_leg_id =
+             leg_id.unwrap_or_else(|| LegId::new(format!("leg-{}", uuid::Uuid::new_v4())));
+ 
+@@ -10274,7 +10281,10 @@ impl SipSession {
+         self.update_leg_state(&new_leg_id, LegState::Initializing);
+ 
+         // Create peer and initiate INVITE in background
+-        if let Err(e) = self.initiate_sip_leg(&new_leg_id, uri).await {
++        if let Err(e) = self
++            .initiate_sip_leg(&new_leg_id, uri, agent_session_id.as_ref())
++            .await
++        {
+             warn!(
+                 session_id = %self.id,
+                 error = %e,
+@@ -10374,6 +10384,7 @@ impl SipSession {
+         &mut self,
+         leg_id: &LegId,
+         callee_uri: rsipstack::sip::Uri,
++        agent_session_id: Option<&AgentSessionId>,
+     ) -> Result<()> {
+         // Create peer for this leg
+         let (peer, _track, sdp_offer) = self.create_leg_peer(leg_id).await?;
+@@ -10408,7 +10419,7 @@ impl SipSession {
+             offer: Some(sdp_offer.into_bytes()),
+             destination: None,
+             credential: None,
+-            headers: None,
++            headers: crate::proxy::agent_session::invite_headers(agent_session_id),
+             call_id: Some(format!("{}-{}", self.id.0, leg_id)),
+             ..Default::default()
+         };
+diff --git a/src/rwi/processor.rs b/src/rwi/processor.rs
+index 509fd239..b2baf975 100644
+--- a/src/rwi/processor.rs
++++ b/src/rwi/processor.rs
+@@ -1,4 +1,4 @@
+-use crate::call::domain::{CallCommand, LegId};
++use crate::call::domain::{AgentSessionId, CallCommand, LegId};
+ 
+ use crate::call::runtime::ConferenceId;
+ use crate::call::runtime::ConferenceManager;
+@@ -1102,8 +1102,16 @@ impl RwiCommandProcessor {
+                 call_id,
+                 target,
+                 leg_id,
++                agent_session_id,
+             } => {
+-                return self.leg_add(call_id, target, leg_id.as_deref()).await;
++                return self
++                    .leg_add(
++                        call_id,
++                        target,
++                        leg_id.as_deref(),
++                        agent_session_id.as_deref(),
++                    )
++                    .await;
+             }
+             RwiCommandPayload::LegRemove { call_id, leg_id } => {
+                 return self.leg_remove(call_id, leg_id).await;
+@@ -1893,7 +1901,11 @@ impl RwiCommandProcessor {
+                                         tracing::info!(%cmd_call_id, %mixer_id, "Successfully joined conference from originate");
+                                     }
+                                 }
+-                                CallCommand::LegAdd { target, leg_id } => {
++                                CallCommand::LegAdd {
++                                    target,
++                                    leg_id,
++                                    agent_session_id,
++                                } => {
+                                     let leg_id = leg_id.unwrap_or_else(|| LegId::new(format!("leg-{}", uuid::Uuid::new_v4())));
+                                     let callee_uri = match rsipstack::sip::Uri::try_from(target.as_str()) {
+                                                 Ok(uri) => uri,
+@@ -1940,7 +1952,9 @@ impl RwiCommandProcessor {
+                                                 offer: Some(sdp_offer.into_bytes()),
+                                                 destination: None,
+                                                 credential: None,
+-                                                headers: None,
++                                                headers: crate::proxy::agent_session::invite_headers(
++                                                    agent_session_id.as_ref(),
++                                                ),
+                                                 call_id: Some(format!("{}-{}", cmd_call_id, leg_id)),
+                                                 ..Default::default()
+                                             };
+@@ -3138,15 +3152,21 @@ impl RwiCommandProcessor {
+         call_id: &str,
+         target: &str,
+         leg_id: Option<&str>,
++        agent_session_id: Option<&str>,
+     ) -> Result<CommandResult, CommandError> {
++        let agent_session_id = agent_session_id
++            .map(str::to_string)
++            .map(AgentSessionId::try_from)
++            .transpose()
++            .map_err(|code| CommandError::CommandFailed(code.to_string()))?;
+         let handle = self.get_handle(call_id).await?;
+-
+         let leg_id_opt = leg_id.map(|id| crate::call::domain::LegId::new(id));
+ 
+         handle
+             .send_command(CallCommand::LegAdd {
+                 target: target.to_string(),
+                 leg_id: leg_id_opt,
++                agent_session_id,
+             })
+             .map_err(|e| CommandError::CommandFailed(e.to_string()))?;
+ 
+diff --git a/src/rwi/session.rs b/src/rwi/session.rs
+index 0b970a30..fad919a5 100644
+--- a/src/rwi/session.rs
++++ b/src/rwi/session.rs
+@@ -226,6 +226,7 @@ pub enum RwiCommandPayload {
+         call_id: String,
+         target: String,
+         leg_id: Option<String>,
++        agent_session_id: Option<String>,
+     },
+     LegRemove {
+         call_id: String,
+@@ -788,6 +789,7 @@ pub enum RwiRequestPayload {
+         call_id: Option<String>,
+         target: Option<String>,
+         leg_id: Option<String>,
++        agent_session_id: Option<String>,
+     },
+     #[serde(rename = "call.leg_remove")]
+     LegRemove {
+@@ -1115,10 +1117,12 @@ impl From<RwiRequest> for RwiCommandPayload {
+                 call_id,
+                 target,
+                 leg_id,
++                agent_session_id,
+             } => RwiCommandPayload::LegAdd {
+                 call_id: call_id.unwrap_or_default(),
+                 target: target.unwrap_or_default(),
+                 leg_id,
++                agent_session_id,
+             },
+             RwiRequestPayload::LegRemove { call_id, leg_id } => RwiCommandPayload::LegRemove {
+                 call_id: call_id.unwrap_or_default(),
+@@ -1432,4 +1436,33 @@ mod tests {
+ 
+         assert!(!session.can_listen_to_call("nonexistent"));
+     }
++
++    #[test]
++    fn agent_leg_request_preserves_the_platform_session_binding() {
++        let request: RwiRequest = serde_json::from_value(serde_json::json!({
++            "action": "call.leg_add",
++            "action_id": "attempt-001:agent-leg",
++            "params": {
++                "call_id": "call-001",
++                "target": "sip:agent@active-call.internal:5060",
++                "leg_id": "leg-agent-001",
++                "agent_session_id": "ac.session-001"
++            }
++        }))
++        .unwrap();
++
++        let command: RwiCommandPayload = request.into();
++        assert!(matches!(
++            command,
++            RwiCommandPayload::LegAdd {
++                call_id,
++                target,
++                leg_id: Some(leg_id),
++                agent_session_id: Some(agent_session_id),
++            } if call_id == "call-001"
++                && target == "sip:agent@active-call.internal:5060"
++                && leg_id == "leg-agent-001"
++                && agent_session_id == "ac.session-001"
++        ));
++    }
+ }
+diff --git a/tests/dynamic_leg_e2e_test.rs b/tests/dynamic_leg_e2e_test.rs
+index 0c25fde5..86fa6ec9 100644
+--- a/tests/dynamic_leg_e2e_test.rs
++++ b/tests/dynamic_leg_e2e_test.rs
+@@ -282,6 +282,7 @@ async fn test_dynamic_sip_leg_add() {
+         .send_command(rustpbx::call::domain::CallCommand::LegAdd {
+             target: format!("sip:charlie@127.0.0.1:{}", charlie_port),
+             leg_id: Some(rustpbx::call::domain::LegId::new("charlie-1")),
++            agent_session_id: None,
+         })
+         .expect("Should be able to send LegAdd command");
+ 
