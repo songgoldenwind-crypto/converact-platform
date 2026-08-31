@@ -465,6 +465,8 @@ version = "0.1.0"
 name = "converact-postgres-store"
 version = "0.1.0"
 dependencies = [
+ "converact-agent-handoff-core",
+ "converact-agent-handoff-store",
  "converact-audit",
  "converact-contracts",
  "converact-event-log",
@@ -577,6 +579,7 @@ dependencies = [
  "converact-agent-handoff-store",
  "converact-ai-outbound-core",
  "converact-contracts",
+ "converact-postgres-store",
  "converact-runtime-health",
  "converact-tenant-auth",
  "converact-tool-broker-core",

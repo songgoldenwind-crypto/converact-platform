@@ -10,6 +10,6 @@ pub use model::{
     canonical_request_payload_hash, canonical_transition_payload_hash,
 };
 pub use postgres::{
-    HandoffCommandResolution, HandoffPrepareDecision, HandoffSqlStore, HandoffStoreReceipt,
-    ReceiptStage,
+    HandoffCommandResolution, HandoffCreateDecision, HandoffPrepareDecision, HandoffSqlStore,
+    HandoffStoreReceipt, ReceiptStage,
 };

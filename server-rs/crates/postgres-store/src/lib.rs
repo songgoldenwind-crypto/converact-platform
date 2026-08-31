@@ -9,8 +9,13 @@ use deadpool_postgres::{
     tokio_postgres::{Config as PgConfig, Socket, tls::MakeTlsConnect},
 };
 
+mod handoff;
 mod tool_action;
 
+pub use handoff::{
+    PostgresHandoffCreateDecision, PostgresHandoffPrepareDecision, PostgresHandoffStore,
+    PostgresHandoffStoreError,
+};
 pub use tool_action::PostgresToolActionStore;
 
 const MAX_CONNECTIONS: usize = 256;

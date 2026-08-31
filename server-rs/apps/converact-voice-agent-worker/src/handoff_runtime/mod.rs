@@ -1,5 +1,6 @@
 mod model;
 mod ports;
+mod postgres;
 mod runtime;
 
 pub use model::{

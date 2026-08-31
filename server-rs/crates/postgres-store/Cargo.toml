@@ -8,6 +8,8 @@ publish.workspace = true
 
 [dependencies]
 converact-audit = { path = "../audit" }
+converact-agent-handoff-core = { path = "../agent-handoff-core" }
+converact-agent-handoff-store = { path = "../agent-handoff-store" }
 converact-contracts = { path = "../contracts" }
 converact-event-log = { path = "../event-log" }
 converact-idempotency = { path = "../idempotency" }

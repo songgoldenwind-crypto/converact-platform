@@ -137,6 +137,13 @@ pub enum HandoffPrepareDecision {
     StaleFence,
 }
 
+/// Result of atomically creating or replaying the initial requested aggregate.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum HandoffCreateDecision {
+    Created(HandoffStoreReceipt),
+    Replay(HandoffStoreReceipt),
+}
+
 /// Stateless SQL coordinator; its caller owns a tenant-scoped transaction and deadline.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct HandoffSqlStore;
@@ -154,7 +161,7 @@ impl HandoffSqlStore {
         transaction: &Transaction<'_>,
         requested: &HandoffSession,
         command: &HandoffStoreCommand,
-    ) -> Result<HandoffStoreReceipt, HandoffStoreError> {
+    ) -> Result<HandoffCreateDecision, HandoffStoreError> {
         validate_requested(requested, command)?;
         let tenant_id = requested.context().tenant_id();
         let context_payload = context_packet_payload(requested);
@@ -224,7 +231,9 @@ impl HandoffSqlStore {
             .await
             .map_err(|_| HandoffStoreError::DatabaseUnavailable)?;
         if inserted.is_none() {
-            return replay_created(transaction, requested, command).await;
+            return replay_created(transaction, requested, command)
+                .await
+                .map(HandoffCreateDecision::Replay);
         }
 
         let observed_at_ms = transaction
@@ -266,7 +275,7 @@ impl HandoffSqlStore {
             observed_at_ms,
         )?;
         insert_receipt(transaction, tenant_id, &receipt).await?;
-        Ok(receipt)
+        Ok(HandoffCreateDecision::Created(receipt))
     }
 
     /// Atomically reserves exactly one transition effect or classifies replay/reconciliation.
