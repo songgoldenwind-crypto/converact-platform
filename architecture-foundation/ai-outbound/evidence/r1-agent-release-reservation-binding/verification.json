@@ -1,0 +1,79 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-08-31",
+  "evidence_class": [
+    "local_contract",
+    "controlled_test_double"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "commit": "fc0e3fcc426f567000d939f754e62a315124d810",
+    "tree": "7804bc172d7ddda87f5625887ea9f143bcc9da76"
+  },
+  "environment": {
+    "os": "Darwin 25.2.0 arm64",
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)"
+  },
+  "commands": [
+    {
+      "id": "agent_release_core_binding",
+      "working_directory": "server-rs",
+      "command": "PATH=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin:$PATH RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc cargo test -p converact-ai-outbound-core --test orchestrator",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 6,
+      "failed": 0
+    },
+    {
+      "id": "agent_release_worker_binding",
+      "working_directory": "server-rs",
+      "command": "PATH=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin:$PATH RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc cargo test -p converact-voice-agent-worker --test tracer_bullet",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 5,
+      "failed": 0
+    },
+    {
+      "id": "agent_release_scoped_format",
+      "working_directory": "server-rs",
+      "command": "PATH=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin:$PATH rustfmt --edition 2024 --check crates/ai-outbound-core/src/agent_release.rs crates/ai-outbound-core/src/ports.rs crates/ai-outbound-core/src/lib.rs crates/ai-outbound-core/src/orchestrator.rs crates/ai-outbound-core/tests/orchestrator.rs crates/ai-outbound-core/tests/support/mod.rs apps/converact-voice-agent-worker/src/model.rs apps/converact-voice-agent-worker/src/worker.rs apps/converact-voice-agent-worker/tests/tracer_bullet.rs apps/converact-voice-agent-worker/tests/support/mod.rs",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "agent_release_core_clippy",
+      "working_directory": "server-rs",
+      "command": "PATH=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin:$PATH RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc cargo clippy -p converact-ai-outbound-core --lib --test orchestrator -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "agent_release_worker_clippy",
+      "working_directory": "server-rs",
+      "command": "PATH=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin:$PATH RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc cargo clippy -p converact-voice-agent-worker --lib --test tracer_bullet -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "not_run": [
+    "real_active_call_process_playbook_and_artifact_resolution",
+    "real_rustpbx_originate_bridge_sip_pstn_rtp_srtp_media",
+    "physical_postgresql_repository_composition",
+    "provider_model_audio_intent_quality_and_customer_outcome",
+    "deployed_runtime",
+    "performance",
+    "capacity",
+    "long_run",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_read": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}

@@ -26,7 +26,7 @@
     },
     {
       "path": "docs/design/2026-08-31-ai-outbound-active-call-platform-r1.md",
-      "sha256": "7ba3e1d2620d242a3fd75d4cd058f17526cae075c30b8ded0332dc8c7df0f2c9",
+      "sha256": "2e46c3f306d25244e18035cec66538e05faad5f6438bd3592f66c5adeab241e4",
       "kind": "design"
     },
     {
@@ -142,6 +142,16 @@
     {
       "path": "architecture-foundation/ai-outbound/evidence/r1-active-call-intent-outcome/verification.json",
       "sha256": "1274eda2605247843b545e68aa11f1143e04008ceec5dda20e2cb1be3756f8c0",
+      "kind": "evidence"
+    },
+    {
+      "path": "architecture-foundation/ai-outbound/evidence/r1-agent-release-reservation-binding/README.md",
+      "sha256": "4639bf44c3c604dbc45f927eeb19143b7743af0e1888289474cc2c8642f57309",
+      "kind": "evidence"
+    },
+    {
+      "path": "architecture-foundation/ai-outbound/evidence/r1-agent-release-reservation-binding/verification.json",
+      "sha256": "ccaaa4a5239be105858189b11d0887ad12a044e25d616bcb25e6836eb2fc00b9",
       "kind": "evidence"
     },
     {
