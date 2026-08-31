@@ -117,7 +117,9 @@ impl TestWorker {
     pub async fn run_one_contact(&self, campaign_id: &str) -> Result<AttemptResource, WorkerError> {
         let tenant = AuthenticatedTenant::try_from_verified_tenant_id("tenant-a").unwrap();
         let attempt_id = CallAttemptId::parse("attempt-001").unwrap();
-        self.state.lock().unwrap().attempt = CallAttempt::new(attempt_id.clone());
+        self.state.lock().unwrap().attempt = CallAttempt::new(attempt_id.clone())
+            .apply(converact_ai_outbound_core::AttemptCommand::Claim)
+            .unwrap();
         self.worker
             .run_attempt(&tenant, campaign_id, &attempt_id)
             .await
@@ -225,7 +227,9 @@ struct ControlledState {
 impl ControlledState {
     fn new() -> Self {
         Self {
-            attempt: CallAttempt::new(CallAttemptId::parse("attempt-001").unwrap()),
+            attempt: CallAttempt::new(CallAttemptId::parse("attempt-001").unwrap())
+                .apply(converact_ai_outbound_core::AttemptCommand::Claim)
+                .unwrap(),
             originate_count: 0,
             agent_query_count: 0,
             reserved_agent_release: None,

@@ -117,3 +117,35 @@ fn development_schema_has_dial_policy_authority_and_attempt_snapshot() {
         .0;
     assert!(!contacts.contains("dial_destination"));
 }
+
+#[test]
+fn recovery_migration_persists_disclosure_without_rewriting_existing_attempts() {
+    let sql =
+        include_str!("../../../../src/migrations/132_converact_outbound_attempt_recovery.sql");
+    for required in [
+        "ADD COLUMN IF NOT EXISTS disclosure_completed BOOLEAN NOT NULL DEFAULT FALSE",
+        "converact_outbound_attempt_disclosure_state_check",
+        "NOT VALID",
+        "state IN ('conversing', 'handoff_pending', 'human_active', 'ai_resuming', 'finalizing', 'completed')",
+        "disclosure_completed",
+    ] {
+        assert!(
+            sql.contains(required),
+            "missing recovery invariant {required}"
+        );
+    }
+}
+
+#[test]
+fn development_schema_persists_attempt_disclosure_fact() {
+    let sql = include_str!("../../../../src/schema.sql");
+    let attempts = sql
+        .split_once("CREATE TABLE IF NOT EXISTS converact_outbound_call_attempts")
+        .unwrap()
+        .1
+        .split_once("CREATE TABLE IF NOT EXISTS converact_outbound_attempt_events")
+        .unwrap()
+        .0;
+
+    assert!(attempts.contains("disclosure_completed INTEGER NOT NULL DEFAULT 0"));
+}

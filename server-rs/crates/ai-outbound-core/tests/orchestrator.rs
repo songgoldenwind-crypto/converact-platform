@@ -52,6 +52,16 @@ async fn reserve_precedes_dial_and_disclosure_precedes_conversation() {
 }
 
 #[tokio::test]
+async fn orchestrator_accepts_only_an_atomically_preclaimed_attempt() {
+    let harness = Harness::with_unclaimed_attempt();
+
+    let error = harness.run_one_attempt().await.unwrap_err();
+
+    assert_eq!(error.code(), "orchestration_attempt_not_claimed");
+    assert_eq!(harness.rustpbx_originate_count(), 0);
+}
+
+#[tokio::test]
 async fn reservation_is_bound_to_the_exact_agent_release() {
     let harness = Harness::new();
 

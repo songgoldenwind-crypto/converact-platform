@@ -4,7 +4,7 @@ use converact_ai_outbound_store::{AdvanceAttempt, AiOutboundStore, StoreConfig, 
 use converact_voice_agent_contracts::{CallAttemptId, CallAttemptState, ExecutionGeneration};
 use support::{connect, seed_attempts, tenant, tenant_transaction};
 
-#[ignore = "requires an isolated PostgreSQL database migrated through 131"]
+#[ignore = "requires an isolated PostgreSQL database migrated through 132"]
 #[tokio::test]
 async fn claim_uses_database_clock_and_skip_locked() {
     let tenant = tenant("voice-store-claim");
@@ -37,7 +37,7 @@ async fn claim_uses_database_clock_and_skip_locked() {
     connection_b.await.unwrap().unwrap();
 }
 
-#[ignore = "requires an isolated PostgreSQL database migrated through 131"]
+#[ignore = "requires an isolated PostgreSQL database migrated through 132"]
 #[tokio::test]
 async fn stale_fence_cannot_advance_attempt() {
     let tenant = tenant("voice-store-stale");
@@ -92,6 +92,7 @@ async fn stale_fence_cannot_advance_attempt() {
                 lease_owner: "worker-a".to_owned(),
                 lease_token_hash: "a".repeat(64),
                 next_state: CallAttemptState::Dialing,
+                disclosure_completed: false,
             },
         )
         .await;
@@ -101,7 +102,7 @@ async fn stale_fence_cannot_advance_attempt() {
     connection.await.unwrap().unwrap();
 }
 
-#[ignore = "requires an isolated PostgreSQL database migrated through 131"]
+#[ignore = "requires an isolated PostgreSQL database migrated through 132"]
 #[tokio::test]
 async fn dial_binding_is_loaded_from_one_attempt_and_legacy_rows_fail_closed() {
     let tenant = tenant("voice-store-dial-binding");

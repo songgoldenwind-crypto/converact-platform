@@ -103,8 +103,9 @@ where
         session_id: &ChannelAgentSessionId,
     ) -> Result<(CallAttempt, OutboundDialBinding), OrchestrationError> {
         let mut attempt = self.store.load(attempt_id).await?;
-        attempt = transition(&attempt, AttemptCommand::Claim)?;
-        self.store.persist_observation(&attempt).await?;
+        if attempt.state() != converact_voice_agent_contracts::CallAttemptState::Claimed {
+            return Err(OrchestrationError::new("orchestration_attempt_not_claimed"));
+        }
 
         attempt = match self.compliance.evaluate(&attempt)? {
             ComplianceDecision::Approved => {
@@ -159,10 +160,10 @@ where
     ) -> Result<(CallAttempt, CallId), OrchestrationError> {
         let call_id = CallId::parse(attempt.id().as_str())
             .map_err(|_| OrchestrationError::new("call_identity_invalid"))?;
-        attempt = transition(&attempt, AttemptCommand::Dial)?;
         self.store
             .persist_intent(&attempt, EffectIntent::OriginateCall)
             .await?;
+        attempt = transition(&attempt, AttemptCommand::Dial)?;
         let observed_call_id = match self
             .telephony
             .originate(OriginateCall {
@@ -242,10 +243,10 @@ where
         attempt = transition(&attempt, AttemptCommand::CompleteDisclosure)?;
         self.store.persist_observation(&attempt).await?;
 
-        attempt = transition(&attempt, AttemptCommand::StartConversation)?;
         self.store
             .persist_intent(&attempt, EffectIntent::StartConversation)
             .await?;
+        attempt = transition(&attempt, AttemptCommand::StartConversation)?;
         let conversation_result = self
             .agent
             .start_conversation(StartConversation {
@@ -298,7 +299,6 @@ where
         let call_id = CallId::parse(attempt.id().as_str())
             .map_err(|_| OrchestrationError::new("call_identity_invalid"))?;
         let observation = self.telephony.query(&call_id).await?;
-        self.store.persist_observation(&attempt).await?;
         Ok(observation)
     }
 

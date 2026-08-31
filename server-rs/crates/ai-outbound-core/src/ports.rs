@@ -143,6 +143,20 @@ pub enum EffectIntent {
     StartConversation,
 }
 
+impl EffectIntent {
+    /// Returns the frozen content-free wire value used by the durable effect oracle.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ReserveAgent => "reserve_agent",
+            Self::OriginateCall => "originate_call",
+            Self::AttachAgent => "attach_agent",
+            Self::PlayDisclosure => "play_disclosure",
+            Self::StartConversation => "start_conversation",
+        }
+    }
+}
+
 /// Request to reserve one bounded channel-agent slot.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReserveAgent {

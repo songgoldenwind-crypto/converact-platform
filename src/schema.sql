@@ -3010,6 +3010,9 @@ CREATE TABLE IF NOT EXISTS converact_outbound_call_attempts (
   dial_caller_id TEXT,
   dial_timeout_secs INTEGER CHECK (dial_timeout_secs BETWEEN 1 AND 120),
   dial_trunk TEXT,
+  disclosure_completed INTEGER NOT NULL DEFAULT 0 CHECK (
+    disclosure_completed IN (0, 1)
+  ),
   lease_owner TEXT NOT NULL DEFAULT '',
   lease_token_hash TEXT NOT NULL DEFAULT '' CHECK (
     lease_token_hash = '' OR length(lease_token_hash) = 64
@@ -3040,6 +3043,15 @@ CREATE TABLE IF NOT EXISTS converact_outbound_call_attempts (
     (dial_policy_revision IS NOT NULL AND dial_policy_content_hash IS NOT NULL AND
       dial_destination IS NOT NULL AND
       dial_timeout_secs BETWEEN 1 AND 120)
+  ),
+  CHECK (
+    (state IN ('conversing', 'handoff_pending', 'human_active', 'ai_resuming', 'finalizing', 'completed') AND disclosure_completed = 1) OR
+    (state IN (
+      'planned', 'claimed', 'compliance_approved', 'compliance_blocked',
+      'agent_capacity_reserved', 'dialing', 'ringing', 'answered', 'agent_connecting',
+      'busy', 'no_answer', 'rejected', 'failed_before_answer'
+    ) AND disclosure_completed = 0) OR
+    state IN ('disclosure_pending', 'failed_after_answer', 'cancelled', 'outcome_unknown', 'reconcile_required')
   )
 );
 

@@ -12,6 +12,15 @@ pub struct CallAttempt {
     disclosure_completed: bool,
 }
 
+/// Untrusted durable fields used to restore one physical Attempt aggregate.
+pub struct CallAttemptRestoreInput {
+    pub id: CallAttemptId,
+    pub previous_attempt_id: Option<CallAttemptId>,
+    pub state: CallAttemptState,
+    pub revision: u64,
+    pub disclosure_completed: bool,
+}
+
 impl CallAttempt {
     /// Creates a planned physical dial.
     #[must_use]
@@ -23,6 +32,28 @@ impl CallAttempt {
             revision: 1,
             disclosure_completed: false,
         }
+    }
+
+    /// Restores an aggregate from one complete durable snapshot without replaying commands.
+    ///
+    /// # Errors
+    ///
+    /// Rejects zero/impossible revisions, reused lineage identities and disclosure facts that
+    /// contradict the frozen state graph.
+    pub fn restore(input: CallAttemptRestoreInput) -> Result<Self, DomainError> {
+        if input.revision < minimum_revision(input.state, input.disclosure_completed)
+            || input.previous_attempt_id.as_ref() == Some(&input.id)
+            || disclosure_snapshot_invalid(input.state, input.disclosure_completed)
+        {
+            return Err(DomainError::InvalidAttemptSnapshot);
+        }
+        Ok(Self {
+            id: input.id,
+            previous_attempt_id: input.previous_attempt_id,
+            state: input.state,
+            revision: input.revision,
+            disclosure_completed: input.disclosure_completed,
+        })
     }
 
     /// Applies one exhaustive physical-Attempt transition.
@@ -135,6 +166,61 @@ impl CallAttempt {
     #[must_use]
     pub const fn disclosure_completed(&self) -> bool {
         self.disclosure_completed
+    }
+}
+
+const fn minimum_revision(state: CallAttemptState, disclosure_completed: bool) -> u64 {
+    match state {
+        CallAttemptState::Planned => 1,
+        CallAttemptState::Claimed
+        | CallAttemptState::Cancelled
+        | CallAttemptState::FailedBeforeAnswer => 2,
+        CallAttemptState::ComplianceApproved | CallAttemptState::ComplianceBlocked => 3,
+        CallAttemptState::AgentCapacityReserved | CallAttemptState::OutcomeUnknown => 4,
+        CallAttemptState::Dialing | CallAttemptState::ReconcileRequired => 5,
+        CallAttemptState::Ringing
+        | CallAttemptState::Answered
+        | CallAttemptState::Busy
+        | CallAttemptState::NoAnswer
+        | CallAttemptState::Rejected => 6,
+        CallAttemptState::AgentConnecting | CallAttemptState::FailedAfterAnswer => 7,
+        CallAttemptState::DisclosurePending if disclosure_completed => 9,
+        CallAttemptState::DisclosurePending => 8,
+        CallAttemptState::Conversing => 10,
+        CallAttemptState::HandoffPending | CallAttemptState::Finalizing => 11,
+        CallAttemptState::HumanActive | CallAttemptState::Completed => 12,
+        CallAttemptState::AiResuming => 13,
+    }
+}
+
+const fn disclosure_snapshot_invalid(state: CallAttemptState, disclosure_completed: bool) -> bool {
+    if disclosure_completed {
+        matches!(
+            state,
+            CallAttemptState::Planned
+                | CallAttemptState::Claimed
+                | CallAttemptState::ComplianceApproved
+                | CallAttemptState::ComplianceBlocked
+                | CallAttemptState::AgentCapacityReserved
+                | CallAttemptState::Dialing
+                | CallAttemptState::Ringing
+                | CallAttemptState::Answered
+                | CallAttemptState::AgentConnecting
+                | CallAttemptState::Busy
+                | CallAttemptState::NoAnswer
+                | CallAttemptState::Rejected
+                | CallAttemptState::FailedBeforeAnswer
+        )
+    } else {
+        matches!(
+            state,
+            CallAttemptState::Conversing
+                | CallAttemptState::HandoffPending
+                | CallAttemptState::HumanActive
+                | CallAttemptState::AiResuming
+                | CallAttemptState::Finalizing
+                | CallAttemptState::Completed
+        )
     }
 }
 

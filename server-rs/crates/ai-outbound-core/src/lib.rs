@@ -19,7 +19,7 @@ pub use authoring::{
     AuthoringError, CampaignSchedule, CampaignTransition, CreateCampaign, DialPolicyRevision,
     DialPolicyRevisionInput, ImportContact, ImportContactInput, ImportContacts, RecordingMode,
 };
-pub use call_attempt::CallAttempt;
+pub use call_attempt::{CallAttempt, CallAttemptRestoreInput};
 pub use campaign::{Campaign, CampaignCommand};
 pub use compliance::{
     ComplianceDecision, ComplianceInput, ComplianceReason, ConsentBasis, EvidenceStatus,
@@ -45,6 +45,7 @@ pub enum DomainError {
     ActiveAttemptsRemain,
     CounterOverflow,
     InvalidRevision,
+    InvalidAttemptSnapshot,
     RevisionExhausted,
     InvalidAttemptIdentifier,
     SameAttemptIdentity,
@@ -62,6 +63,7 @@ impl fmt::Display for DomainError {
             Self::ActiveAttemptsRemain => "ai_outbound_active_attempts_remain",
             Self::CounterOverflow => "ai_outbound_counter_overflow",
             Self::InvalidRevision => "ai_outbound_revision_invalid",
+            Self::InvalidAttemptSnapshot => "ai_outbound_attempt_snapshot_invalid",
             Self::RevisionExhausted => "ai_outbound_revision_exhausted",
             Self::InvalidAttemptIdentifier => "ai_outbound_attempt_identifier_invalid",
             Self::SameAttemptIdentity => "ai_outbound_attempt_identity_reused",

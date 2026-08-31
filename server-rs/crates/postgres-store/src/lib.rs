@@ -9,11 +9,13 @@ use deadpool_postgres::{
     tokio_postgres::{Config as PgConfig, Socket, tls::MakeTlsConnect},
 };
 
+mod ai_outbound;
 mod conversation_result;
 mod handoff;
 mod post_call_finalization;
 mod tool_action;
 
+pub use ai_outbound::{PostgresAiOutboundAttemptStore, PostgresLeasedAttemptStore};
 pub use conversation_result::{
     PostgresConversationResultStore, PostgresConversationResultStoreError,
     PostgresProjectionFinalizeDecision, PostgresProjectionPrepareDecision,

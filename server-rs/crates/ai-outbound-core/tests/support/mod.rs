@@ -147,12 +147,18 @@ impl Harness {
         Self::configured(AgentReservationOutcome::Reserved, false, true)
     }
 
+    pub fn with_unclaimed_attempt() -> Self {
+        let harness = Self::new();
+        harness.state.lock().unwrap().attempt = planned_attempt();
+        harness
+    }
+
     fn configured(
         agent_reservation_outcome: AgentReservationOutcome,
         crash_after_originate: bool,
         disclosure_times_out: bool,
     ) -> Self {
-        let attempt = planned_attempt();
+        let attempt = planned_attempt().apply(AttemptCommand::Claim).unwrap();
         let attempt_id = attempt.id().clone();
         let state = Arc::new(Mutex::new(HarnessState {
             operations: Vec::with_capacity(MAX_OPERATIONS),

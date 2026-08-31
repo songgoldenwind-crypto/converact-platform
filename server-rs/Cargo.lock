@@ -290,6 +290,7 @@ name = "converact-ai-outbound-store"
 version = "0.1.0"
 dependencies = [
  "converact-ai-outbound-core",
+ "converact-contracts",
  "converact-kernel-ids",
  "converact-voice-agent-contracts",
  "serde_json",
@@ -512,6 +513,8 @@ version = "0.1.0"
 dependencies = [
  "converact-agent-handoff-core",
  "converact-agent-handoff-store",
+ "converact-ai-outbound-core",
+ "converact-ai-outbound-store",
  "converact-audit",
  "converact-contracts",
  "converact-conversation-result-core",

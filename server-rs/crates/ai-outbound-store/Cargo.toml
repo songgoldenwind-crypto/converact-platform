@@ -8,6 +8,7 @@ publish.workspace = true
 
 [dependencies]
 converact-ai-outbound-core = { path = "../ai-outbound-core" }
+converact-contracts = { path = "../contracts" }
 converact-kernel-ids = { path = "../kernel-ids" }
 converact-voice-agent-contracts = { path = "../voice-agent-contracts" }
 serde_json.workspace = true

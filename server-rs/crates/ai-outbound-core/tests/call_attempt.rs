@@ -1,6 +1,9 @@
 mod support;
 
-use converact_ai_outbound_core::{AttemptCommand, DomainError};
+use converact_ai_outbound_core::{
+    AttemptCommand, CallAttempt, CallAttemptRestoreInput, DomainError,
+};
+use converact_voice_agent_contracts::{CallAttemptId, CallAttemptState};
 use support::{no_answer_attempt, outcome_unknown_attempt, planned_attempt};
 
 #[test]
@@ -43,5 +46,58 @@ fn retry_cannot_reuse_the_physical_attempt_identity() {
     assert_eq!(
         completed.plan_retry(completed.id().as_str()),
         Err(DomainError::SameAttemptIdentity),
+    );
+}
+
+#[test]
+fn durable_claimed_snapshot_restores_without_replaying_claim() {
+    let restored = CallAttempt::restore(CallAttemptRestoreInput {
+        id: CallAttemptId::parse("attempt-001").unwrap(),
+        previous_attempt_id: None,
+        state: CallAttemptState::Claimed,
+        revision: 2,
+        disclosure_completed: false,
+    })
+    .unwrap();
+
+    assert_eq!(restored.state(), CallAttemptState::Claimed);
+    assert_eq!(restored.revision(), 2);
+    assert_eq!(
+        restored.apply(AttemptCommand::Claim),
+        Err(DomainError::InvalidTransition)
+    );
+}
+
+#[test]
+fn malformed_or_impossible_durable_snapshots_fail_closed() {
+    let input = |state, revision, disclosure_completed| CallAttemptRestoreInput {
+        id: CallAttemptId::parse("attempt-001").unwrap(),
+        previous_attempt_id: None,
+        state,
+        revision,
+        disclosure_completed,
+    };
+
+    assert_eq!(
+        CallAttempt::restore(input(CallAttemptState::Claimed, 0, false)),
+        Err(DomainError::InvalidAttemptSnapshot)
+    );
+    assert_eq!(
+        CallAttempt::restore(input(CallAttemptState::Dialing, 5, true)),
+        Err(DomainError::InvalidAttemptSnapshot)
+    );
+    assert_eq!(
+        CallAttempt::restore(input(CallAttemptState::Conversing, 10, false)),
+        Err(DomainError::InvalidAttemptSnapshot)
+    );
+    assert_eq!(
+        CallAttempt::restore(CallAttemptRestoreInput {
+            id: CallAttemptId::parse("attempt-001").unwrap(),
+            previous_attempt_id: Some(CallAttemptId::parse("attempt-001").unwrap()),
+            state: CallAttemptState::NoAnswer,
+            revision: 6,
+            disclosure_completed: false,
+        }),
+        Err(DomainError::InvalidAttemptSnapshot)
     );
 }

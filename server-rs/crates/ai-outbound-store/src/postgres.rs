@@ -1,6 +1,10 @@
 use std::{error::Error, fmt};
 
-use converact_ai_outbound_core::{OutboundDialBinding, OutboundDialBindingInput};
+use converact_ai_outbound_core::{
+    CallAttempt, CallAttemptRestoreInput, EffectIntent, OutboundDialBinding,
+    OutboundDialBindingInput,
+};
+use converact_contracts::canonical_sha256;
 use converact_kernel_ids::TenantId;
 use converact_voice_agent_contracts::{
     CallAttemptId, CallAttemptState, EventId, ExecutionGeneration, IdempotencyKey,
@@ -15,6 +19,24 @@ const MAX_EVENT_TYPE_BYTES: usize = 128;
 const SHA256_HEX_BYTES: usize = 64;
 const MAX_EVENT_PAYLOAD_BYTES: usize = 131_072;
 const MAX_ATTEMPTS: u8 = 20;
+
+const APPEND_EFFECT_INTENT_SQL: &str = "
+INSERT INTO converact_outbound_attempt_events (
+  tenant_id, event_id, call_attempt_id, execution_generation,
+  event_type, schema_version, idempotency_key, payload_hash,
+  payload, occurred_at, received_at
+)
+SELECT attempt.tenant_id, $7, attempt.id, attempt.execution_generation,
+       $8, 1, $9, $10, $11,
+       transaction_timestamp(), transaction_timestamp()
+FROM converact_outbound_call_attempts AS attempt
+WHERE attempt.tenant_id = $1 AND attempt.id = $2 AND attempt.revision = $3
+  AND attempt.execution_generation = $4 AND attempt.lease_owner = $5
+  AND attempt.lease_token_hash = $6
+  AND attempt.lease_expires_at > transaction_timestamp()
+ON CONFLICT DO NOTHING
+RETURNING event_id
+";
 
 const CLAIM_SQL: &str = "
 WITH candidates AS (
@@ -291,6 +313,159 @@ pub struct ClaimedAttempt {
     execution_generation: ExecutionGeneration,
 }
 
+/// Untrusted durable lease authority before bounded validation.
+pub struct AttemptLeaseInput {
+    pub tenant_id: TenantId,
+    pub attempt_id: CallAttemptId,
+    pub execution_generation: ExecutionGeneration,
+    pub lease_owner: String,
+    pub lease_token_hash: String,
+}
+
+/// Exact tenant/Attempt/generation/owner/token fence held by one worker execution.
+#[derive(Clone, Eq, PartialEq)]
+pub struct AttemptLease {
+    tenant_id: TenantId,
+    attempt_id: CallAttemptId,
+    execution_generation: ExecutionGeneration,
+    lease_owner: Box<str>,
+    lease_token_hash: Box<str>,
+}
+
+impl AttemptLease {
+    /// Validates one lease fence received from the atomic claim boundary.
+    ///
+    /// # Errors
+    ///
+    /// Rejects malformed owner identifiers and anything other than a lowercase SHA-256 token.
+    pub fn try_new(input: AttemptLeaseInput) -> Result<Self, StoreError> {
+        if !valid_identifier(&input.lease_owner) || !is_lowercase_sha256(&input.lease_token_hash) {
+            return Err(StoreError::InvalidInput);
+        }
+        Ok(Self {
+            tenant_id: input.tenant_id,
+            attempt_id: input.attempt_id,
+            execution_generation: input.execution_generation,
+            lease_owner: input.lease_owner.into(),
+            lease_token_hash: input.lease_token_hash.into(),
+        })
+    }
+
+    #[must_use]
+    pub const fn tenant_id(&self) -> &TenantId {
+        &self.tenant_id
+    }
+
+    #[must_use]
+    pub const fn attempt_id(&self) -> &CallAttemptId {
+        &self.attempt_id
+    }
+
+    #[must_use]
+    pub const fn execution_generation(&self) -> ExecutionGeneration {
+        self.execution_generation
+    }
+}
+
+impl fmt::Debug for AttemptLease {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("AttemptLease")
+            .field("attempt_id", &self.attempt_id)
+            .field("execution_generation", &self.execution_generation)
+            .field("lease_owner", &self.lease_owner)
+            .field("lease_token_hash", &"[REDACTED]")
+            .finish_non_exhaustive()
+    }
+}
+
+/// Deterministic, content-free effect intent bound to one exact leased Attempt revision.
+#[derive(Clone, Eq, PartialEq)]
+pub struct AppendEffectIntent {
+    lease: AttemptLease,
+    expected_revision: u64,
+    event_id: EventId,
+    event_type: Box<str>,
+    idempotency_key: IdempotencyKey,
+    payload_hash: Box<str>,
+    payload: Value,
+}
+
+impl AppendEffectIntent {
+    /// Creates a stable event identity for exact replay before one external mutation.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a cross-Attempt aggregate or canonical serialization failure.
+    pub fn try_new(
+        lease: &AttemptLease,
+        attempt: &CallAttempt,
+        intent: EffectIntent,
+    ) -> Result<Self, StoreError> {
+        if lease.attempt_id != *attempt.id() {
+            return Err(StoreError::InvalidInput);
+        }
+        let payload = serde_json::json!({
+            "tenant_id": lease.tenant_id.as_str(),
+            "call_attempt_id": lease.attempt_id.as_str(),
+            "execution_generation": lease.execution_generation.get(),
+            "attempt_revision": attempt.revision(),
+            "effect": intent.as_str(),
+        });
+        let payload_hash = canonical_sha256(&payload).map_err(|_| StoreError::InvalidInput)?;
+        let stable_id = format!("effect-intent-{payload_hash}");
+        Ok(Self {
+            lease: lease.clone(),
+            expected_revision: attempt.revision(),
+            event_id: EventId::parse(&stable_id).map_err(|_| StoreError::InvalidInput)?,
+            event_type: format!("effect_intent.{}", intent.as_str()).into(),
+            idempotency_key: IdempotencyKey::parse(&stable_id)
+                .map_err(|_| StoreError::InvalidInput)?,
+            payload_hash: payload_hash.into(),
+            payload,
+        })
+    }
+
+    #[must_use]
+    pub const fn expected_revision(&self) -> u64 {
+        self.expected_revision
+    }
+
+    #[must_use]
+    pub const fn event_id(&self) -> &EventId {
+        &self.event_id
+    }
+
+    #[must_use]
+    pub fn event_type(&self) -> &str {
+        &self.event_type
+    }
+
+    #[must_use]
+    pub const fn idempotency_key(&self) -> &IdempotencyKey {
+        &self.idempotency_key
+    }
+
+    #[must_use]
+    pub fn payload_hash(&self) -> &str {
+        &self.payload_hash
+    }
+}
+
+impl fmt::Debug for AppendEffectIntent {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("AppendEffectIntent")
+            .field("attempt_id", &self.lease.attempt_id)
+            .field("execution_generation", &self.lease.execution_generation)
+            .field("expected_revision", &self.expected_revision)
+            .field("event_id", &self.event_id)
+            .field("event_type", &self.event_type)
+            .field("payload_hash", &self.payload_hash)
+            .finish_non_exhaustive()
+    }
+}
+
 impl ClaimedAttempt {
     #[must_use]
     pub const fn id(&self) -> &CallAttemptId {
@@ -309,7 +484,7 @@ impl ClaimedAttempt {
 }
 
 /// Fenced state mutation for a leased Attempt.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct AdvanceAttempt {
     pub tenant_id: TenantId,
     pub attempt_id: CallAttemptId,
@@ -318,6 +493,53 @@ pub struct AdvanceAttempt {
     pub lease_owner: String,
     pub lease_token_hash: String,
     pub next_state: CallAttemptState,
+    pub disclosure_completed: bool,
+}
+
+impl fmt::Debug for AdvanceAttempt {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("AdvanceAttempt")
+            .field("attempt_id", &self.attempt_id)
+            .field("expected_revision", &self.expected_revision)
+            .field("expected_generation", &self.expected_generation)
+            .field("lease_owner", &self.lease_owner)
+            .field("lease_token_hash", &"[REDACTED]")
+            .field("next_state", &self.next_state)
+            .field("disclosure_completed", &self.disclosure_completed)
+            .finish_non_exhaustive()
+    }
+}
+
+impl AdvanceAttempt {
+    /// Binds one already-validated aggregate transition to the exact current lease.
+    ///
+    /// # Errors
+    ///
+    /// Rejects cross-Attempt observations and revisions that cannot have one predecessor.
+    pub fn try_from_observation(
+        lease: &AttemptLease,
+        attempt: &CallAttempt,
+    ) -> Result<Self, StoreError> {
+        let expected_revision = attempt
+            .revision()
+            .checked_sub(1)
+            .filter(|revision| *revision > 0)
+            .ok_or(StoreError::InvalidInput)?;
+        if lease.attempt_id != *attempt.id() {
+            return Err(StoreError::InvalidInput);
+        }
+        Ok(Self {
+            tenant_id: lease.tenant_id.clone(),
+            attempt_id: lease.attempt_id.clone(),
+            expected_revision,
+            expected_generation: lease.execution_generation,
+            lease_owner: lease.lease_owner.to_string(),
+            lease_token_hash: lease.lease_token_hash.to_string(),
+            next_state: attempt.state(),
+            disclosure_completed: attempt.disclosure_completed(),
+        })
+    }
 }
 
 /// Append-only normalized event proposal.
@@ -375,17 +597,94 @@ impl AiOutboundStore {
             .await
             .map_err(|_| StoreError::DatabaseUnavailable)?
             .ok_or(StoreError::AttemptNotFound)?;
-        let destination: &str = row.try_get(0).map_err(|_| StoreError::StoredRowInvalid)?;
-        let caller_id: Option<&str> = row.try_get(1).map_err(|_| StoreError::StoredRowInvalid)?;
-        let timeout_secs: i32 = row.try_get(2).map_err(|_| StoreError::StoredRowInvalid)?;
-        let trunk: Option<&str> = row.try_get(3).map_err(|_| StoreError::StoredRowInvalid)?;
-        OutboundDialBinding::try_new(OutboundDialBindingInput {
-            destination: destination.to_owned(),
-            caller_id: caller_id.map(str::to_owned),
-            timeout_secs: u32::try_from(timeout_secs).map_err(|_| StoreError::StoredRowInvalid)?,
-            trunk: trunk.map(str::to_owned),
+        parse_dial_binding(&row)
+    }
+
+    /// Loads a complete aggregate snapshot only while the exact lease remains current.
+    ///
+    /// # Errors
+    ///
+    /// Returns a bounded failure for a stale lease, unavailable database or malformed row.
+    pub async fn load_leased_attempt(
+        &self,
+        transaction: &Transaction<'_>,
+        lease: &AttemptLease,
+    ) -> Result<CallAttempt, StoreError> {
+        let generation = i64::try_from(lease.execution_generation.get())
+            .map_err(|_| StoreError::InvalidInput)?;
+        let row = transaction
+            .query_opt(
+                "SELECT previous_attempt_id, state, revision,
+                        CASE WHEN state IN (
+                          'conversing', 'handoff_pending', 'human_active',
+                          'ai_resuming', 'finalizing', 'completed'
+                        ) THEN TRUE ELSE disclosure_completed END
+                 FROM converact_outbound_call_attempts
+                 WHERE tenant_id = $1 AND id = $2
+                   AND execution_generation = $3 AND lease_owner = $4
+                   AND lease_token_hash = $5
+                   AND lease_expires_at > transaction_timestamp()",
+                &[
+                    &lease.tenant_id.as_str(),
+                    &lease.attempt_id.as_str(),
+                    &generation,
+                    &lease.lease_owner.as_ref(),
+                    &lease.lease_token_hash.as_ref(),
+                ],
+            )
+            .await
+            .map_err(|_| StoreError::DatabaseUnavailable)?
+            .ok_or(StoreError::LeaseStale)?;
+        let previous: Option<&str> = row.try_get(0).map_err(|_| StoreError::StoredRowInvalid)?;
+        let state: &str = row.try_get(1).map_err(|_| StoreError::StoredRowInvalid)?;
+        let revision: i64 = row.try_get(2).map_err(|_| StoreError::StoredRowInvalid)?;
+        let disclosure_completed: bool =
+            row.try_get(3).map_err(|_| StoreError::StoredRowInvalid)?;
+        CallAttempt::restore(CallAttemptRestoreInput {
+            id: lease.attempt_id.clone(),
+            previous_attempt_id: previous
+                .map(CallAttemptId::parse)
+                .transpose()
+                .map_err(|_| StoreError::StoredRowInvalid)?,
+            state: parse_attempt_state(state)?,
+            revision: positive_i64(revision)?,
+            disclosure_completed,
         })
         .map_err(|_| StoreError::StoredRowInvalid)
+    }
+
+    /// Loads the immutable dial snapshot only while the exact lease remains current.
+    ///
+    /// # Errors
+    ///
+    /// Returns a bounded failure for a stale lease, unavailable database or malformed snapshot.
+    pub async fn load_dial_binding_with_lease(
+        &self,
+        transaction: &Transaction<'_>,
+        lease: &AttemptLease,
+    ) -> Result<OutboundDialBinding, StoreError> {
+        let generation = i64::try_from(lease.execution_generation.get())
+            .map_err(|_| StoreError::InvalidInput)?;
+        let row = transaction
+            .query_opt(
+                "SELECT dial_destination, dial_caller_id, dial_timeout_secs, dial_trunk
+                 FROM converact_outbound_call_attempts
+                 WHERE tenant_id = $1 AND id = $2
+                   AND execution_generation = $3 AND lease_owner = $4
+                   AND lease_token_hash = $5
+                   AND lease_expires_at > transaction_timestamp()",
+                &[
+                    &lease.tenant_id.as_str(),
+                    &lease.attempt_id.as_str(),
+                    &generation,
+                    &lease.lease_owner.as_ref(),
+                    &lease.lease_token_hash.as_ref(),
+                ],
+            )
+            .await
+            .map_err(|_| StoreError::DatabaseUnavailable)?
+            .ok_or(StoreError::LeaseStale)?;
+        parse_dial_binding(&row)
     }
 
     /// Claims a bounded batch using the database clock and `SKIP LOCKED`.
@@ -453,6 +752,7 @@ impl AiOutboundStore {
                 "UPDATE converact_outbound_call_attempts
                  SET state = $7,
                      revision = revision + 1,
+                     disclosure_completed = $9,
                      updated_at = transaction_timestamp(),
                      terminal_at = CASE WHEN $8 THEN transaction_timestamp() ELSE terminal_at END,
                      lease_owner = CASE WHEN $8 THEN '' ELSE lease_owner END,
@@ -472,12 +772,96 @@ impl AiOutboundStore {
                     &command.lease_token_hash,
                     &command.next_state.as_str(),
                     &terminal,
+                    &command.disclosure_completed,
                 ],
             )
             .await
             .map_err(|_| StoreError::DatabaseUnavailable)?
             .ok_or(StoreError::LeaseStale)?;
         positive_i64(row.try_get(0).map_err(|_| StoreError::StoredRowInvalid)?)
+    }
+
+    /// Appends an exact effect intent only while revision, generation and lease all match.
+    ///
+    /// # Errors
+    ///
+    /// Returns a bounded failure for stale authority, a conflicting replay or database failure.
+    pub async fn append_effect_intent_with_lease(
+        &self,
+        transaction: &Transaction<'_>,
+        command: &AppendEffectIntent,
+    ) -> Result<AppendEventStatus, StoreError> {
+        let lease = &command.lease;
+        let revision =
+            i64::try_from(command.expected_revision).map_err(|_| StoreError::InvalidInput)?;
+        let generation = i64::try_from(lease.execution_generation.get())
+            .map_err(|_| StoreError::InvalidInput)?;
+        let inserted = transaction
+            .query_opt(
+                APPEND_EFFECT_INTENT_SQL,
+                &[
+                    &lease.tenant_id.as_str(),
+                    &lease.attempt_id.as_str(),
+                    &revision,
+                    &generation,
+                    &lease.lease_owner.as_ref(),
+                    &lease.lease_token_hash.as_ref(),
+                    &command.event_id.as_str(),
+                    &command.event_type.as_ref(),
+                    &command.idempotency_key.as_str(),
+                    &command.payload_hash.as_ref(),
+                    &command.payload,
+                ],
+            )
+            .await
+            .map_err(|_| StoreError::DatabaseUnavailable)?;
+        if inserted.is_some() {
+            return Ok(AppendEventStatus::Inserted);
+        }
+        let current = transaction
+            .query_opt(
+                "SELECT 1 FROM converact_outbound_call_attempts
+                 WHERE tenant_id = $1 AND id = $2 AND revision = $3
+                   AND execution_generation = $4 AND lease_owner = $5
+                   AND lease_token_hash = $6
+                   AND lease_expires_at > transaction_timestamp()",
+                &[
+                    &lease.tenant_id.as_str(),
+                    &lease.attempt_id.as_str(),
+                    &revision,
+                    &generation,
+                    &lease.lease_owner.as_ref(),
+                    &lease.lease_token_hash.as_ref(),
+                ],
+            )
+            .await
+            .map_err(|_| StoreError::DatabaseUnavailable)?;
+        if current.is_none() {
+            return Err(StoreError::LeaseStale);
+        }
+        let existing = transaction
+            .query_opt(
+                "SELECT 1 FROM converact_outbound_attempt_events
+                 WHERE tenant_id = $1 AND event_id = $2 AND call_attempt_id = $3
+                   AND execution_generation = $4 AND event_type = $5
+                   AND idempotency_key = $6 AND payload_hash = $7",
+                &[
+                    &lease.tenant_id.as_str(),
+                    &command.event_id.as_str(),
+                    &lease.attempt_id.as_str(),
+                    &generation,
+                    &command.event_type.as_ref(),
+                    &command.idempotency_key.as_str(),
+                    &command.payload_hash.as_ref(),
+                ],
+            )
+            .await
+            .map_err(|_| StoreError::DatabaseUnavailable)?;
+        if existing.is_some() {
+            Ok(AppendEventStatus::Replayed)
+        } else {
+            Err(StoreError::EventConflict)
+        }
     }
 
     /// Appends one event or reports an exact same-ID/same-hash replay.
@@ -653,6 +1037,50 @@ fn parse_claimed_attempt(row: &Row) -> Result<ClaimedAttempt, StoreError> {
         execution_generation: ExecutionGeneration::new(positive_i64(generation)?)
             .map_err(|_| StoreError::StoredRowInvalid)?,
     })
+}
+
+fn parse_dial_binding(row: &Row) -> Result<OutboundDialBinding, StoreError> {
+    let destination: &str = row.try_get(0).map_err(|_| StoreError::StoredRowInvalid)?;
+    let caller_id: Option<&str> = row.try_get(1).map_err(|_| StoreError::StoredRowInvalid)?;
+    let timeout_secs: i32 = row.try_get(2).map_err(|_| StoreError::StoredRowInvalid)?;
+    let trunk: Option<&str> = row.try_get(3).map_err(|_| StoreError::StoredRowInvalid)?;
+    OutboundDialBinding::try_new(OutboundDialBindingInput {
+        destination: destination.to_owned(),
+        caller_id: caller_id.map(str::to_owned),
+        timeout_secs: u32::try_from(timeout_secs).map_err(|_| StoreError::StoredRowInvalid)?,
+        trunk: trunk.map(str::to_owned),
+    })
+    .map_err(|_| StoreError::StoredRowInvalid)
+}
+
+fn parse_attempt_state(value: &str) -> Result<CallAttemptState, StoreError> {
+    match value {
+        "planned" => Ok(CallAttemptState::Planned),
+        "claimed" => Ok(CallAttemptState::Claimed),
+        "compliance_approved" => Ok(CallAttemptState::ComplianceApproved),
+        "compliance_blocked" => Ok(CallAttemptState::ComplianceBlocked),
+        "agent_capacity_reserved" => Ok(CallAttemptState::AgentCapacityReserved),
+        "dialing" => Ok(CallAttemptState::Dialing),
+        "ringing" => Ok(CallAttemptState::Ringing),
+        "answered" => Ok(CallAttemptState::Answered),
+        "agent_connecting" => Ok(CallAttemptState::AgentConnecting),
+        "disclosure_pending" => Ok(CallAttemptState::DisclosurePending),
+        "conversing" => Ok(CallAttemptState::Conversing),
+        "handoff_pending" => Ok(CallAttemptState::HandoffPending),
+        "human_active" => Ok(CallAttemptState::HumanActive),
+        "ai_resuming" => Ok(CallAttemptState::AiResuming),
+        "finalizing" => Ok(CallAttemptState::Finalizing),
+        "completed" => Ok(CallAttemptState::Completed),
+        "cancelled" => Ok(CallAttemptState::Cancelled),
+        "busy" => Ok(CallAttemptState::Busy),
+        "no_answer" => Ok(CallAttemptState::NoAnswer),
+        "rejected" => Ok(CallAttemptState::Rejected),
+        "failed_before_answer" => Ok(CallAttemptState::FailedBeforeAnswer),
+        "failed_after_answer" => Ok(CallAttemptState::FailedAfterAnswer),
+        "outcome_unknown" => Ok(CallAttemptState::OutcomeUnknown),
+        "reconcile_required" => Ok(CallAttemptState::ReconcileRequired),
+        _ => Err(StoreError::StoredRowInvalid),
+    }
 }
 
 fn validate_event(event: &AppendEvent) -> Result<(), StoreError> {
