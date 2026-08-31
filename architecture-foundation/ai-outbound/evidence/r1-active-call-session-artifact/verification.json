@@ -1,0 +1,89 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-08-31",
+  "evidence_class": [
+    "local_contract",
+    "exact_source_review"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "head_before_evidence": "de462ff021e9da1a2d425b69d65857c66dbb1213",
+    "implementation_commits": [
+      "25532a27",
+      "a64f052d",
+      "9787dc50",
+      "de462ff0"
+    ]
+  },
+  "active_call": {
+    "version": "0.3.83",
+    "commit": "6224d948cc0941ac48b4a5426477aeaf639c2e98",
+    "tree": "9521ad341fb992ba6d491eb217983df8cf85d2cf",
+    "source_gate": "passed",
+    "runtime_executed": false
+  },
+  "commands": [
+    {
+      "id": "orchestrator_contract",
+      "command": "cargo test --locked -p converact-ai-outbound-core --test orchestrator",
+      "exit_code": 0,
+      "passed": 9,
+      "failed": 0
+    },
+    {
+      "id": "stable_session_identity",
+      "command": "cargo test --locked -p converact-voice-agent-worker --lib channel_agent_session::tests",
+      "exit_code": 0,
+      "passed": 2,
+      "failed": 0
+    },
+    {
+      "id": "worker_release_session_binding",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test tracer_bullet campaign_release_is_bound_to_the_agent_reservation",
+      "exit_code": 0,
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "id": "playbook_artifact_boundary",
+      "command": "cargo test --locked -p converact-voice-agent-worker --lib active_call_playbook_artifact::tests",
+      "exit_code": 0,
+      "passed": 2,
+      "failed": 0
+    },
+    {
+      "id": "core_worker_clippy",
+      "command": "cargo clippy --locked -p converact-ai-outbound-core -p converact-voice-agent-worker --all-targets -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "active_call_source_gate",
+      "command": "bash scripts/verify-active-call-source.sh <pinned-checkout> <exact-archive>",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "not_run": [
+    "component_payload_resolution",
+    "deterministic_playbook_compilation",
+    "real_active_call_runtime",
+    "sip_leg_session_binding",
+    "disclosure_complete_start_gate",
+    "durable_reservation_restart_recovery",
+    "rustpbx_sip_pstn_media",
+    "performance",
+    "capacity",
+    "long_run",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_read": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}

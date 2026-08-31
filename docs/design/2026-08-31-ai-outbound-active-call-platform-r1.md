@@ -116,7 +116,7 @@ Kamailio / Trunk / PSTN
 | RustPBX 呼叫链 | Rust RWI v1 适配器与失败语义已通过本地合同测试 | 成为外呼 Call/Leg 唯一权威 | real RustPBX `not_run` |
 | Active Call 源码 | 已下载、精确 commit/hash 已核验 | 受控电话 Channel Agent | `false` |
 | Active Call 构建/测试 | 固定源码本地构建通过；上游测试因外部 `sipbot` 缺失为 `blocked_external`；Converact Adapter 11 项本地测试通过 | 自有 lockfile、构建和合同测试 | runtime/production `not_run` |
-| 多轮实时语音 | 受控端口完成 reserve/originate/attach/disclosure/start/finalize，Campaign 的精确 Agent Release ID/content hash 已绑定到预留请求，且 inline Playbook 私有预留 wire 已通过 loopback 合同；未启动真实进程 | Active Call 驱动的真实功能闭环 | idempotent reservation/real artifact resolution/media/provider `not_run` |
+| 多轮实时语音 | 受控端口完成 reserve/originate/attach/disclosure/start/finalize；平台稳定 Session ID、精确 Release 全组件摘要和有界 Playbook artifact 已通过本地合同；inline Playbook 私有预留 wire 已通过 loopback，未启动真实进程 | Active Call 驱动的真实功能闭环 | component resolver、SIP-leg/session 绑定、disclosure 后启动门、media/provider `not_run` |
 | Tool/Action | Rust Proposal/Policy/Approval/Broker/Receipt、持久化 Adapter、Active Call Worker 桥接及通用查询/变更 Adapter 已通过本地受控测试 | 接入真实 Provider | controlled slice passed；real provider/physical PostgreSQL `not_run` |
 | AI/人工协作 | Rust Handoff Core/Store/Worker 的 commit/abort/replay/unknown-query 和具体 Active Call 私有进程端口已通过本地受控/loopback 测试 | 接入真实人席、RustPBX 媒体切换与 Active Call | physical integration/production `not_run` |
 | Transcript/Outcome/QM | Rust final transcript/snapshot/result/evaluation/Bad Case、durable reconcile、权限化查询 API，以及 Active Call intent 候选到精确 Release OutcomeSchema/结果证据的投影已通过本地受控测试 | 接入真实 Speech/模型/UI 并迁移旧 writer | physical integration/writer switch/production `not_run` |
@@ -513,6 +513,19 @@ Knowledge provider 只返回证据和检索结果，不拥有对话状态。查�
 - 模型输出不能未经策略和 schema 校验直接写长期 Memory；
 - 人工修正和业务事实优先于模型推断。
 
+### 9.5 意图识别
+
+Active Call 当前没有独立的结构化 Intent Classifier。现有能力是主对话 LLM 根据 ASR、历史、
+Scene、RAG 和 Prompt 做多轮语义判断；`intent_clarification` 仅作为 Prompt 片段要求意图模糊时
+先追问；模型可用 `<set_var key="intent" .../>` 将候选写入通话 `extras`。Converact 只从终态
+事件接收这个有界候选，并按精确 Agent Release 的闭集 `OutcomeSchema` 校验，生成绑定 Schema、
+Release、intent 与 canonical hash 的证据。缺失值保持缺失，越界或跨 Release 值 fail-closed。
+
+当前尚未实现实时独立分类、top-k/置信度、槽位、跨轮 `provisional -> confirmed -> changed`
+状态、规则/小模型/主 LLM 证据融合和质量校准。目标实现保留 Active Call 的多轮理解，同时由
+Converact 增加平台级 `unknown / provisional / clarification_required / confirmed / changed`
+状态机、结构化槽位和独立动作策略门。意图判断不能直接授权转接、挂机或高风险 Tool。
+
 ## 10. AI 与人工座席闭环
 
 ### 10.1 Context Packet
@@ -891,6 +904,11 @@ query/replay 和 finalization 上拒绝漂移。真实 Playbook/模型意图质�
 Rust Adapter 已在 loopback 下发送稳定 ID、校验响应身份并查询 pending/active/not-found；它不对
 mutation 自动重试，也不把 not-found 解释成安全重建。真实进程、durable Worker 协调、重启恢复
 与生产仍为 `not_run`。
+平台现在还会从 tenant、物理 Attempt 和精确 Release 稳定派生 Active Call Session ID；Agent
+不得替换该身份。Release 的八个组件摘要随预留继续传递，有界 Playbook artifact 会校验声明摘要
+并隐藏 Prompt 内容。但该边界不冒充源组件到 Playbook 的确定性编译证明。固定源码审查同时确认：
+SIP 入站当前仍以 dialog ID 建会话并直接启动 Playbook，因此 SIP-leg/session 绑定与披露完成后的
+显式启动门必须先完成，才能实现真实 `ChannelAgentPort`；相关物理状态保持 `not_run`。
 物理 PostgreSQL、真实 RustPBX/Active Call/Speech、SIP/PSTN/媒体、真实 Tool/审批/模型供应商、
 生产路由授权、Dashboard、旧 writer 迁移、性能、容量和生产部署均保持 `not_run`，后续必须按
 独立 Evidence Gate 逐项推进。
@@ -923,6 +941,7 @@ mutation 自动重试，也不把 not-found 解释成安全重建。真实进程
 - [Active Call Reservation Adapter R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-reservation-adapter/README.md)
 - [Agent Release reservation binding evidence](../../architecture-foundation/ai-outbound/evidence/r1-agent-release-reservation-binding/README.md)
 - [Active Call Playbook reservation evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-playbook-reservation/README.md)
+- [Active Call session/artifact evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-session-artifact/README.md)
 
 ## 23. 变更记录
 
@@ -945,3 +964,4 @@ mutation 自动重试，也不把 not-found 解释成安全重建。真实进程
 | 2026-08-31 | R1 Active Call Playbook reservation checkpoint | 固定 `/api/playbook/run` 的有界 inline Playbook wire、typed session 和 unknown-outcome 语义已通过 loopback；上游随机 ID 导致的 pending reservation 不可查询问题、真实进程/媒体和生产仍为 `not_run` |
 | 2026-08-31 | R1 Active Call reservation overlay checkpoint | 精确源码覆盖层的稳定 ID、同载荷重放、漂移冲突和 pending/active 查询已通过；耐久性、原子交接、真实进程/Adapter 协调和生产仍为 `not_run` |
 | 2026-08-31 | R1 Active Call reservation adapter checkpoint | Rust Client 的稳定 ID、响应身份校验、pending/active/not-found 查询和 unknown-outcome 语义已通过；真实进程、durable Worker 协调和生产仍为 `not_run` |
+| 2026-08-31 | R1 Active Call session/artifact checkpoint | 平台稳定 Session ID、Agent 回执身份锁定、Release 全组件摘要和有界 Playbook artifact 已通过；确定性 component resolver、SIP-leg 绑定、disclosure 后启动门、真实媒体和生产仍为 `not_run` |
