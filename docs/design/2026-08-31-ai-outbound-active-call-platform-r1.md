@@ -116,7 +116,7 @@ Kamailio / Trunk / PSTN
 | RustPBX 呼叫链 | Rust RWI v1 适配器与失败语义已通过本地合同测试 | 成为外呼 Call/Leg 唯一权威 | real RustPBX `not_run` |
 | Active Call 源码 | 已下载、精确 commit/hash 已核验 | 受控电话 Channel Agent | `false` |
 | Active Call 构建/测试 | 固定源码本地构建通过；上游测试因外部 `sipbot` 缺失为 `blocked_external`；Converact Adapter 11 项本地测试通过 | 自有 lockfile、构建和合同测试 | runtime/production `not_run` |
-| 多轮实时语音 | 受控端口完成 reserve/originate/attach/disclosure/start/finalize，且 Campaign 的精确 Agent Release ID/content hash 已绑定到预留请求；未启动真实进程 | Active Call 驱动的真实功能闭环 | real artifact resolution/media/provider `not_run` |
+| 多轮实时语音 | 受控端口完成 reserve/originate/attach/disclosure/start/finalize，Campaign 的精确 Agent Release ID/content hash 已绑定到预留请求，且 inline Playbook 私有预留 wire 已通过 loopback 合同；未启动真实进程 | Active Call 驱动的真实功能闭环 | idempotent reservation/real artifact resolution/media/provider `not_run` |
 | Tool/Action | Rust Proposal/Policy/Approval/Broker/Receipt、持久化 Adapter、Active Call Worker 桥接及通用查询/变更 Adapter 已通过本地受控测试 | 接入真实 Provider | controlled slice passed；real provider/physical PostgreSQL `not_run` |
 | AI/人工协作 | Rust Handoff Core/Store/Worker 的 commit/abort/replay/unknown-query 和具体 Active Call 私有进程端口已通过本地受控/loopback 测试 | 接入真实人席、RustPBX 媒体切换与 Active Call | physical integration/production `not_run` |
 | Transcript/Outcome/QM | Rust final transcript/snapshot/result/evaluation/Bad Case、durable reconcile、权限化查询 API，以及 Active Call intent 候选到精确 Release OutcomeSchema/结果证据的投影已通过本地受控测试 | 接入真实 Speech/模型/UI 并迁移旧 writer | physical integration/writer switch/production `not_run` |
@@ -914,6 +914,7 @@ query/replay 和 finalization 上拒绝漂移。真实 Playbook/模型意图质�
 - [Active Call Intent → Outcome Projection R1 计划](../plans/2026-08-31-active-call-intent-outcome-projection-r1.md)
 - [Active Call Intent → Outcome Projection R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-intent-outcome/README.md)
 - [Agent Release reservation binding evidence](../../architecture-foundation/ai-outbound/evidence/r1-agent-release-reservation-binding/README.md)
+- [Active Call Playbook reservation evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-playbook-reservation/README.md)
 
 ## 23. 变更记录
 
@@ -933,3 +934,4 @@ query/replay 和 finalization 上拒绝漂移。真实 Playbook/模型意图质�
 | 2026-08-31 | R1 Active Call intent candidate checkpoint | Playbook 的终态 `extra.intent` 已通过有界脱敏 Rust 映射且不保留其他 `extra`；Release OutcomeSchema 投影、真实意图质量与生产仍为 `not_run` |
 | 2026-08-31 | R1 Active Call intent outcome checkpoint | 候选到精确 Release/OutcomeSchema、terminal transcript、durable result command 与 finalization 的受控证据链已通过；真实 Playbook/模型质量、物理集成与生产仍为 `not_run` |
 | 2026-08-31 | R1 Agent Release reservation checkpoint | Campaign 选择的精确 Release ID/content hash 已进入 Agent 预留请求并通过 Core/Worker 受控测试；真实 Active Call artifact resolution、媒体和生产仍为 `not_run` |
+| 2026-08-31 | R1 Active Call Playbook reservation checkpoint | 固定 `/api/playbook/run` 的有界 inline Playbook wire、typed session 和 unknown-outcome 语义已通过 loopback；上游随机 ID 导致的 pending reservation 不可查询问题、真实进程/媒体和生产仍为 `not_run` |

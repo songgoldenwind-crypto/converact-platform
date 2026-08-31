@@ -1,0 +1,77 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-08-31",
+  "evidence_class": [
+    "local_contract",
+    "controlled_loopback"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "commit": "738a6292f70ebf3d1e71906f2d9ded9710008dcc",
+    "tree": "6f7230f565173d2238b87daf6628f9d01f3e9244"
+  },
+  "active_call": {
+    "version": "0.3.83",
+    "commit": "6224d948cc0941ac48b4a5426477aeaf639c2e98",
+    "runtime_executed": false,
+    "pending_reservation_queryable": false,
+    "pending_cleanup_seconds": 300
+  },
+  "environment": {
+    "os": "Darwin 25.2.0 arm64",
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)"
+  },
+  "commands": [
+    {
+      "id": "active_call_playbook_client",
+      "working_directory": "server-rs",
+      "command": "PATH=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin:$PATH RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc cargo test -p converact-active-call-adapter --test client",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 7,
+      "failed": 0
+    },
+    {
+      "id": "active_call_playbook_format",
+      "working_directory": "server-rs",
+      "command": "PATH=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin:$PATH rustfmt --edition 2024 --check crates/active-call-adapter/src/lib.rs crates/active-call-adapter/src/client.rs crates/active-call-adapter/tests/client.rs crates/active-call-adapter/tests/support/mod.rs",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "active_call_playbook_clippy",
+      "working_directory": "server-rs",
+      "command": "PATH=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin:$PATH RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc cargo clippy -p converact-active-call-adapter --lib --test client -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "active_call_source_gate",
+      "working_directory": ".",
+      "command": "bash scripts/verify-active-call-source.sh /Users/songjinfeng/Projects/converact-sources/active-call /Users/songjinfeng/Projects/converact-sources/active-call-archives/active-call-6224d948cc0941ac48b4a5426477aeaf639c2e98.tar.gz",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "not_run": [
+    "real_active_call_process_playbook_parser_model_and_provider",
+    "agent_release_artifact_resolution_and_component_digest_verification",
+    "idempotent_queryable_pending_reservation_extension",
+    "rustpbx_originate_bridge_sip_pstn_and_media",
+    "deployed_runtime",
+    "performance",
+    "capacity",
+    "long_run",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_read": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}
