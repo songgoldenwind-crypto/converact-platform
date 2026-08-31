@@ -147,6 +147,10 @@ pub enum StoreError {
     EventConflict,
     RetryConflict,
     RetryNotAllowed,
+    AdminConflict,
+    AdminNotFound,
+    AdminStale,
+    AdminNotAllowed,
     StoredRowInvalid,
 }
 
@@ -161,6 +165,10 @@ impl StoreError {
             Self::EventConflict => "ai_outbound_event_conflict",
             Self::RetryConflict => "ai_outbound_retry_conflict",
             Self::RetryNotAllowed => "ai_outbound_retry_not_allowed",
+            Self::AdminConflict => "ai_outbound_admin_conflict",
+            Self::AdminNotFound => "ai_outbound_admin_not_found",
+            Self::AdminStale => "ai_outbound_admin_stale",
+            Self::AdminNotAllowed => "ai_outbound_admin_not_allowed",
             Self::StoredRowInvalid => "ai_outbound_stored_row_invalid",
         }
     }

@@ -3030,6 +3030,22 @@ CREATE TABLE IF NOT EXISTS converact_outbound_attempt_events (
     REFERENCES converact_outbound_call_attempts(tenant_id, id) ON DELETE RESTRICT
 );
 
+CREATE TABLE IF NOT EXISTS converact_outbound_admin_receipts (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  idempotency_key TEXT NOT NULL,
+  command_kind TEXT NOT NULL CHECK (command_kind IN (
+    'publish_agent', 'create_campaign', 'import_contacts', 'transition_campaign'
+  )),
+  request_hash TEXT NOT NULL CHECK (length(request_hash) = 64),
+  resource_type TEXT NOT NULL CHECK (resource_type IN ('agent_release', 'campaign')),
+  resource_id TEXT NOT NULL,
+  result_state TEXT NOT NULL,
+  result_revision INTEGER NOT NULL CHECK (result_revision > 0),
+  result_count INTEGER NOT NULL CHECK (result_count BETWEEN 0 AND 500),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, idempotency_key)
+);
+
 CREATE INDEX IF NOT EXISTS idx_converact_outbound_attempt_claim
   ON converact_outbound_call_attempts (tenant_id, scheduled_for, id)
   WHERE state = 'planned';
