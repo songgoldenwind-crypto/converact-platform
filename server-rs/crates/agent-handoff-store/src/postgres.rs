@@ -12,6 +12,7 @@ use crate::{
 
 const MAX_CONTEXT_PACKET_BYTES: usize = 131_072;
 const MAX_TARGET_BYTES: usize = 32_768;
+const MAX_FAILURE_CODE_BYTES: usize = 255;
 
 /// One immutable Store observation for a Handoff command.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -21,6 +22,8 @@ pub struct HandoffStoreReceipt {
     handoff_id: HandoffId,
     stage: ReceiptStage,
     digest: Box<str>,
+    resolution: Option<HandoffCommandResolution>,
+    failure_code: Option<Box<str>>,
     revision: u64,
     generation: ExecutionGeneration,
     state: HandoffState,
@@ -55,6 +58,16 @@ impl HandoffStoreReceipt {
     }
 
     #[must_use]
+    pub const fn resolution(&self) -> Option<HandoffCommandResolution> {
+        self.resolution
+    }
+
+    #[must_use]
+    pub fn failure_code(&self) -> Option<&str> {
+        self.failure_code.as_deref()
+    }
+
+    #[must_use]
     pub const fn revision(&self) -> u64 {
         self.revision
     }
@@ -85,6 +98,23 @@ impl HandoffStoreReceipt {
 pub enum ReceiptStage {
     Prepared,
     StateObserved,
+}
+
+/// Definitive command effect observation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum HandoffCommandResolution {
+    Applied,
+    NotApplied,
+}
+
+impl HandoffCommandResolution {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Applied => "applied",
+            Self::NotApplied => "not_applied",
+        }
+    }
 }
 
 impl ReceiptStage {
@@ -201,11 +231,11 @@ impl HandoffSqlStore {
             .query_one(
                 "INSERT INTO converact_agent_handoff_commands (
                    tenant_id, command_id, handoff_id, command_kind, payload_hash,
-                   expected_revision, expected_generation, command_state,
+                   expected_revision, expected_generation, command_state, resolution,
                    target_revision, target_generation, target_state, target_owner,
                    state_observed_at
                  ) VALUES (
-                   $1, $2, $3, $4, $5, $6, $7, 'state_observed',
+                   $1, $2, $3, $4, $5, $6, $7, 'state_observed', 'applied',
                    $6, $7, $8, $9, transaction_timestamp()
                  ) RETURNING floor(extract(epoch FROM state_observed_at) * 1000)::BIGINT",
                 &[
@@ -231,6 +261,8 @@ impl HandoffSqlStore {
             command,
             requested,
             ReceiptStage::StateObserved,
+            Some(HandoffCommandResolution::Applied),
+            None,
             observed_at_ms,
         )?;
         insert_receipt(transaction, tenant_id, &receipt).await?;
@@ -286,7 +318,14 @@ impl HandoffSqlStore {
             row.try_get(0)
                 .map_err(|_| HandoffStoreError::StoredRowInvalid)?,
         )?;
-        let receipt = receipt_for(command, current, ReceiptStage::Prepared, observed_at_ms)?;
+        let receipt = receipt_for(
+            command,
+            current,
+            ReceiptStage::Prepared,
+            None,
+            None,
+            observed_at_ms,
+        )?;
         insert_receipt(transaction, tenant_id, &receipt).await?;
         Ok(HandoffPrepareDecision::Prepared(receipt))
     }
@@ -297,6 +336,7 @@ impl HandoffSqlStore {
     ///
     /// Rejects missing/mismatched prepare evidence, stale fences, conflicts, database failures and
     /// invalid stored rows. The caller must roll back the transaction on any error.
+    #[allow(clippy::too_many_lines)] // Keep the locked snapshot and receipt update auditable.
     pub async fn finalize_transition(
         &self,
         transaction: &Transaction<'_>,
@@ -376,6 +416,7 @@ impl HandoffSqlStore {
                 "UPDATE converact_agent_handoff_commands
                  SET command_state = 'state_observed', target_revision = $3,
                      target_generation = $4, target_state = $5, target_owner = $6,
+                     resolution = 'applied', failure_code = NULL,
                      lease_owner = '', lease_token_hash = '', lease_expires_at = NULL,
                      state_observed_at = transaction_timestamp(),
                      updated_at = transaction_timestamp()
@@ -397,7 +438,90 @@ impl HandoffSqlStore {
                 .try_get(0)
                 .map_err(|_| HandoffStoreError::StoredRowInvalid)?,
         )?;
-        let receipt = receipt_for(command, next, ReceiptStage::StateObserved, observed_at_ms)?;
+        let receipt = receipt_for(
+            command,
+            next,
+            ReceiptStage::StateObserved,
+            Some(HandoffCommandResolution::Applied),
+            None,
+            observed_at_ms,
+        )?;
+        insert_receipt(transaction, tenant_id, &receipt).await?;
+        Ok(receipt)
+    }
+
+    /// Closes a prepared external effect that definitively did not apply without advancing state.
+    ///
+    /// # Errors
+    ///
+    /// Rejects malformed failure codes, missing/mismatched prepare evidence, conflicts, database
+    /// failures and invalid stored rows. The caller must roll back on any error.
+    pub async fn finalize_not_applied(
+        &self,
+        transaction: &Transaction<'_>,
+        current: &HandoffSession,
+        command: &HandoffStoreCommand,
+        failure_code: &str,
+    ) -> Result<HandoffStoreReceipt, HandoffStoreError> {
+        if !bounded_failure_code(failure_code)
+            || command.expected_revision() != current.revision()
+            || command.expected_generation() != current.execution_generation()
+        {
+            return Err(HandoffStoreError::InvalidInput);
+        }
+        let tenant_id = current.context().tenant_id();
+        let row = transaction
+            .query_opt(
+                "SELECT payload_hash, handoff_id, command_state
+                 FROM converact_agent_handoff_commands
+                 WHERE tenant_id = $1 AND command_id = $2 FOR UPDATE",
+                &[&tenant_id, &command.id().as_str()],
+            )
+            .await
+            .map_err(|_| HandoffStoreError::DatabaseUnavailable)?
+            .ok_or(HandoffStoreError::Conflict)?;
+        verify_command_row(&row, current, command)?;
+        let command_state: &str = row
+            .try_get(2)
+            .map_err(|_| HandoffStoreError::StoredRowInvalid)?;
+        if command_state == "state_observed" {
+            return load_receipt(
+                transaction,
+                tenant_id,
+                command.id(),
+                ReceiptStage::StateObserved,
+            )
+            .await;
+        }
+        if command_state != "prepared" {
+            return Err(HandoffStoreError::StoredRowInvalid);
+        }
+        let observed = transaction
+            .query_one(
+                "UPDATE converact_agent_handoff_commands
+                 SET command_state = 'state_observed', resolution = 'not_applied',
+                     failure_code = $3, state_observed_at = transaction_timestamp(),
+                     lease_owner = '', lease_token_hash = '', lease_expires_at = NULL,
+                     updated_at = transaction_timestamp()
+                 WHERE tenant_id = $1 AND command_id = $2 AND command_state = 'prepared'
+                 RETURNING floor(extract(epoch FROM state_observed_at) * 1000)::BIGINT",
+                &[&tenant_id, &command.id().as_str(), &failure_code],
+            )
+            .await
+            .map_err(|_| HandoffStoreError::Conflict)?;
+        let observed_at_ms = positive_i64(
+            observed
+                .try_get(0)
+                .map_err(|_| HandoffStoreError::StoredRowInvalid)?,
+        )?;
+        let receipt = receipt_for(
+            command,
+            current,
+            ReceiptStage::StateObserved,
+            Some(HandoffCommandResolution::NotApplied),
+            Some(failure_code),
+            observed_at_ms,
+        )?;
         insert_receipt(transaction, tenant_id, &receipt).await?;
         Ok(receipt)
     }
@@ -633,10 +757,11 @@ async fn insert_receipt(
         .execute(
             "INSERT INTO converact_agent_handoff_receipts (
                tenant_id, receipt_id, command_id, handoff_id, stage, receipt_digest,
-               observed_revision, observed_generation, observed_state, observed_owner, observed_at
+               resolution, failure_code, observed_revision, observed_generation,
+               observed_state, observed_owner, observed_at
              ) VALUES (
-               $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-               to_timestamp($11::DOUBLE PRECISION / 1000.0)
+               $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+               to_timestamp($13::DOUBLE PRECISION / 1000.0)
              ) ON CONFLICT DO NOTHING",
             &[
                 &tenant_id,
@@ -645,6 +770,8 @@ async fn insert_receipt(
                 &receipt.handoff_id.as_str(),
                 &receipt.stage.as_str(),
                 &receipt.digest.as_ref(),
+                &receipt.resolution.map(HandoffCommandResolution::as_str),
+                &receipt.failure_code.as_deref(),
                 &revision,
                 &generation,
                 &receipt.state.as_str(),
@@ -669,7 +796,8 @@ async fn load_receipt(
     let row = transaction
         .query_opt(
             "SELECT receipt_id, handoff_id, receipt_digest,
-                    observed_revision, observed_generation, observed_state, observed_owner,
+                    resolution, failure_code, observed_revision, observed_generation,
+                    observed_state, observed_owner,
                     floor(extract(epoch FROM observed_at) * 1000)::BIGINT
              FROM converact_agent_handoff_receipts
              WHERE tenant_id = $1 AND command_id = $2 AND stage = $3",
@@ -685,6 +813,8 @@ fn receipt_for(
     command: &HandoffStoreCommand,
     handoff: &HandoffSession,
     stage: ReceiptStage,
+    resolution: Option<HandoffCommandResolution>,
+    failure_code: Option<&str>,
     observed_at_ms: u64,
 ) -> Result<HandoffStoreReceipt, HandoffStoreError> {
     let digest = canonical_sha256(&json!({
@@ -692,6 +822,8 @@ fn receipt_for(
         "command_id": command.id().as_str(),
         "handoff_id": handoff.id().as_str(),
         "stage": stage.as_str(),
+        "resolution": resolution.map(HandoffCommandResolution::as_str),
+        "failure_code": failure_code,
         "payload_hash": command.payload_hash(),
         "revision": handoff.revision(),
         "execution_generation": handoff.execution_generation().get(),
@@ -712,6 +844,8 @@ fn receipt_for(
         handoff_id: handoff.id().clone(),
         stage,
         digest: digest.into(),
+        resolution,
+        failure_code: failure_code.map(Into::into),
         revision: handoff.revision(),
         generation: handoff.execution_generation(),
         state: handoff.state(),
@@ -734,22 +868,32 @@ fn parse_receipt(
     let digest: &str = row
         .try_get(2)
         .map_err(|_| HandoffStoreError::StoredRowInvalid)?;
-    let revision: i64 = row
+    let resolution: Option<&str> = row
         .try_get(3)
         .map_err(|_| HandoffStoreError::StoredRowInvalid)?;
-    let generation: i64 = row
+    let failure_code: Option<&str> = row
         .try_get(4)
         .map_err(|_| HandoffStoreError::StoredRowInvalid)?;
-    let stored_state: &str = row
+    let revision: i64 = row
         .try_get(5)
         .map_err(|_| HandoffStoreError::StoredRowInvalid)?;
-    let owner: &str = row
+    let generation: i64 = row
         .try_get(6)
         .map_err(|_| HandoffStoreError::StoredRowInvalid)?;
-    let observed_at_ms: i64 = row
+    let stored_state: &str = row
         .try_get(7)
         .map_err(|_| HandoffStoreError::StoredRowInvalid)?;
-    if !lowercase_sha256(digest) {
+    let owner: &str = row
+        .try_get(8)
+        .map_err(|_| HandoffStoreError::StoredRowInvalid)?;
+    let observed_at_ms: i64 = row
+        .try_get(9)
+        .map_err(|_| HandoffStoreError::StoredRowInvalid)?;
+    let resolution = resolution.map(parse_resolution).transpose()?;
+    if !lowercase_sha256(digest)
+        || !valid_receipt_resolution(stage, resolution, failure_code)
+        || failure_code.is_some_and(|code| !bounded_failure_code(code))
+    {
         return Err(HandoffStoreError::StoredRowInvalid);
     }
     Ok(HandoffStoreReceipt {
@@ -759,6 +903,8 @@ fn parse_receipt(
             .map_err(|_| HandoffStoreError::StoredRowInvalid)?,
         stage,
         digest: digest.into(),
+        resolution,
+        failure_code: failure_code.map(Into::into),
         revision: positive_i64(revision)?,
         generation: ExecutionGeneration::new(positive_i64(generation)?)
             .map_err(|_| HandoffStoreError::StoredRowInvalid)?,
@@ -766,6 +912,35 @@ fn parse_receipt(
         owner: parse_owner(owner)?,
         observed_at_ms: positive_i64(observed_at_ms)?,
     })
+}
+
+fn parse_resolution(value: &str) -> Result<HandoffCommandResolution, HandoffStoreError> {
+    match value {
+        "applied" => Ok(HandoffCommandResolution::Applied),
+        "not_applied" => Ok(HandoffCommandResolution::NotApplied),
+        _ => Err(HandoffStoreError::StoredRowInvalid),
+    }
+}
+
+const fn valid_receipt_resolution(
+    stage: ReceiptStage,
+    resolution: Option<HandoffCommandResolution>,
+    failure_code: Option<&str>,
+) -> bool {
+    matches!(
+        (stage, resolution, failure_code),
+        (ReceiptStage::Prepared, None, None)
+            | (
+                ReceiptStage::StateObserved,
+                Some(HandoffCommandResolution::Applied),
+                None
+            )
+            | (
+                ReceiptStage::StateObserved,
+                Some(HandoffCommandResolution::NotApplied),
+                Some(_)
+            )
+    )
 }
 
 fn parse_state(value: &str) -> Result<HandoffState, HandoffStoreError> {
@@ -808,4 +983,16 @@ fn lowercase_sha256(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn bounded_failure_code(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    let Some((&first, remainder)) = bytes.split_first() else {
+        return false;
+    };
+    bytes.len() <= MAX_FAILURE_CODE_BYTES
+        && first.is_ascii_alphanumeric()
+        && remainder
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-'))
 }

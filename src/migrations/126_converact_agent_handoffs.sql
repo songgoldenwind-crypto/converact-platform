@@ -87,6 +87,10 @@ CREATE TABLE IF NOT EXISTS converact_agent_handoff_commands (
   expected_revision BIGINT NOT NULL CHECK (expected_revision > 0),
   expected_generation BIGINT NOT NULL CHECK (expected_generation > 0),
   command_state TEXT NOT NULL CHECK (command_state IN ('prepared', 'state_observed')),
+  resolution TEXT CHECK (resolution IS NULL OR resolution IN ('applied', 'not_applied')),
+  failure_code TEXT CHECK (
+    failure_code IS NULL OR char_length(failure_code) BETWEEN 1 AND 255
+  ),
   target_revision BIGINT,
   target_generation BIGINT,
   target_state TEXT,
@@ -101,16 +105,21 @@ CREATE TABLE IF NOT EXISTS converact_agent_handoff_commands (
   created_at TIMESTAMPTZ NOT NULL DEFAULT transaction_timestamp(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT transaction_timestamp(),
   PRIMARY KEY (tenant_id, command_id),
-  UNIQUE (tenant_id, handoff_id, target_revision),
   FOREIGN KEY (tenant_id, handoff_id)
     REFERENCES converact_agent_handoffs(tenant_id, handoff_id) ON DELETE RESTRICT,
   CHECK (
-    (command_state = 'prepared' AND target_revision IS NULL
+    (command_state = 'prepared' AND resolution IS NULL AND failure_code IS NULL
+      AND target_revision IS NULL
       AND target_generation IS NULL AND target_state IS NULL
       AND target_owner IS NULL AND state_observed_at IS NULL) OR
-    (command_state = 'state_observed' AND target_revision IS NOT NULL
+    (command_state = 'state_observed' AND resolution = 'applied'
+      AND failure_code IS NULL AND target_revision IS NOT NULL
       AND target_generation IS NOT NULL AND target_state IS NOT NULL
-      AND target_owner IS NOT NULL AND state_observed_at IS NOT NULL)
+      AND target_owner IS NOT NULL AND state_observed_at IS NOT NULL) OR
+    (command_state = 'state_observed' AND resolution = 'not_applied'
+      AND failure_code IS NOT NULL AND target_revision IS NULL
+      AND target_generation IS NULL AND target_state IS NULL
+      AND target_owner IS NULL AND state_observed_at IS NOT NULL)
   ),
   CHECK (
     (lease_owner = '' AND lease_token_hash = '' AND lease_expires_at IS NULL) OR
@@ -125,6 +134,10 @@ CREATE TABLE IF NOT EXISTS converact_agent_handoff_receipts (
   handoff_id TEXT NOT NULL,
   stage TEXT NOT NULL CHECK (stage IN ('prepared', 'state_observed')),
   receipt_digest TEXT NOT NULL CHECK (receipt_digest ~ '^[0-9a-f]{64}$'),
+  resolution TEXT CHECK (resolution IS NULL OR resolution IN ('applied', 'not_applied')),
+  failure_code TEXT CHECK (
+    failure_code IS NULL OR char_length(failure_code) BETWEEN 1 AND 255
+  ),
   observed_revision BIGINT NOT NULL CHECK (observed_revision > 0),
   observed_generation BIGINT NOT NULL CHECK (observed_generation > 0),
   observed_state TEXT NOT NULL,
@@ -136,8 +149,17 @@ CREATE TABLE IF NOT EXISTS converact_agent_handoff_receipts (
   FOREIGN KEY (tenant_id, command_id)
     REFERENCES converact_agent_handoff_commands(tenant_id, command_id) ON DELETE RESTRICT,
   FOREIGN KEY (tenant_id, handoff_id)
-    REFERENCES converact_agent_handoffs(tenant_id, handoff_id) ON DELETE RESTRICT
+    REFERENCES converact_agent_handoffs(tenant_id, handoff_id) ON DELETE RESTRICT,
+  CHECK (
+    (stage = 'prepared' AND resolution IS NULL AND failure_code IS NULL) OR
+    (stage = 'state_observed' AND resolution = 'applied' AND failure_code IS NULL) OR
+    (stage = 'state_observed' AND resolution = 'not_applied' AND failure_code IS NOT NULL)
+  )
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_converact_agent_handoff_applied_revision
+  ON converact_agent_handoff_commands (tenant_id, handoff_id, target_revision)
+  WHERE resolution = 'applied';
 
 CREATE INDEX IF NOT EXISTS idx_converact_agent_handoff_reconcile_claim
   ON converact_agent_handoff_commands (tenant_id, prepared_at, command_id)

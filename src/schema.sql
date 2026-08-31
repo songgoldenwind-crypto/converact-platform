@@ -3202,6 +3202,8 @@ CREATE TABLE IF NOT EXISTS converact_agent_handoff_commands (
   expected_revision INTEGER NOT NULL CHECK (expected_revision > 0),
   expected_generation INTEGER NOT NULL CHECK (expected_generation > 0),
   command_state TEXT NOT NULL CHECK (command_state IN ('prepared', 'state_observed')),
+  resolution TEXT CHECK (resolution IS NULL OR resolution IN ('applied', 'not_applied')),
+  failure_code TEXT,
   target_revision INTEGER,
   target_generation INTEGER,
   target_state TEXT,
@@ -3214,7 +3216,6 @@ CREATE TABLE IF NOT EXISTS converact_agent_handoff_commands (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (tenant_id, command_id),
-  UNIQUE (tenant_id, handoff_id, target_revision),
   FOREIGN KEY (tenant_id, handoff_id)
     REFERENCES converact_agent_handoffs(tenant_id, handoff_id) ON DELETE RESTRICT
 );
@@ -3226,6 +3227,8 @@ CREATE TABLE IF NOT EXISTS converact_agent_handoff_receipts (
   handoff_id TEXT NOT NULL,
   stage TEXT NOT NULL CHECK (stage IN ('prepared', 'state_observed')),
   receipt_digest TEXT NOT NULL CHECK (length(receipt_digest) = 64),
+  resolution TEXT CHECK (resolution IS NULL OR resolution IN ('applied', 'not_applied')),
+  failure_code TEXT,
   observed_revision INTEGER NOT NULL CHECK (observed_revision > 0),
   observed_generation INTEGER NOT NULL CHECK (observed_generation > 0),
   observed_state TEXT NOT NULL,
@@ -3239,6 +3242,10 @@ CREATE TABLE IF NOT EXISTS converact_agent_handoff_receipts (
   FOREIGN KEY (tenant_id, handoff_id)
     REFERENCES converact_agent_handoffs(tenant_id, handoff_id) ON DELETE RESTRICT
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_converact_agent_handoff_applied_revision
+  ON converact_agent_handoff_commands (tenant_id, handoff_id, target_revision)
+  WHERE resolution = 'applied';
 
 CREATE INDEX IF NOT EXISTS idx_converact_agent_handoff_reconcile_claim
   ON converact_agent_handoff_commands (tenant_id, prepared_at, command_id)
