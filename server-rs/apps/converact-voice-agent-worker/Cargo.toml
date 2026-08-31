@@ -8,10 +8,12 @@ publish.workspace = true
 
 [dependencies]
 axum.workspace = true
+converact-active-call-adapter = { path = "../../crates/active-call-adapter" }
 converact-ai-outbound-core = { path = "../../crates/ai-outbound-core" }
 converact-contracts = { path = "../../crates/contracts" }
 converact-runtime-health = { path = "../../crates/runtime-health" }
 converact-tenant-auth = { path = "../../crates/tenant-auth" }
+converact-tool-broker-core = { path = "../../crates/tool-broker-core" }
 converact-voice-agent-contracts = { path = "../../crates/voice-agent-contracts" }
 serde.workspace = true
 serde_json.workspace = true

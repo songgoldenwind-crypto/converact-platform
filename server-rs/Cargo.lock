@@ -541,10 +541,12 @@ name = "converact-voice-agent-worker"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "converact-active-call-adapter",
  "converact-ai-outbound-core",
  "converact-contracts",
  "converact-runtime-health",
  "converact-tenant-auth",
+ "converact-tool-broker-core",
  "converact-voice-agent-contracts",
  "serde",
  "serde_json",

@@ -6,6 +6,7 @@ mod http;
 mod lifecycle;
 mod model;
 mod repository;
+mod tool_runtime;
 mod worker;
 
 pub use http::router;
@@ -15,4 +16,8 @@ pub use model::{
     ConversationEvidence, ModelError, Outcome, WorkerResource,
 };
 pub use repository::{ReconcileReceipt, RepositoryError, VoiceAgentRepository};
+pub use tool_runtime::{
+    ToolBinding, ToolBindingPort, ToolBrokerPort, ToolEventOutcome, ToolResultPort, ToolRuntime,
+    ToolRuntimeError,
+};
 pub use worker::{ConversationEvidencePort, VoiceAgentWorker, WorkerError};

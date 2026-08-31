@@ -146,6 +146,12 @@ impl EnvelopeContext {
         &self.agent_release_id
     }
 
+    /// Returns the current channel-agent session when one is attached.
+    #[must_use]
+    pub const fn channel_agent_session_id(&self) -> Option<&ChannelAgentSessionId> {
+        self.channel_agent_session_id.as_ref()
+    }
+
     /// Returns the execution generation used to fence stale work.
     #[must_use]
     pub const fn execution_generation(&self) -> ExecutionGeneration {
