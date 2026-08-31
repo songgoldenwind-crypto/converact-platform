@@ -13,6 +13,7 @@ const MAX_IDENTIFIER_BYTES: usize = 255;
 const MAX_EVENT_TYPE_BYTES: usize = 128;
 const SHA256_HEX_BYTES: usize = 64;
 const MAX_EVENT_PAYLOAD_BYTES: usize = 131_072;
+const MAX_ATTEMPTS: u8 = 20;
 
 const CLAIM_SQL: &str = "
 WITH candidates AS (
@@ -38,6 +39,76 @@ FROM candidates
 WHERE attempt.tenant_id = candidates.tenant_id
   AND attempt.id = candidates.id
 RETURNING attempt.id, attempt.revision, attempt.execution_generation
+";
+
+const PLAN_RETRY_SQL: &str = "
+WITH predecessor AS MATERIALIZED (
+  SELECT attempt.campaign_id,
+         attempt.campaign_contact_id,
+         attempt.interaction_id,
+         attempt.agent_release_id,
+         attempt.consent_id,
+         attempt.recording_mode,
+         attempt.retention_until,
+         contact.id AS locked_contact_id
+  FROM converact_outbound_call_attempts AS attempt
+  JOIN converact_outbound_campaigns AS campaign
+    ON campaign.tenant_id = attempt.tenant_id
+   AND campaign.id = attempt.campaign_id
+  JOIN converact_outbound_campaign_contacts AS contact
+    ON contact.tenant_id = attempt.tenant_id
+   AND contact.id = attempt.campaign_contact_id
+  WHERE attempt.tenant_id = $1
+    AND attempt.id = $2
+    AND attempt.revision = $4
+    AND attempt.execution_generation = $5
+    AND attempt.attempt_number + 1 = $6
+    AND attempt.state IN (
+      'busy', 'no_answer', 'rejected', 'failed_before_answer', 'failed_after_answer'
+    )
+    AND (attempt.state <> 'failed_after_answer' OR $9)
+    AND campaign.state = 'running'
+    AND contact.state IN ('queued', 'active')
+  FOR UPDATE OF attempt, contact, campaign
+), inserted AS (
+  INSERT INTO converact_outbound_call_attempts (
+    tenant_id, id, campaign_id, campaign_contact_id, attempt_number,
+    previous_attempt_id, interaction_id, call_id, channel_agent_session_id,
+    agent_release_id, execution_generation, state, idempotency_key,
+    compliance_reason, consent_id, recording_mode, retention_until,
+    scheduled_for
+  )
+  SELECT $1, $3, predecessor.campaign_id, predecessor.campaign_contact_id, $6,
+         $2, predecessor.interaction_id, NULL, NULL,
+         predecessor.agent_release_id, 1, 'planned', $8,
+         NULL, predecessor.consent_id, predecessor.recording_mode,
+         predecessor.retention_until,
+         to_timestamp($7::double precision / 1000.0)
+  FROM predecessor
+  ON CONFLICT DO NOTHING
+  RETURNING tenant_id, campaign_contact_id, attempt_number, id
+)
+UPDATE converact_outbound_campaign_contacts AS contact
+SET attempt_count = GREATEST(contact.attempt_count, inserted.attempt_number),
+    state = 'queued',
+    scheduled_for = to_timestamp($7::double precision / 1000.0),
+    updated_at = transaction_timestamp()
+FROM inserted
+WHERE contact.tenant_id = inserted.tenant_id
+  AND contact.id = inserted.campaign_contact_id
+RETURNING inserted.id
+";
+
+const LOAD_RETRY_SQL: &str = "
+SELECT id,
+       previous_attempt_id,
+       attempt_number,
+       ROUND(EXTRACT(EPOCH FROM scheduled_for) * 1000)::BIGINT,
+       idempotency_key
+FROM converact_outbound_call_attempts
+WHERE tenant_id = $1 AND (id = $2 OR idempotency_key = $3)
+ORDER BY CASE WHEN id = $2 THEN 0 ELSE 1 END
+LIMIT 1
 ";
 
 /// Bounded database claim policy.
@@ -74,6 +145,8 @@ pub enum StoreError {
     DatabaseUnavailable,
     LeaseStale,
     EventConflict,
+    RetryConflict,
+    RetryNotAllowed,
     StoredRowInvalid,
 }
 
@@ -86,9 +159,98 @@ impl StoreError {
             Self::DatabaseUnavailable => "ai_outbound_store_unavailable",
             Self::LeaseStale => "ai_outbound_lease_stale",
             Self::EventConflict => "ai_outbound_event_conflict",
+            Self::RetryConflict => "ai_outbound_retry_conflict",
+            Self::RetryNotAllowed => "ai_outbound_retry_not_allowed",
             Self::StoredRowInvalid => "ai_outbound_stored_row_invalid",
         }
     }
+}
+
+/// Untrusted values for one already-authorized deterministic retry insert.
+pub struct PlanRetryAttemptInput {
+    pub tenant_id: TenantId,
+    pub previous_attempt_id: CallAttemptId,
+    pub next_attempt_id: CallAttemptId,
+    pub expected_previous_revision: u64,
+    pub expected_previous_generation: ExecutionGeneration,
+    pub next_attempt_number: u8,
+    pub scheduled_for_ms: u64,
+    pub idempotency_key: IdempotencyKey,
+    pub retry_failed_after_answer: bool,
+}
+
+/// Content-free, tenant-bound command for one new physical Attempt.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PlanRetryAttempt {
+    tenant_id: TenantId,
+    previous_attempt_id: CallAttemptId,
+    next_attempt_id: CallAttemptId,
+    expected_previous_revision: u64,
+    expected_previous_generation: ExecutionGeneration,
+    next_attempt_number: u8,
+    scheduled_for_ms: u64,
+    idempotency_key: IdempotencyKey,
+    retry_failed_after_answer: bool,
+}
+
+impl PlanRetryAttempt {
+    /// Validates a retry insert command before SQL is reached.
+    ///
+    /// # Errors
+    ///
+    /// Rejects reused identities, invalid revision/numbering and zero scheduling time.
+    pub fn try_new(input: PlanRetryAttemptInput) -> Result<Self, StoreError> {
+        if input.previous_attempt_id == input.next_attempt_id
+            || input.expected_previous_revision == 0
+            || !(2..=MAX_ATTEMPTS).contains(&input.next_attempt_number)
+            || input.scheduled_for_ms == 0
+        {
+            return Err(StoreError::InvalidInput);
+        }
+        Ok(Self {
+            tenant_id: input.tenant_id,
+            previous_attempt_id: input.previous_attempt_id,
+            next_attempt_id: input.next_attempt_id,
+            expected_previous_revision: input.expected_previous_revision,
+            expected_previous_generation: input.expected_previous_generation,
+            next_attempt_number: input.next_attempt_number,
+            scheduled_for_ms: input.scheduled_for_ms,
+            idempotency_key: input.idempotency_key,
+            retry_failed_after_answer: input.retry_failed_after_answer,
+        })
+    }
+
+    #[must_use]
+    pub const fn tenant_id(&self) -> &TenantId {
+        &self.tenant_id
+    }
+
+    #[must_use]
+    pub const fn previous_attempt_id(&self) -> &CallAttemptId {
+        &self.previous_attempt_id
+    }
+
+    #[must_use]
+    pub const fn next_attempt_id(&self) -> &CallAttemptId {
+        &self.next_attempt_id
+    }
+
+    #[must_use]
+    pub const fn next_attempt_number(&self) -> u8 {
+        self.next_attempt_number
+    }
+
+    #[must_use]
+    pub const fn scheduled_for_ms(&self) -> u64 {
+        self.scheduled_for_ms
+    }
+}
+
+/// Exact durable retry insert outcome.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PlanRetryStatus {
+    Created,
+    Replayed,
 }
 
 impl fmt::Display for StoreError {
@@ -327,6 +489,101 @@ impl AiOutboundStore {
             }
             _ => Err(StoreError::EventConflict),
         }
+    }
+
+    /// Inserts one separately identified retry Attempt or exactly replays the prior insert.
+    ///
+    /// The caller owns the tenant transaction and its deadline. This method never performs a
+    /// physical dial.
+    ///
+    /// # Errors
+    ///
+    /// Rejects stale/non-retryable predecessors, stopped Campaigns, terminal Contacts, identity
+    /// conflicts, invalid numeric conversion and database failures.
+    pub async fn plan_retry(
+        &self,
+        transaction: &Transaction<'_>,
+        command: &PlanRetryAttempt,
+    ) -> Result<PlanRetryStatus, StoreError> {
+        if let Some(row) = transaction
+            .query_opt(
+                LOAD_RETRY_SQL,
+                &[
+                    &command.tenant_id.as_str(),
+                    &command.next_attempt_id.as_str(),
+                    &command.idempotency_key.as_str(),
+                ],
+            )
+            .await
+            .map_err(|_| StoreError::DatabaseUnavailable)?
+        {
+            return classify_retry_replay(&row, command);
+        }
+
+        let revision = i64::try_from(command.expected_previous_revision)
+            .map_err(|_| StoreError::InvalidInput)?;
+        let generation = i64::try_from(command.expected_previous_generation.get())
+            .map_err(|_| StoreError::InvalidInput)?;
+        let attempt_number = i32::from(command.next_attempt_number);
+        let scheduled_for_ms =
+            i64::try_from(command.scheduled_for_ms).map_err(|_| StoreError::InvalidInput)?;
+        let inserted = transaction
+            .query_opt(
+                PLAN_RETRY_SQL,
+                &[
+                    &command.tenant_id.as_str(),
+                    &command.previous_attempt_id.as_str(),
+                    &command.next_attempt_id.as_str(),
+                    &revision,
+                    &generation,
+                    &attempt_number,
+                    &scheduled_for_ms,
+                    &command.idempotency_key.as_str(),
+                    &command.retry_failed_after_answer,
+                ],
+            )
+            .await
+            .map_err(|_| StoreError::DatabaseUnavailable)?;
+        if inserted.is_some() {
+            return Ok(PlanRetryStatus::Created);
+        }
+
+        match transaction
+            .query_opt(
+                LOAD_RETRY_SQL,
+                &[
+                    &command.tenant_id.as_str(),
+                    &command.next_attempt_id.as_str(),
+                    &command.idempotency_key.as_str(),
+                ],
+            )
+            .await
+            .map_err(|_| StoreError::DatabaseUnavailable)?
+        {
+            Some(row) => classify_retry_replay(&row, command),
+            None => Err(StoreError::RetryNotAllowed),
+        }
+    }
+}
+
+fn classify_retry_replay(
+    row: &Row,
+    command: &PlanRetryAttempt,
+) -> Result<PlanRetryStatus, StoreError> {
+    let next_attempt_id: &str = row.try_get(0).map_err(|_| StoreError::StoredRowInvalid)?;
+    let previous_attempt_id: &str = row.try_get(1).map_err(|_| StoreError::StoredRowInvalid)?;
+    let attempt_number: i32 = row.try_get(2).map_err(|_| StoreError::StoredRowInvalid)?;
+    let scheduled_for_ms: i64 = row.try_get(3).map_err(|_| StoreError::StoredRowInvalid)?;
+    let idempotency_key: &str = row.try_get(4).map_err(|_| StoreError::StoredRowInvalid)?;
+    let exact = next_attempt_id == command.next_attempt_id.as_str()
+        && previous_attempt_id == command.previous_attempt_id.as_str()
+        && attempt_number == i32::from(command.next_attempt_number)
+        && u64::try_from(scheduled_for_ms).ok() == Some(command.scheduled_for_ms)
+        && idempotency_key == command.idempotency_key.as_str();
+    if exact {
+        Ok(PlanRetryStatus::Replayed)
+    } else {
+        Err(StoreError::RetryConflict)
     }
 }
 

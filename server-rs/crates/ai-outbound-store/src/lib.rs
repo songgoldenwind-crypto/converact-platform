@@ -3,6 +3,6 @@
 mod postgres;
 
 pub use postgres::{
-    AdvanceAttempt, AiOutboundStore, AppendEvent, AppendEventStatus, ClaimedAttempt, StoreConfig,
-    StoreError,
+    AdvanceAttempt, AiOutboundStore, AppendEvent, AppendEventStatus, ClaimedAttempt,
+    PlanRetryAttempt, PlanRetryAttemptInput, PlanRetryStatus, StoreConfig, StoreError,
 };
