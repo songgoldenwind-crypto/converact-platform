@@ -1,0 +1,92 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-08-31",
+  "evidence_class": [
+    "exact_source_overlay",
+    "local_contract"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "commit": "ab0ec6aae3c62fce01afa1ebabfcf8a0ce94707a",
+    "tree": "50a0102a51a7a7b84321a2e26ce5d6c729737bce"
+  },
+  "active_call": {
+    "version": "0.3.83",
+    "commit": "6224d948cc0941ac48b4a5426477aeaf639c2e98",
+    "tree": "9521ad341fb992ba6d491eb217983df8cf85d2cf",
+    "overlay_script_sha256": "b35ea605d25b93f2f8c2c919a10c6e66ce529e6763754ebaf30c89814125a70f",
+    "overlay_readme_sha256": "62738863a3ff4ad2e55e21122de14952b400cce3bde5d22ff207fb82e2061bba",
+    "runtime_executed": false,
+    "reservation_storage": "process_memory",
+    "pending_to_active_atomic": false
+  },
+  "environment": {
+    "os": "Darwin arm64",
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)"
+  },
+  "commands": [
+    {
+      "id": "exact_source_overlay_apply_twice",
+      "working_directory": ".",
+      "command": "clone pinned source into mktemp; apply-overlay.mjs twice; git diff --check; rustfmt --check transformed files",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "focused_transformed_source_tests",
+      "working_directory": "isolated Active Call source",
+      "command": "PATH=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin:$PATH RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc cargo test --lib converact_reservation_tests",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 2,
+      "failed": 0,
+      "filtered_out": 255
+    },
+    {
+      "id": "goal_manifest_binding",
+      "working_directory": ".",
+      "command": "node --import tsx --test test/converact-goal-manifest.test.ts",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "id": "active_call_source_gate",
+      "working_directory": ".",
+      "command": "bash scripts/verify-active-call-source.sh /Users/songjinfeng/Projects/converact-sources/active-call /Users/songjinfeng/Projects/converact-sources/active-call-archives/active-call-6224d948cc0941ac48b4a5426477aeaf639c2e98.tar.gz",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "canonical_source_cleanliness",
+      "working_directory": "/Users/songjinfeng/Projects/converact-sources/active-call",
+      "command": "git status --porcelain=v1",
+      "exit_code": 0,
+      "result": "passed_empty_output"
+    }
+  ],
+  "not_run": [
+    "real_active_call_process_http_playbook_model_provider_and_restart",
+    "atomic_pending_to_active_handoff",
+    "durable_active_call_reservation_storage",
+    "rust_adapter_stable_id_query_and_unknown_outcome_reconcile",
+    "agent_release_artifact_resolution_and_component_digest_verification",
+    "rustpbx_originate_bridge_sip_pstn_rtp_srtp_and_audio",
+    "deployed_runtime",
+    "performance",
+    "capacity",
+    "long_run",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_read": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}

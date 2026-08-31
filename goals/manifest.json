@@ -26,7 +26,7 @@
     },
     {
       "path": "docs/design/2026-08-31-ai-outbound-active-call-platform-r1.md",
-      "sha256": "298443436c67317b0844a98a578921af8b688d624b8b63e83e3820d0f72e1d82",
+      "sha256": "2535656ec739b06bf52f3f57624b8e1838fec636f64e9ede5196c67267fb0f25",
       "kind": "design"
     },
     {
@@ -162,6 +162,16 @@
     {
       "path": "architecture-foundation/ai-outbound/evidence/r1-active-call-playbook-reservation/verification.json",
       "sha256": "61ac1a6762a4c35713eb3846c55f72a2d1d21169d7cdc28074f49d0c9dbcb003",
+      "kind": "evidence"
+    },
+    {
+      "path": "architecture-foundation/ai-outbound/evidence/r1-active-call-reservation-overlay/README.md",
+      "sha256": "32625534b9f4caf0bea40edb676c479e51558f22fd76e3043a8adb53b4d0e500",
+      "kind": "evidence"
+    },
+    {
+      "path": "architecture-foundation/ai-outbound/evidence/r1-active-call-reservation-overlay/verification.json",
+      "sha256": "52a9133cfb3c3ba82a69dc0b0be5e382d4167d829512c50b27d70ca7ec84eea0",
       "kind": "evidence"
     },
     {
