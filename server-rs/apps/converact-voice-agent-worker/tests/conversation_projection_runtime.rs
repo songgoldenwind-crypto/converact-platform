@@ -12,6 +12,7 @@ use converact_conversation_result_core::{
 use converact_conversation_result_store::{
     ProjectionCommand, ProjectionCommandInput, ProjectionCommandKind,
 };
+use converact_post_call_finalization_store::{ClaimedFinalizationJob, ClaimedFinalizationJobInput};
 use converact_voice_agent_contracts::{
     AgentReleaseId, CallAttemptId, CampaignContactId, CampaignId, ConversationResultId,
     EnvelopeContext, EnvelopeContextInput, EvaluationId, EvaluationRubricRevisionId, EventId,
@@ -20,11 +21,14 @@ use converact_voice_agent_contracts::{
 };
 use converact_voice_agent_worker::{
     ConversationEvaluationDurabilityPort, ConversationEvaluationProviderPort,
-    ConversationEvidenceDurabilityPort, ConversationProjectionDurabilityPort,
+    ConversationEvidenceDurabilityPort, ConversationFinalizationEvidence,
+    ConversationFinalizationProjector, ConversationProjectionDurabilityPort,
     ConversationProjectionPortError, ConversationProjectionProviderPort,
     ConversationProjectionRuntime, DurableProjectionPrepareDecision,
     DurableProjectionWriteDecision, DurableTranscriptAppendDecision, EvaluationProjectionProgress,
-    ProjectionObservation, ResultProjectionProgress, TerminalEvidenceProgress,
+    FinalizationEvidenceObservation, FinalizationEvidenceSourcePort, FinalizationProjectionPort,
+    FinalizationProjectionProgress, FinalizationWorkerError, ProjectionObservation,
+    ResultProjectionProgress, TerminalEvidenceProgress,
 };
 
 #[tokio::test]
@@ -50,6 +54,31 @@ async fn unknown_result_is_queried_and_never_generated_twice() {
 
     let state = state.lock().unwrap();
     assert_eq!(state.generate_calls, 1);
+    assert_eq!(state.query_calls, 1);
+    assert_eq!(state.finalize_applied_calls, 1);
+}
+
+#[tokio::test]
+async fn replayed_applied_result_is_queried_without_regeneration() {
+    let result = result();
+    let state = Arc::new(Mutex::new(State::default()));
+    let durability = ReplayAppliedDurability(Arc::clone(&state));
+    let provider = Provider {
+        state: Arc::clone(&state),
+        result: result.clone(),
+    };
+    let runtime = ConversationProjectionRuntime::new(&durability, &provider);
+
+    assert_eq!(
+        runtime
+            .project_result("tenant-a", &command(&result))
+            .await
+            .unwrap(),
+        ResultProjectionProgress::Applied(Box::new(result))
+    );
+
+    let state = state.lock().unwrap();
+    assert_eq!(state.generate_calls, 0);
     assert_eq!(state.query_calls, 1);
     assert_eq!(state.finalize_applied_calls, 1);
 }
@@ -121,6 +150,82 @@ async fn bad_case_identity_is_platform_derived_before_atomic_evaluation_finalize
     assert_eq!(state.finalize_evaluation_calls, 1);
 }
 
+#[tokio::test]
+async fn finalization_projector_reuses_terminal_result_and_evaluation_pipeline() {
+    let result = result();
+    let evaluation = evaluation(&result);
+    let segments = vec![segment(1, 1, "segment-001")];
+    let snapshot = TranscriptSnapshot::try_new(TranscriptSnapshotInput {
+        id: TranscriptSnapshotId::parse("snapshot-001").unwrap(),
+        context: context(1),
+        revision: TranscriptSnapshotRevision::new(1).unwrap(),
+        current_generation: ExecutionGeneration::new(1).unwrap(),
+        segments: segments.clone(),
+        call_terminal_observed: true,
+        agent_terminal_observed: true,
+        transcript_terminal_observed: true,
+        frozen_at_ms: 4_000,
+    })
+    .unwrap();
+    let evidence = ConversationFinalizationEvidence::try_new(
+        segments,
+        snapshot,
+        command(&result),
+        evaluation_command(&result),
+    )
+    .unwrap();
+    let source = EvidenceSource(FinalizationEvidenceObservation::Ready(Box::new(evidence)));
+    let state = Arc::new(Mutex::new(State::default()));
+    let durability = Durability(Arc::clone(&state));
+    let provider = FullProvider { result, evaluation };
+    let projector = ConversationFinalizationProjector::new(&source, &durability, &provider);
+
+    assert_eq!(
+        projector
+            .finalize("tenant-a", &finalization_claim("interaction-001"))
+            .await
+            .unwrap(),
+        FinalizationProjectionProgress::Projected
+    );
+    let state = state.lock().unwrap();
+    assert_eq!(state.snapshot_calls, 1);
+    assert_eq!(state.finalize_applied_calls, 1);
+    assert_eq!(state.finalize_evaluation_calls, 1);
+}
+
+#[tokio::test]
+async fn missing_or_unknown_terminal_evidence_never_invents_a_result() {
+    let state = Arc::new(Mutex::new(State::default()));
+    let durability = Durability(Arc::clone(&state));
+    let provider = FullProvider {
+        result: result(),
+        evaluation: evaluation(&result()),
+    };
+    let incomplete_source = EvidenceSource(FinalizationEvidenceObservation::Incomplete);
+    let incomplete =
+        ConversationFinalizationProjector::new(&incomplete_source, &durability, &provider);
+    assert_eq!(
+        incomplete
+            .finalize("tenant-a", &finalization_claim("interaction-001"))
+            .await
+            .unwrap(),
+        FinalizationProjectionProgress::Incomplete
+    );
+
+    let unknown_source = EvidenceSource(FinalizationEvidenceObservation::OutcomeUnknown);
+    let unknown = ConversationFinalizationProjector::new(&unknown_source, &durability, &provider);
+    assert_eq!(
+        unknown
+            .finalize("tenant-a", &finalization_claim("interaction-001"))
+            .await
+            .unwrap(),
+        FinalizationProjectionProgress::ReconcileRequired(
+            "conversation_terminal_evidence_outcome_unknown"
+        )
+    );
+    assert_eq!(state.lock().unwrap().generate_calls, 0);
+}
+
 #[derive(Default)]
 struct State {
     prepared: bool,
@@ -148,6 +253,36 @@ impl ConversationEvaluationDurabilityPort for Durability {
 }
 
 struct Durability(Arc<Mutex<State>>);
+
+struct ReplayAppliedDurability(Arc<Mutex<State>>);
+
+impl ConversationProjectionDurabilityPort for ReplayAppliedDurability {
+    async fn prepare(
+        &self,
+        _tenant_id: &str,
+        _command: &ProjectionCommand,
+    ) -> Result<DurableProjectionPrepareDecision, ConversationProjectionPortError> {
+        Ok(DurableProjectionPrepareDecision::ReplayApplied)
+    }
+
+    async fn finalize_result_applied(
+        &self,
+        _command: &ProjectionCommand,
+        _result: &ConversationResult,
+    ) -> Result<(), ConversationProjectionPortError> {
+        self.0.lock().unwrap().finalize_applied_calls += 1;
+        Ok(())
+    }
+
+    async fn finalize_not_applied(
+        &self,
+        _tenant_id: &str,
+        _command: &ProjectionCommand,
+        _failure_code: &'static str,
+    ) -> Result<(), ConversationProjectionPortError> {
+        panic!("an applied replay cannot finalize as not applied")
+    }
+}
 
 impl ConversationEvidenceDurabilityPort for Durability {
     async fn append_final_segment(
@@ -219,6 +354,58 @@ impl ConversationEvaluationProviderPort for EvaluationProvider {
         _result: &ConversationResult,
     ) -> Result<ProjectionObservation<Evaluation>, ConversationProjectionPortError> {
         Ok(ProjectionObservation::Applied(self.0.clone()))
+    }
+}
+
+#[derive(Clone)]
+struct EvidenceSource(FinalizationEvidenceObservation);
+
+impl FinalizationEvidenceSourcePort for EvidenceSource {
+    async fn load(
+        &self,
+        _tenant_id: &str,
+        _job: &ClaimedFinalizationJob,
+    ) -> Result<FinalizationEvidenceObservation, FinalizationWorkerError> {
+        Ok(self.0.clone())
+    }
+}
+
+struct FullProvider {
+    result: ConversationResult,
+    evaluation: Evaluation,
+}
+
+impl ConversationProjectionProviderPort for FullProvider {
+    async fn generate_result(
+        &self,
+        _command: &ProjectionCommand,
+    ) -> Result<ProjectionObservation<ConversationResult>, ConversationProjectionPortError> {
+        Ok(ProjectionObservation::Applied(self.result.clone()))
+    }
+
+    async fn query_result(
+        &self,
+        _command: &ProjectionCommand,
+    ) -> Result<ProjectionObservation<ConversationResult>, ConversationProjectionPortError> {
+        Ok(ProjectionObservation::Applied(self.result.clone()))
+    }
+}
+
+impl ConversationEvaluationProviderPort for FullProvider {
+    async fn generate_evaluation(
+        &self,
+        _command: &ProjectionCommand,
+        _result: &ConversationResult,
+    ) -> Result<ProjectionObservation<Evaluation>, ConversationProjectionPortError> {
+        Ok(ProjectionObservation::Applied(self.evaluation.clone()))
+    }
+
+    async fn query_evaluation(
+        &self,
+        _command: &ProjectionCommand,
+        _result: &ConversationResult,
+    ) -> Result<ProjectionObservation<Evaluation>, ConversationProjectionPortError> {
+        Ok(ProjectionObservation::Applied(self.evaluation.clone()))
     }
 }
 
@@ -374,6 +561,21 @@ fn context(generation: u64) -> EnvelopeContext {
         channel_agent_session_id: None,
         execution_generation: ExecutionGeneration::new(generation).unwrap(),
         trace_id: "trace-001".to_owned(),
+    })
+    .unwrap()
+}
+
+fn finalization_claim(interaction_id: &str) -> ClaimedFinalizationJob {
+    ClaimedFinalizationJob::try_from_claim(ClaimedFinalizationJobInput {
+        id: converact_voice_agent_contracts::ConversationFinalizationJobId::parse("job-001")
+            .unwrap(),
+        interaction_id: InteractionId::parse(interaction_id).unwrap(),
+        call_attempt_id: CallAttemptId::parse("attempt-001").unwrap(),
+        agent_release_id: AgentReleaseId::parse("agent-release-001").unwrap(),
+        execution_generation: ExecutionGeneration::new(1).unwrap(),
+        retention_policy_ref: "retention:voice-default-v1".to_owned(),
+        payload_hash: "a".repeat(64),
+        revision: 2,
     })
     .unwrap()
 }

@@ -2,6 +2,7 @@
 
 #![forbid(unsafe_code)]
 
+mod conversation_finalization;
 mod conversation_projection;
 mod conversation_projection_postgres;
 mod conversation_quality;
@@ -11,10 +12,16 @@ mod handoff_runtime;
 mod http;
 mod lifecycle;
 mod model;
+mod post_call_finalization;
+mod post_call_finalization_postgres;
 mod repository;
 mod tool_runtime;
 mod worker;
 
+pub use conversation_finalization::{
+    ConversationFinalizationEvidence, ConversationFinalizationProjector,
+    FinalizationEvidenceObservation, FinalizationEvidenceSourcePort,
+};
 pub use conversation_projection::{
     ConversationEvaluationDurabilityPort, ConversationEvaluationProviderPort,
     ConversationEvidenceDurabilityPort, ConversationProjectionDurabilityPort,
@@ -38,6 +45,10 @@ pub use lifecycle::{AdmissionReadiness, ShutdownToken, WorkerConfig, WorkerConfi
 pub use model::{
     AgentReleaseResource, AttemptResource, AuthenticatedTenant, CampaignResource, ModelError,
     Outcome, PostCallState, WorkerResource,
+};
+pub use post_call_finalization::{
+    ConversationFinalizationWorker, FinalizationBatchProgress, FinalizationProjectionPort,
+    FinalizationProjectionProgress, FinalizationQueuePort, FinalizationWorkerError,
 };
 pub use repository::{ReconcileReceipt, RepositoryError, VoiceAgentRepository};
 pub use tool_runtime::{

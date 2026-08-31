@@ -55,7 +55,6 @@ pub enum ResultProjectionProgress {
     Applied(Box<ConversationResult>),
     Pending,
     NotApplied(&'static str),
-    ReplayedApplied,
     ReplayedNotApplied,
 }
 
@@ -221,23 +220,26 @@ where
                 "conversation_projection_command_kind_invalid",
             ));
         }
-        let observation = match self.durability.prepare(tenant_id, command).await? {
-            DurableProjectionPrepareDecision::Execute => {
-                self.provider.generate_result(command).await?
-            }
-            DurableProjectionPrepareDecision::Query => self.provider.query_result(command).await?,
-            DurableProjectionPrepareDecision::ReplayApplied => {
-                return Ok(ResultProjectionProgress::ReplayedApplied);
-            }
-            DurableProjectionPrepareDecision::ReplayNotApplied => {
-                return Ok(ResultProjectionProgress::ReplayedNotApplied);
-            }
-            DurableProjectionPrepareDecision::Conflict => {
-                return Err(ConversationProjectionPortError::new(
-                    "conversation_projection_command_conflict",
-                ));
-            }
-        };
+        let (observation, replayed_applied) =
+            match self.durability.prepare(tenant_id, command).await? {
+                DurableProjectionPrepareDecision::Execute => {
+                    (self.provider.generate_result(command).await?, false)
+                }
+                DurableProjectionPrepareDecision::Query => {
+                    (self.provider.query_result(command).await?, false)
+                }
+                DurableProjectionPrepareDecision::ReplayApplied => {
+                    (self.provider.query_result(command).await?, true)
+                }
+                DurableProjectionPrepareDecision::ReplayNotApplied => {
+                    return Ok(ResultProjectionProgress::ReplayedNotApplied);
+                }
+                DurableProjectionPrepareDecision::Conflict => {
+                    return Err(ConversationProjectionPortError::new(
+                        "conversation_projection_command_conflict",
+                    ));
+                }
+            };
         match observation {
             ProjectionObservation::Applied(result) => {
                 if result.context().tenant_id() != tenant_id
@@ -255,6 +257,11 @@ where
                 Ok(ResultProjectionProgress::Applied(Box::new(result)))
             }
             ProjectionObservation::NotApplied(failure_code) => {
+                if replayed_applied {
+                    return Err(ConversationProjectionPortError::new(
+                        "conversation_projection_resolution_conflict",
+                    ));
+                }
                 self.durability
                     .finalize_not_applied(tenant_id, command, failure_code)
                     .await?;
