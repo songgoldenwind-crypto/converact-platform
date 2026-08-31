@@ -3066,6 +3066,9 @@ CREATE TABLE IF NOT EXISTS converact_tool_actions (
   lease_owner TEXT NOT NULL DEFAULT '',
   lease_token_hash TEXT NOT NULL DEFAULT '',
   lease_expires_at TEXT,
+  last_error_code TEXT CHECK (
+    last_error_code IS NULL OR length(last_error_code) BETWEEN 1 AND 255
+  ),
   accepted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   completed_at TEXT,
   state_observed_at TEXT,
@@ -3075,7 +3078,11 @@ CREATE TABLE IF NOT EXISTS converact_tool_actions (
   FOREIGN KEY (tenant_id, call_attempt_id)
     REFERENCES converact_outbound_call_attempts(tenant_id, id) ON DELETE RESTRICT,
   FOREIGN KEY (tenant_id, agent_release_id)
-    REFERENCES converact_agent_releases(tenant_id, id) ON DELETE RESTRICT
+    REFERENCES converact_agent_releases(tenant_id, id) ON DELETE RESTRICT,
+  CHECK (
+    (state = 'reconcile_required' AND last_error_code IS NOT NULL) OR
+    (state <> 'reconcile_required' AND last_error_code IS NULL)
+  )
 );
 
 CREATE TABLE IF NOT EXISTS converact_tool_action_receipts (

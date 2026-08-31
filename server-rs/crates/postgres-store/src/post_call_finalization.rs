@@ -4,7 +4,8 @@ use converact_kernel_ids::TenantId;
 use converact_post_call_finalization_core::{FinalizationResolution, PostCallFinalizationJob};
 use converact_post_call_finalization_store::{
     ClaimedFinalizationJob, EnqueueFinalizationDecision, FinalizationLease,
-    FinalizationLeaseCommand, FinalizationSqlStore, FinalizationStoreError,
+    FinalizationLeaseCommand, FinalizationReconcileCommand, FinalizationSqlStore,
+    FinalizationStoreError,
 };
 
 use crate::{PostgresRuntime, TransactionError};
@@ -103,9 +104,9 @@ impl PostgresPostCallFinalizationStore {
     /// Returns only sanitized tenant, Store or transaction failure categories.
     pub async fn require_reconcile(
         &self,
-        command: &FinalizationLeaseCommand,
+        command: &FinalizationReconcileCommand,
     ) -> Result<u64, PostgresPostCallFinalizationStoreError> {
-        let tenant = command.tenant_id.clone();
+        let tenant = command.lease_command().tenant_id.clone();
         let command = command.clone();
         let sql = self.sql;
         self.runtime

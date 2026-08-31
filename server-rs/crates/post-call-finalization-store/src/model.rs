@@ -106,6 +106,46 @@ pub struct FinalizationLeaseCommand {
     pub lease: FinalizationLease,
 }
 
+/// Fenced reconcile mutation with a bounded content-free machine reason.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FinalizationReconcileCommand {
+    lease_command: FinalizationLeaseCommand,
+    error_code: Box<str>,
+}
+
+impl FinalizationReconcileCommand {
+    /// Binds one stable machine error to an exact claimed-job lease.
+    ///
+    /// # Errors
+    ///
+    /// Rejects prose, customer content and unbounded values outside the identifier grammar.
+    pub fn try_new(
+        lease_command: FinalizationLeaseCommand,
+        error_code: impl AsRef<str>,
+    ) -> Result<Self, FinalizationStoreError> {
+        let error_code = error_code.as_ref();
+        if lease_command.expected_revision == 0
+            || !bounded_identifier(error_code, MAX_IDENTIFIER_BYTES)
+        {
+            return Err(FinalizationStoreError::InvalidInput);
+        }
+        Ok(Self {
+            lease_command,
+            error_code: error_code.into(),
+        })
+    }
+
+    #[must_use]
+    pub const fn lease_command(&self) -> &FinalizationLeaseCommand {
+        &self.lease_command
+    }
+
+    #[must_use]
+    pub fn error_code(&self) -> &str {
+        &self.error_code
+    }
+}
+
 /// Exact enqueue classification.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EnqueueFinalizationDecision {

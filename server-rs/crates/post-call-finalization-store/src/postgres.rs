@@ -10,8 +10,8 @@ use tokio_postgres::{Row, Transaction};
 
 use crate::{
     ClaimedFinalizationJob, EnqueueFinalizationDecision, FinalizationLease,
-    FinalizationLeaseCommand, FinalizationStoreConfig, FinalizationStoreError,
-    model::ClaimedFinalizationJobParts,
+    FinalizationLeaseCommand, FinalizationReconcileCommand, FinalizationStoreConfig,
+    FinalizationStoreError, model::ClaimedFinalizationJobParts,
 };
 
 /// Stateless tenant-transaction SQL adapter for durable post-call finalization work.
@@ -126,9 +126,16 @@ impl FinalizationSqlStore {
     pub async fn require_reconcile(
         &self,
         transaction: &Transaction<'_>,
-        command: &FinalizationLeaseCommand,
+        command: &FinalizationReconcileCommand,
     ) -> Result<u64, FinalizationStoreError> {
-        mutate_claimed_job(transaction, command, "reconcile_required", None).await
+        mutate_claimed_job(
+            transaction,
+            command.lease_command(),
+            "reconcile_required",
+            None,
+            Some(command.error_code()),
+        )
+        .await
     }
 
     /// Atomically settles a claimed job and appends its immutable state-observed receipt.
@@ -142,8 +149,14 @@ impl FinalizationSqlStore {
         command: &FinalizationLeaseCommand,
         resolution: FinalizationResolution,
     ) -> Result<u64, FinalizationStoreError> {
-        let row = update_claimed_job(transaction, command, "completed", Some(resolution.as_str()))
-            .await?;
+        let row = update_claimed_job(
+            transaction,
+            command,
+            "completed",
+            Some(resolution.as_str()),
+            None,
+        )
+        .await?;
         let revision = u64_at(&row, 0)?;
         let observed_at_ms = u64_at(&row, 1)?;
         let payload_hash = string_at(&row, 2)?;
@@ -207,8 +220,9 @@ async fn mutate_claimed_job(
     command: &FinalizationLeaseCommand,
     state: &str,
     resolution: Option<&str>,
+    last_error_code: Option<&str>,
 ) -> Result<u64, FinalizationStoreError> {
-    update_claimed_job(transaction, command, state, resolution)
+    update_claimed_job(transaction, command, state, resolution, last_error_code)
         .await
         .and_then(|row| u64_at(&row, 0))
 }
@@ -218,6 +232,7 @@ async fn update_claimed_job(
     command: &FinalizationLeaseCommand,
     state: &str,
     resolution: Option<&str>,
+    last_error_code: Option<&str>,
 ) -> Result<Row, FinalizationStoreError> {
     if command.expected_revision == 0 {
         return Err(FinalizationStoreError::InvalidInput);
@@ -226,7 +241,8 @@ async fn update_claimed_job(
     transaction
         .query_opt(
             "UPDATE converact_post_call_finalization_jobs
-             SET state = $6, resolution = $7, revision = revision + 1,
+             SET state = $6, resolution = $7, last_error_code = $8,
+                 revision = revision + 1,
                  lease_owner = '', lease_token_hash = '', lease_expires_at = NULL,
                  completed_at = CASE WHEN $6 = 'completed' THEN transaction_timestamp()
                                      ELSE NULL END,
@@ -245,6 +261,7 @@ async fn update_claimed_job(
                 &command.lease.token_hash(),
                 &state,
                 &resolution,
+                &last_error_code,
             ],
         )
         .await
