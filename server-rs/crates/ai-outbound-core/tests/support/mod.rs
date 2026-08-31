@@ -329,6 +329,7 @@ fn agent_release_binding() -> AgentReleaseBinding {
     AgentReleaseBinding::try_new(
         AgentReleaseId::parse("agent-sales-assistant-r1").unwrap(),
         "9".repeat(64),
+        release_digests(),
     )
     .unwrap()
 }

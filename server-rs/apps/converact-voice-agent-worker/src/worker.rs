@@ -127,6 +127,7 @@ where
             AgentReleaseId::parse(release.id())
                 .map_err(|_| WorkerError::new("voice_agent_release_identity_invalid"))?,
             release.content_hash(),
+            release.components().clone(),
         )
         .map_err(|_| WorkerError::new("voice_agent_release_identity_invalid"))?;
 

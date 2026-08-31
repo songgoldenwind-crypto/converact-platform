@@ -2,19 +2,26 @@ mod support;
 
 use converact_ai_outbound_core::{AgentReleaseBinding, AgentReleaseBindingError};
 use converact_voice_agent_contracts::{AgentReleaseId, CallAttemptState};
-use support::Harness;
+use support::{Harness, release_digests};
 
 #[test]
 fn release_binding_rejects_noncanonical_content_hashes() {
     let release_id = || AgentReleaseId::parse("agent-sales-assistant-r1").unwrap();
 
     assert_eq!(
-        AgentReleaseBinding::try_new(release_id(), "A".repeat(64)),
+        AgentReleaseBinding::try_new(release_id(), "A".repeat(64), release_digests()),
         Err(AgentReleaseBindingError::InvalidContentHash),
     );
     assert_eq!(
-        AgentReleaseBinding::try_new(release_id(), "9".repeat(63)),
+        AgentReleaseBinding::try_new(release_id(), "9".repeat(63), release_digests()),
         Err(AgentReleaseBindingError::InvalidContentHash),
+    );
+
+    let mut invalid_components = release_digests();
+    invalid_components.prompt_revision_hash = "A".repeat(64);
+    assert_eq!(
+        AgentReleaseBinding::try_new(release_id(), "9".repeat(64), invalid_components),
+        Err(AgentReleaseBindingError::InvalidComponents),
     );
 }
 
@@ -52,6 +59,7 @@ async fn reservation_is_bound_to_the_exact_agent_release() {
     let release = harness.reserved_agent_release().unwrap();
     assert_eq!(release.id().as_str(), "agent-sales-assistant-r1");
     assert_eq!(release.content_hash(), "9".repeat(64));
+    assert_eq!(release.components(), &release_digests());
 }
 
 #[tokio::test]

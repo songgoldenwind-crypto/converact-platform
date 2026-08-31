@@ -4,17 +4,23 @@ use converact_voice_agent_contracts::{
     AgentReleaseId, CallAttemptId, CallId, ChannelAgentSessionId,
 };
 
-use crate::{CallAttempt, ComplianceDecision, agent_release::is_lowercase_sha256};
+use crate::{
+    CallAttempt, ComplianceDecision, ReleaseComponentDigests, agent_release::is_lowercase_sha256,
+};
 
 /// Invalid immutable Agent Release identity at the execution boundary.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AgentReleaseBindingError {
     InvalidContentHash,
+    InvalidComponents,
 }
 
 impl fmt::Display for AgentReleaseBindingError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("agent_release_binding_content_hash_invalid")
+        formatter.write_str(match self {
+            Self::InvalidContentHash => "agent_release_binding_content_hash_invalid",
+            Self::InvalidComponents => "agent_release_binding_components_invalid",
+        })
     }
 }
 
@@ -25,6 +31,7 @@ impl Error for AgentReleaseBindingError {}
 pub struct AgentReleaseBinding {
     id: AgentReleaseId,
     content_hash: Box<str>,
+    components: ReleaseComponentDigests,
 }
 
 impl AgentReleaseBinding {
@@ -36,14 +43,19 @@ impl AgentReleaseBinding {
     pub fn try_new(
         id: AgentReleaseId,
         content_hash: impl AsRef<str>,
+        components: ReleaseComponentDigests,
     ) -> Result<Self, AgentReleaseBindingError> {
         let content_hash = content_hash.as_ref();
         if !is_lowercase_sha256(content_hash) {
             return Err(AgentReleaseBindingError::InvalidContentHash);
         }
+        if !components.is_valid() {
+            return Err(AgentReleaseBindingError::InvalidComponents);
+        }
         Ok(Self {
             id,
             content_hash: content_hash.into(),
+            components,
         })
     }
 
@@ -55,6 +67,11 @@ impl AgentReleaseBinding {
     #[must_use]
     pub fn content_hash(&self) -> &str {
         &self.content_hash
+    }
+
+    #[must_use]
+    pub const fn components(&self) -> &ReleaseComponentDigests {
+        &self.components
     }
 }
 

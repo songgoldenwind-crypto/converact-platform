@@ -27,7 +27,7 @@ pub(crate) fn derive_initial_session_id(
 
 #[cfg(test)]
 mod tests {
-    use converact_ai_outbound_core::AgentReleaseBinding;
+    use converact_ai_outbound_core::{AgentReleaseBinding, ReleaseComponentDigests};
     use converact_voice_agent_contracts::{AgentReleaseId, CallAttemptId};
 
     use crate::AuthenticatedTenant;
@@ -77,7 +77,21 @@ mod tests {
         AgentReleaseBinding::try_new(
             AgentReleaseId::parse(id).unwrap(),
             digest_character.to_string().repeat(64),
+            components(),
         )
         .unwrap()
+    }
+
+    fn components() -> ReleaseComponentDigests {
+        ReleaseComponentDigests {
+            prompt_revision_hash: "1".repeat(64),
+            conversation_flow_revision_hash: "2".repeat(64),
+            knowledge_revision_hash: "3".repeat(64),
+            tool_schema_hash: "4".repeat(64),
+            speech_profile_hash: "5".repeat(64),
+            compliance_policy_hash: "6".repeat(64),
+            outcome_schema_hash: "7".repeat(64),
+            evaluation_rubric_hash: "8".repeat(64),
+        }
     }
 }

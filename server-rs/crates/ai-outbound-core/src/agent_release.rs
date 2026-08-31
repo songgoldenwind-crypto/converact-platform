@@ -91,7 +91,7 @@ pub struct ReleaseComponentDigests {
 }
 
 impl ReleaseComponentDigests {
-    fn is_valid(&self) -> bool {
+    pub(crate) fn is_valid(&self) -> bool {
         [
             &self.prompt_revision_hash,
             &self.conversation_flow_revision_hash,

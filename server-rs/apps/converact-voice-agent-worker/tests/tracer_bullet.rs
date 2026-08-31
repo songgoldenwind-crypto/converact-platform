@@ -30,6 +30,7 @@ async fn campaign_release_is_bound_to_the_agent_reservation() {
     let reserved = app.reserved_agent_release().unwrap();
     assert_eq!(reserved.id().as_str(), release.id());
     assert_eq!(reserved.content_hash(), release.content_hash());
+    assert_eq!(reserved.components(), release.components());
     let session_id = app.reserved_agent_session_id().unwrap();
     assert!(session_id.as_str().starts_with("ac."));
     assert_eq!(session_id.as_str().len(), 67);

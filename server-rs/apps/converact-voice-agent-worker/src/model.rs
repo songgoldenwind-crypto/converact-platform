@@ -1,4 +1,4 @@
-use converact_ai_outbound_core::{AgentRelease, CallAttempt, Campaign};
+use converact_ai_outbound_core::{AgentRelease, CallAttempt, Campaign, ReleaseComponentDigests};
 use converact_post_call_finalization_core::{FinalizationJobState, FinalizationResolution};
 use converact_post_call_finalization_store::FinalizationJobProgress;
 use converact_tenant_auth::AuthenticatedPlatformIdentity;
@@ -129,6 +129,8 @@ pub struct AgentReleaseResource {
     definition_id: String,
     state: AgentReleaseState,
     content_hash: String,
+    #[serde(skip)]
+    components: ReleaseComponentDigests,
 }
 
 impl AgentReleaseResource {
@@ -139,6 +141,7 @@ impl AgentReleaseResource {
             definition_id: release.definition_id().as_str().to_owned(),
             state: release.state(),
             content_hash: release.content_hash().to_owned(),
+            components: release.components().clone(),
         }
     }
 
@@ -150,6 +153,11 @@ impl AgentReleaseResource {
     #[must_use]
     pub fn content_hash(&self) -> &str {
         &self.content_hash
+    }
+
+    #[must_use]
+    pub const fn components(&self) -> &ReleaseComponentDigests {
+        &self.components
     }
 
     #[must_use]
