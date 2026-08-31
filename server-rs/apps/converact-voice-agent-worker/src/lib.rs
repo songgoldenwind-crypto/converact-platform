@@ -2,6 +2,8 @@
 
 #![forbid(unsafe_code)]
 
+mod campaign_admin;
+mod campaign_admin_http;
 mod campaign_retry;
 mod conversation_finalization;
 mod conversation_projection;
@@ -19,6 +21,10 @@ mod repository;
 mod tool_runtime;
 mod worker;
 
+pub use campaign_admin::{
+    AdminMutationResource, CampaignAdminAccess, CampaignAdminError, CampaignAdminPort,
+};
+pub use campaign_admin_http::campaign_admin_router;
 pub use campaign_retry::{
     CampaignRetryRequest, CampaignRetryWorker, RetryDurabilityPort, RetryPersistenceRequest,
     RetryWorkerDecision, RetryWorkerError, RetryWriteDecision,
