@@ -38,11 +38,13 @@ export function patchPlaybookHandler(source) {
   const sessionField = '    pub session_id: Option<String>,\n';
   const queryHandler = 'pub async fn get_playbook_reservation(';
   const startHandler = 'pub async fn start_playbook_conversation(';
+  const lifecycleHandler = 'pub(crate) async fn observe_platform_lifecycle(';
   const hasSessionField = source.includes(sessionField);
   const hasQueryHandler = source.includes(queryHandler);
   const hasStartHandler = source.includes(startHandler);
-  if (hasSessionField && hasQueryHandler && hasStartHandler) return source;
-  if (hasSessionField || hasQueryHandler || hasStartHandler) {
+  const hasLifecycleHandler = source.includes(lifecycleHandler);
+  if (hasSessionField && hasQueryHandler && hasStartHandler && hasLifecycleHandler) return source;
+  if (hasSessionField || hasQueryHandler || hasStartHandler || hasLifecycleHandler) {
     throw new Error('Active Call Playbook overlay is partially applied');
   }
 
@@ -82,12 +84,16 @@ pub struct PlaybookReservationResponse {
 pub(crate) enum PlatformPlaybookState {
     Pending,
     Attached,
+    MediaReady,
+    DisclosureCompleted,
     Started,
+    Terminal,
 }
 
 pub(crate) struct PlatformPlaybookGate {
     pub state: PlatformPlaybookState,
     pub start_tx: tokio::sync::watch::Sender<bool>,
+    pub updated_at: std::time::Instant,
 }
 
 const MAX_PLATFORM_SESSION_ID_BYTES: usize = 255;
@@ -171,6 +177,7 @@ pub(crate) fn valid_platform_session_id(value: &str) -> bool {
             PlatformPlaybookGate {
                 state: PlatformPlaybookState::Pending,
                 start_tx,
+                updated_at: std::time::Instant::now(),
             },
         );
     }
@@ -189,7 +196,10 @@ pub async fn get_playbook_reservation(
         let state = match gate.state {
             PlatformPlaybookState::Pending => "pending",
             PlatformPlaybookState::Attached => "attached",
+            PlatformPlaybookState::MediaReady => "media_ready",
+            PlatformPlaybookState::DisclosureCompleted => "disclosure_completed",
             PlatformPlaybookState::Started => "started",
+            PlatformPlaybookState::Terminal => "terminal",
         };
         return Json(PlaybookReservationResponse {
             session_id,
@@ -231,8 +241,51 @@ pub(crate) async fn claim_platform_playbook(
         return None;
     }
     gate.state = PlatformPlaybookState::Attached;
+    gate.updated_at = std::time::Instant::now();
     *created_at = std::time::Instant::now();
     Some(content.clone())
+}
+
+pub(crate) async fn observe_platform_lifecycle(
+    state: &AppState,
+    session_id: &str,
+    event: &crate::event::SessionEvent,
+) {
+    let mut gates = state.platform_playbook_gates.lock().await;
+    let Some(gate) = gates.get_mut(session_id) else {
+        return;
+    };
+    let next = match event {
+        crate::event::SessionEvent::MediaReady { .. }
+            if gate.state == PlatformPlaybookState::Attached =>
+        {
+            Some(PlatformPlaybookState::MediaReady)
+        }
+        crate::event::SessionEvent::TrackEnd {
+            duration,
+            play_id: Some(play_id),
+            ..
+        } if gate.state == PlatformPlaybookState::MediaReady
+            && *duration > 0
+            && play_id == session_id =>
+        {
+            Some(PlatformPlaybookState::DisclosureCompleted)
+        }
+        crate::event::SessionEvent::Hangup { .. } => Some(PlatformPlaybookState::Terminal),
+        _ => None,
+    };
+    if let Some(next) = next {
+        gate.state = next;
+        gate.updated_at = std::time::Instant::now();
+    }
+}
+
+pub(crate) async fn mark_platform_terminal(state: &AppState, session_id: &str) {
+    let mut gates = state.platform_playbook_gates.lock().await;
+    if let Some(gate) = gates.get_mut(session_id) {
+        gate.state = PlatformPlaybookState::Terminal;
+        gate.updated_at = std::time::Instant::now();
+    }
 }
 
 pub async fn start_playbook_conversation(
@@ -247,14 +300,20 @@ pub async fn start_playbook_conversation(
         return (StatusCode::NOT_FOUND, "reservation not found").into_response();
     };
     match gate.state {
-        PlatformPlaybookState::Pending => {
-            return (StatusCode::CONFLICT, "session is not attached").into_response();
-        }
-        PlatformPlaybookState::Attached => {
+        PlatformPlaybookState::DisclosureCompleted => {
             gate.state = PlatformPlaybookState::Started;
+            gate.updated_at = std::time::Instant::now();
             gate.start_tx.send_replace(true);
         }
         PlatformPlaybookState::Started => {}
+        PlatformPlaybookState::Pending
+        | PlatformPlaybookState::Attached
+        | PlatformPlaybookState::MediaReady => {
+            return (StatusCode::CONFLICT, "disclosure is not complete").into_response();
+        }
+        PlatformPlaybookState::Terminal => {
+            return (StatusCode::CONFLICT, "session is terminal").into_response();
+        }
     }
     Json(PlaybookReservationResponse {
         session_id,
@@ -267,7 +326,8 @@ pub async fn start_playbook_conversation(
 mod converact_reservation_tests {
     use super::{
         PlaybookSource, RunPlaybookParams, claim_platform_playbook, get_playbook_reservation,
-        run_playbook, start_playbook_conversation, valid_platform_session_id,
+        observe_platform_lifecycle, run_playbook, start_playbook_conversation,
+        valid_platform_session_id,
     };
     use crate::{app::AppStateBuilder, config::Config};
     use axum::{
@@ -379,6 +439,57 @@ mod converact_reservation_tests {
             .start_tx
             .subscribe();
         assert!(!*receiver.borrow());
+        observe_platform_lifecycle(
+            &state,
+            &session_id,
+            &crate::event::SessionEvent::MediaReady {
+                track_id: session_id.clone(),
+                timestamp: 1,
+            },
+        )
+        .await;
+        assert_eq!(
+            start_playbook_conversation(Path(session_id.clone()), State(state.clone()))
+                .await
+                .into_response()
+                .status(),
+            StatusCode::CONFLICT,
+        );
+        for (duration, play_id) in [(640, "different-session"), (0, session_id.as_str())] {
+            observe_platform_lifecycle(
+                &state,
+                &session_id,
+                &crate::event::SessionEvent::TrackEnd {
+                    track_id: session_id.clone(),
+                    timestamp: 2,
+                    duration,
+                    ssrc: 7,
+                    play_id: Some(play_id.to_string()),
+                    auto_hangup: None,
+                },
+            )
+            .await;
+            assert_eq!(
+                start_playbook_conversation(Path(session_id.clone()), State(state.clone()))
+                    .await
+                    .into_response()
+                    .status(),
+                StatusCode::CONFLICT,
+            );
+        }
+        observe_platform_lifecycle(
+            &state,
+            &session_id,
+            &crate::event::SessionEvent::TrackEnd {
+                track_id: session_id.clone(),
+                timestamp: 2,
+                duration: 640,
+                ssrc: 7,
+                play_id: Some(session_id.clone()),
+                auto_hangup: None,
+            },
+        )
+        .await;
         assert_eq!(
             start_playbook_conversation(Path(session_id.clone()), State(state.clone()))
                 .await
@@ -465,12 +576,14 @@ export function patchAppState(source) {
 `,
     `                        pending.retain(|_, (_, created_at)| created_at.elapsed() < ttl);
                         let removed = before - pending.len();
+                        let mut gates = pending_cleanup_state.platform_playbook_gates.lock().await;
+                        let active_calls = pending_cleanup_state.active_calls.lock().unwrap();
+                        gates.retain(|session_id, gate| {
+                            pending.contains_key(session_id)
+                                || active_calls.contains_key(session_id)
+                                || gate.updated_at.elapsed() < ttl
+                        });
                         if removed > 0 {
-                            let mut gates = pending_cleanup_state.platform_playbook_gates.lock().await;
-                            let active_calls = pending_cleanup_state.active_calls.lock().unwrap();
-                            gates.retain(|session_id, _| {
-                                pending.contains_key(session_id) || active_calls.contains_key(session_id)
-                            });
                             info!(removed, remaining = pending.len(), "cleaned up stale pending_playbooks entries");
                         }
 `,
@@ -610,7 +723,13 @@ export function patchInvitationHandler(source) {
 
 export function patchCallHandler(source) {
   const marker = 'PlaybookRunner::new_with_start_gate(';
-  if (source.includes(marker)) return source;
+  const lifecycleMarker = 'observe_platform_lifecycle(';
+  const hasRunnerGate = source.includes(marker);
+  const hasLifecycle = source.includes(lifecycleMarker);
+  if (hasRunnerGate && hasLifecycle) return source;
+  if (hasRunnerGate || hasLifecycle) {
+    throw new Error('Active Call call-handler overlay is partially applied');
+  }
   let patched = replaceOnce(
     source,
     `        let name_or_content = playbook_name.or_else(|| {
@@ -634,6 +753,7 @@ export function patchCallHandler(source) {
                             == crate::handler::playbook::PlatformPlaybookState::Pending =>
                     {
                         gate.state = crate::handler::playbook::PlatformPlaybookState::Attached;
+                        gate.updated_at = std::time::Instant::now();
                         Some(gate.start_tx.subscribe())
                     }
                     Some(gate)
@@ -710,11 +830,37 @@ export function patchCallHandler(source) {
   );
   patched = replaceOnce(
     patched,
+    `    let mut event_receiver = active_call.event_sender.subscribe();
+    let send_events_loop = async {
+        loop {
+            match event_receiver.recv().await {
+                Ok(event) => {
+                    if let Err(_) = event_sender_to_client.send(event) {
+`,
+    `    let mut event_receiver = active_call.event_sender.subscribe();
+    let lifecycle_app_state = app_state.clone();
+    let lifecycle_session_id = session_id.clone();
+    let send_events_loop = async {
+        loop {
+            match event_receiver.recv().await {
+                Ok(event) => {
+                    crate::handler::playbook::observe_platform_lifecycle(
+                        &lifecycle_app_state,
+                        &lifecycle_session_id,
+                        &event,
+                    )
+                    .await;
+                    if let Err(_) = event_sender_to_client.send(event) {
+`,
+    'platform lifecycle observation'
+  );
+  patched = replaceOnce(
+    patched,
     `    active_call.cleanup().await.ok();
     debug!(session_id, "Call handler core completed");
 `,
     `    active_call.cleanup().await.ok();
-    app_state.platform_playbook_gates.lock().await.remove(&session_id);
+    crate::handler::playbook::mark_platform_terminal(&app_state, &session_id).await;
     debug!(session_id, "Call handler core completed");
 `,
     'platform Playbook gate terminal cleanup'

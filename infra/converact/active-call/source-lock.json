@@ -23,9 +23,9 @@
   "overlay": {
     "status": "controlled_local_passed",
     "apply_script": "infra/converact/active-call/apply-overlay.mjs",
-    "apply_script_sha256": "e3fcbe5358c09d68dcb683cf045c62816cd2970c7b0221c6b2afa743d54ea5aa",
+    "apply_script_sha256": "baf592936d41c1a3b67a7a61dd795d7b1dd3e2cd2bb1476de238ae7615d8b9b8",
     "readme": "infra/converact/active-call/README.md",
-    "readme_sha256": "502d06e5e98041af4ea19bca4c496b7a181086c09e3267d4d8f7bacbdeaf83a4",
+    "readme_sha256": "25f791b1f1213bdc9aaa89f9b61e1ed994970b39bda2d29f98659710ef959bea",
     "target_files": [
       "src/app.rs",
       "src/handler/playbook.rs",
@@ -37,17 +37,18 @@
       "client_selected_stable_session_id",
       "same_id_same_content_replay",
       "same_id_different_content_conflict",
-      "pending_attached_started_or_active_reservation_query",
+      "closed_reservation_lifecycle_query",
       "sip_platform_session_binding",
       "single_sip_leg_reservation_claim",
       "control_header_redaction_before_dialogue",
       "reserved_playbook_authority",
+      "exact_disclosure_track_end_gate",
       "explicit_idempotent_conversation_start"
     ],
     "limitations": [
       "reservation_state_is_process_memory_only",
-      "pending_to_attached_transition_is_not_crash_durable",
-      "active_call_does_not_verify_disclosure_completion",
+      "reservation_lifecycle_is_not_crash_durable",
+      "track_end_does_not_prove_callee_audibility_or_recording_capture",
       "control_header_transport_authentication_not_implemented",
       "not_found_does_not_authorize_blind_retry"
     ],

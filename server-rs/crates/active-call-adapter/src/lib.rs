@@ -2,6 +2,7 @@
 
 mod client;
 mod command;
+mod lifecycle;
 mod mapper;
 mod upstream;
 
@@ -12,6 +13,7 @@ pub use client::{
     PlaybookReservationState, ReservedPlaybookSession,
 };
 pub use command::{AdapterCommand, encode_command};
+pub use lifecycle::{ActiveCallLifecycleEvent, decode_lifecycle_event};
 pub use mapper::{
     AdapterContext, AdapterError, DtmfDigit, IntentCandidate, NormalizedEvent, normalize_event,
 };

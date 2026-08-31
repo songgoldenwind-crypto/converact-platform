@@ -13,10 +13,12 @@ Scope: local exact-source overlay and Rust loopback contracts only
   leg claims it; a second claim is rejected.
 - The control header is removed before SIP extras can reach Playbook rendering or the dialogue LLM.
 - A reserved Playbook is authoritative for that SIP session instead of a static routing Playbook.
-- The Runner observes Answer/MediaReady while armed but does not call `on_start` until the explicit
-  idempotent start endpoint changes `attached -> started`.
-- The Rust adapter parses `pending`, `attached`, `started`, legacy `active`, and `not_found`, and
-  treats ambiguous start mutation results as unknown rather than retryable failure.
+- The Runner observes Answer/MediaReady while armed but does not call `on_start` until an exact,
+  positive-duration disclosure `TrackEnd` changes the gate to `disclosure_completed` and the
+  explicit idempotent start endpoint changes it to `started`.
+- The Rust adapter parses `pending`, `attached`, `media_ready`, `disclosure_completed`, `started`,
+  legacy `active`, `terminal`, and `not_found`, and treats ambiguous start mutation results as
+  unknown rather than retryable failure.
 
 ## Precise local verification
 
@@ -25,7 +27,9 @@ Scope: local exact-source overlay and Rust loopback contracts only
 | Node overlay behavior/idempotence tests | 3 passed |
 | transformed exact-source Rust reservation tests | 3 passed, 255 filtered |
 | `converact-active-call-adapter` client tests | 11 passed |
+| `converact-active-call-adapter` lifecycle tests | 2 passed |
 | worker Active Call reservation adapter tests | 2 passed |
+| complete worker `ChannelAgentPort` tests | 8 passed |
 | adapter + worker scoped Clippy with warnings denied | passed |
 | transformed source `rustfmt` and `git diff --check` | passed |
 
@@ -37,12 +41,14 @@ focused Rust test build.
 ## Not proven
 
 - RustPBX header injection and a real originated SIP leg: `not_run`.
-- A running Active Call process, real provider ASR/TTS/LLM, RTP/media, disclosure audio, barge-in,
+- A running Active Call process, real provider ASR/TTS/LLM, RTP/media, audible disclosure,
+  recording capture, barge-in,
   intent output, terminal transcript, or post-call outcome: `not_run`.
 - Authentication of the private RustPBX-to-Active-Call control header: `not_run`.
 - Crash durability or multi-node reservation recovery: `not_run`; reservation/gate state is
   process-local memory.
 - Production eligibility and performance/capacity: `not_run`.
 
-Active Call does not certify disclosure completion. Converact remains responsible for observing the
-exact disclosure `playId` terminal event before invoking the start mutation.
+The exact local `TrackEnd` gate does not certify that the callee heard the disclosure, that the
+recording contains it, or that its policy text is sufficient. Those physical and compliance checks
+remain `not_run`.

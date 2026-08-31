@@ -13,8 +13,11 @@ use crate::ActiveCallPlaybookArtifact;
 pub enum ActiveCallReservationObservation {
     Pending,
     Attached,
+    MediaReady,
+    DisclosureCompleted,
     Started,
     Active,
+    Terminal,
     NotFound,
 }
 
@@ -71,8 +74,15 @@ impl ActiveCallReservationAdapter {
             .map(|state| match state {
                 PlaybookReservationState::Pending => ActiveCallReservationObservation::Pending,
                 PlaybookReservationState::Attached => ActiveCallReservationObservation::Attached,
+                PlaybookReservationState::MediaReady => {
+                    ActiveCallReservationObservation::MediaReady
+                }
+                PlaybookReservationState::DisclosureCompleted => {
+                    ActiveCallReservationObservation::DisclosureCompleted
+                }
                 PlaybookReservationState::Started => ActiveCallReservationObservation::Started,
                 PlaybookReservationState::Active => ActiveCallReservationObservation::Active,
+                PlaybookReservationState::Terminal => ActiveCallReservationObservation::Terminal,
                 PlaybookReservationState::NotFound => ActiveCallReservationObservation::NotFound,
             })
             .map_err(map_query_error)

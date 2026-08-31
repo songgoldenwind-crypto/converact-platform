@@ -217,9 +217,24 @@ impl FakeActiveCall {
                             "state": "attached"
                         }))
                         .into_response(),
+                        "agent-session-media-ready" => Json(json!({
+                            "session_id": id,
+                            "state": "media_ready"
+                        }))
+                        .into_response(),
+                        "agent-session-disclosure-completed" => Json(json!({
+                            "session_id": id,
+                            "state": "disclosure_completed"
+                        }))
+                        .into_response(),
                         "agent-session-started" => Json(json!({
                             "session_id": id,
                             "state": "started"
+                        }))
+                        .into_response(),
+                        "agent-session-terminal" => Json(json!({
+                            "session_id": id,
+                            "state": "terminal"
                         }))
                         .into_response(),
                         _ => StatusCode::NOT_FOUND.into_response(),

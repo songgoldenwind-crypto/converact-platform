@@ -224,8 +224,11 @@ pub struct ConversationStarted {
 pub enum PlaybookReservationState {
     Pending,
     Attached,
+    MediaReady,
+    DisclosureCompleted,
     Started,
     Active,
+    Terminal,
     NotFound,
 }
 
@@ -611,8 +614,11 @@ impl ActiveCallClient {
         match observation.state.as_str() {
             "pending" => Ok(PlaybookReservationState::Pending),
             "attached" => Ok(PlaybookReservationState::Attached),
+            "media_ready" => Ok(PlaybookReservationState::MediaReady),
+            "disclosure_completed" => Ok(PlaybookReservationState::DisclosureCompleted),
             "started" => Ok(PlaybookReservationState::Started),
             "active" => Ok(PlaybookReservationState::Active),
+            "terminal" => Ok(PlaybookReservationState::Terminal),
             _ => Err(invalid_response("active_call_playbook_status_unknown")),
         }
     }

@@ -32,7 +32,10 @@ test('platform reservation has an attached then explicitly started gate', () => 
 
   assert.match(app, /platform_playbook_gates/);
   assert.match(handler, /PlatformPlaybookState::Attached/);
+  assert.match(handler, /PlatformPlaybookState::MediaReady/);
+  assert.match(handler, /PlatformPlaybookState::DisclosureCompleted/);
   assert.match(handler, /claim_platform_playbook/);
+  assert.match(handler, /observe_platform_lifecycle/);
   assert.match(handler, /start_playbook_conversation/);
   assert.match(call, /new_with_start_gate/);
   assert.match(runner, /wait_for_platform_start/);

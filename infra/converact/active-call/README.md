@@ -13,10 +13,13 @@ explicit disclosure-before-conversation gate:
 - an inbound SIP leg may carry `X-Converact-Agent-Session`; the value is bounded, matched only to
   an existing reservation, removed from Playbook/LLM extras, and used instead of the SIP Dialog ID;
 - the first matching SIP leg atomically claims the reserved Playbook; another leg cannot reuse it;
-- `GET /api/playbook/reservations/{session_id}` reports `pending`, `attached`, `started`, legacy
-  `active`, or `404`;
-- a platform-owned Runner stays silent while attached and starts only after idempotent
-  `POST /api/playbook/reservations/{session_id}/start`;
+- `GET /api/playbook/reservations/{session_id}` reports `pending`, `attached`, `media_ready`,
+  `disclosure_completed`, `started`, legacy `active`, `terminal`, or `404`;
+- a platform-owned Runner stays silent after SIP attachment and media readiness;
+- the overlay advances to `disclosure_completed` only for a positive-duration `TrackEnd` whose
+  `playId` exactly equals the platform session ID;
+- the idempotent `POST /api/playbook/reservations/{session_id}/start` succeeds only after that
+  exact disclosure playback terminal event;
 - the legacy request without `session_id` remains compatible.
 
 It does not give Active Call Campaign, Agent Release, telephony, Call/Leg, billing, external Tool,
@@ -24,10 +27,11 @@ recording or outcome authority. It also does not make the in-memory reservation 
 platform must persist intent before mutation, use a stable session identity, query after an unknown
 outcome, and reconcile process restart plus `not_found` against its own durable reservation intent.
 The control header is for the trusted RustPBX-to-Active-Call placement only; it is not a public
-caller assertion and the overlay does not add transport authentication. Active Call also does not
-decide whether disclosure completed: Converact must observe the exact disclosure playback terminal
-event before issuing `start`. A transient `404` is not proof that no call-side effect exists and
-must never authorize a blind second mutation.
+caller assertion and the overlay does not add transport authentication. Converact owns disclosure
+policy, text and command issuance; the overlay only records its local exact-playback terminal event.
+That event does not prove that a callee heard the audio, that recording captured it, or that policy
+content is sufficient. A transient `404` is not proof that no call-side effect exists and must never
+authorize a blind second mutation.
 
 The overlay script checks the exact upstream commit and tree before changing five Rust source files.
 It is idempotent on a previously overlaid checkout and fails closed on partial application or

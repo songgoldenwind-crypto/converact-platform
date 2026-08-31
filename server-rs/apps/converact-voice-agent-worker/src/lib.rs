@@ -2,6 +2,7 @@
 
 #![forbid(unsafe_code)]
 
+mod active_call_channel_agent;
 mod active_call_handoff;
 mod active_call_intent;
 mod active_call_playbook_artifact;
@@ -28,6 +29,9 @@ mod result_generation;
 mod tool_runtime;
 mod worker;
 
+pub use active_call_channel_agent::{
+    ActiveCallChannelAgent, ActiveCallChannelAgentConfig, ActiveCallChannelAgentConfigError,
+};
 pub use active_call_handoff::ActiveCallHandoffPort;
 pub use active_call_intent::{
     ActiveCallIntentProjectionError, resolve_active_call_intent_evidence,

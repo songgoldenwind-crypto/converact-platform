@@ -119,11 +119,38 @@ async fn playbook_reservation_query_distinguishes_pending_active_and_missing() {
     assert_eq!(
         client
             .query_playbook_reservation(
+                &ChannelAgentSessionId::parse("agent-session-media-ready").unwrap(),
+            )
+            .await
+            .unwrap(),
+        PlaybookReservationState::MediaReady,
+    );
+    assert_eq!(
+        client
+            .query_playbook_reservation(
+                &ChannelAgentSessionId::parse("agent-session-disclosure-completed").unwrap(),
+            )
+            .await
+            .unwrap(),
+        PlaybookReservationState::DisclosureCompleted,
+    );
+    assert_eq!(
+        client
+            .query_playbook_reservation(
                 &ChannelAgentSessionId::parse("agent-session-started").unwrap(),
             )
             .await
             .unwrap(),
         PlaybookReservationState::Started,
+    );
+    assert_eq!(
+        client
+            .query_playbook_reservation(
+                &ChannelAgentSessionId::parse("agent-session-terminal").unwrap(),
+            )
+            .await
+            .unwrap(),
+        PlaybookReservationState::Terminal,
     );
     assert_eq!(
         client

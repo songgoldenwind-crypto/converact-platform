@@ -1,0 +1,75 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_at": "2026-09-01",
+  "scope": "local_contract_loopback_and_isolated_exact_source",
+  "active_call": {
+    "commit": "6224d948cc0941ac48b4a5426477aeaf639c2e98",
+    "tree": "9521ad341fb992ba6d491eb217983df8cf85d2cf"
+  },
+  "checks": [
+    {
+      "id": "overlay_node",
+      "command": "node --test infra/converact/active-call/apply-overlay.test.mjs",
+      "status": "passed",
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "id": "exact_source_overlay",
+      "command": "apply overlay twice to a fresh isolated pinned checkout, rustfmt changed files, git diff --check, then cargo test converact_reservation_tests",
+      "status": "passed",
+      "passed": 3,
+      "failed": 0,
+      "filtered": 255
+    },
+    {
+      "id": "active_call_client",
+      "command": "cargo test -p converact-active-call-adapter --test client --locked",
+      "status": "passed",
+      "passed": 11,
+      "failed": 0
+    },
+    {
+      "id": "active_call_lifecycle",
+      "command": "cargo test -p converact-active-call-adapter --test lifecycle --locked",
+      "status": "passed",
+      "passed": 2,
+      "failed": 0
+    },
+    {
+      "id": "worker_reservation",
+      "command": "cargo test -p converact-voice-agent-worker --test active_call_reservation_adapter --locked",
+      "status": "passed",
+      "passed": 2,
+      "failed": 0
+    },
+    {
+      "id": "complete_channel_agent",
+      "command": "cargo test -p converact-voice-agent-worker --test active_call_channel_agent --locked",
+      "status": "passed",
+      "passed": 8,
+      "failed": 0
+    },
+    {
+      "id": "scoped_clippy",
+      "command": "cargo clippy -p converact-active-call-adapter -p converact-voice-agent-worker --tests --locked -- -D warnings",
+      "status": "passed"
+    }
+  ],
+  "not_run": [
+    "running_active_call_process",
+    "rustpbx_control_header_injection",
+    "real_sip_pstn_and_media",
+    "real_speech_and_model_providers",
+    "callee_audible_disclosure",
+    "recording_capture_and_continuity",
+    "physical_durable_effect_store",
+    "restart_and_multi_node_recovery",
+    "private_header_transport_authentication",
+    "performance_capacity_and_long_run",
+    "production_eligibility"
+  ],
+  "server_state_changed": false,
+  "local_docker_used": false,
+  "production_eligible": false
+}
