@@ -8,8 +8,17 @@ publish.workspace = true
 
 [dependencies]
 converact-voice-agent-contracts = { path = "../voice-agent-contracts" }
+reqwest.workspace = true
+rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+tokio.workspace = true
+url.workspace = true
+webpki-roots.workspace = true
+
+[dev-dependencies]
+axum.workspace = true
+tokio.workspace = true
 
 [lints]
 workspace = true

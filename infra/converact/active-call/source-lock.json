@@ -25,9 +25,10 @@
     "source_download": "verified",
     "dependency_closure": "not_run",
     "license_review": "not_run",
-    "build": "not_run",
-    "tests": "not_run",
+    "build": "passed_local",
+    "tests": "blocked_external",
     "runtime_integration": "not_run",
-    "production_eligible": false
+    "production_eligible": false,
+    "local_evidence": "docs/evidence/active-call-exact-source-local-qualification-2026-08-31.md"
   }
 }
