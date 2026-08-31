@@ -11,6 +11,7 @@ const MAX_TOOL_ARGUMENT_BYTES: usize = 65_536;
 const MAX_TRANSCRIPT_BYTES: usize = 16_384;
 const MAX_UPSTREAM_EVENT_BYTES: usize = 131_072;
 const MAX_TIME_TEXT_BYTES: usize = 64;
+const MAX_INTENT_CANDIDATE_BYTES: usize = 256;
 
 /// Validated Converact authority context attached to every normalized event.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -33,6 +34,24 @@ impl DtmfDigit {
 impl fmt::Debug for DtmfDigit {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("DtmfDigit([REDACTED])")
+    }
+}
+
+/// One untrusted Channel Agent intent candidate with redacted diagnostics.
+#[derive(Clone, Eq, PartialEq)]
+pub struct IntentCandidate(Box<str>);
+
+impl IntentCandidate {
+    /// Returns the candidate only to the explicit schema-validation consumer.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Debug for IntentCandidate {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("IntentCandidate([REDACTED])")
     }
 }
 
@@ -126,6 +145,7 @@ pub enum NormalizedEvent {
         timestamp_ms: u64,
         start_time: Box<str>,
         hangup_time: Box<str>,
+        intent_candidate: Option<IntentCandidate>,
     },
 }
 
@@ -181,6 +201,7 @@ pub enum AdapterError {
     InvalidToolName,
     InvalidToolArguments,
     InvalidTimeText,
+    InvalidIntentCandidate,
 }
 
 impl AdapterError {
@@ -201,6 +222,7 @@ impl AdapterError {
             Self::InvalidToolName => "active_call_tool_name_invalid",
             Self::InvalidToolArguments => "active_call_tool_arguments_invalid",
             Self::InvalidTimeText => "active_call_time_text_invalid",
+            Self::InvalidIntentCandidate => "active_call_intent_candidate_invalid",
         }
     }
 }
@@ -347,14 +369,47 @@ fn map_event(
             timestamp,
             start_time,
             hangup_time,
-        } => Ok(NormalizedEvent::ConversationCompleted {
-            authority: context.authority.clone(),
-            track_id: bounded_identifier(track_id)?,
-            timestamp_ms: valid_timestamp(timestamp)?,
-            start_time: bounded_time_text(start_time)?,
-            hangup_time: bounded_time_text(hangup_time)?,
-        }),
+            extra,
+        } => {
+            map_conversation_completed(context, track_id, timestamp, start_time, hangup_time, extra)
+        }
     }
+}
+
+fn map_conversation_completed(
+    context: &AdapterContext,
+    track_id: String,
+    timestamp: u64,
+    start_time: String,
+    hangup_time: String,
+    mut extra: Option<std::collections::HashMap<String, Value>>,
+) -> Result<NormalizedEvent, AdapterError> {
+    let intent_candidate = extra
+        .as_mut()
+        .and_then(|values| values.remove("intent"))
+        .map(valid_intent_candidate)
+        .transpose()?;
+    Ok(NormalizedEvent::ConversationCompleted {
+        authority: context.authority.clone(),
+        track_id: bounded_identifier(track_id)?,
+        timestamp_ms: valid_timestamp(timestamp)?,
+        start_time: bounded_time_text(start_time)?,
+        hangup_time: bounded_time_text(hangup_time)?,
+        intent_candidate,
+    })
+}
+
+fn valid_intent_candidate(value: Value) -> Result<IntentCandidate, AdapterError> {
+    let Value::String(value) = value else {
+        return Err(AdapterError::InvalidIntentCandidate);
+    };
+    if value.is_empty()
+        || value.len() > MAX_INTENT_CANDIDATE_BYTES
+        || value.chars().any(char::is_control)
+    {
+        return Err(AdapterError::InvalidIntentCandidate);
+    }
+    Ok(IntentCandidate(value.into()))
 }
 
 fn map_media_ready(

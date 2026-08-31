@@ -1,4 +1,7 @@
+use std::collections::HashMap;
+
 use serde::Deserialize;
+use serde_json::Value;
 
 /// Private mirror of only the pinned Active Call events accepted by this slice.
 #[derive(Debug, Deserialize)]
@@ -70,5 +73,6 @@ pub(crate) enum UpstreamEvent {
         timestamp: u64,
         start_time: String,
         hangup_time: String,
+        extra: Option<HashMap<String, Value>>,
     },
 }

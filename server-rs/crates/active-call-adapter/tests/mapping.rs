@@ -13,10 +13,20 @@ fn exact_upstream_media_and_hangup_fixtures_are_accepted() {
         .unwrap(),
         NormalizedEvent::MediaReady { .. }
     ));
-    assert!(matches!(
-        normalize_event(&adapter_context(3), include_str!("fixtures/hangup.json")).unwrap(),
-        NormalizedEvent::ConversationCompleted { .. }
-    ));
+    let completed =
+        normalize_event(&adapter_context(3), include_str!("fixtures/hangup.json")).unwrap();
+    let NormalizedEvent::ConversationCompleted {
+        intent_candidate: Some(intent),
+        ..
+    } = &completed
+    else {
+        panic!("hangup must preserve the bounded intent candidate")
+    };
+    assert_eq!(intent.as_str(), "purchase.snacks");
+    let debug = format!("{completed:?}");
+    assert!(!debug.contains("purchase.snacks"));
+    assert!(!debug.contains("private customer note"));
+    assert!(!debug.contains("secret-token"));
 }
 
 #[test]
@@ -183,5 +193,35 @@ fn realtime_control_values_fail_closed() {
             .unwrap_err()
             .code(),
         "active_call_timestamp_invalid"
+    );
+}
+
+#[test]
+fn malformed_intent_candidates_fail_closed() {
+    let wrong_type = r#"{"event":"hangup","trackId":"track-001","timestamp":1,"startTime":"2026-08-31T00:00:00Z","hangupTime":"2026-08-31T00:01:00Z","extra":{"intent":42}}"#;
+    assert_eq!(
+        normalize_event(&adapter_context(3), wrong_type)
+            .unwrap_err()
+            .code(),
+        "active_call_intent_candidate_invalid"
+    );
+
+    let control = r#"{"event":"hangup","trackId":"track-001","timestamp":1,"startTime":"2026-08-31T00:00:00Z","hangupTime":"2026-08-31T00:01:00Z","extra":{"intent":"purchase\nsecret"}}"#;
+    assert_eq!(
+        normalize_event(&adapter_context(3), control)
+            .unwrap_err()
+            .code(),
+        "active_call_intent_candidate_invalid"
+    );
+
+    let oversized = format!(
+        r#"{{"event":"hangup","trackId":"track-001","timestamp":1,"startTime":"2026-08-31T00:00:00Z","hangupTime":"2026-08-31T00:01:00Z","extra":{{"intent":"{}"}}}}"#,
+        "x".repeat(257)
+    );
+    assert_eq!(
+        normalize_event(&adapter_context(3), &oversized)
+            .unwrap_err()
+            .code(),
+        "active_call_intent_candidate_invalid"
     );
 }
