@@ -2,7 +2,7 @@ mod support;
 
 use converact_active_call_adapter::{
     ActiveCallClient, ActiveCallEventKind, ActiveCallSessionState, ClientConfig, ClientFailureKind,
-    InlinePlaybook,
+    InlinePlaybook, PlaybookReservationState,
 };
 use converact_voice_agent_contracts::ChannelAgentSessionId;
 use std::time::Duration;
@@ -74,21 +74,76 @@ async fn playbook_reservation_uses_only_inline_content_and_returns_typed_session
     let fake = FakeActiveCall::accept_playbook_reservations().await;
     let client = ActiveCallClient::connect(fake.config()).unwrap();
     let playbook = InlinePlaybook::try_new("---\nname: sales-r1\n---\n# Main\nHello").unwrap();
+    let session_id = ChannelAgentSessionId::parse("agent-session-001").unwrap();
 
-    let reservation = client.reserve_playbook(playbook).await.unwrap();
+    let reservation = client
+        .reserve_playbook(session_id.clone(), playbook)
+        .await
+        .unwrap();
 
-    assert_eq!(
-        reservation.session_id.as_str(),
-        "s.00000000-0000-4000-8000-000000000001"
-    );
+    assert_eq!(reservation.session_id, session_id);
     assert_eq!(fake.playbook_reservation_count(), 1);
     let request = fake.last_playbook_reservation().unwrap();
     assert_eq!(
         request["content"],
         "---\nname: sales-r1\n---\n# Main\nHello"
     );
+    assert_eq!(request["session_id"], "agent-session-001");
     assert!(request.get("to").is_none());
     assert!(request.get("type").is_none());
+}
+
+#[tokio::test]
+async fn playbook_reservation_query_distinguishes_pending_active_and_missing() {
+    let fake = FakeActiveCall::accept_playbook_reservations().await;
+    let client = ActiveCallClient::connect(fake.config()).unwrap();
+
+    assert_eq!(
+        client
+            .query_playbook_reservation(
+                &ChannelAgentSessionId::parse("agent-session-001").unwrap(),
+            )
+            .await
+            .unwrap(),
+        PlaybookReservationState::Pending,
+    );
+    assert_eq!(
+        client
+            .query_playbook_reservation(
+                &ChannelAgentSessionId::parse("agent-session-active").unwrap(),
+            )
+            .await
+            .unwrap(),
+        PlaybookReservationState::Active,
+    );
+    assert_eq!(
+        client
+            .query_playbook_reservation(
+                &ChannelAgentSessionId::parse("agent-session-missing").unwrap(),
+            )
+            .await
+            .unwrap(),
+        PlaybookReservationState::NotFound,
+    );
+}
+
+#[tokio::test]
+async fn playbook_reservation_response_identity_drift_is_outcome_unknown() {
+    let fake = FakeActiveCall::mismatch_playbook_reservations().await;
+    let client = ActiveCallClient::connect(fake.config()).unwrap();
+    let playbook = InlinePlaybook::try_new("---\nname: sales-r1\n---\n# Main\nHello").unwrap();
+
+    assert_eq!(
+        client
+            .reserve_playbook(
+                ChannelAgentSessionId::parse("agent-session-001").unwrap(),
+                playbook,
+            )
+            .await
+            .unwrap_err()
+            .kind(),
+        ClientFailureKind::OutcomeUnknown,
+    );
 }
 
 #[test]
@@ -105,7 +160,14 @@ async fn playbook_reservation_timeout_is_outcome_unknown() {
     let playbook = InlinePlaybook::try_new("---\nname: sales-r1\n---\n# Main\nHello").unwrap();
 
     assert_eq!(
-        client.reserve_playbook(playbook).await.unwrap_err().kind(),
+        client
+            .reserve_playbook(
+                ChannelAgentSessionId::parse("agent-session-001").unwrap(),
+                playbook,
+            )
+            .await
+            .unwrap_err()
+            .kind(),
         ClientFailureKind::OutcomeUnknown,
     );
     assert_eq!(fake.playbook_reservation_count(), 1);

@@ -7,6 +7,7 @@ use std::sync::{
 
 use axum::{
     Json, Router,
+    extract::Path,
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
@@ -177,17 +178,63 @@ impl FakeActiveCall {
         let handler_last = Arc::clone(&last);
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
+        let router = Router::new()
+            .route(
+                "/api/playbook/run",
+                post(move |Json(body): Json<serde_json::Value>| {
+                    let count = Arc::clone(&handler_count);
+                    let last = Arc::clone(&handler_last);
+                    async move {
+                        count.fetch_add(1, Ordering::SeqCst);
+                        let session_id = body["session_id"].clone();
+                        *last.lock().unwrap() = Some(body);
+                        Json(json!({ "session_id": session_id }))
+                    }
+                }),
+            )
+            .route(
+                "/api/playbook/reservations/{id}",
+                get(|Path(id): Path<String>| async move {
+                    match id.as_str() {
+                        "agent-session-001" => Json(json!({
+                            "session_id": id,
+                            "state": "pending"
+                        }))
+                        .into_response(),
+                        "agent-session-active" => Json(json!({
+                            "session_id": id,
+                            "state": "active"
+                        }))
+                        .into_response(),
+                        _ => StatusCode::NOT_FOUND.into_response(),
+                    }
+                }),
+            );
+        let task = tokio::spawn(async move {
+            axum::serve(listener, router).await.unwrap();
+        });
+        Self {
+            endpoint: format!("http://{address}"),
+            task,
+            command_count: Arc::new(AtomicUsize::new(0)),
+            status_count: Arc::new(AtomicUsize::new(0)),
+            playbook_reservation_count: count,
+            last_playbook_reservation: last,
+        }
+    }
+
+    pub async fn mismatch_playbook_reservations() -> Self {
+        let count = Arc::new(AtomicUsize::new(0));
+        let handler_count = Arc::clone(&count);
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
         let router = Router::new().route(
             "/api/playbook/run",
-            post(move |Json(body): Json<serde_json::Value>| {
+            post(move || {
                 let count = Arc::clone(&handler_count);
-                let last = Arc::clone(&handler_last);
                 async move {
                     count.fetch_add(1, Ordering::SeqCst);
-                    *last.lock().unwrap() = Some(body);
-                    Json(json!({
-                        "session_id": "s.00000000-0000-4000-8000-000000000001"
-                    }))
+                    Json(json!({ "session_id": "agent-session-drift" }))
                 }
             }),
         );
@@ -200,7 +247,7 @@ impl FakeActiveCall {
             command_count: Arc::new(AtomicUsize::new(0)),
             status_count: Arc::new(AtomicUsize::new(0)),
             playbook_reservation_count: count,
-            last_playbook_reservation: last,
+            last_playbook_reservation: Arc::new(Mutex::new(None)),
         }
     }
 
