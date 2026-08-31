@@ -4,6 +4,7 @@ use converact_active_call_adapter::{
     ActiveCallClient, ActiveCallCommand, ActiveCallSessionState, AdapterCommand,
 };
 use converact_agent_handoff_core::ControlOwner;
+use converact_voice_agent_contracts::ChannelAgentSessionId;
 
 use crate::{
     AiResumeRequest, ChannelAgentHandoffPort, EffectObservation, GenerationCommit,
@@ -29,13 +30,22 @@ impl ActiveCallHandoffPort {
         &self,
         request: &AiResumeRequest,
     ) -> Result<EffectObservation, VoiceHandoffPortError> {
-        match self.client.query_session(request.ai_session_id()).await {
-            Ok(ActiveCallSessionState::Active) => Ok(EffectObservation::Applied),
-            Ok(ActiveCallSessionState::NotFound) => Ok(EffectObservation::NotApplied(
+        match self.session_state(request.ai_session_id()).await? {
+            ActiveCallSessionState::Active => Ok(EffectObservation::Applied),
+            ActiveCallSessionState::NotFound => Ok(EffectObservation::NotApplied(
                 "active_call_session_not_found",
             )),
-            Err(error) => Err(VoiceHandoffPortError::new(error.code())),
         }
+    }
+
+    async fn session_state(
+        &self,
+        session_id: &ChannelAgentSessionId,
+    ) -> Result<ActiveCallSessionState, VoiceHandoffPortError> {
+        self.client
+            .query_session(session_id)
+            .await
+            .map_err(|error| VoiceHandoffPortError::new(error.code()))
     }
 }
 
@@ -59,7 +69,12 @@ impl ChannelAgentHandoffPort for ActiveCallHandoffPort {
         commit: GenerationCommit,
     ) -> Result<(), VoiceHandoffPortError> {
         if commit.owner() == ControlOwner::Ai {
-            return Ok(());
+            return match self.session_state(commit.ai_session_id()).await? {
+                ActiveCallSessionState::Active => Ok(()),
+                ActiveCallSessionState::NotFound => {
+                    Err(VoiceHandoffPortError::new("active_call_session_not_found"))
+                }
+            };
         }
         let command = ActiveCallCommand::try_new(
             commit.ai_session_id().clone(),
@@ -168,6 +183,19 @@ mod tests {
 
         port.generation_committed(commit).await.unwrap();
 
+        assert!(fake.commands().is_empty());
+    }
+
+    #[tokio::test]
+    async fn replacement_session_must_still_exist_when_ai_generation_is_committed() {
+        let fake = FakeActiveCall::start([]).await;
+        let port =
+            ActiveCallHandoffPort::new(Arc::new(ActiveCallClient::connect(fake.config()).unwrap()));
+        let commit = GenerationCommit::from_handoff(&ai_resumed(), command_id("commit-ai-resume"));
+
+        let error = port.generation_committed(commit).await.unwrap_err();
+
+        assert_eq!(error.code(), "active_call_session_not_found");
         assert!(fake.commands().is_empty());
     }
 
