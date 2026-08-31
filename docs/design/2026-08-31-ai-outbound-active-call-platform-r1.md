@@ -888,7 +888,9 @@ query/replay 和 finalization 上拒绝漂移。真实 Playbook/模型意图质�
 固定 Active Call 精确源码的构建覆盖层也已通过本地受控测试：平台可选择稳定 session ID，同 ID
 同 Playbook 可重放，内容漂移返回冲突，并可查询进程内 pending/active 状态。该覆盖层不改变固定
 源码 checkout，也不冒充耐久存储或原子 pending-to-active 交接；`404` 不能授权盲目重试。真实
-进程、Rust Adapter 协调、重启恢复与生产仍为 `not_run`。
+Rust Adapter 已在 loopback 下发送稳定 ID、校验响应身份并查询 pending/active/not-found；它不对
+mutation 自动重试，也不把 not-found 解释成安全重建。真实进程、durable Worker 协调、重启恢复
+与生产仍为 `not_run`。
 物理 PostgreSQL、真实 RustPBX/Active Call/Speech、SIP/PSTN/媒体、真实 Tool/审批/模型供应商、
 生产路由授权、Dashboard、旧 writer 迁移、性能、容量和生产部署均保持 `not_run`，后续必须按
 独立 Evidence Gate 逐项推进。
@@ -918,6 +920,7 @@ query/replay 和 finalization 上拒绝漂移。真实 Playbook/模型意图质�
 - [Active Call Intent → Outcome Projection R1 计划](../plans/2026-08-31-active-call-intent-outcome-projection-r1.md)
 - [Active Call Intent → Outcome Projection R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-intent-outcome/README.md)
 - [Active Call Reservation Overlay R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-reservation-overlay/README.md)
+- [Active Call Reservation Adapter R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-reservation-adapter/README.md)
 - [Agent Release reservation binding evidence](../../architecture-foundation/ai-outbound/evidence/r1-agent-release-reservation-binding/README.md)
 - [Active Call Playbook reservation evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-playbook-reservation/README.md)
 
@@ -941,3 +944,4 @@ query/replay 和 finalization 上拒绝漂移。真实 Playbook/模型意图质�
 | 2026-08-31 | R1 Agent Release reservation checkpoint | Campaign 选择的精确 Release ID/content hash 已进入 Agent 预留请求并通过 Core/Worker 受控测试；真实 Active Call artifact resolution、媒体和生产仍为 `not_run` |
 | 2026-08-31 | R1 Active Call Playbook reservation checkpoint | 固定 `/api/playbook/run` 的有界 inline Playbook wire、typed session 和 unknown-outcome 语义已通过 loopback；上游随机 ID 导致的 pending reservation 不可查询问题、真实进程/媒体和生产仍为 `not_run` |
 | 2026-08-31 | R1 Active Call reservation overlay checkpoint | 精确源码覆盖层的稳定 ID、同载荷重放、漂移冲突和 pending/active 查询已通过；耐久性、原子交接、真实进程/Adapter 协调和生产仍为 `not_run` |
+| 2026-08-31 | R1 Active Call reservation adapter checkpoint | Rust Client 的稳定 ID、响应身份校验、pending/active/not-found 查询和 unknown-outcome 语义已通过；真实进程、durable Worker 协调和生产仍为 `not_run` |

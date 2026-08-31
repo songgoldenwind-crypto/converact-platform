@@ -1,0 +1,83 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-08-31",
+  "evidence_class": [
+    "local_contract",
+    "controlled_loopback"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "commit": "7c4fce07a380d60f9689e4e35ea57eb6d8e327f8",
+    "tree": "87898647eb485eba2c510ae4cc259e813558ef2f"
+  },
+  "active_call": {
+    "version": "0.3.83",
+    "commit": "6224d948cc0941ac48b4a5426477aeaf639c2e98",
+    "overlay_commit": "ab0ec6aae3c62fce01afa1ebabfcf8a0ce94707a",
+    "runtime_executed": false,
+    "stable_session_id_wire": true,
+    "reservation_query_states": [
+      "pending",
+      "active",
+      "not_found"
+    ]
+  },
+  "environment": {
+    "os": "Darwin arm64",
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)"
+  },
+  "commands": [
+    {
+      "id": "reservation_adapter_red",
+      "working_directory": "server-rs",
+      "command": "PATH=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin:$PATH RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc cargo test --locked -p converact-active-call-adapter --test client",
+      "exit_code": 101,
+      "result": "expected_failure_missing_stable_id_query_contract"
+    },
+    {
+      "id": "reservation_adapter_green",
+      "working_directory": "server-rs",
+      "command": "PATH=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin:$PATH RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc cargo test --locked -p converact-active-call-adapter --test client",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 9,
+      "failed": 0
+    },
+    {
+      "id": "reservation_adapter_format",
+      "working_directory": "server-rs",
+      "command": "PATH=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin:$PATH rustfmt --edition 2024 --check crates/active-call-adapter/src/client.rs crates/active-call-adapter/src/lib.rs crates/active-call-adapter/tests/client.rs crates/active-call-adapter/tests/support/mod.rs",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "reservation_adapter_clippy",
+      "working_directory": "server-rs",
+      "command": "PATH=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin:$PATH RUSTC=/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc cargo clippy --locked -p converact-active-call-adapter --lib --test client -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "not_run": [
+    "real_overlaid_active_call_process_and_http_listener",
+    "durable_worker_intent_query_after_timeout_and_restart_reconcile",
+    "atomic_pending_to_active_handoff",
+    "agent_release_artifact_resolution_and_component_digest_verification",
+    "rustpbx_originate_bridge_sip_pstn_rtp_srtp_and_audio",
+    "deployed_runtime",
+    "performance",
+    "capacity",
+    "long_run",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_read": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}
