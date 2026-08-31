@@ -55,6 +55,16 @@ pub enum ControlOwner {
     Human,
 }
 
+impl ControlOwner {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Ai => "ai",
+            Self::Human => "human",
+        }
+    }
+}
+
 /// Durable phone handoff phase.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -72,6 +82,22 @@ pub enum HandoffState {
 }
 
 impl HandoffState {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Requested => "requested",
+            Self::Prepared => "prepared",
+            Self::HumanLegDialing => "human_leg_dialing",
+            Self::HumanLegAnswered => "human_leg_answered",
+            Self::Committed => "committed",
+            Self::HumanActive => "human_active",
+            Self::AiResumePreparing => "ai_resume_preparing",
+            Self::AiResumed => "ai_resumed",
+            Self::Aborted => "aborted",
+            Self::ReconcileRequired => "reconcile_required",
+        }
+    }
+
     #[must_use]
     pub const fn is_terminal(self) -> bool {
         matches!(self, Self::AiResumed | Self::Aborted)

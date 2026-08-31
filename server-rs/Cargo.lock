@@ -252,6 +252,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "converact-agent-handoff-store"
+version = "0.1.0"
+dependencies = [
+ "converact-agent-handoff-core",
+ "converact-contracts",
+ "converact-voice-agent-contracts",
+ "serde_json",
+ "tokio-postgres",
+]
+
+[[package]]
 name = "converact-agent-tool-adapters"
 version = "0.1.0"
 dependencies = [

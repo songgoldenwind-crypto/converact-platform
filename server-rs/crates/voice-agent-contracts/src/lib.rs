@@ -13,7 +13,7 @@ pub use event::EventEnvelope;
 pub use id::{
     ActionReceiptId, AgentDefinitionId, AgentReleaseId, ApprovalId, CallAttemptId, CallId,
     CampaignContactId, CampaignId, ChannelAgentSessionId, ContextPacketId, EventId,
-    ExecutionGeneration, HandoffCommandId, HandoffId, HumanLegId, IdempotencyKey, IdentityError,
-    InteractionId, ToolCallId, ToolRevisionId,
+    ExecutionGeneration, HandoffCommandId, HandoffId, HandoffReceiptId, HumanLegId, IdempotencyKey,
+    IdentityError, InteractionId, ToolCallId, ToolRevisionId,
 };
 pub use state::{AgentReleaseState, CallAttemptState, CampaignState};

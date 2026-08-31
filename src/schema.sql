@@ -3130,3 +3130,116 @@ CREATE INDEX IF NOT EXISTS idx_converact_tool_action_reconcile_claim
 CREATE INDEX IF NOT EXISTS idx_converact_tool_action_outbox_claim
   ON converact_tool_action_outbox (tenant_id, available_at, outbox_id)
   WHERE state = 'pending';
+
+-- ===== Converact AI/Human Handoff authority (SQLite development mirror) =====
+
+CREATE TABLE IF NOT EXISTS converact_agent_handoff_context_packets (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  context_packet_id TEXT NOT NULL,
+  interaction_id TEXT NOT NULL,
+  call_attempt_id TEXT NOT NULL,
+  call_id TEXT NOT NULL,
+  agent_release_id TEXT NOT NULL,
+  source_execution_generation INTEGER NOT NULL CHECK (source_execution_generation > 0),
+  context_revision INTEGER NOT NULL CHECK (context_revision > 0),
+  context_packet_digest TEXT NOT NULL CHECK (length(context_packet_digest) = 64),
+  payload TEXT NOT NULL CHECK (json_valid(payload) AND json_type(payload) = 'object'),
+  created_at TEXT NOT NULL,
+  recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, context_packet_id),
+  UNIQUE (tenant_id, interaction_id, context_revision),
+  FOREIGN KEY (tenant_id, call_attempt_id)
+    REFERENCES converact_outbound_call_attempts(tenant_id, id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id, agent_release_id)
+    REFERENCES converact_agent_releases(tenant_id, id) ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS converact_agent_handoffs (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  handoff_id TEXT NOT NULL,
+  interaction_id TEXT NOT NULL,
+  call_attempt_id TEXT NOT NULL,
+  call_id TEXT NOT NULL,
+  agent_release_id TEXT NOT NULL,
+  context_packet_id TEXT NOT NULL,
+  context_packet_digest TEXT NOT NULL CHECK (length(context_packet_digest) = 64),
+  target TEXT NOT NULL CHECK (json_valid(target) AND json_type(target) = 'object'),
+  state TEXT NOT NULL CHECK (state IN (
+    'requested', 'prepared', 'human_leg_dialing', 'human_leg_answered',
+    'committed', 'human_active', 'ai_resume_preparing', 'ai_resumed',
+    'aborted', 'reconcile_required'
+  )),
+  reconcile_from TEXT,
+  control_owner TEXT NOT NULL CHECK (control_owner IN ('ai', 'human')),
+  execution_generation INTEGER NOT NULL CHECK (execution_generation > 0),
+  revision INTEGER NOT NULL CHECK (revision > 0),
+  source_ai_session_id TEXT NOT NULL,
+  current_ai_session_id TEXT NOT NULL,
+  human_leg_id TEXT,
+  terminal_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, handoff_id),
+  FOREIGN KEY (tenant_id, context_packet_id)
+    REFERENCES converact_agent_handoff_context_packets(tenant_id, context_packet_id)
+    ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id, call_attempt_id)
+    REFERENCES converact_outbound_call_attempts(tenant_id, id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id, agent_release_id)
+    REFERENCES converact_agent_releases(tenant_id, id) ON DELETE RESTRICT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_converact_agent_handoff_active_interaction
+  ON converact_agent_handoffs (tenant_id, interaction_id)
+  WHERE state NOT IN ('ai_resumed', 'aborted');
+
+CREATE TABLE IF NOT EXISTS converact_agent_handoff_commands (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  command_id TEXT NOT NULL,
+  handoff_id TEXT NOT NULL,
+  command_kind TEXT NOT NULL,
+  payload_hash TEXT NOT NULL CHECK (length(payload_hash) = 64),
+  expected_revision INTEGER NOT NULL CHECK (expected_revision > 0),
+  expected_generation INTEGER NOT NULL CHECK (expected_generation > 0),
+  command_state TEXT NOT NULL CHECK (command_state IN ('prepared', 'state_observed')),
+  target_revision INTEGER,
+  target_generation INTEGER,
+  target_state TEXT,
+  target_owner TEXT,
+  lease_owner TEXT NOT NULL DEFAULT '',
+  lease_token_hash TEXT NOT NULL DEFAULT '',
+  lease_expires_at TEXT,
+  prepared_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  state_observed_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, command_id),
+  UNIQUE (tenant_id, handoff_id, target_revision),
+  FOREIGN KEY (tenant_id, handoff_id)
+    REFERENCES converact_agent_handoffs(tenant_id, handoff_id) ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS converact_agent_handoff_receipts (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  receipt_id TEXT NOT NULL,
+  command_id TEXT NOT NULL,
+  handoff_id TEXT NOT NULL,
+  stage TEXT NOT NULL CHECK (stage IN ('prepared', 'state_observed')),
+  receipt_digest TEXT NOT NULL CHECK (length(receipt_digest) = 64),
+  observed_revision INTEGER NOT NULL CHECK (observed_revision > 0),
+  observed_generation INTEGER NOT NULL CHECK (observed_generation > 0),
+  observed_state TEXT NOT NULL,
+  observed_owner TEXT NOT NULL CHECK (observed_owner IN ('ai', 'human')),
+  observed_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, receipt_id),
+  UNIQUE (tenant_id, command_id, stage),
+  FOREIGN KEY (tenant_id, command_id)
+    REFERENCES converact_agent_handoff_commands(tenant_id, command_id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id, handoff_id)
+    REFERENCES converact_agent_handoffs(tenant_id, handoff_id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_converact_agent_handoff_reconcile_claim
+  ON converact_agent_handoff_commands (tenant_id, prepared_at, command_id)
+  WHERE command_state = 'prepared';

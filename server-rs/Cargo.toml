@@ -5,6 +5,7 @@ members = [
   "apps/converact-voice-agent-worker",
   "crates/active-call-adapter",
   "crates/agent-handoff-core",
+  "crates/agent-handoff-store",
   "crates/agent-tool-adapters",
   "crates/audit",
   "crates/ai-outbound-core",

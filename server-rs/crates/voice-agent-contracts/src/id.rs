@@ -114,6 +114,7 @@ voice_agent_id!(ApprovalId);
 voice_agent_id!(ActionReceiptId);
 voice_agent_id!(HandoffId);
 voice_agent_id!(HandoffCommandId);
+voice_agent_id!(HandoffReceiptId);
 voice_agent_id!(ContextPacketId);
 voice_agent_id!(HumanLegId);
 
