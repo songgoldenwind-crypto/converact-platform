@@ -167,19 +167,44 @@ pub struct ClaimedFinalizationJob {
     revision: u64,
 }
 
+/// Store-owned values used to rehydrate one claimed job.
+pub struct ClaimedFinalizationJobInput {
+    pub id: ConversationFinalizationJobId,
+    pub interaction_id: InteractionId,
+    pub call_attempt_id: CallAttemptId,
+    pub agent_release_id: AgentReleaseId,
+    pub execution_generation: ExecutionGeneration,
+    pub retention_policy_ref: String,
+    pub payload_hash: String,
+    pub revision: u64,
+}
+
 impl ClaimedFinalizationJob {
-    pub(crate) fn from_parts(parts: ClaimedFinalizationJobParts) -> Self {
-        Self {
-            id: parts.id,
-            interaction_id: parts.interaction_id,
-            call_attempt_id: parts.call_attempt_id,
-            agent_release_id: parts.agent_release_id,
-            execution_generation: parts.execution_generation,
-            retention_policy_ref: parts.retention_policy_ref.into(),
-            payload_hash: parts.payload_hash.into(),
-            state: FinalizationJobState::Claimed,
-            revision: parts.revision,
+    /// Rehydrates one database claim after validating every non-typed stored field.
+    ///
+    /// # Errors
+    ///
+    /// Returns a stored-row failure for invalid retention, hash or revision data.
+    pub fn try_from_claim(
+        input: ClaimedFinalizationJobInput,
+    ) -> Result<Self, FinalizationStoreError> {
+        if !bounded_identifier(&input.retention_policy_ref, MAX_IDENTIFIER_BYTES)
+            || !lowercase_sha256(&input.payload_hash)
+            || input.revision == 0
+        {
+            return Err(FinalizationStoreError::StoredRowInvalid);
         }
+        Ok(Self {
+            id: input.id,
+            interaction_id: input.interaction_id,
+            call_attempt_id: input.call_attempt_id,
+            agent_release_id: input.agent_release_id,
+            execution_generation: input.execution_generation,
+            retention_policy_ref: input.retention_policy_ref.into(),
+            payload_hash: input.payload_hash.into(),
+            state: FinalizationJobState::Claimed,
+            revision: input.revision,
+        })
     }
 
     #[must_use]
@@ -226,17 +251,6 @@ impl ClaimedFinalizationJob {
     pub const fn revision(&self) -> u64 {
         self.revision
     }
-}
-
-pub(crate) struct ClaimedFinalizationJobParts {
-    pub id: ConversationFinalizationJobId,
-    pub interaction_id: InteractionId,
-    pub call_attempt_id: CallAttemptId,
-    pub agent_release_id: AgentReleaseId,
-    pub execution_generation: ExecutionGeneration,
-    pub retention_policy_ref: String,
-    pub payload_hash: String,
-    pub revision: u64,
 }
 
 /// Low-cardinality durable queue failure without SQL, content or topology.

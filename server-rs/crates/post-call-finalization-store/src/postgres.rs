@@ -9,9 +9,9 @@ use serde_json::json;
 use tokio_postgres::{Row, Transaction};
 
 use crate::{
-    ClaimedFinalizationJob, EnqueueFinalizationDecision, FinalizationLease,
-    FinalizationLeaseCommand, FinalizationReconcileCommand, FinalizationStoreConfig,
-    FinalizationStoreError, model::ClaimedFinalizationJobParts,
+    ClaimedFinalizationJob, ClaimedFinalizationJobInput, EnqueueFinalizationDecision,
+    FinalizationLease, FinalizationLeaseCommand, FinalizationReconcileCommand,
+    FinalizationStoreConfig, FinalizationStoreError,
 };
 
 /// Stateless tenant-transaction SQL adapter for durable post-call finalization work.
@@ -328,23 +328,21 @@ async fn insert_receipt(
 }
 
 fn claimed_job(row: &Row) -> Result<ClaimedFinalizationJob, FinalizationStoreError> {
-    Ok(ClaimedFinalizationJob::from_parts(
-        ClaimedFinalizationJobParts {
-            id: ConversationFinalizationJobId::parse(string_at(row, 0)?)
-                .map_err(|_| FinalizationStoreError::StoredRowInvalid)?,
-            interaction_id: InteractionId::parse(string_at(row, 1)?)
-                .map_err(|_| FinalizationStoreError::StoredRowInvalid)?,
-            call_attempt_id: CallAttemptId::parse(string_at(row, 2)?)
-                .map_err(|_| FinalizationStoreError::StoredRowInvalid)?,
-            agent_release_id: AgentReleaseId::parse(string_at(row, 3)?)
-                .map_err(|_| FinalizationStoreError::StoredRowInvalid)?,
-            execution_generation: ExecutionGeneration::new(u64_at(row, 4)?)
-                .map_err(|_| FinalizationStoreError::StoredRowInvalid)?,
-            retention_policy_ref: string_at(row, 5)?,
-            payload_hash: string_at(row, 6)?,
-            revision: u64_at(row, 7)?,
-        },
-    ))
+    ClaimedFinalizationJob::try_from_claim(ClaimedFinalizationJobInput {
+        id: ConversationFinalizationJobId::parse(string_at(row, 0)?)
+            .map_err(|_| FinalizationStoreError::StoredRowInvalid)?,
+        interaction_id: InteractionId::parse(string_at(row, 1)?)
+            .map_err(|_| FinalizationStoreError::StoredRowInvalid)?,
+        call_attempt_id: CallAttemptId::parse(string_at(row, 2)?)
+            .map_err(|_| FinalizationStoreError::StoredRowInvalid)?,
+        agent_release_id: AgentReleaseId::parse(string_at(row, 3)?)
+            .map_err(|_| FinalizationStoreError::StoredRowInvalid)?,
+        execution_generation: ExecutionGeneration::new(u64_at(row, 4)?)
+            .map_err(|_| FinalizationStoreError::StoredRowInvalid)?,
+        retention_policy_ref: string_at(row, 5)?,
+        payload_hash: string_at(row, 6)?,
+        revision: u64_at(row, 7)?,
+    })
 }
 
 fn string_at(row: &Row, index: usize) -> Result<String, FinalizationStoreError> {

@@ -6,8 +6,8 @@ mod model;
 mod postgres;
 
 pub use model::{
-    ClaimedFinalizationJob, EnqueueFinalizationDecision, FinalizationLease,
-    FinalizationLeaseCommand, FinalizationReconcileCommand, FinalizationStoreConfig,
-    FinalizationStoreError,
+    ClaimedFinalizationJob, ClaimedFinalizationJobInput, EnqueueFinalizationDecision,
+    FinalizationLease, FinalizationLeaseCommand, FinalizationReconcileCommand,
+    FinalizationStoreConfig, FinalizationStoreError,
 };
 pub use postgres::FinalizationSqlStore;

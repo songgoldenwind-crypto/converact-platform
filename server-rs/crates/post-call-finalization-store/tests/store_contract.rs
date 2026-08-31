@@ -1,9 +1,13 @@
 use converact_kernel_ids::TenantId;
 use converact_post_call_finalization_store::{
-    FinalizationLease, FinalizationLeaseCommand, FinalizationReconcileCommand,
-    FinalizationStoreConfig, FinalizationStoreError,
+    ClaimedFinalizationJob, ClaimedFinalizationJobInput, FinalizationLease,
+    FinalizationLeaseCommand, FinalizationReconcileCommand, FinalizationStoreConfig,
+    FinalizationStoreError,
 };
-use converact_voice_agent_contracts::ConversationFinalizationJobId;
+use converact_voice_agent_contracts::{
+    AgentReleaseId, CallAttemptId, ConversationFinalizationJobId, ExecutionGeneration,
+    InteractionId,
+};
 
 #[test]
 fn claim_and_lease_limits_are_bounded_before_sql() {
@@ -20,6 +24,36 @@ fn claim_and_lease_limits_are_bounded_before_sql() {
     assert!(FinalizationLease::try_new("worker-001", "a".repeat(64)).is_ok());
     assert!(FinalizationLease::try_new("bad worker", "a".repeat(64)).is_err());
     assert!(FinalizationLease::try_new("worker-001", "not-a-hash").is_err());
+}
+
+#[test]
+fn claimed_job_rehydration_validates_store_owned_fields() {
+    let valid = ClaimedFinalizationJobInput {
+        id: ConversationFinalizationJobId::parse("job-001").unwrap(),
+        interaction_id: InteractionId::parse("interaction-001").unwrap(),
+        call_attempt_id: CallAttemptId::parse("attempt-001").unwrap(),
+        agent_release_id: AgentReleaseId::parse("release-001").unwrap(),
+        execution_generation: ExecutionGeneration::new(1).unwrap(),
+        retention_policy_ref: "retention:voice-default-v1".to_owned(),
+        payload_hash: "a".repeat(64),
+        revision: 2,
+    };
+    assert!(ClaimedFinalizationJob::try_from_claim(valid).is_ok());
+
+    let invalid = ClaimedFinalizationJobInput {
+        id: ConversationFinalizationJobId::parse("job-002").unwrap(),
+        interaction_id: InteractionId::parse("interaction-001").unwrap(),
+        call_attempt_id: CallAttemptId::parse("attempt-002").unwrap(),
+        agent_release_id: AgentReleaseId::parse("release-001").unwrap(),
+        execution_generation: ExecutionGeneration::new(1).unwrap(),
+        retention_policy_ref: "customer private notes".to_owned(),
+        payload_hash: "not-a-hash".to_owned(),
+        revision: 0,
+    };
+    assert_eq!(
+        ClaimedFinalizationJob::try_from_claim(invalid).unwrap_err(),
+        FinalizationStoreError::StoredRowInvalid
+    );
 }
 
 #[test]
