@@ -116,7 +116,7 @@ Kamailio / Trunk / PSTN
 | Active Call 源码 | 已下载、精确 commit/hash 已核验 | 受控电话 Channel Agent | `false` |
 | Active Call 构建/测试 | 固定源码本地构建通过；上游测试因外部 `sipbot` 缺失为 `blocked_external`；Converact Adapter 11 项本地测试通过 | 自有 lockfile、构建和合同测试 | runtime/production `not_run` |
 | 多轮实时语音 | 受控端口完成 reserve/originate/attach/disclosure/start/finalize；未启动真实进程 | Active Call 驱动的真实功能闭环 | real media/provider `not_run` |
-| Tool/Action | Rust Proposal/Policy/Approval/Broker/Receipt、持久化 Adapter 与 Active Call Worker 桥接已通过本地受控测试 | 增加通用查询/变更 Adapter 与真实 Provider | controlled slice passed；real provider/physical PostgreSQL `not_run` |
+| Tool/Action | Rust Proposal/Policy/Approval/Broker/Receipt、持久化 Adapter、Active Call Worker 桥接及通用查询/变更 Adapter 已通过本地受控测试 | 接入真实 Provider | controlled slice passed；real provider/physical PostgreSQL `not_run` |
 | AI/人工协作 | 有产品与通信设计 | durable prepare/commit/abort/reconcile | `not_run` |
 | Transcript/Outcome/QM | 受控 Worker 已验证 final segment count 与 bounded outcome；完整 transcript/summary/QM 未实现 | 统一 ID、幂等投影和异步补偿 | complete projection `not_run` |
 | 性能/容量/长稳 | 旧证据不能继承到新链路 | 功能稳定后单独执行 | `not_run` |
@@ -735,7 +735,7 @@ Reconciler 查询：
 - schema/policy/approval（本地受控合同已通过）；
 - ActionReceipt（本地受控合同已通过）；
 - timeout/reconcile（本地受控合同已通过）；
-- 一个查询型与一个变更型通用工具演示。
+- 一个查询型与一个变更型通用工具演示（本地受控测试已通过；真实 Provider `not_run`）。
 
 ### D6：AI/人工/AI
 
@@ -852,7 +852,7 @@ Reconciler 查询：
 - 代码阶段只修改明确相关文件，并保留仓库现有用户改动。
 
 截至 2026-08-31，上述设计门已完成，D1-D4 的首条受控 Rust tracer bullet 与 D5 Tool Broker
-Core/Store/Worker 桥接已通过；这只证明 `controlled_test_double` 与本地合同层。物理 PostgreSQL、
+Core/Store/Worker 桥接、通用查询/变更 Adapter 已通过；这只证明 `controlled_test_double` 与本地合同层。物理 PostgreSQL、
 真实 RustPBX、真实 Active Call、SIP/PSTN、真实 Tool/审批供应商、录音、完整 final transcript、
 人工切换、质检、性能、容量和生产部署均保持 `not_run`，后续必须按独立 Evidence Gate 逐项推进。
 
@@ -873,3 +873,4 @@ Core/Store/Worker 桥接已通过；这只证明 `controlled_test_double` 与本
 | 2026-08-31 | R1 | 固定行业通用 AI 外呼优先路线、Active Call 独立电话 Channel Agent、Rust 权威模型、功能闭环和 TDD 顺序 |
 | 2026-08-31 | R1 implementation checkpoint | 记录 Rust 合同、领域、schema、适配器与受控 Worker tracer bullet；真实集成和生产资格仍为 `not_run` |
 | 2026-08-31 | R1 Tool checkpoint | Tool Broker/Receipt/Store/Active Call Worker 桥接已有本地受控证据；真实 Provider、物理 PostgreSQL 与生产仍为 `not_run` |
+| 2026-08-31 | R1 generic Tool Adapter checkpoint | `customer.lookup` 与 `task.create_follow_up` 的 Rust typed Provider Port 切片已有本地受控证据；真实 Provider 与生产仍为 `not_run` |

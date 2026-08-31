@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-08-31",
+  "evidence_class": [
+    "local_contract",
+    "controlled_test_double"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "commit": "a965f50f89ef649acfe0115723fae87f74dedbbf",
+    "tree": "b5b846ff3355f49be0f9f6827169ad9ef3e4c7e3"
+  },
+  "environment": {
+    "os": "Darwin 25.2.0 arm64",
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)"
+  },
+  "commands": [
+    {
+      "id": "generic_tool_adapter_behavior",
+      "working_directory": "server-rs",
+      "command": "cargo test -p converact-agent-tool-adapters --test adapters",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 2,
+      "failed": 0
+    },
+    {
+      "id": "tool_broker_core_contracts",
+      "working_directory": "server-rs",
+      "command": "cargo test -p converact-tool-broker-core",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "id": "adapter_broker_scoped_clippy",
+      "working_directory": "server-rs",
+      "command": "cargo clippy -p converact-agent-tool-adapters -p converact-tool-broker-core --all-targets -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "rust_format",
+      "working_directory": "server-rs",
+      "command": "cargo fmt --all -- --check",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "not_run": [
+    "real_customer_directory_crm_task_provider",
+    "provider_authentication_network_retry_quota",
+    "physical_postgresql_integration",
+    "real_active_call_rustpbx_sip_pstn_media",
+    "external_approval_service",
+    "performance",
+    "capacity",
+    "long_run",
+    "fault_campaign",
+    "independent_code_review",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}

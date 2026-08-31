@@ -166,3 +166,13 @@ Adapter 必须使用 `AuthorizedToolAction` 中固定的 capability/effect class
 SQL 或动态代码。变更 Provider 的幂等键固定使用 `ToolCallId`，ambiguous execute 只能通过
 `FollowUpTaskPort.query(ToolCallId)` 收敛。Provider 只负责外部系统协议，不能拥有 Tool Policy、
 Approval、Receipt 或 Agent 状态。
+
+### 11.1 实现与证据状态
+
+`converact-agent-tool-adapters` 已实现以上两个 capability 的 typed Provider Ports、bounded
+arguments、effect-class fail-closed dispatch、`ToolCallId` 幂等键和 ambiguous mutation query
+收敛，并通过本地受控测试。证据见
+[R1 generic Tool Adapter evidence](../../architecture-foundation/ai-outbound/evidence/r1-generic-tool-adapters/README.md)。
+
+这只证明 `local_contract + controlled_test_double`。真实客户目录/CRM/任务 Provider、网络认证与
+重试、物理 PostgreSQL、真实通话、性能和生产资格仍为 `not_run`。

@@ -21,12 +21,12 @@
     },
     {
       "path": "docs/design/README.md",
-      "sha256": "0562da2145947b0de7ef27405c58aee9eda5d6adf2dc12a5c7ae0bd1020dc4cd",
+      "sha256": "a4e2107cefd4ae32bac2fb3b3cc26273249f94ae8905bb4fb1ccdcf82e423e2a",
       "kind": "context"
     },
     {
       "path": "docs/design/2026-08-31-ai-outbound-active-call-platform-r1.md",
-      "sha256": "e3021aea62ec33dad5eb091a2129c9c2a3b7614b318123d32ec183eda10fe8f1",
+      "sha256": "245f2d307f3a5cd3bcf72071f8aa7592620caf2e4a6746ed055b3a82bb76cd89",
       "kind": "design"
     },
     {
@@ -36,7 +36,7 @@
     },
     {
       "path": "docs/design/2026-08-31-ai-outbound-tool-action-r1.md",
-      "sha256": "d5b93562dbfda14dfe1a12bf018c036eeac43ae108658dfef9d8ee29d7c61fae",
+      "sha256": "df8a3d5f061ce61f66f9090137acca5b36bfa03022551284e0846e6567e45085",
       "kind": "design"
     },
     {
@@ -57,6 +57,16 @@
     {
       "path": "architecture-foundation/ai-outbound/evidence/r1-tool-action/verification.json",
       "sha256": "966aa166516bd3d5d8fd3093df2dbe02ca66fbd69b67107b312424214f143b4a",
+      "kind": "evidence"
+    },
+    {
+      "path": "architecture-foundation/ai-outbound/evidence/r1-generic-tool-adapters/README.md",
+      "sha256": "7bf0e0e40a2247594e98eb23fb6c4bcfc1fab49df0c19c3955e6c414d11e7a04",
+      "kind": "evidence"
+    },
+    {
+      "path": "architecture-foundation/ai-outbound/evidence/r1-generic-tool-adapters/verification.json",
+      "sha256": "526fc6be03a04dc497e21907b088ddf4cf146152ca2da595d4daecf8b99795e8",
       "kind": "evidence"
     },
     {
