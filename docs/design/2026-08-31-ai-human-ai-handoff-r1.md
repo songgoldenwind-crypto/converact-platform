@@ -1,6 +1,6 @@
 # AI → Human → AI Handoff R1
 
-> 状态：`accepted implementation slice / production_not_run`
+> 状态：`controlled_core_store_worker_passed / physical_integrations_not_run / production_not_run`
 >
 > 日期：2026-08-31
 >
@@ -160,6 +160,11 @@ finalize。结果未知时只 query；禁止用第二次 originate/start 替代 
 
 不自动运行全仓回归、Docker、性能、容量或真实服务器测试。未证明项明确记录为 `not_run`，不会从
 Tool Broker、旧 warm-transfer TypeScript 或 Voice↔LiveKit Handoff 继承证据。
+
+截至 2026-08-31，本地受控证据已覆盖 Rust Core、命令/receipt Store、惰性 PostgreSQL
+Adapter、Worker normal/replay/abort/unknown-query 路径和 AI/human generation 切换，详见
+[R1 human Handoff evidence](../../architecture-foundation/ai-outbound/evidence/r1-human-handoff/README.md)。
+物理 PostgreSQL、真实 RustPBX/Active Call/人席、SIP/PSTN/媒体/录音和生产仍为 `not_run`。
 
 ## 9. 与未来跨渠道架构的关系
 

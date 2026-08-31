@@ -1,5 +1,7 @@
 # AI → Human → AI Handoff R1 implementation plan
 
+> Status: `controlled_core_store_worker_passed / physical_integrations_not_run`
+
 **Goal:** Complete D6 as a reusable Rust handoff authority without creating a second Call, SIP,
 media or Agent state machine.
 
@@ -40,3 +42,7 @@ during prepare, and only an atomic committed generation changes authority.
 2. Keep real RustPBX, Active Call, human seat, SIP/PSTN/media, recording continuity, performance,
    capacity, long-run, independent review and production deployment `not_run` until observed.
 3. Update canonical design navigation and manifest hashes in a separate docs commit.
+
+The local controlled Slice 1-4 checkpoint is recorded in
+[`r1-human-handoff`](../../architecture-foundation/ai-outbound/evidence/r1-human-handoff/README.md).
+All real integration and production claims listed there remain `not_run`.

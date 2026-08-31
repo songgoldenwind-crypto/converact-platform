@@ -94,7 +94,10 @@
                   "objective",
                   "contract",
                   "traceability",
-                  "schema"
+                  "schema",
+                  "evidence",
+                  "source_lock",
+                  "source_notice"
                 ]
               }
             }

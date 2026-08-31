@@ -739,11 +739,11 @@ Reconciler 查询：
 
 ### D6：AI/人工/AI
 
-- Handoff state machine；
-- Context Packet；
-- RustPBX 人工 Leg；
-- commit/abort/reconcile；
-- AI resume 和 generation 切换。
+- Handoff state machine 与 Context Packet：本地 Rust 合同已通过；
+- durable command/receipt Store 与惰性 PostgreSQL Adapter：本地受控测试已通过，物理数据库
+  `not_run`；
+- commit/abort/replay/unknown-query 与 AI resume generation 切换：Worker test double 已通过；
+- 真实 RustPBX 人工 Leg、Active Call 进程、人席、SIP/PSTN/媒体/录音与生产：`not_run`。
 
 ### D7：结果、质检和现有 UI
 

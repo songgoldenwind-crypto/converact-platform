@@ -21,12 +21,12 @@
     },
     {
       "path": "docs/design/README.md",
-      "sha256": "837691ea2040be2a99939f5eb5772cb6af72ddd86aeb727cf3e90513716bf0af",
+      "sha256": "bdbfd7ca6a754f1663f287157b77b2f2dc279d04229d24ab581f528be0f401f7",
       "kind": "context"
     },
     {
       "path": "docs/design/2026-08-31-ai-outbound-active-call-platform-r1.md",
-      "sha256": "f7adbba3c3fbb8196889211aeac7c2c5facdf94cd11cf8ea94e889f94c7d4aad",
+      "sha256": "6158faad1c12975c408416c9afd2b3f28da410d5ff7cb4ca1b0fef3dfd8eb146",
       "kind": "design"
     },
     {
@@ -51,12 +51,12 @@
     },
     {
       "path": "docs/design/2026-08-31-ai-human-ai-handoff-r1.md",
-      "sha256": "9fab0294bccb98e661e3ff436e0310efde6f92dc3a635c936553d6e19d4d573c",
+      "sha256": "37a816f2100cdfb938ad13c5bed45c2aca523321e969f9591444ba7fea0174c5",
       "kind": "design"
     },
     {
       "path": "docs/plans/2026-08-31-ai-human-ai-handoff-r1.md",
-      "sha256": "5f3e776f53946d40681524acffdd9e16569dc5bb751682c9e83dde70f86e7b4b",
+      "sha256": "a47588e07ecd1735e9e1f5f5dd3e89b43d1556e5dd4403d5da9d91f550a06a94",
       "kind": "plan"
     },
     {
@@ -77,6 +77,16 @@
     {
       "path": "architecture-foundation/ai-outbound/evidence/r1-generic-tool-adapters/verification.json",
       "sha256": "526fc6be03a04dc497e21907b088ddf4cf146152ca2da595d4daecf8b99795e8",
+      "kind": "evidence"
+    },
+    {
+      "path": "architecture-foundation/ai-outbound/evidence/r1-human-handoff/README.md",
+      "sha256": "9d4eb95a7bba2d332d60cd9ec678032939a76413a6d36572715b24a736470482",
+      "kind": "evidence"
+    },
+    {
+      "path": "architecture-foundation/ai-outbound/evidence/r1-human-handoff/verification.json",
+      "sha256": "138e4ed066ff24cedd979c0c49ae9946ba59382c6000486bd882e91cd3af6270",
       "kind": "evidence"
     },
     {

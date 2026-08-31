@@ -1,0 +1,110 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-08-31",
+  "evidence_class": [
+    "local_contract",
+    "controlled_test_double"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "commit": "8b79ef5b474eeaa35b544eedabd2c4272cd5aae1",
+    "tree": "ae83dd9402d3af1166e51d2f80c7f0be81a69e6f"
+  },
+  "environment": {
+    "os": "Darwin 25.2.0 arm64",
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)"
+  },
+  "commands": [
+    {
+      "id": "handoff_worker_behavior",
+      "working_directory": "server-rs",
+      "command": "cargo test -p converact-voice-agent-worker --test handoff_runtime",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "id": "handoff_worker_postgres_port",
+      "working_directory": "server-rs",
+      "command": "cargo test -p converact-voice-agent-worker --test postgres_handoff_port",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "id": "handoff_postgres_adapter_contract",
+      "working_directory": "server-rs",
+      "command": "cargo test -p converact-postgres-store --test handoff_store_contract",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "id": "handoff_store_contracts",
+      "working_directory": "server-rs",
+      "command": "cargo test -p converact-agent-handoff-store",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "id": "handoff_core_contracts",
+      "working_directory": "server-rs",
+      "command": "cargo test -p converact-agent-handoff-core",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "id": "voice_agent_wire_contracts",
+      "working_directory": "server-rs",
+      "command": "cargo test -p converact-voice-agent-contracts",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 6,
+      "failed": 0
+    },
+    {
+      "id": "handoff_scoped_clippy",
+      "working_directory": "server-rs",
+      "command": "cargo clippy -p converact-agent-handoff-store -p converact-postgres-store -p converact-voice-agent-worker --all-targets -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "handoff_scoped_format",
+      "working_directory": "server-rs",
+      "command": "cargo fmt -p converact-agent-handoff-store -p converact-postgres-store -p converact-voice-agent-worker -- --check",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "not_run": [
+    "physical_postgresql_transaction_rls_reconcile_lease",
+    "real_rustpbx_human_leg",
+    "real_active_call_generation_switch",
+    "real_human_seat_queue_acd",
+    "sip_pstn_rtp_srtp_recording_dtmf_hold_transfer",
+    "livekit_browser_video_cross_channel_handoff",
+    "performance",
+    "capacity",
+    "long_run",
+    "fault_campaign",
+    "independent_code_review",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}
