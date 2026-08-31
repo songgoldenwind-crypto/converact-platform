@@ -1,11 +1,20 @@
 #![allow(dead_code)]
 
+use std::{
+    future::ready,
+    sync::{Arc, Mutex},
+};
+
 use converact_ai_outbound_core::{
-    AgentDraft, AttemptCommand, CallAttempt, Campaign, CampaignCommand, ComplianceInput,
-    ConsentBasis, EvidenceStatus, GateStatus, ReleaseComponentDigests,
+    AgentDraft, AgentObservation, AgentReservation, AttachCall, AttemptCommand, AttemptStorePort,
+    CallAttempt, CallObservation, Campaign, CampaignCommand, ChannelAgentPort, ComplianceDecision,
+    ComplianceInput, CompliancePort, ConsentBasis, EffectIntent, EvidenceStatus, GateStatus,
+    OrchestrationError, OriginateCall, OutboundOrchestrator, PlayDisclosure, PortError,
+    ReleaseComponentDigests, ReserveAgent, StartConversation, TelephonyPort, TerminateCall,
 };
 use converact_voice_agent_contracts::{
-    AgentDefinitionId, AgentReleaseId, CallAttemptId, CampaignId,
+    AgentDefinitionId, AgentReleaseId, CallAttemptId, CallAttemptState, CallId, CampaignId,
+    ChannelAgentSessionId,
 };
 
 pub fn agent_draft() -> AgentDraft {
@@ -97,5 +106,245 @@ pub const fn compliance_input() -> ComplianceInput {
         do_not_call: GateStatus::Allowed,
         frequency: GateStatus::Allowed,
         release: GateStatus::Allowed,
+    }
+}
+
+const MAX_OPERATIONS: usize = 32;
+
+#[derive(Clone)]
+pub struct Harness {
+    state: Arc<Mutex<HarnessState>>,
+    compliance: FakeCompliance,
+    agent: FakeAgent,
+    telephony: FakeTelephony,
+    store: FakeStore,
+    attempt_id: CallAttemptId,
+}
+
+impl Harness {
+    pub fn new() -> Self {
+        Self::configured(false, false, false)
+    }
+
+    pub fn with_agent_reservation_failure() -> Self {
+        Self::configured(true, false, false)
+    }
+
+    pub fn crash_after_originate() -> Self {
+        Self::configured(false, true, false)
+    }
+
+    pub fn with_disclosure_timeout() -> Self {
+        Self::configured(false, false, true)
+    }
+
+    fn configured(
+        agent_reservation_fails: bool,
+        crash_after_originate: bool,
+        disclosure_times_out: bool,
+    ) -> Self {
+        let attempt = planned_attempt();
+        let attempt_id = attempt.id().clone();
+        let state = Arc::new(Mutex::new(HarnessState {
+            operations: Vec::with_capacity(MAX_OPERATIONS),
+            attempt,
+            agent_reservation_fails,
+            crash_after_originate,
+            disclosure_times_out,
+            agent_query_count: 0,
+            rustpbx_originate_count: 0,
+            retry_count: 0,
+        }));
+        Self {
+            compliance: FakeCompliance(state.clone()),
+            agent: FakeAgent(state.clone()),
+            telephony: FakeTelephony(state.clone()),
+            store: FakeStore(state.clone()),
+            state,
+            attempt_id,
+        }
+    }
+
+    pub async fn run_one_attempt(&self) -> Result<CallAttempt, OrchestrationError> {
+        self.orchestrator().run_one_attempt(&self.attempt_id).await
+    }
+
+    pub async fn reconcile(&self) -> Result<CallObservation, OrchestrationError> {
+        self.orchestrator().reconcile(&self.attempt_id).await
+    }
+
+    pub fn operations(&self) -> Vec<&'static str> {
+        self.state.lock().unwrap().operations.clone()
+    }
+
+    pub fn rustpbx_originate_count(&self) -> usize {
+        self.state.lock().unwrap().rustpbx_originate_count
+    }
+
+    pub fn retry_count(&self) -> usize {
+        self.state.lock().unwrap().retry_count
+    }
+
+    pub fn attempt_state(&self) -> CallAttemptState {
+        self.state.lock().unwrap().attempt.state()
+    }
+
+    fn orchestrator(
+        &self,
+    ) -> OutboundOrchestrator<'_, FakeCompliance, FakeAgent, FakeTelephony, FakeStore> {
+        OutboundOrchestrator::new(&self.compliance, &self.agent, &self.telephony, &self.store)
+    }
+}
+
+struct HarnessState {
+    operations: Vec<&'static str>,
+    attempt: CallAttempt,
+    agent_reservation_fails: bool,
+    crash_after_originate: bool,
+    disclosure_times_out: bool,
+    agent_query_count: usize,
+    rustpbx_originate_count: usize,
+    retry_count: usize,
+}
+
+impl HarnessState {
+    fn record(&mut self, operation: &'static str) {
+        assert!(self.operations.len() < MAX_OPERATIONS);
+        self.operations.push(operation);
+    }
+}
+
+#[derive(Clone)]
+struct FakeCompliance(Arc<Mutex<HarnessState>>);
+
+impl CompliancePort for FakeCompliance {
+    fn evaluate(&self, _attempt: &CallAttempt) -> Result<ComplianceDecision, PortError> {
+        self.0.lock().unwrap().record("compliance.check");
+        Ok(ComplianceDecision::Approved)
+    }
+}
+
+#[derive(Clone)]
+struct FakeAgent(Arc<Mutex<HarnessState>>);
+
+impl ChannelAgentPort for FakeAgent {
+    async fn reserve(&self, _request: ReserveAgent) -> Result<AgentReservation, PortError> {
+        let mut state = self.0.lock().unwrap();
+        state.record("agent.reserve");
+        if state.agent_reservation_fails {
+            Err(PortError::unavailable("agent_capacity_unavailable"))
+        } else {
+            Ok(AgentReservation {
+                session_id: ChannelAgentSessionId::parse("agent-session-001").unwrap(),
+            })
+        }
+    }
+
+    async fn attach(&self, _request: AttachCall) -> Result<(), PortError> {
+        self.0.lock().unwrap().record("agent.attach");
+        Ok(())
+    }
+
+    async fn play_disclosure(&self, _request: PlayDisclosure) -> Result<(), PortError> {
+        let mut state = self.0.lock().unwrap();
+        state.record("agent.disclosure");
+        if state.disclosure_times_out {
+            Err(PortError::outcome_unknown("agent_disclosure_timeout"))
+        } else {
+            Ok(())
+        }
+    }
+
+    async fn start_conversation(&self, _request: StartConversation) -> Result<(), PortError> {
+        self.0.lock().unwrap().record("agent.start_conversation");
+        Ok(())
+    }
+
+    fn query(
+        &self,
+        _session: &ChannelAgentSessionId,
+    ) -> impl Future<Output = Result<AgentObservation, PortError>> + Send {
+        let mut state = self.0.lock().unwrap();
+        let observation = match state.agent_query_count {
+            0 => {
+                state.record("agent.media_ready");
+                AgentObservation::MediaReady
+            }
+            1 => {
+                state.record("agent.disclosure_completed");
+                AgentObservation::DisclosureCompleted
+            }
+            _ => AgentObservation::Terminal,
+        };
+        state.agent_query_count += 1;
+        ready(Ok(observation))
+    }
+}
+
+#[derive(Clone)]
+struct FakeTelephony(Arc<Mutex<HarnessState>>);
+
+impl TelephonyPort for FakeTelephony {
+    fn originate(
+        &self,
+        request: OriginateCall,
+    ) -> impl Future<Output = Result<CallObservation, PortError>> + Send {
+        let mut state = self.0.lock().unwrap();
+        state.rustpbx_originate_count += 1;
+        state.record("rustpbx.originate");
+        if state.crash_after_originate {
+            ready(Err(PortError::outcome_unknown("rustpbx_timeout")))
+        } else {
+            state.record("rustpbx.answered");
+            ready(Ok(CallObservation::Answered(request.call_id)))
+        }
+    }
+
+    fn query(
+        &self,
+        call_id: &CallId,
+    ) -> impl Future<Output = Result<CallObservation, PortError>> + Send {
+        self.0.lock().unwrap().record("rustpbx.terminal");
+        ready(Ok(CallObservation::Terminal(call_id.clone())))
+    }
+
+    fn terminate(
+        &self,
+        _request: TerminateCall,
+    ) -> impl Future<Output = Result<(), PortError>> + Send {
+        ready(Ok(()))
+    }
+}
+
+#[derive(Clone)]
+struct FakeStore(Arc<Mutex<HarnessState>>);
+
+impl AttemptStorePort for FakeStore {
+    fn load(
+        &self,
+        _attempt_id: &CallAttemptId,
+    ) -> impl Future<Output = Result<CallAttempt, PortError>> + Send {
+        ready(Ok(self.0.lock().unwrap().attempt.clone()))
+    }
+
+    fn persist_intent(
+        &self,
+        attempt: &CallAttempt,
+        _intent: EffectIntent,
+    ) -> impl Future<Output = Result<(), PortError>> + Send {
+        self.0.lock().unwrap().attempt = attempt.clone();
+        ready(Ok(()))
+    }
+
+    fn persist_observation(
+        &self,
+        attempt: &CallAttempt,
+    ) -> impl Future<Output = Result<(), PortError>> + Send {
+        let mut state = self.0.lock().unwrap();
+        if attempt.state().as_str() == "completed" {
+            state.record("outcome.finalize");
+        }
+        state.attempt = attempt.clone();
+        ready(Ok(()))
     }
 }

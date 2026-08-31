@@ -4,6 +4,8 @@ mod agent_release;
 mod call_attempt;
 mod campaign;
 mod compliance;
+mod orchestrator;
+mod ports;
 
 use std::{error::Error, fmt};
 
@@ -17,6 +19,12 @@ pub use compliance::{
     GateStatus, evaluate_compliance,
 };
 pub use converact_voice_agent_contracts::AttemptCommand;
+pub use orchestrator::{OrchestrationError, OutboundOrchestrator};
+pub use ports::{
+    AgentObservation, AgentReservation, AttachCall, AttemptStorePort, CallObservation,
+    ChannelAgentPort, CompliancePort, EffectIntent, OriginateCall, PlayDisclosure, PortError,
+    PortFailureKind, ReserveAgent, StartConversation, TelephonyPort, TerminateCall,
+};
 
 /// Stable rejection categories shared by the outbound authority aggregates.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
