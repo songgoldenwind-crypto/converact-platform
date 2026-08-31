@@ -8,7 +8,7 @@ mod upstream;
 pub use client::{
     ActiveCallClient, ActiveCallCommand, ActiveCallEvent, ActiveCallEventKind,
     ActiveCallEventStream, ActiveCallSessionState, ClientConfig, ClientConfigError, ClientError,
-    ClientFailureKind, CommandAccepted,
+    ClientFailureKind, CommandAccepted, InlinePlaybook, ReservedPlaybookSession,
 };
 pub use command::{AdapterCommand, encode_command};
 pub use mapper::{

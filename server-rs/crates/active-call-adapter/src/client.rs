@@ -13,6 +13,8 @@ const MAX_TIMEOUT_MS: u64 = 30_000;
 const MIN_RESPONSE_BYTES: usize = 64;
 const MAX_RESPONSE_BYTES: usize = 1_048_576;
 const MAX_COMMAND_BYTES: usize = 65_536;
+const MAX_PLAYBOOK_BYTES: usize = 65_536;
+const MAX_PLAYBOOK_REQUEST_BYTES: usize = 131_072;
 const MAX_SSE_OVERHEAD_BYTES: usize = 4_096;
 const STATUS_QUERY_ATTEMPTS: usize = 2;
 const CLIENT_USER_AGENT: &str = "converact-active-call-adapter/1";
@@ -173,6 +175,44 @@ pub struct CommandAccepted {
     pub session_id: ChannelAgentSessionId,
 }
 
+/// Bounded inline Active Call Playbook prepared by the platform artifact boundary.
+#[derive(Clone, Eq, PartialEq)]
+pub struct InlinePlaybook(Box<str>);
+
+impl InlinePlaybook {
+    /// Validates the minimum upstream Playbook framing without parsing tenant configuration.
+    ///
+    /// # Errors
+    ///
+    /// Rejects missing YAML front matter, control-bearing input and content over 64 KiB.
+    pub fn try_new(content: impl AsRef<str>) -> Result<Self, ClientError> {
+        let content = content.as_ref();
+        let has_front_matter = content.starts_with("---\n") || content.starts_with("---\r\n");
+        if content.is_empty()
+            || content.len() > MAX_PLAYBOOK_BYTES
+            || !has_front_matter
+            || content
+                .chars()
+                .any(|character| character.is_control() && !matches!(character, '\n' | '\r' | '\t'))
+        {
+            return Err(invalid_configuration("active_call_playbook_invalid"));
+        }
+        Ok(Self(content.into()))
+    }
+}
+
+impl fmt::Debug for InlinePlaybook {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("InlinePlaybook([REDACTED])")
+    }
+}
+
+/// Session identity reserved by Active Call for one future media connection.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReservedPlaybookSession {
+    pub session_id: ChannelAgentSessionId,
+}
+
 /// Current session status from Active Call's `/list` authority surface.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ActiveCallSessionState {
@@ -250,6 +290,44 @@ impl ActiveCallClient {
         tokio::time::timeout(self.config.timeout, operation)
             .await
             .map_err(|_| command_unknown("active_call_command_timeout"))?
+    }
+
+    /// Associates one bounded inline Playbook with a future Active Call media session.
+    ///
+    /// The request deliberately omits upstream `to` and `type` fields. Telephony and media-leg
+    /// selection remain `RustPBX` responsibilities.
+    ///
+    /// # Errors
+    ///
+    /// Any timeout, server failure or ambiguous response is `OutcomeUnknown`. The pinned upstream
+    /// endpoint chooses the session ID and exposes no pending-reservation query, so callers must
+    /// not retry this mutation blindly; they keep the Attempt unknown until cleanup/reconciliation.
+    pub async fn reserve_playbook(
+        &self,
+        playbook: InlinePlaybook,
+    ) -> Result<ReservedPlaybookSession, ClientError> {
+        let encoded = serde_json::to_vec(&serde_json::json!({ "content": playbook.0 }))
+            .map_err(|_| invalid_configuration("active_call_playbook_request_invalid"))?;
+        if encoded.len() > MAX_PLAYBOOK_REQUEST_BYTES {
+            return Err(invalid_configuration(
+                "active_call_playbook_request_too_large",
+            ));
+        }
+        let url = playbook_reservation_url(&self.config.endpoint)?;
+        let operation = async {
+            let response = self
+                .client
+                .post(url)
+                .header(reqwest::header::CONTENT_TYPE, "application/json")
+                .body(encoded)
+                .send()
+                .await
+                .map_err(|_| reservation_unknown("active_call_playbook_transport_unknown"))?;
+            self.accept_playbook_response(response).await
+        };
+        tokio::time::timeout(self.config.timeout, operation)
+            .await
+            .map_err(|_| reservation_unknown("active_call_playbook_timeout"))?
     }
 
     /// Queries one session through `/list`, retrying only this read-only operation.
@@ -353,6 +431,30 @@ impl ActiveCallClient {
             ));
         }
         Err(command_unknown("active_call_command_server_unknown"))
+    }
+
+    async fn accept_playbook_response(
+        &self,
+        response: Response,
+    ) -> Result<ReservedPlaybookSession, ClientError> {
+        let status = response.status();
+        let body = collect_bounded(response, self.config.max_response_bytes)
+            .await
+            .map_err(|_| reservation_unknown("active_call_playbook_response_unbounded"))?;
+        if status.is_success() {
+            let acknowledgement: PlaybookResponse = serde_json::from_slice(&body)
+                .map_err(|_| reservation_unknown("active_call_playbook_response_invalid"))?;
+            let session_id = ChannelAgentSessionId::parse(acknowledgement.session_id)
+                .map_err(|_| reservation_unknown("active_call_playbook_session_invalid"))?;
+            return Ok(ReservedPlaybookSession { session_id });
+        }
+        if status.is_client_error() {
+            return Err(ClientError::new(
+                ClientFailureKind::Rejected,
+                "active_call_playbook_rejected",
+            ));
+        }
+        Err(reservation_unknown("active_call_playbook_server_unknown"))
     }
 
     async fn fetch_status(
@@ -470,6 +572,11 @@ struct CommandResponse {
 }
 
 #[derive(Deserialize)]
+struct PlaybookResponse {
+    session_id: String,
+}
+
+#[derive(Deserialize)]
 struct ListResponse {
     active_calls: Vec<ListCall>,
 }
@@ -542,6 +649,20 @@ fn endpoint_url(
     if let Some(session_id) = session_id {
         segments.push(session_id.as_str());
     }
+    drop(segments);
+    Ok(url)
+}
+
+fn playbook_reservation_url(base: &Url) -> Result<Url, ClientError> {
+    let mut url = base.clone();
+    let mut segments = url
+        .path_segments_mut()
+        .map_err(|()| invalid_configuration("active_call_endpoint_invalid"))?;
+    segments
+        .pop_if_empty()
+        .push("api")
+        .push("playbook")
+        .push("run");
     drop(segments);
     Ok(url)
 }
@@ -642,5 +763,9 @@ const fn status_unavailable(code: &'static str) -> ClientError {
 }
 
 const fn command_unknown(code: &'static str) -> ClientError {
+    ClientError::new(ClientFailureKind::OutcomeUnknown, code)
+}
+
+const fn reservation_unknown(code: &'static str) -> ClientError {
     ClientError::new(ClientFailureKind::OutcomeUnknown, code)
 }

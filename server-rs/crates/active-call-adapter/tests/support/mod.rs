@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use std::sync::{
-    Arc,
+    Arc, Mutex,
     atomic::{AtomicUsize, Ordering},
 };
 
@@ -65,6 +65,8 @@ pub struct FakeActiveCall {
     task: JoinHandle<()>,
     command_count: Arc<AtomicUsize>,
     status_count: Arc<AtomicUsize>,
+    playbook_reservation_count: Arc<AtomicUsize>,
+    last_playbook_reservation: Arc<Mutex<Option<serde_json::Value>>>,
 }
 
 impl FakeActiveCall {
@@ -91,6 +93,8 @@ impl FakeActiveCall {
             task,
             command_count,
             status_count: Arc::new(AtomicUsize::new(0)),
+            playbook_reservation_count: Arc::new(AtomicUsize::new(0)),
+            last_playbook_reservation: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -133,6 +137,8 @@ impl FakeActiveCall {
             task,
             command_count: Arc::new(AtomicUsize::new(0)),
             status_count,
+            playbook_reservation_count: Arc::new(AtomicUsize::new(0)),
+            last_playbook_reservation: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -159,6 +165,70 @@ impl FakeActiveCall {
             task,
             command_count,
             status_count: Arc::new(AtomicUsize::new(0)),
+            playbook_reservation_count: Arc::new(AtomicUsize::new(0)),
+            last_playbook_reservation: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    pub async fn accept_playbook_reservations() -> Self {
+        let count = Arc::new(AtomicUsize::new(0));
+        let handler_count = Arc::clone(&count);
+        let last = Arc::new(Mutex::new(None));
+        let handler_last = Arc::clone(&last);
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let router = Router::new().route(
+            "/api/playbook/run",
+            post(move |Json(body): Json<serde_json::Value>| {
+                let count = Arc::clone(&handler_count);
+                let last = Arc::clone(&handler_last);
+                async move {
+                    count.fetch_add(1, Ordering::SeqCst);
+                    *last.lock().unwrap() = Some(body);
+                    Json(json!({
+                        "session_id": "s.00000000-0000-4000-8000-000000000001"
+                    }))
+                }
+            }),
+        );
+        let task = tokio::spawn(async move {
+            axum::serve(listener, router).await.unwrap();
+        });
+        Self {
+            endpoint: format!("http://{address}"),
+            task,
+            command_count: Arc::new(AtomicUsize::new(0)),
+            status_count: Arc::new(AtomicUsize::new(0)),
+            playbook_reservation_count: count,
+            last_playbook_reservation: last,
+        }
+    }
+
+    pub async fn timeout_playbook_reservations() -> Self {
+        let count = Arc::new(AtomicUsize::new(0));
+        let handler_count = Arc::clone(&count);
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let router = Router::new().route(
+            "/api/playbook/run",
+            post(move || {
+                let count = Arc::clone(&handler_count);
+                async move {
+                    count.fetch_add(1, Ordering::SeqCst);
+                    std::future::pending::<String>().await
+                }
+            }),
+        );
+        let task = tokio::spawn(async move {
+            axum::serve(listener, router).await.unwrap();
+        });
+        Self {
+            endpoint: format!("http://{address}"),
+            task,
+            command_count: Arc::new(AtomicUsize::new(0)),
+            status_count: Arc::new(AtomicUsize::new(0)),
+            playbook_reservation_count: count,
+            last_playbook_reservation: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -172,6 +242,14 @@ impl FakeActiveCall {
 
     pub fn status_count(&self) -> usize {
         self.status_count.load(Ordering::SeqCst)
+    }
+
+    pub fn playbook_reservation_count(&self) -> usize {
+        self.playbook_reservation_count.load(Ordering::SeqCst)
+    }
+
+    pub fn last_playbook_reservation(&self) -> Option<serde_json::Value> {
+        self.last_playbook_reservation.lock().unwrap().clone()
     }
 }
 
