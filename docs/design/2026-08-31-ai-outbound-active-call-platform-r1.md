@@ -119,7 +119,7 @@ Kamailio / Trunk / PSTN
 | 多轮实时语音 | 受控端口完成 reserve/originate/attach/disclosure/start/finalize；未启动真实进程 | Active Call 驱动的真实功能闭环 | real media/provider `not_run` |
 | Tool/Action | Rust Proposal/Policy/Approval/Broker/Receipt、持久化 Adapter、Active Call Worker 桥接及通用查询/变更 Adapter 已通过本地受控测试 | 接入真实 Provider | controlled slice passed；real provider/physical PostgreSQL `not_run` |
 | AI/人工协作 | Rust Handoff Core/Store/Worker 的 commit/abort/replay/unknown-query 和具体 Active Call 私有进程端口已通过本地受控/loopback 测试 | 接入真实人席、RustPBX 媒体切换与 Active Call | physical integration/production `not_run` |
-| Transcript/Outcome/QM | Rust final transcript/snapshot/result/evaluation/Bad Case、durable reconcile、权限化查询 API 与 Active Call 终态 intent 候选安全映射已通过本地受控测试 | 将 intent 候选接入 Release OutcomeSchema，接入真实 Speech/模型/UI 并迁移旧 writer | schema projection/physical integration/writer switch/production `not_run` |
+| Transcript/Outcome/QM | Rust final transcript/snapshot/result/evaluation/Bad Case、durable reconcile、权限化查询 API，以及 Active Call intent 候选到精确 Release OutcomeSchema/结果证据的投影已通过本地受控测试 | 接入真实 Speech/模型/UI 并迁移旧 writer | physical integration/writer switch/production `not_run` |
 | Post-call Finalization | Rust terminal/enqueue 受控原子边界、durable queue、Worker、D7 projection reuse 与进度查询已通过本地精准测试 | 接入物理 PostgreSQL 合并事务和真实终态输入 | physical transaction/real call/production `not_run` |
 | 性能/容量/长稳 | 旧证据不能继承到新链路 | 功能稳定后单独执行 | `not_run` |
 
@@ -753,7 +753,7 @@ Reconciler 查询：
 
 - final transcript、terminal snapshot 与 generation 分类：本地 Rust 合同已通过；
 - Active Call Playbook 的终态 `extra.intent` 已映射为有界、脱敏的候选，只保留该字段；候选到
-  Agent Release `OutcomeSchema` 的正式投影仍为 `not_run`；
+  精确 Agent Release `OutcomeSchema`、durable result command 与 finalization 的受控投影已通过；
 - summary/intent/disposition/outcome 版本投影与 durable effect reconcile：本地受控测试已通过；
 - evaluation、rubric 复算和 deterministic Bad Case：本地 Rust 合同已通过；
 - tenant-bound Rust result/transcript/evaluation/Bad Case API：本地受控测试已通过，全文权限
@@ -882,7 +882,9 @@ Core/Store/Worker/API、D8 post-call finalization 的本地 Rust 切片均已有
 执行回执或 RustPBX 媒体-owner 切换。
 Active Call Playbook 已识别的终态 `extra.intent` 也已进入规范化事件：值必须是非空、无控制字符、
 不超过 256 bytes 的字符串，`Debug` 不显示原文，其他 `extra`（包括客户文本和 Provider 元数据）
-全部丢弃。它只是候选证据，不能绕过 Agent Release 固定的 `OutcomeSchema`；正式投影接线仍未证明。
+全部丢弃。它只是候选证据，不能绕过 Agent Release 固定的 `OutcomeSchema`；本地受控投影已将
+Release、Schema、terminal transcript、意图证据与 result revision 绑定到同一摘要，并在 execute、
+query/replay 和 finalization 上拒绝漂移。真实 Playbook/模型意图质量仍未证明。
 物理 PostgreSQL、真实 RustPBX/Active Call/Speech、SIP/PSTN/媒体、真实 Tool/审批/模型供应商、
 生产路由授权、Dashboard、旧 writer 迁移、性能、容量和生产部署均保持 `not_run`，后续必须按
 独立 Evidence Gate 逐项推进。
@@ -909,6 +911,8 @@ Active Call Playbook 已识别的终态 `extra.intent` 也已进入规范化事�
 - [Active Call Handoff Adapter R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-handoff-adapter/README.md)
 - [Active Call Intent Candidate Parity R1 计划](../plans/2026-08-31-active-call-intent-candidate-r1.md)
 - [Active Call Intent Candidate Parity R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-intent-candidate/README.md)
+- [Active Call Intent → Outcome Projection R1 计划](../plans/2026-08-31-active-call-intent-outcome-projection-r1.md)
+- [Active Call Intent → Outcome Projection R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-intent-outcome/README.md)
 
 ## 23. 变更记录
 
@@ -926,3 +930,4 @@ Active Call Playbook 已识别的终态 `extra.intent` 也已进入规范化事�
 | 2026-08-31 | R1 Active Call output control checkpoint | Pause、Resume 与非 graceful Interrupt 已通过固定 wire 合同，fade 上限为两秒且未开放 Hangup/REFER/Bridge；真实命令投递、人工接管与生产仍为 `not_run` |
 | 2026-08-31 | R1 Active Call Handoff Adapter checkpoint | 具体 Rust `ChannelAgentHandoffPort` 已通过 replacement-session 与 human-generation interrupt 的 loopback 合同；命令执行、RustPBX 媒体切换、真实通话和生产仍为 `not_run` |
 | 2026-08-31 | R1 Active Call intent candidate checkpoint | Playbook 的终态 `extra.intent` 已通过有界脱敏 Rust 映射且不保留其他 `extra`；Release OutcomeSchema 投影、真实意图质量与生产仍为 `not_run` |
+| 2026-08-31 | R1 Active Call intent outcome checkpoint | 候选到精确 Release/OutcomeSchema、terminal transcript、durable result command 与 finalization 的受控证据链已通过；真实 Playbook/模型质量、物理集成与生产仍为 `not_run` |
