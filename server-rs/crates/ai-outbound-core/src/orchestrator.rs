@@ -1,7 +1,7 @@
 use std::{error::Error, fmt};
 
 use converact_voice_agent_contracts::{
-    AttemptCommand, CallAttemptId, CallId, ChannelAgentSessionId,
+    AttemptCommand, CallAttemptId, CallId, ChannelAgentSessionId, TenantId,
 };
 
 use crate::{
@@ -82,12 +82,13 @@ where
     /// observations, persistence failures, and indeterminate external effects.
     pub async fn run_one_attempt(
         &self,
+        tenant_id: &TenantId,
         attempt_id: &CallAttemptId,
         release: &AgentReleaseBinding,
         session_id: &ChannelAgentSessionId,
     ) -> Result<CallAttempt, OrchestrationError> {
         let attempt = self
-            .prepare_attempt(attempt_id, release, session_id)
+            .prepare_attempt(tenant_id, attempt_id, release, session_id)
             .await?;
         let (attempt, call_id) = self.originate_and_attach(attempt, session_id).await?;
         let attempt = self.disclose_and_start(attempt, session_id).await?;
@@ -96,6 +97,7 @@ where
 
     async fn prepare_attempt(
         &self,
+        tenant_id: &TenantId,
         attempt_id: &CallAttemptId,
         release: &AgentReleaseBinding,
         session_id: &ChannelAgentSessionId,
@@ -122,6 +124,7 @@ where
         let reservation = match self
             .agent
             .reserve(ReserveAgent {
+                tenant_id: tenant_id.clone(),
                 attempt_id: attempt.id().clone(),
                 release: release.clone(),
                 session_id: session_id.clone(),
@@ -162,6 +165,7 @@ where
             .originate(OriginateCall {
                 attempt_id: attempt.id().clone(),
                 call_id: call_id.clone(),
+                agent_session_id: session_id.clone(),
             })
             .await
         {

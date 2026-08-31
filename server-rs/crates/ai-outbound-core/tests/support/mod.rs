@@ -15,7 +15,7 @@ use converact_ai_outbound_core::{
 };
 use converact_voice_agent_contracts::{
     AgentDefinitionId, AgentReleaseId, CallAttemptId, CallAttemptState, CallId, CampaignId,
-    ChannelAgentSessionId,
+    ChannelAgentSessionId, TenantId,
 };
 
 pub fn agent_draft() -> AgentDraft {
@@ -165,6 +165,8 @@ impl Harness {
             retry_count: 0,
             reserved_agent_release: None,
             reserved_agent_session_id: None,
+            reserved_tenant_id: None,
+            originated_agent_session_id: None,
         }));
         Self {
             compliance: FakeCompliance(state.clone()),
@@ -179,6 +181,7 @@ impl Harness {
     pub async fn run_one_attempt(&self) -> Result<CallAttempt, OrchestrationError> {
         self.orchestrator()
             .run_one_attempt(
+                &TenantId::parse("tenant-001").unwrap(),
                 &self.attempt_id,
                 &agent_release_binding(),
                 &requested_agent_session_id(),
@@ -214,6 +217,18 @@ impl Harness {
         self.state.lock().unwrap().reserved_agent_session_id.clone()
     }
 
+    pub fn reserved_tenant_id(&self) -> Option<TenantId> {
+        self.state.lock().unwrap().reserved_tenant_id.clone()
+    }
+
+    pub fn originated_agent_session_id(&self) -> Option<ChannelAgentSessionId> {
+        self.state
+            .lock()
+            .unwrap()
+            .originated_agent_session_id
+            .clone()
+    }
+
     fn orchestrator(
         &self,
     ) -> OutboundOrchestrator<'_, FakeCompliance, FakeAgent, FakeTelephony, FakeStore> {
@@ -232,6 +247,8 @@ struct HarnessState {
     retry_count: usize,
     reserved_agent_release: Option<AgentReleaseBinding>,
     reserved_agent_session_id: Option<ChannelAgentSessionId>,
+    reserved_tenant_id: Option<TenantId>,
+    originated_agent_session_id: Option<ChannelAgentSessionId>,
 }
 
 #[derive(Clone, Copy)]
@@ -266,6 +283,7 @@ impl ChannelAgentPort for FakeAgent {
     async fn reserve(&self, request: ReserveAgent) -> Result<AgentReservation, PortError> {
         let mut state = self.0.lock().unwrap();
         state.record("agent.reserve");
+        state.reserved_tenant_id = Some(request.tenant_id);
         state.reserved_agent_release = Some(request.release);
         state.reserved_agent_session_id = Some(request.session_id.clone());
         match state.agent_reservation_outcome {
@@ -348,6 +366,7 @@ impl TelephonyPort for FakeTelephony {
     ) -> impl Future<Output = Result<CallObservation, PortError>> + Send {
         let mut state = self.0.lock().unwrap();
         state.rustpbx_originate_count += 1;
+        state.originated_agent_session_id = Some(request.agent_session_id.clone());
         state.record("rustpbx.originate");
         if state.crash_after_originate {
             ready(Err(PortError::outcome_unknown("rustpbx_timeout")))

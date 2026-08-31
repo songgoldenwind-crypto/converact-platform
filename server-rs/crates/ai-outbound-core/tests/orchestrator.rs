@@ -75,6 +75,19 @@ async fn reservation_uses_the_platform_selected_session_identity() {
 }
 
 #[tokio::test]
+async fn reservation_and_originate_keep_tenant_and_agent_session_binding() {
+    let harness = Harness::new();
+
+    harness.run_one_attempt().await.unwrap();
+
+    assert_eq!(harness.reserved_tenant_id().unwrap().as_str(), "tenant-001");
+    assert_eq!(
+        harness.originated_agent_session_id().unwrap().as_str(),
+        "agent-session-platform-selected"
+    );
+}
+
+#[tokio::test]
 async fn reservation_cannot_replace_the_platform_selected_session_identity() {
     let harness = Harness::with_agent_identity_mismatch();
 

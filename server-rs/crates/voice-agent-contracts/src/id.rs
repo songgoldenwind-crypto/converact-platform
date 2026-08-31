@@ -100,6 +100,7 @@ macro_rules! voice_agent_id {
 
 voice_agent_id!(AgentDefinitionId);
 voice_agent_id!(AgentReleaseId);
+voice_agent_id!(TenantId);
 voice_agent_id!(CampaignId);
 voice_agent_id!(CampaignContactId);
 voice_agent_id!(CallAttemptId);

@@ -1,7 +1,7 @@
 use std::{error::Error, fmt, future::Future};
 
 use converact_voice_agent_contracts::{
-    AgentReleaseId, CallAttemptId, CallId, ChannelAgentSessionId,
+    AgentReleaseId, CallAttemptId, CallId, ChannelAgentSessionId, TenantId,
 };
 
 use crate::{
@@ -144,6 +144,7 @@ pub enum EffectIntent {
 /// Request to reserve one bounded channel-agent slot.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReserveAgent {
+    pub tenant_id: TenantId,
     pub attempt_id: CallAttemptId,
     pub release: AgentReleaseBinding,
     pub session_id: ChannelAgentSessionId,
@@ -192,6 +193,7 @@ pub enum AgentObservation {
 pub struct OriginateCall {
     pub attempt_id: CallAttemptId,
     pub call_id: CallId,
+    pub agent_session_id: ChannelAgentSessionId,
 }
 
 /// Closed observations accepted from the `RustPBX` adapter.

@@ -4,8 +4,8 @@ use converact_ai_outbound_core::{
     AgentReleaseBinding, AttemptStorePort, ChannelAgentPort, CompliancePort, OutboundOrchestrator,
     TelephonyPort,
 };
-use converact_voice_agent_contracts::CallAttemptId;
 use converact_voice_agent_contracts::{AgentReleaseId, AgentReleaseState, CampaignState};
+use converact_voice_agent_contracts::{CallAttemptId, TenantId};
 
 use crate::{
     AdmissionReadiness, AttemptResource, AuthenticatedTenant, RepositoryError, ShutdownToken,
@@ -138,8 +138,10 @@ where
             &self.attempt_store,
         );
         let session_id = derive_initial_session_id(tenant, attempt_id, &release_binding)?;
+        let tenant_id = TenantId::parse(tenant.as_str())
+            .map_err(|_| WorkerError::new("voice_agent_tenant_invalid"))?;
         let attempt = orchestrator
-            .run_one_attempt(attempt_id, &release_binding, &session_id)
+            .run_one_attempt(&tenant_id, attempt_id, &release_binding, &session_id)
             .await
             .map_err(|error| WorkerError::new(error.code()))?;
         let resource =

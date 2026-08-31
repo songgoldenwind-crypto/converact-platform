@@ -7,7 +7,9 @@ use axum::{
 };
 use converact_active_call_adapter::{ActiveCallClient, ClientConfig};
 use converact_ai_outbound_core::{AgentReleaseBinding, ReleaseComponentDigests, ReserveAgent};
-use converact_voice_agent_contracts::{AgentReleaseId, CallAttemptId, ChannelAgentSessionId};
+use converact_voice_agent_contracts::{
+    AgentReleaseId, CallAttemptId, ChannelAgentSessionId, TenantId,
+};
 use converact_voice_agent_worker::{
     ActiveCallPlaybookArtifact, ActiveCallReservationAdapter, ActiveCallReservationObservation,
 };
@@ -28,6 +30,7 @@ async fn exact_artifact_is_reserved_under_the_platform_session_identity() {
     let reservation = adapter
         .reserve(
             ReserveAgent {
+                tenant_id: TenantId::parse("tenant-001").unwrap(),
                 attempt_id: CallAttemptId::parse("attempt-001").unwrap(),
                 release: release.clone(),
                 session_id: session_id.clone(),
@@ -62,6 +65,7 @@ async fn cross_release_artifact_is_rejected_before_network_mutation() {
     let error = adapter
         .reserve(
             ReserveAgent {
+                tenant_id: TenantId::parse("tenant-001").unwrap(),
                 attempt_id: CallAttemptId::parse("attempt-001").unwrap(),
                 release: requested,
                 session_id: ChannelAgentSessionId::parse("ac.session-001").unwrap(),

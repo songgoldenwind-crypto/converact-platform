@@ -16,7 +16,7 @@ pub use id::{
     ConversationFinalizationJobId, ConversationFinalizationReceiptId, ConversationResultId,
     EvaluationId, EvaluationRubricRevisionId, EventId, ExecutionGeneration, HandoffCommandId,
     HandoffId, HandoffReceiptId, HumanLegId, IdempotencyKey, IdentityError, InteractionId,
-    OutcomeSchemaRevisionId, ResultProjectionCommandId, ResultProjectionReceiptId, ToolCallId,
-    ToolRevisionId, TranscriptSegmentId, TranscriptSnapshotId,
+    OutcomeSchemaRevisionId, ResultProjectionCommandId, ResultProjectionReceiptId, TenantId,
+    ToolCallId, ToolRevisionId, TranscriptSegmentId, TranscriptSnapshotId,
 };
 pub use state::{AgentReleaseState, CallAttemptState, CampaignState};
