@@ -101,6 +101,73 @@ async fn unknown_dial_outcome_is_queried_before_human_activation_without_rediali
     assert_eq!(telephony.dial_count(), 1);
 }
 
+#[tokio::test]
+async fn rejected_human_dial_aborts_without_redialing_on_replay() {
+    let durability = MemoryDurability::default();
+    let telephony =
+        FakeTelephony::with_first_dial_outcome(EffectObservation::NotApplied("seat_unavailable"));
+    let channel = FakeChannelAgent::default();
+    let runtime = HandoffRuntime::new(&durability, &telephony, &channel);
+    let requested = requested();
+    let ids = human_ids();
+
+    let first = runtime
+        .activate_human(
+            &requested,
+            HumanLegId::parse("human-leg-001").unwrap(),
+            &ids,
+        )
+        .await
+        .unwrap();
+    assert!(matches!(first, HandoffProgress::Aborted(_)));
+
+    let replay = runtime
+        .activate_human(
+            &requested,
+            HumanLegId::parse("human-leg-001").unwrap(),
+            &ids,
+        )
+        .await
+        .unwrap();
+    assert!(matches!(replay, HandoffProgress::Aborted(_)));
+    assert_eq!(telephony.dial_count(), 1);
+}
+
+#[tokio::test]
+async fn unknown_ai_resume_is_queried_without_starting_a_second_session() {
+    let durability = MemoryDurability::default();
+    let telephony = FakeTelephony::default();
+    let channel = FakeChannelAgent::with_first_prepare_outcome(EffectObservation::OutcomeUnknown);
+    let runtime = HandoffRuntime::new(&durability, &telephony, &channel);
+    let requested = requested();
+    let HandoffProgress::HumanActive(human_active) = runtime
+        .activate_human(
+            &requested,
+            HumanLegId::parse("human-leg-001").unwrap(),
+            &human_ids(),
+        )
+        .await
+        .unwrap()
+    else {
+        panic!("answered human must become active")
+    };
+    let ai_session_id = ChannelAgentSessionId::parse("agent-session-002").unwrap();
+    let ids = ai_ids();
+
+    let first = runtime
+        .resume_ai(&human_active, ai_session_id.clone(), &ids)
+        .await
+        .unwrap();
+    assert!(matches!(first, HandoffProgress::Pending(_)));
+
+    let reconciled = runtime
+        .resume_ai(&human_active, ai_session_id, &ids)
+        .await
+        .unwrap();
+    assert!(matches!(reconciled, HandoffProgress::AiResumed(_)));
+    assert_eq!(channel.prepare_count(), 1);
+}
+
 #[derive(Default)]
 struct MemoryDurability {
     commands: Mutex<HashMap<String, DurableState>>,
@@ -218,10 +285,19 @@ impl TelephonyHandoffPort for FakeTelephony {
 #[derive(Default)]
 struct FakeChannelAgent {
     prepare_count: Mutex<u32>,
+    next_prepare_outcome: Mutex<Option<EffectObservation>>,
     commits: Mutex<Vec<String>>,
 }
 
 impl FakeChannelAgent {
+    fn with_first_prepare_outcome(outcome: EffectObservation) -> Self {
+        Self {
+            prepare_count: Mutex::new(0),
+            next_prepare_outcome: Mutex::new(Some(outcome)),
+            commits: Mutex::new(Vec::new()),
+        }
+    }
+
     fn prepare_count(&self) -> u32 {
         *self.prepare_count.lock().unwrap()
     }
@@ -237,7 +313,12 @@ impl ChannelAgentHandoffPort for FakeChannelAgent {
         _request: AiResumeRequest,
     ) -> Result<EffectObservation, VoiceHandoffPortError> {
         *self.prepare_count.lock().unwrap() += 1;
-        Ok(EffectObservation::Applied)
+        Ok(self
+            .next_prepare_outcome
+            .lock()
+            .unwrap()
+            .take()
+            .unwrap_or(EffectObservation::Applied))
     }
 
     async fn query_ai_resume(
