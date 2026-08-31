@@ -2,6 +2,7 @@
 
 #![forbid(unsafe_code)]
 
+mod campaign_retry;
 mod conversation_finalization;
 mod conversation_projection;
 mod conversation_projection_postgres;
@@ -18,6 +19,10 @@ mod repository;
 mod tool_runtime;
 mod worker;
 
+pub use campaign_retry::{
+    CampaignRetryRequest, CampaignRetryWorker, RetryDurabilityPort, RetryPersistenceRequest,
+    RetryWorkerDecision, RetryWorkerError, RetryWriteDecision,
+};
 pub use conversation_finalization::{
     ConversationFinalizationEvidence, ConversationFinalizationProjector,
     FinalizationEvidenceObservation, FinalizationEvidenceSourcePort,
