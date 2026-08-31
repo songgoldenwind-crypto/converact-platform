@@ -10,8 +10,8 @@ use tokio_postgres::{Row, Transaction};
 
 use crate::{
     ClaimedFinalizationJob, ClaimedFinalizationJobInput, EnqueueFinalizationDecision,
-    FinalizationLease, FinalizationLeaseCommand, FinalizationReconcileCommand,
-    FinalizationStoreConfig, FinalizationStoreError,
+    FinalizationJobProgress, FinalizationLease, FinalizationLeaseCommand,
+    FinalizationReconcileCommand, FinalizationStoreConfig, FinalizationStoreError,
 };
 
 /// Stateless tenant-transaction SQL adapter for durable post-call finalization work.
@@ -116,6 +116,37 @@ impl FinalizationSqlStore {
             .await
             .map_err(|_| FinalizationStoreError::DatabaseUnavailable)?;
         rows.iter().map(claimed_job).collect()
+    }
+
+    /// Loads bounded progress for one tenant-bound physical Attempt.
+    ///
+    /// # Errors
+    ///
+    /// Returns only database or stored-row failures.
+    pub async fn load_progress(
+        &self,
+        transaction: &Transaction<'_>,
+        tenant_id: &TenantId,
+        call_attempt_id: &CallAttemptId,
+    ) -> Result<Option<FinalizationJobProgress>, FinalizationStoreError> {
+        transaction
+            .query_opt(
+                "SELECT state, resolution, last_error_code, revision
+                 FROM converact_post_call_finalization_jobs
+                 WHERE tenant_id = $1 AND call_attempt_id = $2",
+                &[&tenant_id.as_str(), &call_attempt_id.as_str()],
+            )
+            .await
+            .map_err(|_| FinalizationStoreError::DatabaseUnavailable)?
+            .map(|row| {
+                FinalizationJobProgress::try_from_stored(
+                    &string_at(&row, 0)?,
+                    optional_string_at(&row, 1)?.as_deref(),
+                    optional_string_at(&row, 2)?,
+                    u64_at(&row, 3)?,
+                )
+            })
+            .transpose()
     }
 
     /// Releases a claimed job into explicit reconcile state using every lease/revision fence.
@@ -346,6 +377,11 @@ fn claimed_job(row: &Row) -> Result<ClaimedFinalizationJob, FinalizationStoreErr
 }
 
 fn string_at(row: &Row, index: usize) -> Result<String, FinalizationStoreError> {
+    row.try_get(index)
+        .map_err(|_| FinalizationStoreError::StoredRowInvalid)
+}
+
+fn optional_string_at(row: &Row, index: usize) -> Result<Option<String>, FinalizationStoreError> {
     row.try_get(index)
         .map_err(|_| FinalizationStoreError::StoredRowInvalid)
 }

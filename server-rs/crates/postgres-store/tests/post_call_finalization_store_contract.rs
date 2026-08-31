@@ -45,6 +45,7 @@ fn all_queue_mutations_own_one_tenant_transaction() {
         "claim_due",
         "require_reconcile",
         "complete",
+        "load_progress",
         "with_tenant_transaction",
         "parse_tenant",
         "map_transaction_error",

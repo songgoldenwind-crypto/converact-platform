@@ -85,6 +85,9 @@ async fn attempt_projection_excludes_customer_and_provider_payloads() {
     let body = to_bytes(response.into_body(), 16 * 1024).await.unwrap();
     let body = std::str::from_utf8(&body).unwrap();
 
+    assert!(body.contains("\"post_call_state\":\"pending\""));
+    assert!(!body.contains("post_call_error_code"));
+
     for forbidden in [
         "phone_number",
         "audio",

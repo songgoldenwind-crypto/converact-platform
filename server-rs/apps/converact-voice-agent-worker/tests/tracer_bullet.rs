@@ -12,6 +12,7 @@ async fn one_attempt_reaches_completed_without_waiting_for_post_call_evidence() 
     assert_eq!(attempt.state().as_str(), "completed");
     assert!(attempt.disclosure_completed());
     assert_eq!(attempt.post_call_state().as_str(), "pending");
+    assert_eq!(attempt.post_call_error_code(), None);
     assert_eq!(attempt.final_transcript_segments(), None);
     assert_eq!(attempt.outcome(), None);
     assert_eq!(app.finalization_job_count(), 1);

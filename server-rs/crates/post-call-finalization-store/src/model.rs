@@ -1,7 +1,7 @@
 use std::{error::Error, fmt};
 
 use converact_kernel_ids::TenantId;
-use converact_post_call_finalization_core::FinalizationJobState;
+use converact_post_call_finalization_core::{FinalizationJobState, FinalizationResolution};
 use converact_voice_agent_contracts::{
     AgentReleaseId, CallAttemptId, ConversationFinalizationJobId, ExecutionGeneration,
     InteractionId,
@@ -151,6 +151,79 @@ impl FinalizationReconcileCommand {
 pub enum EnqueueFinalizationDecision {
     Created,
     Replay,
+}
+
+/// Bounded post-call progress returned to an authorized inspection adapter.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FinalizationJobProgress {
+    state: FinalizationJobState,
+    resolution: Option<FinalizationResolution>,
+    last_error_code: Option<Box<str>>,
+    revision: u64,
+}
+
+impl FinalizationJobProgress {
+    pub(crate) fn try_from_stored(
+        state: &str,
+        resolution: Option<&str>,
+        last_error_code: Option<String>,
+        revision: u64,
+    ) -> Result<Self, FinalizationStoreError> {
+        let state = match state {
+            "pending" => FinalizationJobState::Pending,
+            "claimed" => FinalizationJobState::Claimed,
+            "reconcile_required" => FinalizationJobState::ReconcileRequired,
+            "completed" => FinalizationJobState::Completed,
+            _ => return Err(FinalizationStoreError::StoredRowInvalid),
+        };
+        let resolution = match resolution {
+            Some("projected") => Some(FinalizationResolution::Projected),
+            Some("incomplete") => Some(FinalizationResolution::Incomplete),
+            None => None,
+            Some(_) => return Err(FinalizationStoreError::StoredRowInvalid),
+        };
+        let valid_error = last_error_code
+            .as_deref()
+            .is_none_or(|value| bounded_identifier(value, MAX_IDENTIFIER_BYTES));
+        let valid_state = match state {
+            FinalizationJobState::Pending | FinalizationJobState::Claimed => {
+                resolution.is_none() && last_error_code.is_none()
+            }
+            FinalizationJobState::ReconcileRequired => {
+                resolution.is_none() && last_error_code.is_some()
+            }
+            FinalizationJobState::Completed => resolution.is_some() && last_error_code.is_none(),
+        };
+        if revision == 0 || !valid_error || !valid_state {
+            return Err(FinalizationStoreError::StoredRowInvalid);
+        }
+        Ok(Self {
+            state,
+            resolution,
+            last_error_code: last_error_code.map(Into::into),
+            revision,
+        })
+    }
+
+    #[must_use]
+    pub const fn state(&self) -> FinalizationJobState {
+        self.state
+    }
+
+    #[must_use]
+    pub const fn resolution(&self) -> Option<FinalizationResolution> {
+        self.resolution
+    }
+
+    #[must_use]
+    pub fn last_error_code(&self) -> Option<&str> {
+        self.last_error_code.as_deref()
+    }
+
+    #[must_use]
+    pub const fn revision(&self) -> u64 {
+        self.revision
+    }
 }
 
 /// One claimed content-free job projection.

@@ -3,9 +3,9 @@ use std::{error::Error, fmt, sync::Arc};
 use converact_kernel_ids::TenantId;
 use converact_post_call_finalization_core::{FinalizationResolution, PostCallFinalizationJob};
 use converact_post_call_finalization_store::{
-    ClaimedFinalizationJob, EnqueueFinalizationDecision, FinalizationLease,
-    FinalizationLeaseCommand, FinalizationReconcileCommand, FinalizationSqlStore,
-    FinalizationStoreError,
+    ClaimedFinalizationJob, EnqueueFinalizationDecision, FinalizationJobProgress,
+    FinalizationLease, FinalizationLeaseCommand, FinalizationReconcileCommand,
+    FinalizationSqlStore, FinalizationStoreError,
 };
 
 use crate::{PostgresRuntime, TransactionError};
@@ -90,6 +90,31 @@ impl PostgresPostCallFinalizationStore {
             .with_tenant_transaction(&tenant, move |transaction| {
                 Box::pin(async move {
                     sql.claim_due(transaction, &query_tenant, &lease, requested_limit)
+                        .await
+                })
+            })
+            .await
+            .map_err(map_transaction_error)
+    }
+
+    /// Loads one tenant-bound Attempt's bounded post-call progress.
+    ///
+    /// # Errors
+    ///
+    /// Returns only sanitized identifier, tenant, Store or transaction failures.
+    pub async fn load_progress(
+        &self,
+        tenant_id: &str,
+        call_attempt_id: &converact_voice_agent_contracts::CallAttemptId,
+    ) -> Result<Option<FinalizationJobProgress>, PostgresPostCallFinalizationStoreError> {
+        let tenant = parse_tenant(tenant_id)?;
+        let query_tenant = tenant.clone();
+        let call_attempt_id = call_attempt_id.clone();
+        let sql = self.sql;
+        self.runtime
+            .with_tenant_transaction(&tenant, move |transaction| {
+                Box::pin(async move {
+                    sql.load_progress(transaction, &query_tenant, &call_attempt_id)
                         .await
                 })
             })

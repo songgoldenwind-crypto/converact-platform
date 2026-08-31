@@ -96,6 +96,8 @@ fn postgres_queue_contract_is_bounded_fenced_and_database_clocked() {
         "expected_revision",
         "LIMIT $",
         "payload_hash",
+        "load_progress",
+        "last_error_code",
     ] {
         assert!(
             source.contains(required),

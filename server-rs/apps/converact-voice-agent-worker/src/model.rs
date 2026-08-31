@@ -1,4 +1,6 @@
 use converact_ai_outbound_core::{AgentRelease, CallAttempt, Campaign};
+use converact_post_call_finalization_core::{FinalizationJobState, FinalizationResolution};
+use converact_post_call_finalization_store::FinalizationJobProgress;
 use converact_tenant_auth::AuthenticatedPlatformIdentity;
 use converact_voice_agent_contracts::{AgentReleaseState, CallAttemptState, CampaignState};
 use serde::Serialize;
@@ -187,6 +189,8 @@ pub struct AttemptResource {
     disclosure_completed: bool,
     post_call_state: PostCallState,
     #[serde(skip_serializing_if = "Option::is_none")]
+    post_call_error_code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     final_transcript_segments: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     outcome: Option<Outcome>,
@@ -202,6 +206,7 @@ impl AttemptResource {
             state: attempt.state(),
             disclosure_completed: attempt.disclosure_completed(),
             post_call_state: PostCallState::Pending,
+            post_call_error_code: None,
             final_transcript_segments: None,
             outcome: None,
         }
@@ -225,6 +230,28 @@ impl AttemptResource {
     #[must_use]
     pub const fn post_call_state(&self) -> PostCallState {
         self.post_call_state
+    }
+
+    /// Applies authoritative bounded queue progress to this inspection projection.
+    #[must_use]
+    pub fn with_finalization_progress(mut self, progress: &FinalizationJobProgress) -> Self {
+        self.post_call_state = match progress.state() {
+            FinalizationJobState::Pending => PostCallState::Pending,
+            FinalizationJobState::Claimed => PostCallState::Processing,
+            FinalizationJobState::ReconcileRequired => PostCallState::ReconcileRequired,
+            FinalizationJobState::Completed => match progress.resolution() {
+                Some(FinalizationResolution::Projected) => PostCallState::Projected,
+                Some(FinalizationResolution::Incomplete) => PostCallState::Incomplete,
+                None => PostCallState::ReconcileRequired,
+            },
+        };
+        self.post_call_error_code = progress.last_error_code().map(str::to_owned);
+        self
+    }
+
+    #[must_use]
+    pub fn post_call_error_code(&self) -> Option<&str> {
+        self.post_call_error_code.as_deref()
     }
 
     #[must_use]
