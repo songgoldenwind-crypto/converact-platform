@@ -4,13 +4,14 @@ use converact_conversation_result_core::{
     ConversationResult, ConversationResultInput, Evaluation, EvaluationDimensionInput,
     EvaluationInput, EvaluationRubric, EvaluationRubricInput, OutcomeSchema, OutcomeSchemaInput,
     QualityGrade, ResultError, ResultRevision, TranscriptGenerationStatus, TranscriptSegment,
-    TranscriptSegmentInput, TranscriptSpeaker,
+    TranscriptSegmentInput, TranscriptSnapshot, TranscriptSnapshotInput,
+    TranscriptSnapshotRevision, TranscriptSpeaker,
 };
 use converact_voice_agent_contracts::{
     AgentReleaseId, CallAttemptId, CallId, CampaignContactId, CampaignId, ChannelAgentSessionId,
     ConversationResultId, EnvelopeContext, EnvelopeContextInput, EvaluationId,
     EvaluationRubricRevisionId, EventId, ExecutionGeneration, InteractionId,
-    OutcomeSchemaRevisionId, TranscriptSegmentId, VOICE_AGENT_SCHEMA_VERSION,
+    OutcomeSchemaRevisionId, TranscriptSegmentId, TranscriptSnapshotId, VOICE_AGENT_SCHEMA_VERSION,
 };
 
 #[test]
@@ -75,6 +76,42 @@ fn result_is_bound_to_release_schema_revision_and_canonical_values() {
 }
 
 #[test]
+fn terminal_transcript_snapshot_is_bounded_ordered_and_content_addressed() {
+    let segment = TranscriptSegment::try_new(segment_input(2, "final segment")).unwrap();
+    let snapshot = TranscriptSnapshot::try_new(TranscriptSnapshotInput {
+        id: TranscriptSnapshotId::parse("snapshot-001").unwrap(),
+        context: context(2),
+        revision: TranscriptSnapshotRevision::new(1).unwrap(),
+        current_generation: ExecutionGeneration::new(2).unwrap(),
+        segments: vec![segment],
+        call_terminal_observed: true,
+        agent_terminal_observed: true,
+        transcript_terminal_observed: true,
+        frozen_at_ms: 1_500,
+    })
+    .unwrap();
+
+    assert_eq!(snapshot.revision().get(), 1);
+    assert_eq!(snapshot.segment_count(), 1);
+    assert_eq!(snapshot.transcript_snapshot_digest().len(), 64);
+    assert_eq!(snapshot.payload_hash().len(), 64);
+    assert_eq!(snapshot.segment_ids()[0].as_str(), "segment-001");
+
+    let invalid = TranscriptSnapshot::try_new(TranscriptSnapshotInput {
+        id: TranscriptSnapshotId::parse("snapshot-incomplete").unwrap(),
+        context: context(2),
+        revision: TranscriptSnapshotRevision::new(1).unwrap(),
+        current_generation: ExecutionGeneration::new(2).unwrap(),
+        segments: Vec::new(),
+        call_terminal_observed: false,
+        agent_terminal_observed: true,
+        transcript_terminal_observed: true,
+        frozen_at_ms: 1_500,
+    });
+    assert_eq!(invalid, Err(ResultError::InvalidTranscriptSnapshot));
+}
+
+#[test]
 fn evaluation_recomputes_weighted_score_and_derives_bad_case() {
     let result = ConversationResult::try_new(result_input(), &outcome_schema()).unwrap();
     let rubric = rubric();
@@ -87,6 +124,11 @@ fn evaluation_recomputes_weighted_score_and_derives_bad_case() {
 
     assert_eq!(evaluation.overall_score_bps(), 7_400);
     assert_eq!(evaluation.grade(), QualityGrade::Warn);
+    assert_eq!(evaluation.id().as_str(), "evaluation-001");
+    assert_eq!(evaluation.rubric_revision_id().as_str(), "rubric-001");
+    assert_eq!(evaluation.dimension_scores_bps()["compliance"], 9_000);
+    assert_eq!(evaluation.evidence_segment_ids()[0].as_str(), "segment-001");
+    assert_eq!(evaluation.created_at_ms(), 3_000);
     assert!(!evaluation.is_bad_case());
 
     let bad_case = Evaluation::try_new(

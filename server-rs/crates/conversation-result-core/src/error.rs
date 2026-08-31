@@ -4,6 +4,7 @@ use std::{error::Error, fmt};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ResultError {
     InvalidTranscriptSegment,
+    InvalidTranscriptSnapshot,
     FutureGeneration,
     InvalidResultRevision,
     InvalidOutcomeSchema,
@@ -20,6 +21,7 @@ impl ResultError {
     pub const fn code(self) -> &'static str {
         match self {
             Self::InvalidTranscriptSegment => "conversation_transcript_segment_invalid",
+            Self::InvalidTranscriptSnapshot => "conversation_transcript_snapshot_invalid",
             Self::FutureGeneration => "conversation_transcript_generation_future",
             Self::InvalidResultRevision => "conversation_result_revision_invalid",
             Self::InvalidOutcomeSchema => "conversation_outcome_schema_invalid",

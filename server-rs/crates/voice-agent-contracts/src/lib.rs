@@ -16,5 +16,6 @@ pub use id::{
     ConversationResultId, EvaluationId, EvaluationRubricRevisionId, EventId, ExecutionGeneration,
     HandoffCommandId, HandoffId, HandoffReceiptId, HumanLegId, IdempotencyKey, IdentityError,
     InteractionId, OutcomeSchemaRevisionId, ToolCallId, ToolRevisionId, TranscriptSegmentId,
+    TranscriptSnapshotId,
 };
 pub use state::{AgentReleaseState, CallAttemptState, CampaignState};

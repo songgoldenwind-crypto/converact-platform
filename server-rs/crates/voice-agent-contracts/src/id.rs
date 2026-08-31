@@ -118,6 +118,7 @@ voice_agent_id!(HandoffReceiptId);
 voice_agent_id!(ContextPacketId);
 voice_agent_id!(HumanLegId);
 voice_agent_id!(TranscriptSegmentId);
+voice_agent_id!(TranscriptSnapshotId);
 voice_agent_id!(ConversationResultId);
 voice_agent_id!(OutcomeSchemaRevisionId);
 voice_agent_id!(EvaluationId);

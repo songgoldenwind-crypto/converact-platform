@@ -260,6 +260,46 @@ impl Evaluation {
     }
 
     #[must_use]
+    pub const fn id(&self) -> &EvaluationId {
+        &self.id
+    }
+
+    #[must_use]
+    pub const fn evaluator_release_id(&self) -> &AgentReleaseId {
+        &self.evaluator_release_id
+    }
+
+    #[must_use]
+    pub const fn result_id(&self) -> &ConversationResultId {
+        &self.result_id
+    }
+
+    #[must_use]
+    pub const fn result_revision(&self) -> ResultRevision {
+        self.result_revision
+    }
+
+    #[must_use]
+    pub const fn rubric_revision_id(&self) -> &EvaluationRubricRevisionId {
+        &self.rubric_revision_id
+    }
+
+    #[must_use]
+    pub const fn dimension_scores_bps(&self) -> &BTreeMap<Box<str>, u16> {
+        &self.dimension_scores_bps
+    }
+
+    #[must_use]
+    pub const fn evidence_segment_ids(&self) -> &[TranscriptSegmentId] {
+        &self.evidence_segment_ids
+    }
+
+    #[must_use]
+    pub const fn violation_codes(&self) -> &[Box<str>] {
+        &self.violation_codes
+    }
+
+    #[must_use]
     pub const fn overall_score_bps(&self) -> u16 {
         self.overall_score_bps
     }
@@ -280,13 +320,19 @@ impl Evaluation {
     }
 
     #[must_use]
+    pub const fn created_at_ms(&self) -> u64 {
+        self.created_at_ms
+    }
+
+    #[must_use]
     pub fn payload_hash(&self) -> &str {
         &self.payload_hash
     }
 }
 
 impl QualityGrade {
-    const fn as_str(self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::Pass => "pass",
             Self::Warn => "warn",
@@ -296,7 +342,8 @@ impl QualityGrade {
 }
 
 impl BadCaseReason {
-    const fn as_str(self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::ScoreBelowThreshold => "score_below_threshold",
             Self::MandatoryViolation => "mandatory_violation",

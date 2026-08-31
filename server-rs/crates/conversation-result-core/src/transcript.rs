@@ -2,7 +2,7 @@ use std::fmt;
 
 use converact_contracts::canonical_sha256;
 use converact_voice_agent_contracts::{
-    EnvelopeContext, EventId, ExecutionGeneration, TranscriptSegmentId,
+    EnvelopeContext, EventId, ExecutionGeneration, TranscriptSegmentId, TranscriptSnapshotId,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -15,6 +15,7 @@ use crate::{
 const MAX_LANGUAGE_BYTES: usize = 35;
 const MAX_TRANSCRIPT_TEXT_BYTES: usize = 32_768;
 const MAX_RETENTION_REF_BYTES: usize = 255;
+const MAX_SNAPSHOT_SEGMENTS: usize = 262_144;
 
 /// Closed speaker role for one final transcript segment.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -27,13 +28,39 @@ pub enum TranscriptSpeaker {
 }
 
 impl TranscriptSpeaker {
-    const fn as_str(self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::Customer => "customer",
             Self::AiAgent => "ai_agent",
             Self::HumanAgent => "human_agent",
             Self::System => "system",
         }
+    }
+}
+
+/// Positive immutable transcript snapshot revision.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(transparent)]
+pub struct TranscriptSnapshotRevision(u64);
+
+impl TranscriptSnapshotRevision {
+    /// Creates a positive transcript snapshot revision.
+    ///
+    /// # Errors
+    ///
+    /// Rejects zero.
+    pub const fn new(value: u64) -> Result<Self, ResultError> {
+        if value == 0 {
+            Err(ResultError::InvalidTranscriptSnapshot)
+        } else {
+            Ok(Self(value))
+        }
+    }
+
+    #[must_use]
+    pub const fn get(self) -> u64 {
+        self.0
     }
 }
 
@@ -211,6 +238,199 @@ impl fmt::Debug for TranscriptSegment {
             .field("id", &self.id)
             .field("sequence", &self.sequence)
             .field("speaker", &self.speaker)
+            .field("payload_hash", &self.payload_hash)
+            .finish_non_exhaustive()
+    }
+}
+
+/// Unvalidated terminal snapshot of immutable final transcript segments.
+pub struct TranscriptSnapshotInput {
+    pub id: TranscriptSnapshotId,
+    pub context: EnvelopeContext,
+    pub revision: TranscriptSnapshotRevision,
+    pub current_generation: ExecutionGeneration,
+    pub segments: Vec<TranscriptSegment>,
+    pub call_terminal_observed: bool,
+    pub agent_terminal_observed: bool,
+    pub transcript_terminal_observed: bool,
+    pub frozen_at_ms: u64,
+}
+
+/// Content-addressed terminal transcript boundary consumed by result generation.
+#[derive(Clone, Eq, PartialEq)]
+pub struct TranscriptSnapshot {
+    id: TranscriptSnapshotId,
+    context: EnvelopeContext,
+    revision: TranscriptSnapshotRevision,
+    current_generation: ExecutionGeneration,
+    segment_ids: Box<[TranscriptSegmentId]>,
+    digest: Box<str>,
+    call_terminal_observed: bool,
+    agent_terminal_observed: bool,
+    transcript_terminal_observed: bool,
+    frozen_at_ms: u64,
+    payload_hash: Box<str>,
+}
+
+impl TranscriptSnapshot {
+    /// Freezes an ordered, terminal, interaction-scoped list of final segments.
+    ///
+    /// # Errors
+    ///
+    /// Rejects incomplete terminal evidence, mixed identities, future generations, duplicate
+    /// generation/sequence positions, unbounded segment counts or canonical hash failure.
+    pub fn try_new(input: TranscriptSnapshotInput) -> Result<Self, ResultError> {
+        if input.frozen_at_ms == 0
+            || input.segments.len() > MAX_SNAPSHOT_SEGMENTS
+            || input.current_generation != input.context.execution_generation()
+            || !input.call_terminal_observed
+            || !input.agent_terminal_observed
+            || !input.transcript_terminal_observed
+        {
+            return Err(ResultError::InvalidTranscriptSnapshot);
+        }
+
+        let mut ordered = input.segments;
+        for segment in &ordered {
+            let segment_context = segment.context();
+            if segment_context.tenant_id() != input.context.tenant_id()
+                || segment_context.interaction_id() != input.context.interaction_id()
+                || segment_context.call_attempt_id() != input.context.call_attempt_id()
+                || segment_context.agent_release_id() != input.context.agent_release_id()
+                || segment.generation_status(input.current_generation).is_err()
+            {
+                return Err(ResultError::InvalidTranscriptSnapshot);
+            }
+        }
+        ordered.sort_unstable_by(|left, right| {
+            left.context()
+                .execution_generation()
+                .cmp(&right.context().execution_generation())
+                .then_with(|| left.sequence().cmp(&right.sequence()))
+                .then_with(|| left.id().cmp(right.id()))
+        });
+        if ordered.windows(2).any(|pair| {
+            pair[0].context().execution_generation() == pair[1].context().execution_generation()
+                && pair[0].sequence() == pair[1].sequence()
+        }) {
+            return Err(ResultError::InvalidTranscriptSnapshot);
+        }
+
+        let segment_refs = ordered
+            .iter()
+            .map(|segment| {
+                json!({
+                    "segment_id": segment.id().as_str(),
+                    "execution_generation": segment.context().execution_generation().get(),
+                    "segment_sequence": segment.sequence(),
+                    "payload_hash": segment.payload_hash()
+                })
+            })
+            .collect::<Vec<_>>();
+        let segment_count = segment_refs.len();
+        let transcript_snapshot_digest = canonical_sha256(&json!(segment_refs))
+            .map_err(|_| ResultError::CanonicalPayloadInvalid)?;
+        let payload_hash = canonical_sha256(&json!({
+            "tenant_id": input.context.tenant_id(),
+            "snapshot_id": input.id.as_str(),
+            "interaction_id": input.context.interaction_id().as_str(),
+            "call_attempt_id": input.context.call_attempt_id().as_str(),
+            "agent_release_id": input.context.agent_release_id().as_str(),
+            "snapshot_revision": input.revision.get(),
+            "current_generation": input.current_generation.get(),
+            "transcript_snapshot_digest": transcript_snapshot_digest,
+            "segment_count": segment_count,
+            "call_terminal_observed": input.call_terminal_observed,
+            "agent_terminal_observed": input.agent_terminal_observed,
+            "transcript_terminal_observed": input.transcript_terminal_observed,
+            "frozen_at_ms": input.frozen_at_ms
+        }))
+        .map_err(|_| ResultError::CanonicalPayloadInvalid)?;
+
+        Ok(Self {
+            id: input.id,
+            context: input.context,
+            revision: input.revision,
+            current_generation: input.current_generation,
+            segment_ids: ordered.into_iter().map(|segment| segment.id).collect(),
+            digest: transcript_snapshot_digest.into(),
+            call_terminal_observed: input.call_terminal_observed,
+            agent_terminal_observed: input.agent_terminal_observed,
+            transcript_terminal_observed: input.transcript_terminal_observed,
+            frozen_at_ms: input.frozen_at_ms,
+            payload_hash: payload_hash.into(),
+        })
+    }
+
+    #[must_use]
+    pub const fn id(&self) -> &TranscriptSnapshotId {
+        &self.id
+    }
+
+    #[must_use]
+    pub const fn context(&self) -> &EnvelopeContext {
+        &self.context
+    }
+
+    #[must_use]
+    pub const fn revision(&self) -> TranscriptSnapshotRevision {
+        self.revision
+    }
+
+    #[must_use]
+    pub const fn current_generation(&self) -> ExecutionGeneration {
+        self.current_generation
+    }
+
+    #[must_use]
+    pub const fn segment_ids(&self) -> &[TranscriptSegmentId] {
+        &self.segment_ids
+    }
+
+    #[must_use]
+    pub fn segment_count(&self) -> usize {
+        self.segment_ids.len()
+    }
+
+    #[must_use]
+    pub fn transcript_snapshot_digest(&self) -> &str {
+        &self.digest
+    }
+
+    #[must_use]
+    pub const fn call_terminal_observed(&self) -> bool {
+        self.call_terminal_observed
+    }
+
+    #[must_use]
+    pub const fn agent_terminal_observed(&self) -> bool {
+        self.agent_terminal_observed
+    }
+
+    #[must_use]
+    pub const fn transcript_terminal_observed(&self) -> bool {
+        self.transcript_terminal_observed
+    }
+
+    #[must_use]
+    pub const fn frozen_at_ms(&self) -> u64 {
+        self.frozen_at_ms
+    }
+
+    #[must_use]
+    pub fn payload_hash(&self) -> &str {
+        &self.payload_hash
+    }
+}
+
+impl fmt::Debug for TranscriptSnapshot {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("TranscriptSnapshot")
+            .field("id", &self.id)
+            .field("revision", &self.revision)
+            .field("segment_count", &self.segment_ids.len())
+            .field("transcript_snapshot_digest", &self.digest)
             .field("payload_hash", &self.payload_hash)
             .finish_non_exhaustive()
     }

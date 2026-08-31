@@ -17,5 +17,6 @@ pub use result::{
     ConversationResult, ConversationResultInput, OutcomeSchema, OutcomeSchemaInput, ResultRevision,
 };
 pub use transcript::{
-    TranscriptGenerationStatus, TranscriptSegment, TranscriptSegmentInput, TranscriptSpeaker,
+    TranscriptGenerationStatus, TranscriptSegment, TranscriptSegmentInput, TranscriptSnapshot,
+    TranscriptSnapshotInput, TranscriptSnapshotRevision, TranscriptSpeaker,
 };
