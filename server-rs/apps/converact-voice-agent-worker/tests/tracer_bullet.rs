@@ -20,6 +20,19 @@ async fn one_attempt_reaches_completed_without_waiting_for_post_call_evidence() 
 }
 
 #[tokio::test]
+async fn campaign_release_is_bound_to_the_agent_reservation() {
+    let app = TestWorker::controlled();
+    let release = app.publish_fixture_agent();
+    let campaign = app.create_fixture_campaign(release.id());
+
+    app.run_one_contact(campaign.id()).await.unwrap();
+
+    let reserved = app.reserved_agent_release().unwrap();
+    assert_eq!(reserved.id().as_str(), release.id());
+    assert_eq!(reserved.content_hash(), release.content_hash());
+}
+
+#[tokio::test]
 async fn failed_atomic_completion_leaves_no_attempt_projection_or_orphan_job() {
     let app = TestWorker::controlled();
     let release = app.publish_fixture_agent();

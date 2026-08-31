@@ -1,10 +1,11 @@
 use std::{error::Error, fmt};
 
 use converact_ai_outbound_core::{
-    AttemptStorePort, ChannelAgentPort, CompliancePort, OutboundOrchestrator, TelephonyPort,
+    AgentReleaseBinding, AttemptStorePort, ChannelAgentPort, CompliancePort, OutboundOrchestrator,
+    TelephonyPort,
 };
 use converact_voice_agent_contracts::CallAttemptId;
-use converact_voice_agent_contracts::{AgentReleaseState, CampaignState};
+use converact_voice_agent_contracts::{AgentReleaseId, AgentReleaseState, CampaignState};
 
 use crate::{
     AdmissionReadiness, AttemptResource, AuthenticatedTenant, RepositoryError, ShutdownToken,
@@ -122,6 +123,12 @@ where
         if release.state() != AgentReleaseState::Published {
             return Err(WorkerError::new("voice_agent_release_not_published"));
         }
+        let release_binding = AgentReleaseBinding::try_new(
+            AgentReleaseId::parse(release.id())
+                .map_err(|_| WorkerError::new("voice_agent_release_identity_invalid"))?,
+            release.content_hash(),
+        )
+        .map_err(|_| WorkerError::new("voice_agent_release_identity_invalid"))?;
 
         let orchestrator = OutboundOrchestrator::new(
             &self.compliance,
@@ -130,7 +137,7 @@ where
             &self.attempt_store,
         );
         let attempt = orchestrator
-            .run_one_attempt(attempt_id)
+            .run_one_attempt(attempt_id, &release_binding)
             .await
             .map_err(|error| WorkerError::new(error.code()))?;
         let resource =

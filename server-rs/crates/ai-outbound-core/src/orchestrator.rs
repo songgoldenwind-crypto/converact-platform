@@ -5,9 +5,10 @@ use converact_voice_agent_contracts::{
 };
 
 use crate::{
-    AgentObservation, AttachCall, AttemptStorePort, CallAttempt, CallObservation, ChannelAgentPort,
-    ComplianceDecision, CompliancePort, DomainError, EffectIntent, OriginateCall, PlayDisclosure,
-    PortError, PortFailureKind, ReserveAgent, StartConversation, TelephonyPort,
+    AgentObservation, AgentReleaseBinding, AttachCall, AttemptStorePort, CallAttempt,
+    CallObservation, ChannelAgentPort, ComplianceDecision, CompliancePort, DomainError,
+    EffectIntent, OriginateCall, PlayDisclosure, PortError, PortFailureKind, ReserveAgent,
+    StartConversation, TelephonyPort,
 };
 
 /// Stable orchestration failure safe to persist and expose to workers.
@@ -82,8 +83,9 @@ where
     pub async fn run_one_attempt(
         &self,
         attempt_id: &CallAttemptId,
+        release: &AgentReleaseBinding,
     ) -> Result<CallAttempt, OrchestrationError> {
-        let (attempt, session_id) = self.prepare_attempt(attempt_id).await?;
+        let (attempt, session_id) = self.prepare_attempt(attempt_id, release).await?;
         let (attempt, call_id) = self.originate_and_attach(attempt, &session_id).await?;
         let attempt = self.disclose_and_start(attempt, &session_id).await?;
         self.finalize_when_terminal(attempt, &call_id).await
@@ -92,6 +94,7 @@ where
     async fn prepare_attempt(
         &self,
         attempt_id: &CallAttemptId,
+        release: &AgentReleaseBinding,
     ) -> Result<(CallAttempt, ChannelAgentSessionId), OrchestrationError> {
         let mut attempt = self.store.load(attempt_id).await?;
         attempt = transition(&attempt, AttemptCommand::Claim)?;
@@ -116,6 +119,7 @@ where
             .agent
             .reserve(ReserveAgent {
                 attempt_id: attempt.id().clone(),
+                release: release.clone(),
             })
             .await?;
         attempt = transition(&attempt, AttemptCommand::ReserveAgentCapacity)?;

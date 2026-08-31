@@ -1,7 +1,22 @@
 mod support;
 
-use converact_voice_agent_contracts::CallAttemptState;
+use converact_ai_outbound_core::{AgentReleaseBinding, AgentReleaseBindingError};
+use converact_voice_agent_contracts::{AgentReleaseId, CallAttemptState};
 use support::Harness;
+
+#[test]
+fn release_binding_rejects_noncanonical_content_hashes() {
+    let release_id = || AgentReleaseId::parse("agent-sales-assistant-r1").unwrap();
+
+    assert_eq!(
+        AgentReleaseBinding::try_new(release_id(), "A".repeat(64)),
+        Err(AgentReleaseBindingError::InvalidContentHash),
+    );
+    assert_eq!(
+        AgentReleaseBinding::try_new(release_id(), "9".repeat(63)),
+        Err(AgentReleaseBindingError::InvalidContentHash),
+    );
+}
 
 #[tokio::test]
 async fn reserve_precedes_dial_and_disclosure_precedes_conversation() {
@@ -26,6 +41,17 @@ async fn reserve_precedes_dial_and_disclosure_precedes_conversation() {
             "rustpbx.terminal",
         ],
     );
+}
+
+#[tokio::test]
+async fn reservation_is_bound_to_the_exact_agent_release() {
+    let harness = Harness::new();
+
+    harness.run_one_attempt().await.unwrap();
+
+    let release = harness.reserved_agent_release().unwrap();
+    assert_eq!(release.id().as_str(), "agent-sales-assistant-r1");
+    assert_eq!(release.content_hash(), "9".repeat(64));
 }
 
 #[tokio::test]

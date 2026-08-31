@@ -11,9 +11,9 @@ use axum::{
     http::{Method, Request, Response},
 };
 use converact_ai_outbound_core::{
-    AgentDraft, AgentObservation, AgentReservation, AttachCall, AttemptStorePort, CallAttempt,
-    CallObservation, Campaign, CampaignCommand, ChannelAgentPort, ComplianceDecision,
-    CompliancePort, EffectIntent, OriginateCall, PlayDisclosure, PortError,
+    AgentDraft, AgentObservation, AgentReleaseBinding, AgentReservation, AttachCall,
+    AttemptStorePort, CallAttempt, CallObservation, Campaign, CampaignCommand, ChannelAgentPort,
+    ComplianceDecision, CompliancePort, EffectIntent, OriginateCall, PlayDisclosure, PortError,
     ReleaseComponentDigests, ReserveAgent, StartConversation, TelephonyPort, TerminateCall,
     publish_agent,
 };
@@ -196,6 +196,10 @@ impl TestWorker {
     pub fn orchestrator_attempt_state(&self) -> CallAttemptState {
         self.state.lock().unwrap().attempt.state()
     }
+
+    pub fn reserved_agent_release(&self) -> Option<AgentReleaseBinding> {
+        self.state.lock().unwrap().reserved_agent_release.clone()
+    }
 }
 
 pub struct TelephonyProbe(Arc<Mutex<ControlledState>>);
@@ -210,6 +214,7 @@ struct ControlledState {
     attempt: CallAttempt,
     originate_count: usize,
     agent_query_count: usize,
+    reserved_agent_release: Option<AgentReleaseBinding>,
 }
 
 impl ControlledState {
@@ -218,6 +223,7 @@ impl ControlledState {
             attempt: CallAttempt::new(CallAttemptId::parse("attempt-001").unwrap()),
             originate_count: 0,
             agent_query_count: 0,
+            reserved_agent_release: None,
         }
     }
 }
@@ -235,7 +241,8 @@ impl CompliancePort for FakeCompliance {
 struct FakeAgent(Arc<Mutex<ControlledState>>);
 
 impl ChannelAgentPort for FakeAgent {
-    async fn reserve(&self, _request: ReserveAgent) -> Result<AgentReservation, PortError> {
+    async fn reserve(&self, request: ReserveAgent) -> Result<AgentReservation, PortError> {
+        self.0.lock().unwrap().reserved_agent_release = Some(request.release);
         Ok(AgentReservation {
             session_id: ChannelAgentSessionId::parse("agent-session-001").unwrap(),
         })

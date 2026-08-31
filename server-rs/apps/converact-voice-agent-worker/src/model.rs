@@ -148,6 +148,11 @@ impl AgentReleaseResource {
     }
 
     #[must_use]
+    pub fn content_hash(&self) -> &str {
+        &self.content_hash
+    }
+
+    #[must_use]
     pub const fn state(&self) -> AgentReleaseState {
         self.state
     }

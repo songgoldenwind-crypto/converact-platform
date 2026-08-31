@@ -1,8 +1,62 @@
-use std::future::Future;
+use std::{error::Error, fmt, future::Future};
 
-use converact_voice_agent_contracts::{CallAttemptId, CallId, ChannelAgentSessionId};
+use converact_voice_agent_contracts::{
+    AgentReleaseId, CallAttemptId, CallId, ChannelAgentSessionId,
+};
 
-use crate::{CallAttempt, ComplianceDecision};
+use crate::{CallAttempt, ComplianceDecision, agent_release::is_lowercase_sha256};
+
+/// Invalid immutable Agent Release identity at the execution boundary.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AgentReleaseBindingError {
+    InvalidContentHash,
+}
+
+impl fmt::Display for AgentReleaseBindingError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("agent_release_binding_content_hash_invalid")
+    }
+}
+
+impl Error for AgentReleaseBindingError {}
+
+/// Exact immutable Agent Release selected by the Campaign for one execution.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AgentReleaseBinding {
+    id: AgentReleaseId,
+    content_hash: Box<str>,
+}
+
+impl AgentReleaseBinding {
+    /// Binds an execution to a published Release identity and canonical content digest.
+    ///
+    /// # Errors
+    ///
+    /// Rejects anything other than a lowercase SHA-256 digest.
+    pub fn try_new(
+        id: AgentReleaseId,
+        content_hash: impl AsRef<str>,
+    ) -> Result<Self, AgentReleaseBindingError> {
+        let content_hash = content_hash.as_ref();
+        if !is_lowercase_sha256(content_hash) {
+            return Err(AgentReleaseBindingError::InvalidContentHash);
+        }
+        Ok(Self {
+            id,
+            content_hash: content_hash.into(),
+        })
+    }
+
+    #[must_use]
+    pub const fn id(&self) -> &AgentReleaseId {
+        &self.id
+    }
+
+    #[must_use]
+    pub fn content_hash(&self) -> &str {
+        &self.content_hash
+    }
+}
 
 /// Stable failure category at a side-effect boundary.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -74,6 +128,7 @@ pub enum EffectIntent {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReserveAgent {
     pub attempt_id: CallAttemptId,
+    pub release: AgentReleaseBinding,
 }
 
 /// Confirmed reservation returned by the channel-agent authority.

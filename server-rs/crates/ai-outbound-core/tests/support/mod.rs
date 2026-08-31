@@ -6,11 +6,12 @@ use std::{
 };
 
 use converact_ai_outbound_core::{
-    AgentDraft, AgentObservation, AgentReservation, AttachCall, AttemptCommand, AttemptStorePort,
-    CallAttempt, CallObservation, Campaign, CampaignCommand, ChannelAgentPort, ComplianceDecision,
-    ComplianceInput, CompliancePort, ConsentBasis, EffectIntent, EvidenceStatus, GateStatus,
-    OrchestrationError, OriginateCall, OutboundOrchestrator, PlayDisclosure, PortError,
-    ReleaseComponentDigests, ReserveAgent, StartConversation, TelephonyPort, TerminateCall,
+    AgentDraft, AgentObservation, AgentReleaseBinding, AgentReservation, AttachCall,
+    AttemptCommand, AttemptStorePort, CallAttempt, CallObservation, Campaign, CampaignCommand,
+    ChannelAgentPort, ComplianceDecision, ComplianceInput, CompliancePort, ConsentBasis,
+    EffectIntent, EvidenceStatus, GateStatus, OrchestrationError, OriginateCall,
+    OutboundOrchestrator, PlayDisclosure, PortError, ReleaseComponentDigests, ReserveAgent,
+    StartConversation, TelephonyPort, TerminateCall,
 };
 use converact_voice_agent_contracts::{
     AgentDefinitionId, AgentReleaseId, CallAttemptId, CallAttemptState, CallId, CampaignId,
@@ -154,6 +155,7 @@ impl Harness {
             agent_query_count: 0,
             rustpbx_originate_count: 0,
             retry_count: 0,
+            reserved_agent_release: None,
         }));
         Self {
             compliance: FakeCompliance(state.clone()),
@@ -166,7 +168,9 @@ impl Harness {
     }
 
     pub async fn run_one_attempt(&self) -> Result<CallAttempt, OrchestrationError> {
-        self.orchestrator().run_one_attempt(&self.attempt_id).await
+        self.orchestrator()
+            .run_one_attempt(&self.attempt_id, &agent_release_binding())
+            .await
     }
 
     pub async fn reconcile(&self) -> Result<CallObservation, OrchestrationError> {
@@ -189,6 +193,10 @@ impl Harness {
         self.state.lock().unwrap().attempt.state()
     }
 
+    pub fn reserved_agent_release(&self) -> Option<AgentReleaseBinding> {
+        self.state.lock().unwrap().reserved_agent_release.clone()
+    }
+
     fn orchestrator(
         &self,
     ) -> OutboundOrchestrator<'_, FakeCompliance, FakeAgent, FakeTelephony, FakeStore> {
@@ -205,6 +213,7 @@ struct HarnessState {
     agent_query_count: usize,
     rustpbx_originate_count: usize,
     retry_count: usize,
+    reserved_agent_release: Option<AgentReleaseBinding>,
 }
 
 impl HarnessState {
@@ -228,9 +237,10 @@ impl CompliancePort for FakeCompliance {
 struct FakeAgent(Arc<Mutex<HarnessState>>);
 
 impl ChannelAgentPort for FakeAgent {
-    async fn reserve(&self, _request: ReserveAgent) -> Result<AgentReservation, PortError> {
+    async fn reserve(&self, request: ReserveAgent) -> Result<AgentReservation, PortError> {
         let mut state = self.0.lock().unwrap();
         state.record("agent.reserve");
+        state.reserved_agent_release = Some(request.release);
         if state.agent_reservation_fails {
             Err(PortError::unavailable("agent_capacity_unavailable"))
         } else {
@@ -279,6 +289,14 @@ impl ChannelAgentPort for FakeAgent {
         state.agent_query_count += 1;
         ready(Ok(observation))
     }
+}
+
+fn agent_release_binding() -> AgentReleaseBinding {
+    AgentReleaseBinding::try_new(
+        AgentReleaseId::parse("agent-sales-assistant-r1").unwrap(),
+        "9".repeat(64),
+    )
+    .unwrap()
 }
 
 #[derive(Clone)]

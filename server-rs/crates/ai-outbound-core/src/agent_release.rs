@@ -211,7 +211,7 @@ pub fn publish_agent(
     })
 }
 
-fn is_lowercase_sha256(value: &str) -> bool {
+pub(crate) fn is_lowercase_sha256(value: &str) -> bool {
     value.len() == SHA256_HEX_BYTES
         && value
             .bytes()
