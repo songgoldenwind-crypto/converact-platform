@@ -11,6 +11,7 @@ members = [
   "crates/ai-outbound-core",
   "crates/ai-outbound-store",
   "crates/config",
+  "crates/conversation-understanding-core",
   "crates/conversation-result-core",
   "crates/conversation-result-store",
   "crates/contracts",

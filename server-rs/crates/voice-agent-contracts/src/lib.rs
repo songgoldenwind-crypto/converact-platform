@@ -15,8 +15,9 @@ pub use id::{
     CallId, CampaignContactId, CampaignId, ChannelAgentSessionId, ContextPacketId,
     ConversationFinalizationJobId, ConversationFinalizationReceiptId, ConversationResultId,
     EvaluationId, EvaluationRubricRevisionId, EventId, ExecutionGeneration, HandoffCommandId,
-    HandoffId, HandoffReceiptId, HumanLegId, IdempotencyKey, IdentityError, InteractionId,
-    OutcomeSchemaRevisionId, ResultProjectionCommandId, ResultProjectionReceiptId, TenantId,
-    ToolCallId, ToolRevisionId, TranscriptSegmentId, TranscriptSnapshotId,
+    HandoffId, HandoffReceiptId, HumanLegId, IdempotencyKey, IdentityError,
+    IntentCatalogRevisionId, IntentObservationId, InteractionId, OutcomeSchemaRevisionId,
+    ResultProjectionCommandId, ResultProjectionReceiptId, TenantId, ToolCallId, ToolRevisionId,
+    TranscriptSegmentId, TranscriptSnapshotId,
 };
 pub use state::{AgentReleaseState, CallAttemptState, CampaignState};

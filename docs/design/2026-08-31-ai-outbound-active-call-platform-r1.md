@@ -540,10 +540,17 @@ Scene、RAG 和 Prompt 做多轮语义判断；`intent_clarification` 仅作为 
 事件接收这个有界候选，并按精确 Agent Release 的闭集 `OutcomeSchema` 校验，生成绑定 Schema、
 Release、intent 与 canonical hash 的证据。缺失值保持缺失，越界或跨 Release 值 fail-closed。
 
-当前尚未实现实时独立分类、top-k/置信度、槽位、跨轮 `provisional -> confirmed -> changed`
-状态、规则/小模型/主 LLM 证据融合和质量校准。目标实现保留 Active Call 的多轮理解，同时由
-Converact 增加平台级 `unknown / provisional / clarification_required / confirmed / changed`
-状态机、结构化槽位和独立动作策略门。意图判断不能直接授权转接、挂机或高风险 Tool。
+截至 2026-09-01，Rust `conversation-understanding-core` 已实现 Release-bound 层级 Intent
+Catalog、每个 Intent 的 Slot allow-list、安全关键标签、最多五个有序 top-k 候选、basis-point
+置信度、来源/模型版本/turn/transcript evidence、canonical hash 和跨轮
+`unknown / provisional / clarification_required / confirmed / changed` 状态机。阈值来自版本化
+策略输入，不固化为全局常量；相同 turn、旧 generation、跨 Release/Catalog 和非法 Slot 均
+fail-closed，诊断不输出候选与 Slot 内容。即使安全规则确认分类，Core 也只产生 evidence，不产生
+转接、挂机、DNC 写入或高风险 Tool 授权。
+
+实时 Rule/Fast Classifier/Contextual LLM Provider、跨 Provider 证据融合、阈值校准、持久化 Store、
+Active Call 实时接入与真实意图质量仍为 `not_run`。目标实现继续保留 Active Call 的多轮理解，
+并把规则、小模型、上下文 LLM 与人工纠正作为独立可审计证据源。
 
 ## 10. AI 与人工座席闭环
 
@@ -1012,3 +1019,4 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 | 2026-09-01 | R1 Active Call SIP/start-gate checkpoint | 固定源码覆盖层已把平台 Session ID 绑定到唯一 SIP leg，保留预约 Playbook 权威，并在显式 start 前阻止 Runner 进入业务对话；RustPBX header 注入、真实 SIP/媒体/Provider 和生产仍为 `not_run` |
 | 2026-09-01 | R1 Active Call complete channel-port checkpoint | Rust 完整 `ChannelAgentPort` 已组合精确 Release artifact、稳定 session 预留、附着/media-ready、披露命令、精确 `TrackEnd`、显式 start 与 terminal 查询，并以每 session 串行化保证并发预留重放只产生一次外部 mutation；真实进程、RustPBX header、SIP/媒体/provider、可听披露、录音与生产仍为 `not_run` |
 | 2026-09-01 | R1 RustPBX TelephonyPort checkpoint | Rust 具体端口、immutable dial contract、精确 originate/inspect/Agent-leg/hangup wire 和 unknown-outcome 已通过本地 loopback；ivekit.87 O(1) inspect 精确源码测试通过且已删除进程内 known-call 全局锁；物理 Store/runtime、真实进程/SIP/媒体和生产仍为 `not_run` |
+| 2026-09-01 | R1 Intent Understanding Core checkpoint | Release-bound 层级 Catalog、Slot allow-list、top-k、basis-point confidence、证据来源和 `unknown/provisional/clarification_required/confirmed/changed` Rust 状态机已有本地合同证据；真实分类 Provider、融合、校准、Store、Active Call 实时接入和质量仍为 `not_run` |

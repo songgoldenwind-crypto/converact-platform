@@ -374,6 +374,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "converact-conversation-understanding-core"
+version = "0.1.0"
+dependencies = [
+ "converact-contracts",
+ "converact-voice-agent-contracts",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "converact-event-log"
 version = "0.1.0"
 dependencies = [
