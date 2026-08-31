@@ -4,12 +4,15 @@ use converact_contracts::canonical_sha256;
 use converact_conversation_result_core::{
     ConversationResult, Evaluation, TranscriptGenerationStatus,
 };
-use converact_voice_agent_contracts::{BadCaseId, InteractionId};
+use converact_voice_agent_contracts::{
+    BadCaseId, ExecutionGeneration, InteractionId, ResultProjectionCommandId,
+};
 use serde_json::json;
 
 /// Low-cardinality durable result boundary failure without customer or topology data.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ConversationResultStoreError {
+    InvalidCommand,
     InvalidEvaluationProjection,
     NumericOverflow,
     SerializationFailed,
@@ -22,6 +25,7 @@ impl ConversationResultStoreError {
     #[must_use]
     pub const fn code(self) -> &'static str {
         match self {
+            Self::InvalidCommand => "conversation_projection_command_invalid",
             Self::InvalidEvaluationProjection => "conversation_evaluation_projection_invalid",
             Self::NumericOverflow => "conversation_result_store_numeric_overflow",
             Self::SerializationFailed => "conversation_result_store_serialization_failed",
@@ -29,6 +33,105 @@ impl ConversationResultStoreError {
             Self::Conflict => "conversation_result_store_conflict",
             Self::StoredRowInvalid => "conversation_result_store_row_invalid",
         }
+    }
+}
+
+/// Closed durable projection effect kind.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProjectionCommandKind {
+    FreezeSnapshot,
+    PersistResult,
+    PersistEvaluation,
+}
+
+impl ProjectionCommandKind {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::FreezeSnapshot => "freeze_snapshot",
+            Self::PersistResult => "persist_result",
+            Self::PersistEvaluation => "persist_evaluation",
+        }
+    }
+}
+
+/// Unvalidated durable projection command and optimistic fences.
+pub struct ProjectionCommandInput {
+    pub id: ResultProjectionCommandId,
+    pub interaction_id: InteractionId,
+    pub kind: ProjectionCommandKind,
+    pub payload_hash: String,
+    pub expected_result_revision: Option<u64>,
+    pub expected_generation: ExecutionGeneration,
+}
+
+/// Immutable idempotent effect command prepared before invoking a Provider.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectionCommand {
+    id: ResultProjectionCommandId,
+    interaction_id: InteractionId,
+    kind: ProjectionCommandKind,
+    payload_hash: Box<str>,
+    expected_result_revision: Option<u64>,
+    expected_generation: ExecutionGeneration,
+}
+
+impl ProjectionCommand {
+    /// Validates an exact request digest and kind-specific result revision fence.
+    ///
+    /// # Errors
+    ///
+    /// Rejects malformed hashes, zero revisions and invalid kind/revision combinations.
+    pub fn try_new(input: ProjectionCommandInput) -> Result<Self, ConversationResultStoreError> {
+        let revision_valid = match input.kind {
+            ProjectionCommandKind::FreezeSnapshot => input.expected_result_revision.is_none(),
+            ProjectionCommandKind::PersistResult | ProjectionCommandKind::PersistEvaluation => {
+                input
+                    .expected_result_revision
+                    .is_some_and(|value| value > 0)
+            }
+        };
+        if !lowercase_sha256(&input.payload_hash) || !revision_valid {
+            return Err(ConversationResultStoreError::InvalidCommand);
+        }
+        Ok(Self {
+            id: input.id,
+            interaction_id: input.interaction_id,
+            kind: input.kind,
+            payload_hash: input.payload_hash.into(),
+            expected_result_revision: input.expected_result_revision,
+            expected_generation: input.expected_generation,
+        })
+    }
+
+    #[must_use]
+    pub const fn id(&self) -> &ResultProjectionCommandId {
+        &self.id
+    }
+
+    #[must_use]
+    pub const fn interaction_id(&self) -> &InteractionId {
+        &self.interaction_id
+    }
+
+    #[must_use]
+    pub const fn kind(&self) -> ProjectionCommandKind {
+        self.kind
+    }
+
+    #[must_use]
+    pub fn payload_hash(&self) -> &str {
+        &self.payload_hash
+    }
+
+    #[must_use]
+    pub const fn expected_result_revision(&self) -> Option<u64> {
+        self.expected_result_revision
+    }
+
+    #[must_use]
+    pub const fn expected_generation(&self) -> ExecutionGeneration {
+        self.expected_generation
     }
 }
 
@@ -45,6 +148,25 @@ impl Error for ConversationResultStoreError {}
 pub enum ProjectionWriteDecision {
     Created,
     Replay,
+}
+
+/// Durable effect-oracle decision made before invoking a projection Provider.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProjectionPrepareDecision {
+    Execute,
+    Query,
+    ReplayApplied,
+    ReplayNotApplied,
+    Conflict,
+}
+
+/// Durable state-observed decision after a projection Provider is queried or invoked.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProjectionFinalizeDecision {
+    Applied,
+    NotApplied,
+    ReplayApplied,
+    ReplayNotApplied,
 }
 
 /// Exact replay classification for one final transcript append.
@@ -134,4 +256,11 @@ pub fn canonical_bad_case_payload_hash(
         "created_at_ms": write.evaluation().created_at_ms()
     }))
     .map_err(|_| ConversationResultStoreError::SerializationFailed)
+}
+
+fn lowercase_sha256(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }

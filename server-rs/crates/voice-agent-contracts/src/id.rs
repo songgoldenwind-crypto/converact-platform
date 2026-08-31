@@ -124,6 +124,8 @@ voice_agent_id!(OutcomeSchemaRevisionId);
 voice_agent_id!(EvaluationId);
 voice_agent_id!(EvaluationRubricRevisionId);
 voice_agent_id!(BadCaseId);
+voice_agent_id!(ResultProjectionCommandId);
+voice_agent_id!(ResultProjectionReceiptId);
 
 /// Positive generation that fences stale channel-agent commands and events.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]

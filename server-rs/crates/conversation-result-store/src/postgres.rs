@@ -7,7 +7,8 @@ use serde_json::{Value, json};
 use tokio_postgres::{Row, Transaction};
 
 use crate::{
-    ConversationResultStoreError, EvaluationProjectionWrite, ProjectionWriteDecision,
+    ConversationResultStoreError, EvaluationProjectionWrite, ProjectionCommand,
+    ProjectionFinalizeDecision, ProjectionPrepareDecision, ProjectionWriteDecision,
     TranscriptAppendDecision, canonical_bad_case_payload_hash,
 };
 
@@ -19,6 +20,186 @@ impl ConversationResultSqlStore {
     #[must_use]
     pub const fn new() -> Self {
         Self
+    }
+
+    /// Atomically prepares one Provider projection command or classifies its exact replay.
+    ///
+    /// # Errors
+    ///
+    /// Rejects tenant/command conflicts, conversion failures, database failures or malformed
+    /// stored rows. A `Query` decision means the prior Provider outcome remains unknown.
+    pub async fn prepare_projection_command(
+        &self,
+        transaction: &Transaction<'_>,
+        tenant_id: &str,
+        command: &ProjectionCommand,
+    ) -> Result<ProjectionPrepareDecision, ConversationResultStoreError> {
+        if let Some(decision) = classify_projection_command(transaction, tenant_id, command).await?
+        {
+            return Ok(decision);
+        }
+        let revision = command
+            .expected_result_revision()
+            .map(i64_from)
+            .transpose()?;
+        let generation = i64_from(command.expected_generation().get())?;
+        let inserted = transaction
+            .query_opt(
+                "INSERT INTO converact_conversation_projection_commands (
+                   tenant_id, command_id, interaction_id, command_kind, payload_hash,
+                   expected_result_revision, expected_execution_generation, command_state
+                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'prepared')
+                 ON CONFLICT DO NOTHING
+                 RETURNING floor(extract(epoch FROM prepared_at) * 1000)::BIGINT",
+                &[
+                    &tenant_id,
+                    &command.id().as_str(),
+                    &command.interaction_id().as_str(),
+                    &command.kind().as_str(),
+                    &command.payload_hash(),
+                    &revision,
+                    &generation,
+                ],
+            )
+            .await
+            .map_err(|_| ConversationResultStoreError::DatabaseUnavailable)?;
+        let Some(row) = inserted else {
+            return classify_projection_command(transaction, tenant_id, command)
+                .await?
+                .ok_or(ConversationResultStoreError::Conflict);
+        };
+        let observed_at_ms = u64_from(i64_at(&row, 0)?)?;
+        insert_projection_receipt(
+            transaction,
+            ProjectionReceiptInput {
+                tenant_id,
+                command,
+                stage: "prepared",
+                resolution: None,
+                failure_code: None,
+                observed_entity_id: None,
+                observed_payload_hash: None,
+                observed_at_ms,
+            },
+        )
+        .await?;
+        Ok(ProjectionPrepareDecision::Execute)
+    }
+
+    /// Records a definitively applied Provider projection and immutable state-observed receipt.
+    ///
+    /// # Errors
+    ///
+    /// Rejects missing/mismatched prepare evidence, malformed observations, conflicts, database
+    /// failures or malformed stored rows.
+    pub async fn finalize_projection_applied(
+        &self,
+        transaction: &Transaction<'_>,
+        tenant_id: &str,
+        command: &ProjectionCommand,
+        observed_entity_id: &str,
+        observed_payload_hash: &str,
+    ) -> Result<ProjectionFinalizeDecision, ConversationResultStoreError> {
+        if !bounded_identifier(observed_entity_id, 255) || !lowercase_sha256(observed_payload_hash)
+        {
+            return Err(ConversationResultStoreError::InvalidCommand);
+        }
+        let row = lock_projection_command(transaction, tenant_id, command).await?;
+        let state = string_at(&row, 0)?;
+        if state == "state_observed" {
+            return verify_final_projection_replay(
+                &row,
+                Some("applied"),
+                None,
+                Some(observed_entity_id),
+                Some(observed_payload_hash),
+            );
+        }
+        if state != "prepared" {
+            return Err(ConversationResultStoreError::StoredRowInvalid);
+        }
+        let observed_at_ms = update_projection_command(
+            transaction,
+            tenant_id,
+            command,
+            "applied",
+            None,
+            Some(observed_entity_id),
+            Some(observed_payload_hash),
+        )
+        .await?;
+        insert_projection_receipt(
+            transaction,
+            ProjectionReceiptInput {
+                tenant_id,
+                command,
+                stage: "state_observed",
+                resolution: Some("applied"),
+                failure_code: None,
+                observed_entity_id: Some(observed_entity_id),
+                observed_payload_hash: Some(observed_payload_hash),
+                observed_at_ms,
+            },
+        )
+        .await?;
+        Ok(ProjectionFinalizeDecision::Applied)
+    }
+
+    /// Records a definitive non-applied Provider projection without inventing an entity.
+    ///
+    /// # Errors
+    ///
+    /// Rejects missing/mismatched prepare evidence, malformed failure codes, conflicts, database
+    /// failures or malformed stored rows.
+    pub async fn finalize_projection_not_applied(
+        &self,
+        transaction: &Transaction<'_>,
+        tenant_id: &str,
+        command: &ProjectionCommand,
+        failure_code: &str,
+    ) -> Result<ProjectionFinalizeDecision, ConversationResultStoreError> {
+        if !bounded_identifier(failure_code, 255) {
+            return Err(ConversationResultStoreError::InvalidCommand);
+        }
+        let row = lock_projection_command(transaction, tenant_id, command).await?;
+        let state = string_at(&row, 0)?;
+        if state == "state_observed" {
+            return verify_final_projection_replay(
+                &row,
+                Some("not_applied"),
+                Some(failure_code),
+                None,
+                None,
+            );
+        }
+        if state != "prepared" {
+            return Err(ConversationResultStoreError::StoredRowInvalid);
+        }
+        let observed_at_ms = update_projection_command(
+            transaction,
+            tenant_id,
+            command,
+            "not_applied",
+            Some(failure_code),
+            None,
+            None,
+        )
+        .await?;
+        insert_projection_receipt(
+            transaction,
+            ProjectionReceiptInput {
+                tenant_id,
+                command,
+                stage: "state_observed",
+                resolution: Some("not_applied"),
+                failure_code: Some(failure_code),
+                observed_entity_id: None,
+                observed_payload_hash: None,
+                observed_at_ms,
+            },
+        )
+        .await?;
+        Ok(ProjectionFinalizeDecision::NotApplied)
     }
 
     /// Appends one immutable final transcript segment or classifies an exact replay.
@@ -284,6 +465,221 @@ impl ConversationResultSqlStore {
         insert_bad_case_projection(transaction, write, &bad_case_reasons, created_at_ms).await?;
         Ok(ProjectionWriteDecision::Created)
     }
+}
+
+async fn classify_projection_command(
+    transaction: &Transaction<'_>,
+    tenant_id: &str,
+    command: &ProjectionCommand,
+) -> Result<Option<ProjectionPrepareDecision>, ConversationResultStoreError> {
+    let row = transaction
+        .query_opt(
+            "SELECT interaction_id, command_kind, payload_hash, expected_result_revision,
+                    expected_execution_generation, command_state, resolution
+             FROM converact_conversation_projection_commands
+             WHERE tenant_id = $1 AND command_id = $2 FOR UPDATE",
+            &[&tenant_id, &command.id().as_str()],
+        )
+        .await
+        .map_err(|_| ConversationResultStoreError::DatabaseUnavailable)?;
+    let Some(row) = row else {
+        return Ok(None);
+    };
+    verify_projection_command_identity(&row, command)?;
+    let state = string_at(&row, 5)?;
+    let resolution = optional_string_at(&row, 6)?;
+    match (state.as_str(), resolution.as_deref()) {
+        ("prepared", None) => Ok(Some(ProjectionPrepareDecision::Query)),
+        ("state_observed", Some("applied")) => Ok(Some(ProjectionPrepareDecision::ReplayApplied)),
+        ("state_observed", Some("not_applied")) => {
+            Ok(Some(ProjectionPrepareDecision::ReplayNotApplied))
+        }
+        _ => Err(ConversationResultStoreError::StoredRowInvalid),
+    }
+}
+
+async fn lock_projection_command(
+    transaction: &Transaction<'_>,
+    tenant_id: &str,
+    command: &ProjectionCommand,
+) -> Result<Row, ConversationResultStoreError> {
+    let row = transaction
+        .query_opt(
+            "SELECT command_state, resolution, failure_code, observed_entity_id,
+                    observed_payload_hash, interaction_id, command_kind, payload_hash,
+                    expected_result_revision, expected_execution_generation
+             FROM converact_conversation_projection_commands
+             WHERE tenant_id = $1 AND command_id = $2 FOR UPDATE",
+            &[&tenant_id, &command.id().as_str()],
+        )
+        .await
+        .map_err(|_| ConversationResultStoreError::DatabaseUnavailable)?
+        .ok_or(ConversationResultStoreError::Conflict)?;
+    verify_projection_command_identity_offset(&row, command, 5)?;
+    Ok(row)
+}
+
+fn verify_projection_command_identity(
+    row: &Row,
+    command: &ProjectionCommand,
+) -> Result<(), ConversationResultStoreError> {
+    verify_projection_command_identity_offset(row, command, 0)
+}
+
+fn verify_projection_command_identity_offset(
+    row: &Row,
+    command: &ProjectionCommand,
+    offset: usize,
+) -> Result<(), ConversationResultStoreError> {
+    let stored_revision: Option<i64> = row
+        .try_get(offset + 3)
+        .map_err(|_| ConversationResultStoreError::StoredRowInvalid)?;
+    let expected_revision = command
+        .expected_result_revision()
+        .map(i64_from)
+        .transpose()?;
+    if string_at(row, offset)? != command.interaction_id().as_str()
+        || string_at(row, offset + 1)? != command.kind().as_str()
+        || string_at(row, offset + 2)? != command.payload_hash()
+        || stored_revision != expected_revision
+        || i64_at(row, offset + 4)? != i64_from(command.expected_generation().get())?
+    {
+        return Err(ConversationResultStoreError::Conflict);
+    }
+    Ok(())
+}
+
+fn verify_final_projection_replay(
+    row: &Row,
+    resolution: Option<&str>,
+    failure_code: Option<&str>,
+    observed_entity_id: Option<&str>,
+    observed_payload_hash: Option<&str>,
+) -> Result<ProjectionFinalizeDecision, ConversationResultStoreError> {
+    if optional_string_at(row, 1)?.as_deref() != resolution
+        || optional_string_at(row, 2)?.as_deref() != failure_code
+        || optional_string_at(row, 3)?.as_deref() != observed_entity_id
+        || optional_string_at(row, 4)?.as_deref() != observed_payload_hash
+    {
+        return Err(ConversationResultStoreError::Conflict);
+    }
+    match resolution {
+        Some("applied") => Ok(ProjectionFinalizeDecision::ReplayApplied),
+        Some("not_applied") => Ok(ProjectionFinalizeDecision::ReplayNotApplied),
+        _ => Err(ConversationResultStoreError::StoredRowInvalid),
+    }
+}
+
+async fn update_projection_command(
+    transaction: &Transaction<'_>,
+    tenant_id: &str,
+    command: &ProjectionCommand,
+    resolution: &str,
+    failure_code: Option<&str>,
+    observed_entity_id: Option<&str>,
+    observed_payload_hash: Option<&str>,
+) -> Result<u64, ConversationResultStoreError> {
+    let row = transaction
+        .query_opt(
+            "UPDATE converact_conversation_projection_commands
+             SET command_state = 'state_observed', resolution = $3, failure_code = $4,
+                 observed_entity_id = $5, observed_payload_hash = $6,
+                 state_observed_at = transaction_timestamp(), lease_owner = '',
+                 lease_token_hash = '', lease_expires_at = NULL,
+                 updated_at = transaction_timestamp()
+             WHERE tenant_id = $1 AND command_id = $2 AND command_state = 'prepared'
+             RETURNING floor(extract(epoch FROM state_observed_at) * 1000)::BIGINT",
+            &[
+                &tenant_id,
+                &command.id().as_str(),
+                &resolution,
+                &failure_code,
+                &observed_entity_id,
+                &observed_payload_hash,
+            ],
+        )
+        .await
+        .map_err(|_| ConversationResultStoreError::DatabaseUnavailable)?
+        .ok_or(ConversationResultStoreError::Conflict)?;
+    u64_from(i64_at(&row, 0)?)
+}
+
+struct ProjectionReceiptInput<'a> {
+    tenant_id: &'a str,
+    command: &'a ProjectionCommand,
+    stage: &'a str,
+    resolution: Option<&'a str>,
+    failure_code: Option<&'a str>,
+    observed_entity_id: Option<&'a str>,
+    observed_payload_hash: Option<&'a str>,
+    observed_at_ms: u64,
+}
+
+async fn insert_projection_receipt(
+    transaction: &Transaction<'_>,
+    input: ProjectionReceiptInput<'_>,
+) -> Result<(), ConversationResultStoreError> {
+    let receipt_id_hash = canonical_sha256(&json!({
+        "command_id": input.command.id().as_str(),
+        "stage": input.stage
+    }))
+    .map_err(|_| ConversationResultStoreError::SerializationFailed)?;
+    let receipt_id = format!("projection-receipt-{receipt_id_hash}");
+    let receipt_digest = canonical_sha256(&json!({
+        "tenant_id": input.tenant_id,
+        "receipt_id": receipt_id,
+        "command_id": input.command.id().as_str(),
+        "interaction_id": input.command.interaction_id().as_str(),
+        "stage": input.stage,
+        "resolution": input.resolution,
+        "failure_code": input.failure_code,
+        "observed_entity_id": input.observed_entity_id,
+        "observed_payload_hash": input.observed_payload_hash,
+        "observed_at_ms": input.observed_at_ms
+    }))
+    .map_err(|_| ConversationResultStoreError::SerializationFailed)?;
+    let observed_at_ms = i64_from(input.observed_at_ms)?;
+    let inserted = transaction
+        .query_opt(
+            "INSERT INTO converact_conversation_projection_receipts (
+               tenant_id, receipt_id, command_id, interaction_id, stage, receipt_digest,
+               resolution, failure_code, observed_entity_id, observed_payload_hash, observed_at
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+               to_timestamp($11::DOUBLE PRECISION / 1000.0))
+             ON CONFLICT DO NOTHING RETURNING receipt_id",
+            &[
+                &input.tenant_id,
+                &receipt_id,
+                &input.command.id().as_str(),
+                &input.command.interaction_id().as_str(),
+                &input.stage,
+                &receipt_digest,
+                &input.resolution,
+                &input.failure_code,
+                &input.observed_entity_id,
+                &input.observed_payload_hash,
+                &observed_at_ms,
+            ],
+        )
+        .await
+        .map_err(|_| ConversationResultStoreError::DatabaseUnavailable)?;
+    if inserted.is_some() {
+        return Ok(());
+    }
+    let row = transaction
+        .query_opt(
+            "SELECT receipt_id, receipt_digest
+             FROM converact_conversation_projection_receipts
+             WHERE tenant_id = $1 AND command_id = $2 AND stage = $3",
+            &[&input.tenant_id, &input.command.id().as_str(), &input.stage],
+        )
+        .await
+        .map_err(|_| ConversationResultStoreError::DatabaseUnavailable)?
+        .ok_or(ConversationResultStoreError::Conflict)?;
+    if string_at(&row, 0)? != receipt_id || string_at(&row, 1)? != receipt_digest {
+        return Err(ConversationResultStoreError::Conflict);
+    }
+    Ok(())
 }
 
 async fn verify_segment_replay(
@@ -677,4 +1073,31 @@ fn i64_at(row: &Row, index: usize) -> Result<i64, ConversationResultStoreError> 
 fn bool_at(row: &Row, index: usize) -> Result<bool, ConversationResultStoreError> {
     row.try_get(index)
         .map_err(|_| ConversationResultStoreError::StoredRowInvalid)
+}
+
+fn optional_string_at(
+    row: &Row,
+    index: usize,
+) -> Result<Option<String>, ConversationResultStoreError> {
+    row.try_get(index)
+        .map_err(|_| ConversationResultStoreError::StoredRowInvalid)
+}
+
+fn bounded_identifier(value: &str, maximum: usize) -> bool {
+    let bytes = value.as_bytes();
+    let Some((&first, remainder)) = bytes.split_first() else {
+        return false;
+    };
+    bytes.len() <= maximum
+        && first.is_ascii_alphanumeric()
+        && remainder
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-'))
+}
+
+fn lowercase_sha256(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
