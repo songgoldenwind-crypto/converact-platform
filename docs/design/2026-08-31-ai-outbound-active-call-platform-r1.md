@@ -552,6 +552,31 @@ fail-closed，诊断不输出候选与 Slot 内容。即使安全规则确认分
 Active Call 实时接入与真实意图质量仍为 `not_run`。目标实现继续保留 Active Call 的多轮理解，
 并把规则、小模型、上下文 LLM 与人工纠正作为独立可审计证据源。
 
+### 9.6 情绪证据与客户压力趋势
+
+Active Call 当前的 `emotion_resonance` 和 `intent_clarification` 是注入主对话 LLM 的 Prompt
+片段；`voice_emotion` 与 synthesis `emotion` 主要控制机器人 TTS 表达风格。Playbook 也可以让
+LLM 写入 `user_sentiment` 变量。固定源码中没有独立声学情绪分类器、文本情绪分类器、跨模态
+分数融合、校准置信度或多轮趋势状态机，因此不得把这些 Prompt/TTS 能力记为已证明的客户情绪
+识别。
+
+截至 2026-09-01，Rust `conversation-understanding-core` 已将情绪证据与意图证据分开建模：
+
+- Emotion Catalog 绑定精确 Agent Release，标签不固化到 Provider；每个标签具有
+  `negative / neutral / positive` valence 和显式 distress rank；
+- Acoustic Model 必须引用 audio evidence window，Text Classifier、Contextual LLM 与 Active
+  Call Playbook 必须引用 transcript segment；Human Correction 也作为独立来源而非覆盖原证据；
+- 每个观察包含有界 top-k、basis-point confidence、0–4 intensity、Provider revision、turn、
+  authority/generation 和 canonical hash，诊断不输出客户标签或证据内容；
+- 只有绑定同一 authority、Catalog 和 turn 的 `EmotionFusion` 能更新 `EmotionState`，原始模型
+  观察不能直接写状态；融合证据保留有序无关且去重的 contributor hashes；
+- 状态区分 `unknown / provisional / confirmed`；仅 confirmed 融合更新连续压力轮数以及
+  `unknown / stable / improving / worsening` distress trend，低置信观察不能覆盖上一个确认状态；
+- 情绪和压力趋势只是 Customer State evidence，不授权挂机、转人工、DNC、Tool 或业务写入。
+
+真实声学/文本模型 Adapter、实际融合算法、校准数据、durable Store、Dialogue Policy 消费、真实
+音频质量和生产均为 `not_run`。原始音频和 transcript 内容不进入该 Core，只持有受控 evidence ID。
+
 ## 10. AI 与人工座席闭环
 
 ### 10.1 Context Packet
@@ -985,6 +1010,7 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 - [Active Call Intent Candidate Parity R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-intent-candidate/README.md)
 - [Active Call Intent → Outcome Projection R1 计划](../plans/2026-08-31-active-call-intent-outcome-projection-r1.md)
 - [Active Call Intent → Outcome Projection R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-intent-outcome/README.md)
+- [Emotion Understanding Core R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-emotion-understanding-core/README.md)
 - [Active Call Reservation Overlay R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-reservation-overlay/README.md)
 - [Active Call Reservation Adapter R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-reservation-adapter/README.md)
 - [Agent Release reservation binding evidence](../../architecture-foundation/ai-outbound/evidence/r1-agent-release-reservation-binding/README.md)
@@ -1020,3 +1046,4 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 | 2026-09-01 | R1 Active Call complete channel-port checkpoint | Rust 完整 `ChannelAgentPort` 已组合精确 Release artifact、稳定 session 预留、附着/media-ready、披露命令、精确 `TrackEnd`、显式 start 与 terminal 查询，并以每 session 串行化保证并发预留重放只产生一次外部 mutation；真实进程、RustPBX header、SIP/媒体/provider、可听披露、录音与生产仍为 `not_run` |
 | 2026-09-01 | R1 RustPBX TelephonyPort checkpoint | Rust 具体端口、immutable dial contract、精确 originate/inspect/Agent-leg/hangup wire 和 unknown-outcome 已通过本地 loopback；ivekit.87 O(1) inspect 精确源码测试通过且已删除进程内 known-call 全局锁；物理 Store/runtime、真实进程/SIP/媒体和生产仍为 `not_run` |
 | 2026-09-01 | R1 Intent Understanding Core checkpoint | Release-bound 层级 Catalog、Slot allow-list、top-k、basis-point confidence、证据来源和 `unknown/provisional/clarification_required/confirmed/changed` Rust 状态机已有本地合同证据；真实分类 Provider、融合、校准、Store、Active Call 实时接入和质量仍为 `not_run` |
+| 2026-09-01 | R1 Emotion Understanding Core checkpoint | Release-bound Catalog、声学/文本证据约束、top-k/confidence/intensity、同 authority/turn 融合与确认后压力趋势 Rust 状态机已有本地合同证据；真实模型/融合算法、校准、Store、Policy 消费、音频与生产仍为 `not_run` |

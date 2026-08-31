@@ -11,9 +11,10 @@ pub use command::{
 };
 pub use event::EventEnvelope;
 pub use id::{
-    ActionReceiptId, AgentDefinitionId, AgentReleaseId, ApprovalId, BadCaseId, CallAttemptId,
-    CallId, CampaignContactId, CampaignId, ChannelAgentSessionId, ContextPacketId,
-    ConversationFinalizationJobId, ConversationFinalizationReceiptId, ConversationResultId,
+    ActionReceiptId, AgentDefinitionId, AgentReleaseId, ApprovalId, AudioEvidenceWindowId,
+    BadCaseId, CallAttemptId, CallId, CampaignContactId, CampaignId, ChannelAgentSessionId,
+    ContextPacketId, ConversationFinalizationJobId, ConversationFinalizationReceiptId,
+    ConversationResultId, EmotionCatalogRevisionId, EmotionFusionId, EmotionObservationId,
     EvaluationId, EvaluationRubricRevisionId, EventId, ExecutionGeneration, HandoffCommandId,
     HandoffId, HandoffReceiptId, HumanLegId, IdempotencyKey, IdentityError,
     IntentCatalogRevisionId, IntentObservationId, InteractionId, OutcomeSchemaRevisionId,
