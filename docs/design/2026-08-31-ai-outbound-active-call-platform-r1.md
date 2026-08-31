@@ -2,7 +2,7 @@
 
 > 日期：2026-08-31
 >
-> 状态：`accepted_design / implementation_not_started`
+> 状态：`accepted_design / controlled_tracer_bullet_passed / production_not_run`
 >
 > 适用范围：Converact Engage、Converact Agent Runtime、Converact Fabric 电话通道
 >
@@ -111,14 +111,14 @@ Kamailio / Trunk / PSTN
 
 | 能力 | 当前状态 | 本设计目标 | 生产资格 |
 | --- | --- | --- | --- |
-| 现有 Agent/Campaign/Call Center UI 与 API | 存在 TypeScript 实现和部分表结构 | 保持兼容，权威写入迁到 Rust | `not_run` |
-| RustPBX 呼叫链 | 已有平台设计和既有适配路径 | 成为外呼 Call/Leg 唯一权威 | `not_run` |
+| 现有 Agent/Campaign/Call Center UI 与 API | TypeScript 旧写路径仍存在；只读兼容映射已通过本地测试 | 保持兼容，权威写入迁到 Rust | writer switch `not_run` |
+| RustPBX 呼叫链 | Rust RWI v1 适配器与失败语义已通过本地合同测试 | 成为外呼 Call/Leg 唯一权威 | real RustPBX `not_run` |
 | Active Call 源码 | 已下载、精确 commit/hash 已核验 | 受控电话 Channel Agent | `false` |
-| Active Call 构建/测试 | `not_run` | 自有 lockfile、构建和合同测试 | `not_run` |
-| 多轮实时语音 | 存在旧链路和 Adapter 设计 | Active Call 驱动的真实功能闭环 | `not_run` |
+| Active Call 构建/测试 | 固定源码本地构建通过；上游测试因外部 `sipbot` 缺失为 `blocked_external`；Converact Adapter 11 项本地测试通过 | 自有 lockfile、构建和合同测试 | runtime/production `not_run` |
+| 多轮实时语音 | 受控端口完成 reserve/originate/attach/disclosure/start/finalize；未启动真实进程 | Active Call 驱动的真实功能闭环 | real media/provider `not_run` |
 | Tool/Action | 平台已有 AI-native 设计 | 受控 proposal/authorization/receipt | `not_run` |
 | AI/人工协作 | 有产品与通信设计 | durable prepare/commit/abort/reconcile | `not_run` |
-| Transcript/Outcome/QM | 存在部分存储与服务 | 统一 ID、幂等投影和异步补偿 | `not_run` |
+| Transcript/Outcome/QM | 受控 Worker 已验证 final segment count 与 bounded outcome；完整 transcript/summary/QM 未实现 | 统一 ID、幂等投影和异步补偿 | complete projection `not_run` |
 | 性能/容量/长稳 | 旧证据不能继承到新链路 | 功能稳定后单独执行 | `not_run` |
 
 `target`、`implemented`、`tested` 和 `production_eligible` 是不同状态。实现代码不能自动把任何
@@ -804,11 +804,20 @@ Reconciler 查询：
 
 - dependency closure；
 - license review；
-- build；
-- upstream tests；
-- Converact adapter tests；
+- 上游依赖外部 `sipbot` 的完整测试收敛；
 - runtime integration；
 - production qualification。
+
+当前本地已完成且不可向更高证据等级继承：
+
+- 固定源码构建 `passed_local`；
+- Converact Active Call Adapter 11 项合同/客户端测试；
+- RustPBX RWI Adapter 6 项合同/客户端测试；
+- Rust 领域、持久化 schema 与 Worker 受控功能测试；
+- 固定源码身份脚本重复核验。
+
+详细命令、计数和 `not_run` 矩阵见
+[R1 tracer-bullet evidence](../../architecture-foundation/ai-outbound/evidence/r1-tracer-bullet/README.md)。
 
 上游 `Cargo.toml` 和 README 声明 MIT，但固定源码树缺少其引用的 `LICENSE` 文件。因此允许本地
 阅读和设计，不允许在法律/许可证门完成前 vendor 或分发。法律门只限制分发和启用，不阻止
@@ -830,7 +839,7 @@ Reconciler 查询：
 这些通道共享 `InteractionId`、Agent Release、Tool/Action、Memory、Policy、Outcome 和 Handoff
 语义，但各自保留 Channel Authority。未来增加通道不能复制 Campaign、Workflow、Tool 或业务状态机。
 
-## 21. 设计完成条件
+## 21. 设计完成条件与实现检查点
 
 本设计仅在以下条件全部满足后进入实施计划：
 
@@ -841,6 +850,11 @@ Reconciler 查询：
 - 没有触碰现有服务器运行服务；
 - 实施计划按 TDD 划分可验证纵向切片；
 - 代码阶段只修改明确相关文件，并保留仓库现有用户改动。
+
+截至 2026-08-31，上述设计门已完成，D1-D4 的首条受控 Rust tracer bullet 已通过；这只证明
+`controlled_test_double` 与本地合同层。PostgreSQL runtime、真实 RustPBX、真实 Active Call、
+SIP/PSTN、供应商、录音、完整 final transcript、工具、人工切换、质检、性能、容量和生产部署均
+保持 `not_run`，后续必须按独立 Evidence Gate 逐项推进。
 
 ## 22. 关联文档
 
@@ -857,3 +871,4 @@ Reconciler 查询：
 | 日期 | Revision | 变更 |
 | --- | --- | --- |
 | 2026-08-31 | R1 | 固定行业通用 AI 外呼优先路线、Active Call 独立电话 Channel Agent、Rust 权威模型、功能闭环和 TDD 顺序 |
+| 2026-08-31 | R1 implementation checkpoint | 记录 Rust 合同、领域、schema、适配器与受控 Worker tracer bullet；真实集成和生产资格仍为 `not_run` |

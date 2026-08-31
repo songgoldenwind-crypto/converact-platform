@@ -21,12 +21,12 @@
     },
     {
       "path": "docs/design/README.md",
-      "sha256": "ef7d93441026cc8c43439924e30c5047d248d01a1975d2a1c357db19f1ed3eed",
+      "sha256": "e7b206149d7cc9d8a3ec2a04630a80ed078ee661c7f6d475408404d7a0d1c949",
       "kind": "context"
     },
     {
       "path": "docs/design/2026-08-31-ai-outbound-active-call-platform-r1.md",
-      "sha256": "2dcae100ada40e88c7d9fbf24bc59014757acd9c997be58798d432de6b1c79b6",
+      "sha256": "50c3ce7e62f5e5d53f185f8a828c0454e30a7bcac14eb465b7e9f510018bc966",
       "kind": "design"
     },
     {
@@ -41,7 +41,7 @@
     },
     {
       "path": "infra/converact/active-call/source-lock.json",
-      "sha256": "ddc2578fc2ff10b71dc0da6ea433be3ad5107f01c499a115654b4b2e88f38f58",
+      "sha256": "9369712a70b5c38058ffea5a758fa261221951e5dde68b3efe18697c819efe9a",
       "kind": "source_lock"
     },
     {

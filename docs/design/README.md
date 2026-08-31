@@ -16,7 +16,7 @@ Converact Agent Runtime / Converact Resolve`。本文导航的是已经迁入仓
 | 3 | [统一通信底座 R5](./unified-communication-foundation-r5.md) | SIP、Call、媒体、LiveKit、Speech channel、ViLTE 接口和性能资格 | `accepted architecture / target`；未证明项 `not_run` |
 | 4 | [R5 TDD 实施计划](./2026-07-31-unified-communication-foundation-r5-implementation-plan.md) | R5 通信实现顺序、测试、故障和 Evidence | `planned` |
 | 5 | [Resolve Assist Profile R1](./2026-07-31-ai-native-multimodal-resolution-platform-r1.md) | 首个 `resolution` Profile、Offer、Pilot、B1、ROI 和 Stop Gate | `retained_vertical_profile / proposed_for_profile_review` |
-| 6 | [AI 外呼与 Voice Agent 平台 R1](./2026-08-31-ai-outbound-active-call-platform-r1.md) | 行业通用 AI 外呼、Active Call 电话 Channel Agent、Campaign/Attempt/Tool/Handoff 权威和功能优先实施边界 | `accepted_design / implementation_not_started` |
+| 6 | [AI 外呼与 Voice Agent 平台 R1](./2026-08-31-ai-outbound-active-call-platform-r1.md) | 行业通用 AI 外呼、Active Call 电话 Channel Agent、Campaign/Attempt/Tool/Handoff 权威和功能优先实施边界 | `accepted_design / controlled_tracer_bullet_passed / production_not_run` |
 | 7 | [AI 外呼 Active Call Tracer Bullet R1 计划](../plans/2026-08-31-ai-outbound-active-call-tracer-bullet-r1.md) | Rust Agent/Campaign/Attempt、Active Call、RustPBX RWI、持久化与首条功能闭环的逐步 TDD 计划 | `planned` |
 
 权威冲突时按领域裁决，而不是简单“新文件覆盖所有旧文件”：
@@ -95,3 +95,4 @@ flowchart TD
 | 2026-07-31 | R2 navigation | 将 Converact 上位范围改为 Communications & Execution Platform；Resolve 保留为首个 Profile |
 | 2026-07-31 | R2.1 navigation | 删除本自包含包中不存在的旧文档假链接；明确新计划不使用历史 Agent 框架路径 |
 | 2026-08-31 | AI outbound R1 navigation | 增加 Active Call 电话 Channel Agent 与行业通用 AI 外呼设计入口 |
+| 2026-08-31 | AI outbound R1 checkpoint | 首条 Rust 受控 tracer bullet 已有本地证据；真实 SIP/PSTN、供应商、性能与生产仍为 `not_run` |

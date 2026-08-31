@@ -1,0 +1,100 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-08-31",
+  "evidence_class": [
+    "local_contract",
+    "controlled_test_double"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "commit": "e20324c6302d5f021922d4df62d5067ba7872f62",
+    "tree": "bbd9f17b643540ef94c598410378f060836fa766"
+  },
+  "active_call": {
+    "commit": "6224d948cc0941ac48b4a5426477aeaf639c2e98",
+    "tree": "9521ad341fb992ba6d491eb217983df8cf85d2cf",
+    "archive_sha256": "324096251975fdb70cea3c9b574526559d3d960645e252b56721ba3c3393040c",
+    "source_identity": "passed_local",
+    "build": "passed_local",
+    "upstream_tests": "blocked_external",
+    "runtime_integration": "not_run",
+    "production_eligible": false
+  },
+  "environment": {
+    "os": "Darwin 25.2.0 arm64",
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)",
+    "node": "v23.11.0"
+  },
+  "commands": [
+    {
+      "id": "rust_functional_tests",
+      "working_directory": "server-rs",
+      "command": "cargo test -p converact-voice-agent-contracts -p converact-ai-outbound-core -p converact-active-call-adapter -p converact-rustpbx-rwi-adapter -p converact-voice-agent-worker && cargo test -p converact-ai-outbound-store --test schema",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 55,
+      "failed": 0
+    },
+    {
+      "id": "rust_scoped_clippy_and_format",
+      "working_directory": "server-rs",
+      "command": "cargo clippy -p converact-voice-agent-contracts -p converact-ai-outbound-core -p converact-active-call-adapter -p converact-ai-outbound-store -p converact-rustpbx-rwi-adapter -p converact-voice-agent-worker --all-targets -- -D warnings && cargo fmt --check",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "legacy_compatibility",
+      "working_directory": ".",
+      "command": "node --import ./test/explicit-dev-auth.mjs --import tsx --test test/ai-outbound-rust-contract.test.ts",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "id": "active_call_source_identity",
+      "working_directory": ".",
+      "command": "bash scripts/verify-active-call-source.sh <pinned-source-directory> <pinned-archive>",
+      "exit_code": 0,
+      "result": "passed",
+      "reported_checks": [
+        "source_identity",
+        "commit",
+        "tree",
+        "detached",
+        "clean",
+        "archive",
+        "size",
+        "files",
+        "manifests"
+      ]
+    }
+  ],
+  "not_run": [
+    "postgresql_runtime_integration",
+    "real_rustpbx_rwi",
+    "real_active_call_runtime",
+    "real_sip_pstn",
+    "real_provider",
+    "recording_cdr_complete_transcript",
+    "tool_broker_action_receipts",
+    "ai_human_ai_handoff",
+    "knowledge_memory_evaluation_dashboard",
+    "hf_speech_runtime",
+    "performance",
+    "capacity",
+    "long_run",
+    "fault_campaign",
+    "independent_code_review",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}
