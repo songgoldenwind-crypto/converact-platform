@@ -25,6 +25,7 @@ members = [
   "crates/tenant-auth",
   "crates/tenant-auth-runtime",
   "crates/testkit",
+  "crates/tool-broker-core",
   "crates/voice-agent-contracts",
 ]
 resolver = "3"

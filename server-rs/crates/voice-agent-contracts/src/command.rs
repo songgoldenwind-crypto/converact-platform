@@ -134,6 +134,18 @@ impl EnvelopeContext {
         &self.interaction_id
     }
 
+    /// Returns the physical call Attempt authority binding.
+    #[must_use]
+    pub const fn call_attempt_id(&self) -> &CallAttemptId {
+        &self.call_attempt_id
+    }
+
+    /// Returns the immutable Agent Release authority binding.
+    #[must_use]
+    pub const fn agent_release_id(&self) -> &AgentReleaseId {
+        &self.agent_release_id
+    }
+
     /// Returns the execution generation used to fence stale work.
     #[must_use]
     pub const fn execution_generation(&self) -> ExecutionGeneration {

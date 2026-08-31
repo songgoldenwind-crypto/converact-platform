@@ -11,8 +11,8 @@ pub use command::{
 };
 pub use event::EventEnvelope;
 pub use id::{
-    AgentDefinitionId, AgentReleaseId, CallAttemptId, CallId, CampaignContactId, CampaignId,
-    ChannelAgentSessionId, EventId, ExecutionGeneration, IdempotencyKey, IdentityError,
-    InteractionId,
+    ActionReceiptId, AgentDefinitionId, AgentReleaseId, ApprovalId, CallAttemptId, CallId,
+    CampaignContactId, CampaignId, ChannelAgentSessionId, EventId, ExecutionGeneration,
+    IdempotencyKey, IdentityError, InteractionId, ToolCallId, ToolRevisionId,
 };
 pub use state::{AgentReleaseState, CallAttemptState, CampaignState};

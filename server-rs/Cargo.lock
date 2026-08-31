@@ -503,6 +503,16 @@ name = "converact-testkit"
 version = "0.1.0"
 
 [[package]]
+name = "converact-tool-broker-core"
+version = "0.1.0"
+dependencies = [
+ "converact-contracts",
+ "converact-voice-agent-contracts",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "converact-voice-agent-contracts"
 version = "0.1.0"
 dependencies = [
