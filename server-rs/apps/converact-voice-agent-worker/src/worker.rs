@@ -9,7 +9,7 @@ use converact_voice_agent_contracts::{AgentReleaseId, AgentReleaseState, Campaig
 
 use crate::{
     AdmissionReadiness, AttemptResource, AuthenticatedTenant, RepositoryError, ShutdownToken,
-    VoiceAgentRepository, WorkerConfig,
+    VoiceAgentRepository, WorkerConfig, channel_agent_session::derive_initial_session_id,
 };
 
 /// Stable worker failure safe for logs and retry policy.
@@ -136,8 +136,9 @@ where
             &self.telephony,
             &self.attempt_store,
         );
+        let session_id = derive_initial_session_id(tenant, attempt_id, &release_binding)?;
         let attempt = orchestrator
-            .run_one_attempt(attempt_id, &release_binding)
+            .run_one_attempt(attempt_id, &release_binding, &session_id)
             .await
             .map_err(|error| WorkerError::new(error.code()))?;
         let resource =

@@ -200,6 +200,10 @@ impl TestWorker {
     pub fn reserved_agent_release(&self) -> Option<AgentReleaseBinding> {
         self.state.lock().unwrap().reserved_agent_release.clone()
     }
+
+    pub fn reserved_agent_session_id(&self) -> Option<ChannelAgentSessionId> {
+        self.state.lock().unwrap().reserved_agent_session_id.clone()
+    }
 }
 
 pub struct TelephonyProbe(Arc<Mutex<ControlledState>>);
@@ -215,6 +219,7 @@ struct ControlledState {
     originate_count: usize,
     agent_query_count: usize,
     reserved_agent_release: Option<AgentReleaseBinding>,
+    reserved_agent_session_id: Option<ChannelAgentSessionId>,
 }
 
 impl ControlledState {
@@ -224,6 +229,7 @@ impl ControlledState {
             originate_count: 0,
             agent_query_count: 0,
             reserved_agent_release: None,
+            reserved_agent_session_id: None,
         }
     }
 }
@@ -242,9 +248,11 @@ struct FakeAgent(Arc<Mutex<ControlledState>>);
 
 impl ChannelAgentPort for FakeAgent {
     async fn reserve(&self, request: ReserveAgent) -> Result<AgentReservation, PortError> {
-        self.0.lock().unwrap().reserved_agent_release = Some(request.release);
+        let mut state = self.0.lock().unwrap();
+        state.reserved_agent_release = Some(request.release);
+        state.reserved_agent_session_id = Some(request.session_id.clone());
         Ok(AgentReservation {
-            session_id: ChannelAgentSessionId::parse("agent-session-001").unwrap(),
+            session_id: request.session_id,
         })
     }
 

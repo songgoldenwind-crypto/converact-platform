@@ -55,6 +55,29 @@ async fn reservation_is_bound_to_the_exact_agent_release() {
 }
 
 #[tokio::test]
+async fn reservation_uses_the_platform_selected_session_identity() {
+    let harness = Harness::new();
+
+    harness.run_one_attempt().await.unwrap();
+
+    assert_eq!(
+        harness.reserved_agent_session_id().unwrap().as_str(),
+        "agent-session-platform-selected"
+    );
+}
+
+#[tokio::test]
+async fn reservation_cannot_replace_the_platform_selected_session_identity() {
+    let harness = Harness::with_agent_identity_mismatch();
+
+    let error = harness.run_one_attempt().await.unwrap_err();
+
+    assert_eq!(error.code(), "agent_session_identity_mismatch");
+    assert_eq!(harness.attempt_state(), CallAttemptState::OutcomeUnknown);
+    assert_eq!(harness.rustpbx_originate_count(), 0);
+}
+
+#[tokio::test]
 async fn unavailable_agent_prevents_customer_dial() {
     let harness = Harness::with_agent_reservation_failure();
     let result = harness.run_one_attempt().await;

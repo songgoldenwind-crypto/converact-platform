@@ -84,10 +84,13 @@ where
         &self,
         attempt_id: &CallAttemptId,
         release: &AgentReleaseBinding,
+        session_id: &ChannelAgentSessionId,
     ) -> Result<CallAttempt, OrchestrationError> {
-        let (attempt, session_id) = self.prepare_attempt(attempt_id, release).await?;
-        let (attempt, call_id) = self.originate_and_attach(attempt, &session_id).await?;
-        let attempt = self.disclose_and_start(attempt, &session_id).await?;
+        let attempt = self
+            .prepare_attempt(attempt_id, release, session_id)
+            .await?;
+        let (attempt, call_id) = self.originate_and_attach(attempt, session_id).await?;
+        let attempt = self.disclose_and_start(attempt, session_id).await?;
         self.finalize_when_terminal(attempt, &call_id).await
     }
 
@@ -95,7 +98,8 @@ where
         &self,
         attempt_id: &CallAttemptId,
         release: &AgentReleaseBinding,
-    ) -> Result<(CallAttempt, ChannelAgentSessionId), OrchestrationError> {
+        session_id: &ChannelAgentSessionId,
+    ) -> Result<CallAttempt, OrchestrationError> {
         let mut attempt = self.store.load(attempt_id).await?;
         attempt = transition(&attempt, AttemptCommand::Claim)?;
         self.store.persist_observation(&attempt).await?;
@@ -120,6 +124,7 @@ where
             .reserve(ReserveAgent {
                 attempt_id: attempt.id().clone(),
                 release: release.clone(),
+                session_id: session_id.clone(),
             })
             .await
         {
@@ -129,10 +134,16 @@ where
             }
             Err(error) => return Err(error.into()),
         };
+        if reservation.session_id != *session_id {
+            return self
+                .mark_unknown(attempt, "agent_session_identity_mismatch")
+                .await;
+        }
+
         attempt = transition(&attempt, AttemptCommand::ReserveAgentCapacity)?;
         self.store.persist_observation(&attempt).await?;
 
-        Ok((attempt, reservation.session_id))
+        Ok(attempt)
     }
 
     async fn originate_and_attach(

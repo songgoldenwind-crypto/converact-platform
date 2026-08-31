@@ -7,6 +7,7 @@ mod active_call_intent;
 mod campaign_admin;
 mod campaign_admin_http;
 mod campaign_retry;
+mod channel_agent_session;
 mod conversation_finalization;
 mod conversation_projection;
 mod conversation_projection_postgres;

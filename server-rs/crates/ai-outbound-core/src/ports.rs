@@ -129,6 +129,7 @@ pub enum EffectIntent {
 pub struct ReserveAgent {
     pub attempt_id: CallAttemptId,
     pub release: AgentReleaseBinding,
+    pub session_id: ChannelAgentSessionId,
 }
 
 /// Confirmed reservation returned by the channel-agent authority.

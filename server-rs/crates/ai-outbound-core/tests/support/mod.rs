@@ -135,6 +135,10 @@ impl Harness {
         Self::configured(AgentReservationOutcome::OutcomeUnknown, false, false)
     }
 
+    pub fn with_agent_identity_mismatch() -> Self {
+        Self::configured(AgentReservationOutcome::IdentityMismatch, false, false)
+    }
+
     pub fn crash_after_originate() -> Self {
         Self::configured(AgentReservationOutcome::Reserved, true, false)
     }
@@ -160,6 +164,7 @@ impl Harness {
             rustpbx_originate_count: 0,
             retry_count: 0,
             reserved_agent_release: None,
+            reserved_agent_session_id: None,
         }));
         Self {
             compliance: FakeCompliance(state.clone()),
@@ -173,7 +178,11 @@ impl Harness {
 
     pub async fn run_one_attempt(&self) -> Result<CallAttempt, OrchestrationError> {
         self.orchestrator()
-            .run_one_attempt(&self.attempt_id, &agent_release_binding())
+            .run_one_attempt(
+                &self.attempt_id,
+                &agent_release_binding(),
+                &requested_agent_session_id(),
+            )
             .await
     }
 
@@ -201,6 +210,10 @@ impl Harness {
         self.state.lock().unwrap().reserved_agent_release.clone()
     }
 
+    pub fn reserved_agent_session_id(&self) -> Option<ChannelAgentSessionId> {
+        self.state.lock().unwrap().reserved_agent_session_id.clone()
+    }
+
     fn orchestrator(
         &self,
     ) -> OutboundOrchestrator<'_, FakeCompliance, FakeAgent, FakeTelephony, FakeStore> {
@@ -218,6 +231,7 @@ struct HarnessState {
     rustpbx_originate_count: usize,
     retry_count: usize,
     reserved_agent_release: Option<AgentReleaseBinding>,
+    reserved_agent_session_id: Option<ChannelAgentSessionId>,
 }
 
 #[derive(Clone, Copy)]
@@ -225,6 +239,7 @@ enum AgentReservationOutcome {
     Reserved,
     Unavailable,
     OutcomeUnknown,
+    IdentityMismatch,
 }
 
 impl HarnessState {
@@ -252,9 +267,10 @@ impl ChannelAgentPort for FakeAgent {
         let mut state = self.0.lock().unwrap();
         state.record("agent.reserve");
         state.reserved_agent_release = Some(request.release);
+        state.reserved_agent_session_id = Some(request.session_id.clone());
         match state.agent_reservation_outcome {
             AgentReservationOutcome::Reserved => Ok(AgentReservation {
-                session_id: ChannelAgentSessionId::parse("agent-session-001").unwrap(),
+                session_id: request.session_id,
             }),
             AgentReservationOutcome::Unavailable => {
                 Err(PortError::unavailable("agent_capacity_unavailable"))
@@ -262,6 +278,9 @@ impl ChannelAgentPort for FakeAgent {
             AgentReservationOutcome::OutcomeUnknown => {
                 Err(PortError::outcome_unknown("agent_reservation_timeout"))
             }
+            AgentReservationOutcome::IdentityMismatch => Ok(AgentReservation {
+                session_id: ChannelAgentSessionId::parse("agent-session-unexpected").unwrap(),
+            }),
         }
     }
 
@@ -312,6 +331,10 @@ fn agent_release_binding() -> AgentReleaseBinding {
         "9".repeat(64),
     )
     .unwrap()
+}
+
+fn requested_agent_session_id() -> ChannelAgentSessionId {
+    ChannelAgentSessionId::parse("agent-session-platform-selected").unwrap()
 }
 
 #[derive(Clone)]
