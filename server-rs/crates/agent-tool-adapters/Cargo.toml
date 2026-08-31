@@ -1,0 +1,20 @@
+[package]
+name = "converact-agent-tool-adapters"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+converact-tool-broker-core = { path = "../tool-broker-core" }
+converact-voice-agent-contracts = { path = "../voice-agent-contracts" }
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+converact-contracts = { path = "../contracts" }
+tokio.workspace = true
+
+[lints]
+workspace = true
