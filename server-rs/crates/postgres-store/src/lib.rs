@@ -9,6 +9,10 @@ use deadpool_postgres::{
     tokio_postgres::{Config as PgConfig, Socket, tls::MakeTlsConnect},
 };
 
+mod tool_action;
+
+pub use tool_action::PostgresToolActionStore;
+
 const MAX_CONNECTIONS: usize = 256;
 const MAX_WAITERS: usize = 1_024;
 const MAX_POOL_TIMEOUT: Duration = Duration::from_secs(30);

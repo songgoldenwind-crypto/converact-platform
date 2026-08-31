@@ -21,6 +21,6 @@ pub use ports::{
 };
 pub use proposal::{ProposalError, ToolProposal, ToolProposalInput};
 pub use receipt::{
-    ActionFailureCode, ActionObservation, ActionReceipt, ActionReceiptError, ActionResolution,
-    ToolActionOutput,
+    ActionAuthority, ActionFailureCode, ActionObservation, ActionReceipt, ActionReceiptError,
+    ActionReceiptInput, ActionResolution, ToolActionOutput,
 };

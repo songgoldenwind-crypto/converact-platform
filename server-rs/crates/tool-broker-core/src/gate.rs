@@ -12,7 +12,8 @@ use crate::{
 pub struct AuthorizedToolAction {
     proposal: ToolProposal,
     definition: ToolDefinition,
-    approval_id: Option<ApprovalId>,
+    policy_decision: PolicyDecision,
+    approval: Option<crate::ApprovalGrant>,
 }
 
 impl AuthorizedToolAction {
@@ -28,7 +29,20 @@ impl AuthorizedToolAction {
 
     #[must_use]
     pub const fn approval_id(&self) -> Option<&ApprovalId> {
-        self.approval_id.as_ref()
+        match &self.approval {
+            Some(grant) => Some(grant.approval_id()),
+            None => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn approval(&self) -> Option<&crate::ApprovalGrant> {
+        self.approval.as_ref()
+    }
+
+    #[must_use]
+    pub const fn policy_decision(&self) -> PolicyDecision {
+        self.policy_decision
     }
 }
 
@@ -96,7 +110,7 @@ where
         }
         let approval_required =
             definition.risk() == ToolRisk::High || policy == PolicyDecision::ApprovalRequired;
-        let approval_id = if approval_required {
+        let approval = if approval_required {
             let grant = self
                 .approval
                 .exact_grant(&proposal)
@@ -105,14 +119,19 @@ where
                 .flatten()
                 .filter(|grant| grant.authorizes(&proposal, now_ms))
                 .ok_or(ToolAuthorizationError::ApprovalRequired)?;
-            Some(grant.approval_id().clone())
+            Some(grant)
         } else {
             None
         };
         Ok(AuthorizedToolAction {
             proposal,
             definition,
-            approval_id,
+            policy_decision: if approval_required {
+                PolicyDecision::ApprovalRequired
+            } else {
+                PolicyDecision::Allowed
+            },
+            approval,
         })
     }
 }

@@ -3038,3 +3038,95 @@ CREATE INDEX IF NOT EXISTS idx_converact_outbound_attempt_events_order
   ON converact_outbound_attempt_events (
     tenant_id, call_attempt_id, execution_generation, occurred_at, event_id
   );
+
+-- ===== Converact Tool Action authority (SQLite development mirror) =====
+
+CREATE TABLE IF NOT EXISTS converact_tool_actions (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  tool_call_id TEXT NOT NULL,
+  interaction_id TEXT NOT NULL,
+  call_attempt_id TEXT NOT NULL,
+  execution_generation INTEGER NOT NULL CHECK (execution_generation > 0),
+  agent_release_id TEXT NOT NULL,
+  tool_revision_id TEXT NOT NULL,
+  tool_schema_hash TEXT NOT NULL CHECK (length(tool_schema_hash) = 64),
+  arguments_hash TEXT NOT NULL CHECK (length(arguments_hash) = 64),
+  proposal_digest TEXT NOT NULL CHECK (length(proposal_digest) = 64),
+  arguments TEXT NOT NULL CHECK (json_valid(arguments)),
+  effect_class TEXT NOT NULL CHECK (effect_class IN ('query', 'mutation')),
+  risk TEXT NOT NULL CHECK (risk IN ('low', 'high')),
+  action_capability TEXT NOT NULL,
+  policy_decision TEXT NOT NULL CHECK (
+    policy_decision IN ('allowed', 'approval_required')
+  ),
+  approval_id TEXT,
+  approval_expires_at TEXT,
+  state TEXT NOT NULL CHECK (state IN ('accepted', 'state_observed')),
+  resolution TEXT CHECK (resolution IN ('applied', 'not_applied')),
+  lease_owner TEXT NOT NULL DEFAULT '',
+  lease_token_hash TEXT NOT NULL DEFAULT '',
+  lease_expires_at TEXT,
+  accepted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  completed_at TEXT,
+  state_observed_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, tool_call_id),
+  FOREIGN KEY (tenant_id, call_attempt_id)
+    REFERENCES converact_outbound_call_attempts(tenant_id, id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id, agent_release_id)
+    REFERENCES converact_agent_releases(tenant_id, id) ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS converact_tool_action_receipts (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  receipt_id TEXT NOT NULL,
+  tool_call_id TEXT NOT NULL,
+  execution_generation INTEGER NOT NULL CHECK (execution_generation > 0),
+  stage TEXT NOT NULL CHECK (stage IN ('accepted', 'completed', 'state_observed')),
+  receipt_digest TEXT NOT NULL CHECK (length(receipt_digest) = 64),
+  resolution TEXT CHECK (resolution IN ('applied', 'not_applied')),
+  result_hash TEXT,
+  result_payload TEXT CHECK (result_payload IS NULL OR json_valid(result_payload)),
+  failure_code TEXT,
+  observed_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, receipt_id),
+  UNIQUE (tenant_id, tool_call_id, stage),
+  FOREIGN KEY (tenant_id, tool_call_id)
+    REFERENCES converact_tool_actions(tenant_id, tool_call_id) ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS converact_tool_action_outbox (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  outbox_id TEXT NOT NULL,
+  tool_call_id TEXT NOT NULL,
+  state_observed_receipt_id TEXT NOT NULL,
+  execution_generation INTEGER NOT NULL CHECK (execution_generation > 0),
+  payload_hash TEXT NOT NULL CHECK (length(payload_hash) = 64),
+  payload TEXT NOT NULL CHECK (json_valid(payload)),
+  state TEXT NOT NULL DEFAULT 'pending' CHECK (
+    state IN ('pending', 'published', 'dead_letter')
+  ),
+  attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count BETWEEN 0 AND 1000),
+  available_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  lease_owner TEXT NOT NULL DEFAULT '',
+  lease_token_hash TEXT NOT NULL DEFAULT '',
+  lease_expires_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, outbox_id),
+  UNIQUE (tenant_id, tool_call_id),
+  FOREIGN KEY (tenant_id, tool_call_id)
+    REFERENCES converact_tool_actions(tenant_id, tool_call_id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id, state_observed_receipt_id)
+    REFERENCES converact_tool_action_receipts(tenant_id, receipt_id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_converact_tool_action_reconcile_claim
+  ON converact_tool_actions (tenant_id, accepted_at, tool_call_id)
+  WHERE state = 'accepted';
+
+CREATE INDEX IF NOT EXISTS idx_converact_tool_action_outbox_claim
+  ON converact_tool_action_outbox (tenant_id, available_at, outbox_id)
+  WHERE state = 'pending';

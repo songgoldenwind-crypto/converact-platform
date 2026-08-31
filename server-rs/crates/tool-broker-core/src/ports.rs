@@ -13,6 +13,17 @@ pub enum PolicyDecision {
     ApprovalRequired,
 }
 
+impl PolicyDecision {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Denied => "denied",
+            Self::Allowed => "allowed",
+            Self::ApprovalRequired => "approval_required",
+        }
+    }
+}
+
 /// Bounded dependency error safe for logs and retry policy.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ToolPortError {

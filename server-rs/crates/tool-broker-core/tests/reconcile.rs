@@ -100,8 +100,8 @@ impl ApprovalPort for Approvals {
 
 enum StoreState {
     Empty,
-    Accepted(AuthorizedToolAction),
-    Final(ActionReceipt),
+    Accepted(Box<AuthorizedToolAction>),
+    Final(Box<ActionReceipt>),
 }
 
 struct Store {
@@ -128,11 +128,11 @@ impl ToolActionStorePort for Store {
         let mut state = self.state.lock().unwrap();
         match &*state {
             StoreState::Empty => {
-                *state = StoreState::Accepted(action.clone());
+                *state = StoreState::Accepted(Box::new(action.clone()));
                 Ok(PrepareDecision::Prepared)
             }
             StoreState::Accepted(_) => Ok(PrepareDecision::ReconcileRequired),
-            StoreState::Final(receipt) => Ok(PrepareDecision::Replay(Box::new(receipt.clone()))),
+            StoreState::Final(receipt) => Ok(PrepareDecision::Replay(receipt.clone())),
         }
     }
 
@@ -156,7 +156,7 @@ impl ToolActionStorePort for Store {
             observation.into_resolution().unwrap(),
         )
         .unwrap();
-        *state = StoreState::Final(receipt.clone());
+        *state = StoreState::Final(Box::new(receipt.clone()));
         Ok(receipt)
     }
 }

@@ -11,6 +11,7 @@ pub enum PrepareDecision {
     Prepared,
     Replay(Box<ActionReceipt>),
     ReconcileRequired,
+    InProgress,
     Conflict,
 }
 
@@ -101,6 +102,7 @@ where
                     .map_err(|_| BrokerError::StoreUnavailable)?;
                 classify_receipt(&action, receipt)
             }
+            PrepareDecision::InProgress => Ok(BrokerResult::Pending),
             PrepareDecision::Conflict => Err(BrokerError::Conflict),
         }
     }

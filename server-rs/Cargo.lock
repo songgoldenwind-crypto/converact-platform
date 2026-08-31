@@ -442,6 +442,8 @@ dependencies = [
  "converact-migration-routing",
  "converact-migration-store",
  "converact-outbox-worker",
+ "converact-tool-broker-core",
+ "converact-tool-broker-store",
  "deadpool-postgres",
  "hex",
  "serde_json",
@@ -511,6 +513,19 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "converact-tool-broker-store"
+version = "0.1.0"
+dependencies = [
+ "converact-contracts",
+ "converact-kernel-ids",
+ "converact-tool-broker-core",
+ "converact-voice-agent-contracts",
+ "serde_json",
+ "tokio",
+ "tokio-postgres",
 ]
 
 [[package]]

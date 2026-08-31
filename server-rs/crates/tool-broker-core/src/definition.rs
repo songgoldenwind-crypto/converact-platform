@@ -12,11 +12,31 @@ pub enum ToolEffectClass {
     Mutation,
 }
 
+impl ToolEffectClass {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Query => "query",
+            Self::Mutation => "mutation",
+        }
+    }
+}
+
 /// Closed risk classification owned by Converact policy.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ToolRisk {
     Low,
     High,
+}
+
+impl ToolRisk {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Low => "low",
+            Self::High => "high",
+        }
+    }
 }
 
 /// Immutable deployment-time resolution of one Tool revision.

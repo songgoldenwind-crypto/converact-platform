@@ -15,6 +15,8 @@ converact-kernel-ids = { path = "../kernel-ids" }
 converact-migration-routing = { path = "../migration-routing" }
 converact-migration-store = { path = "../migration-store" }
 converact-outbox-worker = { path = "../outbox-worker" }
+converact-tool-broker-core = { path = "../tool-broker-core" }
+converact-tool-broker-store = { path = "../tool-broker-store" }
 deadpool-postgres.workspace = true
 hex.workspace = true
 serde_json.workspace = true

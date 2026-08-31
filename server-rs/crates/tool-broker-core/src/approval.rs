@@ -93,6 +93,11 @@ impl ApprovalGrant {
     pub const fn approval_id(&self) -> &ApprovalId {
         &self.approval_id
     }
+
+    #[must_use]
+    pub const fn expires_at_ms(&self) -> u64 {
+        self.expires_at_ms
+    }
 }
 
 /// Stable Approval validation failure.
