@@ -5,6 +5,8 @@ use converact_tenant_auth::AuthenticatedPlatformIdentity;
 use converact_voice_agent_contracts::{AgentReleaseState, CallAttemptState, CampaignState};
 use serde::Serialize;
 
+use crate::{RetryWorkerDecision, RetryWorkerError};
+
 const MAX_TENANT_BYTES: usize = 255;
 const MAX_OUTCOME_BYTES: usize = 100;
 
@@ -75,6 +77,16 @@ pub enum PostCallState {
     ReconcileRequired,
     Projected,
     Incomplete,
+}
+
+/// PII-free Campaign retry progress exposed by the internal Attempt inspection API.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RetryInspectionState {
+    Planned,
+    NotRetryable,
+    Exhausted,
+    ReconcileRequired,
 }
 
 impl PostCallState {
@@ -194,6 +206,10 @@ pub struct AttemptResource {
     final_transcript_segments: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     outcome: Option<Outcome>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    retry_state: Option<RetryInspectionState>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    retry_reason_code: Option<&'static str>,
 }
 
 impl AttemptResource {
@@ -209,6 +225,8 @@ impl AttemptResource {
             post_call_error_code: None,
             final_transcript_segments: None,
             outcome: None,
+            retry_state: None,
+            retry_reason_code: None,
         }
     }
 
@@ -262,6 +280,43 @@ impl AttemptResource {
     #[must_use]
     pub const fn outcome(&self) -> Option<&Outcome> {
         self.outcome.as_ref()
+    }
+
+    /// Adds only the closed retry state and a stable content-free reason.
+    #[must_use]
+    pub const fn with_retry_decision(mut self, decision: &RetryWorkerDecision) -> Self {
+        let (state, reason) = match decision {
+            RetryWorkerDecision::Planned { .. } => (RetryInspectionState::Planned, None),
+            RetryWorkerDecision::NotRetryable => (
+                RetryInspectionState::NotRetryable,
+                Some("ai_outbound_terminal_not_retryable"),
+            ),
+            RetryWorkerDecision::Exhausted => (
+                RetryInspectionState::Exhausted,
+                Some("ai_outbound_retry_attempts_exhausted"),
+            ),
+        };
+        self.retry_state = Some(state);
+        self.retry_reason_code = reason;
+        self
+    }
+
+    /// Marks an unresolved retry decision without exposing the underlying call content.
+    #[must_use]
+    pub const fn with_retry_error(mut self, error: RetryWorkerError) -> Self {
+        self.retry_state = Some(RetryInspectionState::ReconcileRequired);
+        self.retry_reason_code = Some(error.code());
+        self
+    }
+
+    #[must_use]
+    pub const fn retry_state(&self) -> Option<RetryInspectionState> {
+        self.retry_state
+    }
+
+    #[must_use]
+    pub const fn retry_reason_code(&self) -> Option<&'static str> {
+        self.retry_reason_code
     }
 }
 

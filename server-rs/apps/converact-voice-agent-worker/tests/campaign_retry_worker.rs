@@ -3,8 +3,9 @@ use std::sync::{Arc, Mutex};
 use converact_ai_outbound_core::{AttemptCommand, CallAttempt, RetryCandidate, RetryPolicy};
 use converact_voice_agent_contracts::{CallAttemptId, ExecutionGeneration, IdempotencyKey};
 use converact_voice_agent_worker::{
-    AuthenticatedTenant, CampaignRetryRequest, CampaignRetryWorker, RetryDurabilityPort,
-    RetryPersistenceRequest, RetryWorkerDecision, RetryWorkerError, RetryWriteDecision,
+    AttemptResource, AuthenticatedTenant, CampaignRetryRequest, CampaignRetryWorker,
+    RetryDurabilityPort, RetryInspectionState, RetryPersistenceRequest, RetryWorkerDecision,
+    RetryWorkerError, RetryWriteDecision,
 };
 
 #[tokio::test]
@@ -132,6 +133,31 @@ fn retry_worker_has_no_telephony_or_media_authority() {
         assert!(
             !source.contains(forbidden),
             "unexpected authority {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn attempt_inspection_exposes_only_bounded_retry_state_and_reason() {
+    let exhausted =
+        AttemptResource::terminal_pending("campaign-001", "release-001", &no_answer_attempt())
+            .with_retry_decision(&RetryWorkerDecision::Exhausted);
+
+    assert_eq!(
+        exhausted.retry_state(),
+        Some(RetryInspectionState::Exhausted)
+    );
+    assert_eq!(
+        exhausted.retry_reason_code(),
+        Some("ai_outbound_retry_attempts_exhausted")
+    );
+    let json = serde_json::to_string(&exhausted).unwrap();
+    assert!(json.contains(r#""retry_state":"exhausted""#));
+    assert!(json.contains(r#""retry_reason_code":"ai_outbound_retry_attempts_exhausted""#));
+    for forbidden in ["destination", "transcript", "prompt", "credential"] {
+        assert!(
+            !json.contains(forbidden),
+            "leaked retry content {forbidden}"
         );
     }
 }

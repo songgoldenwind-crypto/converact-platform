@@ -49,7 +49,7 @@ pub use http::router;
 pub use lifecycle::{AdmissionReadiness, ShutdownToken, WorkerConfig, WorkerConfigError};
 pub use model::{
     AgentReleaseResource, AttemptResource, AuthenticatedTenant, CampaignResource, ModelError,
-    Outcome, PostCallState, WorkerResource,
+    Outcome, PostCallState, RetryInspectionState, WorkerResource,
 };
 pub use post_call_finalization::{
     ConversationFinalizationWorker, FinalizationBatchProgress, FinalizationProjectionPort,
