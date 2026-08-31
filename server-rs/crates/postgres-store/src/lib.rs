@@ -15,6 +15,7 @@ mod tool_action;
 
 pub use conversation_result::{
     PostgresConversationResultStore, PostgresConversationResultStoreError,
+    PostgresProjectionFinalizeDecision, PostgresProjectionPrepareDecision,
     PostgresProjectionWriteDecision, PostgresTranscriptAppendDecision,
 };
 pub use handoff::{

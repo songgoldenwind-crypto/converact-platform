@@ -37,3 +37,24 @@ fn conversation_result_store_construction_is_inert_and_redacts_runtime_topology(
     assert!(!debug.contains("do-not-print"));
     assert!(!debug.contains("user=result"));
 }
+
+#[test]
+fn result_projection_adapter_owns_atomic_prepare_and_finalize_transactions() {
+    let source = include_str!("../src/conversation_result.rs");
+
+    for required in [
+        "prepare_projection",
+        "finalize_result_projection",
+        "finalize_evaluation_projection",
+        "finalize_projection_not_applied",
+        "prepare_projection_command",
+        "finalize_projection_applied",
+        "persist_result",
+        "persist_evaluation",
+    ] {
+        assert!(
+            source.contains(required),
+            "missing adapter boundary {required}"
+        );
+    }
+}

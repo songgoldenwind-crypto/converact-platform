@@ -2,6 +2,8 @@
 
 #![forbid(unsafe_code)]
 
+mod conversation_projection;
+mod conversation_projection_postgres;
 mod handoff_runtime;
 mod http;
 mod lifecycle;
@@ -10,6 +12,14 @@ mod repository;
 mod tool_runtime;
 mod worker;
 
+pub use conversation_projection::{
+    ConversationEvaluationDurabilityPort, ConversationEvaluationProviderPort,
+    ConversationEvidenceDurabilityPort, ConversationProjectionDurabilityPort,
+    ConversationProjectionPortError, ConversationProjectionProviderPort,
+    ConversationProjectionRuntime, DurableProjectionPrepareDecision,
+    DurableProjectionWriteDecision, DurableTranscriptAppendDecision, EvaluationProjectionProgress,
+    ProjectionObservation, ResultProjectionProgress, TerminalEvidenceProgress,
+};
 pub use handoff_runtime::{
     AiResumeCommandIds, AiResumeRequest, ChannelAgentHandoffPort, DurableCreateDecision,
     DurablePrepareDecision, EffectObservation, GenerationCommit, HandoffDurabilityPort,

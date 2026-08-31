@@ -603,6 +603,8 @@ dependencies = [
  "converact-agent-handoff-store",
  "converact-ai-outbound-core",
  "converact-contracts",
+ "converact-conversation-result-core",
+ "converact-conversation-result-store",
  "converact-postgres-store",
  "converact-runtime-health",
  "converact-tenant-auth",

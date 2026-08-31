@@ -13,6 +13,8 @@ converact-agent-handoff-core = { path = "../../crates/agent-handoff-core" }
 converact-agent-handoff-store = { path = "../../crates/agent-handoff-store" }
 converact-ai-outbound-core = { path = "../../crates/ai-outbound-core" }
 converact-contracts = { path = "../../crates/contracts" }
+converact-conversation-result-core = { path = "../../crates/conversation-result-core" }
+converact-conversation-result-store = { path = "../../crates/conversation-result-store" }
 converact-postgres-store = { path = "../../crates/postgres-store" }
 converact-runtime-health = { path = "../../crates/runtime-health" }
 converact-tenant-auth = { path = "../../crates/tenant-auth" }

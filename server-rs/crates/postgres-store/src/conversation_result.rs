@@ -6,7 +6,8 @@ use converact_conversation_result_core::{
 };
 use converact_conversation_result_store::{
     ConversationResultSqlStore, ConversationResultStoreError, EvaluationProjectionWrite,
-    ProjectionWriteDecision, TranscriptAppendDecision,
+    ProjectionCommand, ProjectionCommandKind, ProjectionFinalizeDecision,
+    ProjectionPrepareDecision, ProjectionWriteDecision, TranscriptAppendDecision,
 };
 use converact_kernel_ids::TenantId;
 use converact_voice_agent_contracts::{BadCaseId, EnvelopeContext, ExecutionGeneration};
@@ -25,6 +26,25 @@ pub enum PostgresProjectionWriteDecision {
 pub enum PostgresTranscriptAppendDecision {
     Appended(TranscriptGenerationStatus),
     Replayed(TranscriptGenerationStatus),
+}
+
+/// Durable Provider effect-oracle decision before invocation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PostgresProjectionPrepareDecision {
+    Execute,
+    Query,
+    ReplayApplied,
+    ReplayNotApplied,
+    Conflict,
+}
+
+/// Durable Provider state-observed decision after invocation or query.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PostgresProjectionFinalizeDecision {
+    Applied,
+    NotApplied,
+    ReplayApplied,
+    ReplayNotApplied,
 }
 
 /// Sanitized tenant-transaction or conversation result Store failure.
@@ -58,6 +78,140 @@ impl PostgresConversationResultStore {
     #[must_use]
     pub const fn new(runtime: Arc<PostgresRuntime>, sql: ConversationResultSqlStore) -> Self {
         Self { runtime, sql }
+    }
+
+    /// Prepares one Provider projection before any external mutation.
+    ///
+    /// # Errors
+    ///
+    /// Returns only sanitized tenant, Store or transaction failure categories.
+    pub async fn prepare_projection(
+        &self,
+        tenant_id: &str,
+        command: &ProjectionCommand,
+    ) -> Result<PostgresProjectionPrepareDecision, PostgresConversationResultStoreError> {
+        let tenant = parse_tenant(tenant_id)?;
+        let tenant_id = tenant_id.to_owned();
+        let command = command.clone();
+        let sql = self.sql;
+        self.runtime
+            .with_tenant_transaction(&tenant, move |transaction| {
+                Box::pin(async move {
+                    sql.prepare_projection_command(transaction, &tenant_id, &command)
+                        .await
+                })
+            })
+            .await
+            .map(map_prepare_decision)
+            .map_err(map_transaction_error)
+    }
+
+    /// Atomically persists an applied result and its state-observed command receipt.
+    ///
+    /// # Errors
+    ///
+    /// Returns only sanitized validation, tenant, Store or transaction failure categories.
+    pub async fn finalize_result_projection(
+        &self,
+        command: &ProjectionCommand,
+        result: &ConversationResult,
+    ) -> Result<PostgresProjectionFinalizeDecision, PostgresConversationResultStoreError> {
+        validate_result_command(command, result, ProjectionCommandKind::PersistResult)?;
+        let tenant = tenant(result.context())?;
+        let tenant_id = result.context().tenant_id().to_owned();
+        let command = command.clone();
+        let result = result.clone();
+        let sql = self.sql;
+        self.runtime
+            .with_tenant_transaction(&tenant, move |transaction| {
+                Box::pin(async move {
+                    sql.persist_result(transaction, &result).await?;
+                    sql.finalize_projection_applied(
+                        transaction,
+                        &tenant_id,
+                        &command,
+                        result.id().as_str(),
+                        result.payload_hash(),
+                    )
+                    .await
+                })
+            })
+            .await
+            .map(map_finalize_decision)
+            .map_err(map_transaction_error)
+    }
+
+    /// Atomically persists an applied evaluation/Bad Case and its state-observed receipt.
+    ///
+    /// # Errors
+    ///
+    /// Returns only sanitized validation, tenant, Store or transaction failure categories.
+    pub async fn finalize_evaluation_projection(
+        &self,
+        command: &ProjectionCommand,
+        result: &ConversationResult,
+        evaluation: &Evaluation,
+        bad_case_id: Option<BadCaseId>,
+    ) -> Result<PostgresProjectionFinalizeDecision, PostgresConversationResultStoreError> {
+        validate_result_command(command, result, ProjectionCommandKind::PersistEvaluation)?;
+        let tenant = tenant(result.context())?;
+        let tenant_id = result.context().tenant_id().to_owned();
+        let command = command.clone();
+        let result = result.clone();
+        let evaluation = evaluation.clone();
+        let sql = self.sql;
+        self.runtime
+            .with_tenant_transaction(&tenant, move |transaction| {
+                Box::pin(async move {
+                    let write =
+                        EvaluationProjectionWrite::try_new(&result, &evaluation, bad_case_id)?;
+                    sql.persist_evaluation(transaction, &write).await?;
+                    sql.finalize_projection_applied(
+                        transaction,
+                        &tenant_id,
+                        &command,
+                        evaluation.id().as_str(),
+                        evaluation.payload_hash(),
+                    )
+                    .await
+                })
+            })
+            .await
+            .map(map_finalize_decision)
+            .map_err(map_transaction_error)
+    }
+
+    /// Atomically records a definitive non-applied Provider result.
+    ///
+    /// # Errors
+    ///
+    /// Returns only sanitized tenant, Store or transaction failure categories.
+    pub async fn finalize_projection_not_applied(
+        &self,
+        tenant_id: &str,
+        command: &ProjectionCommand,
+        failure_code: &str,
+    ) -> Result<PostgresProjectionFinalizeDecision, PostgresConversationResultStoreError> {
+        let tenant = parse_tenant(tenant_id)?;
+        let tenant_id = tenant_id.to_owned();
+        let command = command.clone();
+        let failure_code = failure_code.to_owned();
+        let sql = self.sql;
+        self.runtime
+            .with_tenant_transaction(&tenant, move |transaction| {
+                Box::pin(async move {
+                    sql.finalize_projection_not_applied(
+                        transaction,
+                        &tenant_id,
+                        &command,
+                        &failure_code,
+                    )
+                    .await
+                })
+            })
+            .await
+            .map(map_finalize_decision)
+            .map_err(map_transaction_error)
     }
 
     /// Appends or exactly replays one final transcript segment in a tenant transaction.
@@ -165,9 +319,30 @@ impl fmt::Debug for PostgresConversationResultStore {
 }
 
 fn tenant(context: &EnvelopeContext) -> Result<TenantId, PostgresConversationResultStoreError> {
-    TenantId::parse(context.tenant_id()).map_err(|_| PostgresConversationResultStoreError {
+    parse_tenant(context.tenant_id())
+}
+
+fn parse_tenant(value: &str) -> Result<TenantId, PostgresConversationResultStoreError> {
+    TenantId::parse(value).map_err(|_| PostgresConversationResultStoreError {
         code: "conversation_result_store_tenant_invalid",
     })
+}
+
+fn validate_result_command(
+    command: &ProjectionCommand,
+    result: &ConversationResult,
+    expected_kind: ProjectionCommandKind,
+) -> Result<(), PostgresConversationResultStoreError> {
+    if command.kind() != expected_kind
+        || command.interaction_id() != result.context().interaction_id()
+        || command.expected_result_revision() != Some(result.revision().get())
+        || command.expected_generation() != result.context().execution_generation()
+    {
+        return Err(PostgresConversationResultStoreError {
+            code: "conversation_projection_command_fence_invalid",
+        });
+    }
+    Ok(())
 }
 
 const fn map_projection_decision(
@@ -188,6 +363,37 @@ const fn map_append_decision(
         }
         TranscriptAppendDecision::Replay(status) => {
             PostgresTranscriptAppendDecision::Replayed(status)
+        }
+    }
+}
+
+const fn map_prepare_decision(
+    decision: ProjectionPrepareDecision,
+) -> PostgresProjectionPrepareDecision {
+    match decision {
+        ProjectionPrepareDecision::Execute => PostgresProjectionPrepareDecision::Execute,
+        ProjectionPrepareDecision::Query => PostgresProjectionPrepareDecision::Query,
+        ProjectionPrepareDecision::ReplayApplied => {
+            PostgresProjectionPrepareDecision::ReplayApplied
+        }
+        ProjectionPrepareDecision::ReplayNotApplied => {
+            PostgresProjectionPrepareDecision::ReplayNotApplied
+        }
+        ProjectionPrepareDecision::Conflict => PostgresProjectionPrepareDecision::Conflict,
+    }
+}
+
+const fn map_finalize_decision(
+    decision: ProjectionFinalizeDecision,
+) -> PostgresProjectionFinalizeDecision {
+    match decision {
+        ProjectionFinalizeDecision::Applied => PostgresProjectionFinalizeDecision::Applied,
+        ProjectionFinalizeDecision::NotApplied => PostgresProjectionFinalizeDecision::NotApplied,
+        ProjectionFinalizeDecision::ReplayApplied => {
+            PostgresProjectionFinalizeDecision::ReplayApplied
+        }
+        ProjectionFinalizeDecision::ReplayNotApplied => {
+            PostgresProjectionFinalizeDecision::ReplayNotApplied
         }
     }
 }
