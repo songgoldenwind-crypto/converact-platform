@@ -2,7 +2,8 @@
 
 > 日期：2026-08-31
 >
-> 状态：`accepted_design / controlled_tracer_bullet_passed / production_not_run`
+> 状态：`accepted_design / controlled_functional_slices_passed / physical_integrations_not_run /
+> production_not_run`
 >
 > 适用范围：Converact Engage、Converact Agent Runtime、Converact Fabric 电话通道
 >
@@ -757,6 +758,9 @@ Reconciler 查询：
   reuse 和有界进度查询已通过；物理 PostgreSQL 合并事务仍为 `not_run`；
 - 确定性终态的 Campaign 重试 Core、原子 Store 合同、Worker 编排和有界 inspection 已通过；
   物理 PostgreSQL、真实 Campaign/Contact writer 和真实重拨仍为 `not_run`；
+- Agent Release 发布、Campaign 创建/生命周期、1–500 Contact 导入与首个 Attempt 创建的
+  Core、Store SQL 合同和受权限 HTTP 边界已通过；具体 `CampaignAdminPort` 到
+  `PostgresRuntime` 组合、物理数据库和真实 UI/import 仍为 `not_run`；
 - Campaign/Agent dashboard、生产路由/授权接线、现有 TS API shadow parity、writer switch、
   drain/active-zero 与物理集成：`not_run`。
 
@@ -862,7 +866,9 @@ Reconciler 查询：
 Core/Store/Worker 与通用 Tool Adapter、D6 Handoff 以及 D7 Result/Quality 的 Rust
 Core/Store/Worker/API、D8 post-call finalization 的本地 Rust 切片均已有受控证据。这只证明
 `controlled_test_double` 与本地合同层。Campaign Scheduling & Retry 的 Core/Store/Worker
-本地切片也已通过，未知结果禁止重拨；物理事务和真实 Campaign 调度仍未证明。
+本地切片也已通过，未知结果禁止重拨；Campaign Authoring 的 Core、Store SQL 合同与
+权限化 HTTP 边界亦已通过。具体 PostgreSQL Runtime Adapter、物理事务和真实 Campaign
+调度仍未证明。
 物理 PostgreSQL、真实 RustPBX/Active Call/Speech、SIP/PSTN/媒体、真实 Tool/审批/模型供应商、
 生产路由授权、Dashboard、旧 writer 迁移、性能、容量和生产部署均保持 `not_run`，后续必须按
 独立 Evidence Gate 逐项推进。
@@ -880,6 +886,8 @@ Core/Store/Worker/API、D8 post-call finalization 的本地 Rust 切片均已有
 - [AI → Human → AI Handoff R1 实施计划](../plans/2026-08-31-ai-human-ai-handoff-r1.md)
 - [Conversation Result & Quality R1](./2026-08-31-conversation-result-quality-r1.md)
 - [Conversation Result & Quality R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-conversation-result-quality/README.md)
+- [Campaign Authoring R1 实施计划](../plans/2026-08-31-ai-outbound-campaign-authoring-r1.md)
+- [Campaign Authoring R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-campaign-authoring/README.md)
 
 ## 23. 变更记录
 
@@ -892,3 +900,4 @@ Core/Store/Worker/API、D8 post-call finalization 的本地 Rust 切片均已有
 | 2026-08-31 | R1 Result/Quality checkpoint | final transcript、snapshot、result、evaluation、Bad Case、durable reconcile、tenant PostgreSQL Adapter 与权限化 Rust API 已有本地受控证据；物理集成、旧 writer 迁移、UI 与生产仍为 `not_run` |
 | 2026-08-31 | R1 Post-call Finalization checkpoint | terminal/enqueue 受控原子失败语义、durable queue、独立 Worker、D7 projection reuse 与有界进度查询已有本地证据；物理 PostgreSQL 合并事务和真实通话仍为 `not_run` |
 | 2026-08-31 | R1 Campaign Retry checkpoint | 确定性失败重试、Attempt lineage、Campaign/Contact Gate、幂等 replay、unknown-outcome 禁止重拨和有界 inspection 已有本地证据；物理 PostgreSQL、真实 Campaign/通话与生产仍为 `not_run` |
+| 2026-08-31 | R1 Campaign Authoring checkpoint | Agent Release 发布、Campaign 创建/生命周期、批量 Contact 导入和初始 Attempt 的 Core、Store SQL 合同与权限化 HTTP 已有本地受控证据；具体 PostgreSQL Runtime 组合、真实 UI/通话与生产仍为 `not_run` |

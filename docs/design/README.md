@@ -16,7 +16,7 @@ Converact Agent Runtime / Converact Resolve`。本文导航的是已经迁入仓
 | 3 | [统一通信底座 R5](./unified-communication-foundation-r5.md) | SIP、Call、媒体、LiveKit、Speech channel、ViLTE 接口和性能资格 | `accepted architecture / target`；未证明项 `not_run` |
 | 4 | [R5 TDD 实施计划](./2026-07-31-unified-communication-foundation-r5-implementation-plan.md) | R5 通信实现顺序、测试、故障和 Evidence | `planned` |
 | 5 | [Resolve Assist Profile R1](./2026-07-31-ai-native-multimodal-resolution-platform-r1.md) | 首个 `resolution` Profile、Offer、Pilot、B1、ROI 和 Stop Gate | `retained_vertical_profile / proposed_for_profile_review` |
-| 6 | [AI 外呼与 Voice Agent 平台 R1](./2026-08-31-ai-outbound-active-call-platform-r1.md) | 行业通用 AI 外呼、Active Call 电话 Channel Agent、Campaign/Attempt/Tool/Handoff 权威和功能优先实施边界 | `accepted_design / controlled_tracer_bullet_passed / production_not_run` |
+| 6 | [AI 外呼与 Voice Agent 平台 R1](./2026-08-31-ai-outbound-active-call-platform-r1.md) | 行业通用 AI 外呼、Active Call 电话 Channel Agent、Campaign/Attempt/Tool/Handoff 权威和功能优先实施边界 | `accepted_design / controlled_functional_slices_passed / physical_integrations_not_run / production_not_run` |
 | 7 | [AI 外呼 Active Call Tracer Bullet R1 计划](../plans/2026-08-31-ai-outbound-active-call-tracer-bullet-r1.md) | Rust Agent/Campaign/Attempt、Active Call、RustPBX RWI、持久化与首条功能闭环的逐步 TDD 计划 | `planned` |
 | 8 | [AI 外呼 Tool Broker 与 Action Receipt R1](./2026-08-31-ai-outbound-tool-action-r1.md) | Tool Proposal、Policy/Approval、幂等 Action、Receipt、恢复和 generation fence | `controlled_core_and_worker_slice_passed / physical_integrations_not_run / production_not_run` |
 | 9 | [Tool Broker TDD 实施计划](../plans/2026-08-31-ai-outbound-tool-action-r1.md) | 独立 Rust Tool Broker、持久化 Adapter 与 Active Call Worker 接线 | `planned` |
@@ -27,7 +27,7 @@ Converact Agent Runtime / Converact Resolve`。本文导航的是已经迁入仓
 | 14 | [Conversation Result & Quality R1 计划](../plans/2026-08-31-conversation-result-quality-r1.md) | D7 Rust Core、Store、Worker 与 API 的精准 TDD 顺序 | `controlled_rust_slices_passed / migration_gates_not_run` |
 | 15 | [AI 外呼 Durable Post-call Finalization R1](../plans/2026-08-31-ai-outbound-post-call-finalization-r1.md) | 通话终态原子入库、异步结果/质检 job、reconcile 与故障隔离 | `controlled_rust_slices_passed / physical_atomic_transaction_not_run / production_not_run` |
 | 16 | [AI 外呼 Campaign Scheduling & Retry R1](../plans/2026-08-31-ai-outbound-campaign-scheduling-r1.md) | Campaign 联系人有界调度、确定性失败重试、Attempt 身份与 unknown-outcome 禁止重拨 | `controlled_core_store_worker_passed / physical_integrations_not_run / production_not_run` |
-| 17 | [AI 外呼 Campaign Authoring R1](../plans/2026-08-31-ai-outbound-campaign-authoring-r1.md) | Agent 发布、Campaign 创建/生命周期、Contact 批量导入与首个 Attempt 原子创建 | `accepted_execution_slice / implementation_not_run / production_not_run` |
+| 17 | [AI 外呼 Campaign Authoring R1](../plans/2026-08-31-ai-outbound-campaign-authoring-r1.md) | Agent 发布、Campaign 创建/生命周期、Contact 批量导入与首个 Attempt 原子创建 | `controlled_core_store_http_passed / concrete_postgres_runtime_adapter_not_run / production_not_run` |
 
 权威冲突时按领域裁决，而不是简单“新文件覆盖所有旧文件”：
 
@@ -119,3 +119,4 @@ flowchart TD
 | 2026-08-31 | Campaign Scheduling & Retry R1 | 固定只对确定性可重试终态创建新 Attempt、unknown/reconcile 禁止重拨、Campaign/Contact Gate 与精准测试顺序 |
 | 2026-08-31 | Campaign Scheduling & Retry R1 checkpoint | Rust Core/Store/Worker 与有界 Attempt inspection 已有本地受控证据；物理 PostgreSQL、真实 Campaign/通话和生产仍为 `not_run` |
 | 2026-08-31 | Campaign Authoring R1 | 固定同一 Rust 进程内独立 Admin 权限边界、幂等 receipt、Agent/Campaign/Contact/首个 Attempt 原子写入与精准 TDD 顺序 |
+| 2026-08-31 | Campaign Authoring R1 checkpoint | Rust Core、Store SQL 合同与受权限 HTTP 边界已有本地受控证据；具体 PostgreSQL Runtime 组合、真实 UI/通话与生产仍为 `not_run` |

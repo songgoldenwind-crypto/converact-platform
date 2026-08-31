@@ -2,6 +2,9 @@
 
 > **For agentic workers:** Execute inline with repository TDD rules. Do not use subagents,
 > servers, Docker, broad regression suites or performance tests.
+>
+> **Status:** `controlled_core_store_http_slices_passed / concrete_postgres_runtime_adapter_not_run /
+> production_not_run`
 
 **Goal:** Make the approved Rust AI-outbound model callable for immutable Agent publication,
 Campaign creation/lifecycle and bounded Contact import that atomically creates the first physical
@@ -69,8 +72,9 @@ Approaches considered:
 - Modify `server-rs/crates/ai-outbound-core/src/lib.rs`: exports and stable errors.
 - Create `src/migrations/130_converact_outbound_admin_receipts.sql` and mirror it in
   `src/schema.sql`: content-free receipt, RLS, immutable history and least privilege.
-- Modify `server-rs/crates/ai-outbound-store/src/postgres.rs`: publish, create, import and transition
-  commands inside caller-owned tenant transactions.
+- Create `server-rs/crates/ai-outbound-store/src/authoring.rs`: publish, create, replay preflight,
+  import and transition commands inside caller-owned tenant transactions. Modify `postgres.rs`
+  only for stable Store errors.
 - Create `server-rs/crates/ai-outbound-store/tests/authoring_contract.rs`: exact SQL authority and
   no-PII receipt contract.
 - Extend the ignored `server-rs/crates/ai-outbound-store/tests/postgres.rs` harness only for physical
@@ -86,48 +90,50 @@ Approaches considered:
 
 ## 4. Task 1 — Core authoring commands
 
-- [ ] Write failing `authoring.rs` tests for a valid 500-item boundary, a rejected 501-item batch,
+- [x] Write failing `authoring.rs` tests for a valid 500-item boundary, a rejected 501-item batch,
   duplicate Contact/Attempt/Interaction identity, malformed destination/consent/retention, and a
   `Debug` representation without destination.
-- [ ] Run `cargo test -p converact-ai-outbound-core --test authoring`; observe the missing API.
-- [ ] Implement `CampaignSchedule`, `RecordingMode`, `CreateCampaign`, `ImportContact`,
+- [x] Run `cargo test -p converact-ai-outbound-core --test authoring`; observe the missing API.
+- [x] Implement `CampaignSchedule`, `RecordingMode`, `CreateCampaign`, `ImportContact`,
   `ImportContacts`, `CampaignTransition` and their canonical request hashes.
-- [ ] Keep validation linear and bounded with no global state or external calls.
-- [ ] Run only Core authoring plus existing Campaign/Agent tests; format, Clippy and commit exact
+- [x] Keep validation linear and bounded with no global state or external calls.
+- [x] Run only Core authoring plus existing Campaign/Agent tests; format, Clippy and commit exact
   Core files.
 
 ## 5. Task 2 — Receipt migration and Store commands
 
-- [ ] Write failing schema/Store contract tests requiring RLS, immutable content-free receipts,
+- [x] Write failing schema/Store contract tests requiring RLS, immutable content-free receipts,
   exact Release binding, atomic Contact+Attempt insert, Campaign-state gate and revision CAS.
-- [ ] Add migration 130 and the matching development schema section without switching any writer.
-- [ ] Implement Store commands/results for publish/create/import/transition. The caller owns the
+- [x] Add migration 130 and the matching development schema section without switching any writer.
+- [x] Implement Store commands/results for publish/create/import/transition. The caller owns the
   transaction and deadline; Store never logs request bodies.
-- [ ] Make replay classification compare idempotency key, command kind and canonical request hash.
-- [ ] Compile but do not execute physical PostgreSQL tests; run only schema and authoring contract
+- [x] Make replay classification compare idempotency key, command kind and canonical request hash.
+- [x] Compile but do not execute physical PostgreSQL tests; run only schema and authoring contract
   tests, scoped formatting and Clippy, then commit exact Store/migration files.
 
 ## 6. Task 3 — Rust Admin port and HTTP vertical slice
 
-- [ ] Write failing HTTP tests for authentication, explicit write capability, idempotency header,
+- [x] Write failing HTTP tests for authentication, explicit write capability, idempotency header,
   Agent publish, Campaign create, 2-contact import, lifecycle transition and exact replay.
-- [ ] Require JSON body limits and 1–500 contacts before invoking the port. Map invalid/conflict/
+- [x] Require JSON body limits and 1–500 contacts before invoking the port. Map invalid/conflict/
   missing/stale/unavailable to stable 400/409/404/412/503 responses.
-- [ ] Return only Release/Campaign IDs, content hash, Campaign state/revision, accepted count and
+- [x] Return only Release/Campaign IDs, content hash, Campaign state/revision, accepted count and
   replay flag. Never return destination or consent details.
-- [ ] Prove source has no SIP, media, Active Call or real-time Agent authority imports.
-- [ ] Run only the new HTTP test plus existing five internal HTTP tests; format, Clippy and commit
+- [x] Prove source has no SIP, media, Active Call or real-time Agent authority imports.
+- [x] Run only the new HTTP test plus existing five internal HTTP tests; format, Clippy and commit
   exact Worker files.
 
 ## 7. Evidence and completion boundary
 
-- [ ] Record exact commit/toolchain/test counts and update canonical navigation/status/manifest
+- [x] Record exact commit/toolchain/test counts and update canonical navigation/status/manifest
   hashes.
-- [ ] Keep physical PostgreSQL, production auth composition, real Campaign UI/import file, legacy
+- [x] Keep physical PostgreSQL, production auth composition, real Campaign UI/import file, legacy
   TypeScript writer shadow/switch, real RustPBX/Active Call call, performance and production
   deployment `not_run`.
-- [ ] Commit only clean evidence/status files.
+- [x] Commit only clean evidence/status files.
 
-R1 is locally complete when the three focused layers prove all ten frozen behaviors. It is not
-production eligible until the physical PostgreSQL transaction, production capability middleware,
-real UI/import workflow and real call path have direct evidence.
+The three focused layers now prove the ten frozen behaviors at local contract and controlled-test
+double level. The Store SQL is real, but no concrete `CampaignAdminPort` to `PostgresRuntime`
+composition has been activated, so physical transaction behavior remains `not_run`. R1 is not
+production eligible until that adapter, the physical PostgreSQL transaction, production capability
+middleware, real UI/import workflow and real call path have direct evidence.
