@@ -11,4 +11,4 @@ pub use client::{
     ClientFailureKind, CommandAccepted,
 };
 pub use command::{AdapterCommand, encode_command};
-pub use mapper::{AdapterContext, AdapterError, NormalizedEvent, normalize_event};
+pub use mapper::{AdapterContext, AdapterError, DtmfDigit, NormalizedEvent, normalize_event};

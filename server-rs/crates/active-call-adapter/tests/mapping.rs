@@ -68,3 +68,120 @@ fn tool_arguments_and_identifiers_are_bounded() {
         "active_call_identifier_invalid",
     );
 }
+
+#[test]
+fn exact_realtime_control_fixtures_preserve_active_call_capabilities() {
+    let context = adapter_context(7);
+
+    let speaking = normalize_event(&context, include_str!("fixtures/speaking.json")).unwrap();
+    assert!(matches!(
+        speaking,
+        NormalizedEvent::SpeechStarted {
+            start_time_ms: 1_640_995_199_500,
+            is_filler: false,
+            confidence: Some(confidence),
+            ..
+        } if (confidence - 0.95).abs() < 0.000_1
+    ));
+    assert!(!speaking.is_durable());
+    assert_eq!(speaking.execution_generation().get(), 7);
+
+    let eou = normalize_event(&context, include_str!("fixtures/eou.json")).unwrap();
+    assert!(matches!(
+        eou,
+        NormalizedEvent::UtteranceEnded {
+            completed: true,
+            ..
+        }
+    ));
+    assert!(!eou.is_durable());
+    let debug = format!("{eou:?}");
+    assert!(!debug.contains("private subtitle position"));
+    assert!(!debug.contains("private utterance"));
+
+    let interruption =
+        normalize_event(&context, include_str!("fixtures/interruption.json")).unwrap();
+    assert!(matches!(
+        interruption,
+        NormalizedEvent::PlaybackInterrupted {
+            total_duration_ms: 30_000,
+            elapsed_ms: 15_000,
+            ..
+        }
+    ));
+    assert!(interruption.is_durable());
+    let debug = format!("{interruption:?}");
+    assert!(!debug.contains("private prompt text"));
+    assert!(!debug.contains("media.example.invalid"));
+    assert!(!debug.contains("secret"));
+
+    let dtmf = normalize_event(&context, include_str!("fixtures/dtmf.json")).unwrap();
+    let NormalizedEvent::DtmfInput { digit, .. } = &dtmf else {
+        panic!("expected DTMF input");
+    };
+    assert_eq!(digit.as_char(), '1');
+    assert_eq!(format!("{digit:?}"), "DtmfDigit([REDACTED])");
+    assert!(!dtmf.is_durable());
+
+    let hold = normalize_event(&context, include_str!("fixtures/hold.json")).unwrap();
+    assert!(matches!(
+        hold,
+        NormalizedEvent::HoldChanged { on_hold: true, .. }
+    ));
+    assert!(hold.is_durable());
+
+    let inactivity = normalize_event(&context, include_str!("fixtures/inactivity.json")).unwrap();
+    assert!(matches!(
+        inactivity,
+        NormalizedEvent::InactivityDetected { .. }
+    ));
+    assert!(inactivity.is_durable());
+}
+
+#[test]
+fn realtime_control_values_fail_closed() {
+    for invalid_digit in ["", "12", "a", "X"] {
+        let wire = format!(
+            r#"{{"event":"dtmf","trackId":"track-001","timestamp":1,"digit":"{invalid_digit}"}}"#
+        );
+        assert_eq!(
+            normalize_event(&adapter_context(3), &wire)
+                .unwrap_err()
+                .code(),
+            "active_call_dtmf_invalid"
+        );
+    }
+
+    let impossible_timing = r#"{"event":"interruption","trackId":"track-001","timestamp":1,"totalDuration":100,"current":101}"#;
+    assert_eq!(
+        normalize_event(&adapter_context(3), impossible_timing)
+            .unwrap_err()
+            .code(),
+        "active_call_playback_timing_invalid"
+    );
+
+    let zero_duration = r#"{"event":"interruption","trackId":"track-001","timestamp":1,"totalDuration":0,"current":0}"#;
+    assert_eq!(
+        normalize_event(&adapter_context(3), zero_duration)
+            .unwrap_err()
+            .code(),
+        "active_call_playback_timing_invalid"
+    );
+
+    let invalid_confidence = r#"{"event":"speaking","trackId":"track-001","timestamp":2,"startTime":1,"confidence":1.1}"#;
+    assert_eq!(
+        normalize_event(&adapter_context(3), invalid_confidence)
+            .unwrap_err()
+            .code(),
+        "active_call_confidence_invalid"
+    );
+
+    let reversed_timing =
+        r#"{"event":"speaking","trackId":"track-001","timestamp":1,"startTime":2}"#;
+    assert_eq!(
+        normalize_event(&adapter_context(3), reversed_timing)
+            .unwrap_err()
+            .code(),
+        "active_call_timestamp_invalid"
+    );
+}

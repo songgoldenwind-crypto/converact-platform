@@ -18,6 +18,24 @@ pub struct AdapterContext {
     authority: EnvelopeContext,
 }
 
+/// One validated keypad symbol without accidental log disclosure.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub struct DtmfDigit(char);
+
+impl DtmfDigit {
+    /// Returns the digit only to the explicit real-time input consumer.
+    #[must_use]
+    pub const fn as_char(self) -> char {
+        self.0
+    }
+}
+
+impl fmt::Debug for DtmfDigit {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("DtmfDigit([REDACTED])")
+    }
+}
+
 impl AdapterContext {
     /// Creates a context from previously validated authority fields.
     #[must_use]
@@ -56,6 +74,44 @@ pub enum NormalizedEvent {
         text: Box<str>,
         confidence: Option<f32>,
     },
+    SpeechStarted {
+        authority: EnvelopeContext,
+        track_id: Box<str>,
+        timestamp_ms: u64,
+        start_time_ms: u64,
+        is_filler: bool,
+        confidence: Option<f32>,
+    },
+    UtteranceEnded {
+        authority: EnvelopeContext,
+        track_id: Box<str>,
+        timestamp_ms: u64,
+        completed: bool,
+    },
+    PlaybackInterrupted {
+        authority: EnvelopeContext,
+        track_id: Box<str>,
+        timestamp_ms: u64,
+        total_duration_ms: u32,
+        elapsed_ms: u32,
+    },
+    DtmfInput {
+        authority: EnvelopeContext,
+        track_id: Box<str>,
+        timestamp_ms: u64,
+        digit: DtmfDigit,
+    },
+    HoldChanged {
+        authority: EnvelopeContext,
+        track_id: Box<str>,
+        timestamp_ms: u64,
+        on_hold: bool,
+    },
+    InactivityDetected {
+        authority: EnvelopeContext,
+        track_id: Box<str>,
+        timestamp_ms: u64,
+    },
     ToolProposed {
         authority: EnvelopeContext,
         track_id: Box<str>,
@@ -80,10 +136,16 @@ impl NormalizedEvent {
         self.authority().execution_generation()
     }
 
-    /// Final transcripts and effect proposals are durable; deltas are transient UI data.
+    /// Content-free state observations are durable; raw real-time controls stay transient.
     #[must_use]
     pub const fn is_durable(&self) -> bool {
-        !matches!(self, Self::TranscriptDelta { .. })
+        !matches!(
+            self,
+            Self::TranscriptDelta { .. }
+                | Self::SpeechStarted { .. }
+                | Self::UtteranceEnded { .. }
+                | Self::DtmfInput { .. }
+        )
     }
 
     const fn authority(&self) -> &EnvelopeContext {
@@ -91,6 +153,12 @@ impl NormalizedEvent {
             Self::MediaReady { authority, .. }
             | Self::TranscriptFinal { authority, .. }
             | Self::TranscriptDelta { authority, .. }
+            | Self::SpeechStarted { authority, .. }
+            | Self::UtteranceEnded { authority, .. }
+            | Self::PlaybackInterrupted { authority, .. }
+            | Self::DtmfInput { authority, .. }
+            | Self::HoldChanged { authority, .. }
+            | Self::InactivityDetected { authority, .. }
             | Self::ToolProposed { authority, .. }
             | Self::ConversationCompleted { authority, .. } => authority,
         }
@@ -108,6 +176,8 @@ pub enum AdapterError {
     InvalidTimestamp,
     InvalidTranscript,
     InvalidConfidence,
+    InvalidDtmf,
+    InvalidPlaybackTiming,
     InvalidToolName,
     InvalidToolArguments,
     InvalidTimeText,
@@ -126,6 +196,8 @@ impl AdapterError {
             Self::InvalidTimestamp => "active_call_timestamp_invalid",
             Self::InvalidTranscript => "active_call_transcript_invalid",
             Self::InvalidConfidence => "active_call_confidence_invalid",
+            Self::InvalidDtmf => "active_call_dtmf_invalid",
+            Self::InvalidPlaybackTiming => "active_call_playback_timing_invalid",
             Self::InvalidToolName => "active_call_tool_name_invalid",
             Self::InvalidToolArguments => "active_call_tool_arguments_invalid",
             Self::InvalidTimeText => "active_call_time_text_invalid",
@@ -160,7 +232,17 @@ pub fn normalize_event(
         .ok_or(AdapterError::InvalidEvent)?;
     if !matches!(
         event_name,
-        "mediaReady" | "asrFinal" | "asrDelta" | "functionCall" | "hangup"
+        "mediaReady"
+            | "asrFinal"
+            | "asrDelta"
+            | "speaking"
+            | "eou"
+            | "interruption"
+            | "dtmf"
+            | "hold"
+            | "inactivity"
+            | "functionCall"
+            | "hangup"
     ) {
         return Err(AdapterError::UnknownEvent);
     }
@@ -177,11 +259,7 @@ fn map_event(
         UpstreamEvent::MediaReady {
             track_id,
             timestamp,
-        } => Ok(NormalizedEvent::MediaReady {
-            authority: context.authority.clone(),
-            track_id: bounded_identifier(track_id)?,
-            timestamp_ms: valid_timestamp(timestamp)?,
-        }),
+        } => map_media_ready(context, track_id, timestamp),
         UpstreamEvent::AsrFinal {
             track_id,
             timestamp,
@@ -216,6 +294,40 @@ fn map_event(
                 confidence,
             },
         ),
+        UpstreamEvent::Speaking {
+            track_id,
+            timestamp,
+            start_time,
+            is_filler,
+            confidence,
+        } => map_speech_started(
+            context, track_id, timestamp, start_time, is_filler, confidence,
+        ),
+        UpstreamEvent::Eou {
+            track_id,
+            timestamp,
+            completed,
+        } => map_utterance_ended(context, track_id, timestamp, completed),
+        UpstreamEvent::Interruption {
+            track_id,
+            timestamp,
+            total_duration,
+            current,
+        } => map_playback_interrupted(context, track_id, timestamp, total_duration, current),
+        UpstreamEvent::Dtmf {
+            track_id,
+            timestamp,
+            digit,
+        } => map_dtmf_input(context, track_id, timestamp, &digit),
+        UpstreamEvent::Hold {
+            track_id,
+            timestamp,
+            on_hold,
+        } => map_hold_changed(context, track_id, timestamp, on_hold),
+        UpstreamEvent::Inactivity {
+            track_id,
+            timestamp,
+        } => map_inactivity(context, track_id, timestamp),
         UpstreamEvent::FunctionCall {
             track_id,
             call_id,
@@ -243,6 +355,114 @@ fn map_event(
             hangup_time: bounded_time_text(hangup_time)?,
         }),
     }
+}
+
+fn map_media_ready(
+    context: &AdapterContext,
+    track_id: String,
+    timestamp: u64,
+) -> Result<NormalizedEvent, AdapterError> {
+    Ok(NormalizedEvent::MediaReady {
+        authority: context.authority.clone(),
+        track_id: bounded_identifier(track_id)?,
+        timestamp_ms: valid_timestamp(timestamp)?,
+    })
+}
+
+fn map_speech_started(
+    context: &AdapterContext,
+    track_id: String,
+    timestamp: u64,
+    start_time: u64,
+    is_filler: Option<bool>,
+    confidence: Option<f32>,
+) -> Result<NormalizedEvent, AdapterError> {
+    let timestamp_ms = valid_timestamp(timestamp)?;
+    let start_time_ms = valid_timestamp(start_time)?;
+    if start_time_ms > timestamp_ms {
+        return Err(AdapterError::InvalidTimestamp);
+    }
+    Ok(NormalizedEvent::SpeechStarted {
+        authority: context.authority.clone(),
+        track_id: bounded_identifier(track_id)?,
+        timestamp_ms,
+        start_time_ms,
+        is_filler: is_filler.unwrap_or(false),
+        confidence: valid_confidence(confidence)?,
+    })
+}
+
+fn map_utterance_ended(
+    context: &AdapterContext,
+    track_id: String,
+    timestamp: u64,
+    completed: bool,
+) -> Result<NormalizedEvent, AdapterError> {
+    Ok(NormalizedEvent::UtteranceEnded {
+        authority: context.authority.clone(),
+        track_id: bounded_identifier(track_id)?,
+        timestamp_ms: valid_timestamp(timestamp)?,
+        completed,
+    })
+}
+
+fn map_playback_interrupted(
+    context: &AdapterContext,
+    track_id: String,
+    timestamp: u64,
+    total_duration: u32,
+    current: u32,
+) -> Result<NormalizedEvent, AdapterError> {
+    if total_duration == 0 || current > total_duration {
+        return Err(AdapterError::InvalidPlaybackTiming);
+    }
+    Ok(NormalizedEvent::PlaybackInterrupted {
+        authority: context.authority.clone(),
+        track_id: bounded_identifier(track_id)?,
+        timestamp_ms: valid_timestamp(timestamp)?,
+        total_duration_ms: total_duration,
+        elapsed_ms: current,
+    })
+}
+
+fn map_dtmf_input(
+    context: &AdapterContext,
+    track_id: String,
+    timestamp: u64,
+    digit: &str,
+) -> Result<NormalizedEvent, AdapterError> {
+    Ok(NormalizedEvent::DtmfInput {
+        authority: context.authority.clone(),
+        track_id: bounded_identifier(track_id)?,
+        timestamp_ms: valid_timestamp(timestamp)?,
+        digit: valid_dtmf(digit)?,
+    })
+}
+
+fn map_hold_changed(
+    context: &AdapterContext,
+    track_id: String,
+    timestamp: u64,
+    on_hold: bool,
+) -> Result<NormalizedEvent, AdapterError> {
+    Ok(NormalizedEvent::HoldChanged {
+        authority: context.authority.clone(),
+        track_id: bounded_identifier(track_id)?,
+        timestamp_ms: valid_timestamp(timestamp)?,
+        on_hold,
+    })
+}
+
+fn map_inactivity(
+    context: &AdapterContext,
+    track_id: String,
+    timestamp: u64,
+) -> Result<NormalizedEvent, AdapterError> {
+    Ok(NormalizedEvent::InactivityDetected {
+        authority: context.authority.clone(),
+        track_id: bounded_identifier(track_id)?,
+        timestamp_ms: valid_timestamp(timestamp)?,
+    })
 }
 
 #[derive(Clone, Copy)]
@@ -324,6 +544,15 @@ fn valid_confidence(value: Option<f32>) -> Result<Option<f32>, AdapterError> {
         return Err(AdapterError::InvalidConfidence);
     }
     Ok(value)
+}
+
+fn valid_dtmf(value: &str) -> Result<DtmfDigit, AdapterError> {
+    let mut characters = value.chars();
+    let digit = characters.next().ok_or(AdapterError::InvalidDtmf)?;
+    if characters.next().is_some() || !matches!(digit, '0'..='9' | '*' | '#' | 'A'..='D') {
+        return Err(AdapterError::InvalidDtmf);
+    }
+    Ok(DtmfDigit(digit))
 }
 
 fn bounded_tool_name(value: String) -> Result<Box<str>, AdapterError> {

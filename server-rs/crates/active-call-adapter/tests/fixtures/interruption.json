@@ -1,0 +1,1 @@
+{"event":"interruption","trackId":"track-tts-001","timestamp":1640995215000,"playId":"https://media.example.invalid/private.wav?token=secret","subtitle":"private prompt text","position":5,"totalDuration":30000,"current":15000}
