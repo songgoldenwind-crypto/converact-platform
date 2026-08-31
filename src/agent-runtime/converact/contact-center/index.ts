@@ -1,4 +1,5 @@
 export * from './canonical.js';
+export * from './ai-outbound-compat.js';
 export * from './callback-service.js';
 export * from './callback-runtime.js';
 export * from './configuration-ports.js';
