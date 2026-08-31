@@ -3401,3 +3401,56 @@ CREATE INDEX IF NOT EXISTS idx_converact_conversation_bad_case_queue
 CREATE INDEX IF NOT EXISTS idx_converact_conversation_projection_claim
   ON converact_conversation_projection_commands (tenant_id, prepared_at, command_id)
   WHERE command_state = 'prepared';
+
+-- ===== Converact durable post-call finalization (SQLite development mirror) =====
+
+CREATE TABLE IF NOT EXISTS converact_post_call_finalization_jobs (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  job_id TEXT NOT NULL,
+  interaction_id TEXT NOT NULL,
+  call_attempt_id TEXT NOT NULL,
+  agent_release_id TEXT NOT NULL,
+  execution_generation INTEGER NOT NULL CHECK (execution_generation > 0),
+  retention_policy_ref TEXT NOT NULL,
+  payload_hash TEXT NOT NULL CHECK (length(payload_hash) = 64),
+  state TEXT NOT NULL CHECK (state IN ('pending', 'claimed', 'reconcile_required', 'completed')),
+  resolution TEXT CHECK (resolution IS NULL OR resolution IN ('projected', 'incomplete')),
+  revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
+  lease_owner TEXT NOT NULL DEFAULT '',
+  lease_token_hash TEXT NOT NULL DEFAULT '',
+  lease_expires_at TEXT,
+  enqueued_at TEXT NOT NULL,
+  completed_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, job_id),
+  UNIQUE (tenant_id, call_attempt_id),
+  FOREIGN KEY (tenant_id, call_attempt_id)
+    REFERENCES converact_outbound_call_attempts(tenant_id, id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id, agent_release_id)
+    REFERENCES converact_agent_releases(tenant_id, id) ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS converact_post_call_finalization_receipts (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  receipt_id TEXT NOT NULL,
+  job_id TEXT NOT NULL,
+  call_attempt_id TEXT NOT NULL,
+  stage TEXT NOT NULL CHECK (stage IN ('enqueued', 'state_observed')),
+  receipt_digest TEXT NOT NULL CHECK (length(receipt_digest) = 64),
+  payload_hash TEXT NOT NULL CHECK (length(payload_hash) = 64),
+  resolution TEXT CHECK (resolution IS NULL OR resolution IN ('projected', 'incomplete')),
+  observed_revision INTEGER NOT NULL CHECK (observed_revision > 0),
+  observed_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, receipt_id),
+  UNIQUE (tenant_id, job_id, stage),
+  FOREIGN KEY (tenant_id, job_id)
+    REFERENCES converact_post_call_finalization_jobs(tenant_id, job_id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id, call_attempt_id)
+    REFERENCES converact_outbound_call_attempts(tenant_id, id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_converact_post_call_finalization_claim
+  ON converact_post_call_finalization_jobs (tenant_id, enqueued_at, job_id)
+  WHERE state IN ('pending', 'claimed', 'reconcile_required');

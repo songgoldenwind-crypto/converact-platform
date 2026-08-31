@@ -494,6 +494,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "converact-post-call-finalization-store"
+version = "0.1.0"
+dependencies = [
+ "converact-contracts",
+ "converact-kernel-ids",
+ "converact-post-call-finalization-core",
+ "converact-voice-agent-contracts",
+ "serde_json",
+ "tokio-postgres",
+]
+
+[[package]]
 name = "converact-postgres-store"
 version = "0.1.0"
 dependencies = [

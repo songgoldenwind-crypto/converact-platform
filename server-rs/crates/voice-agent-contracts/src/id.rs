@@ -127,6 +127,7 @@ voice_agent_id!(BadCaseId);
 voice_agent_id!(ResultProjectionCommandId);
 voice_agent_id!(ResultProjectionReceiptId);
 voice_agent_id!(ConversationFinalizationJobId);
+voice_agent_id!(ConversationFinalizationReceiptId);
 
 /// Positive generation that fences stale channel-agent commands and events.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]

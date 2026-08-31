@@ -13,10 +13,10 @@ pub use event::EventEnvelope;
 pub use id::{
     ActionReceiptId, AgentDefinitionId, AgentReleaseId, ApprovalId, BadCaseId, CallAttemptId,
     CallId, CampaignContactId, CampaignId, ChannelAgentSessionId, ContextPacketId,
-    ConversationFinalizationJobId, ConversationResultId, EvaluationId, EvaluationRubricRevisionId,
-    EventId, ExecutionGeneration, HandoffCommandId, HandoffId, HandoffReceiptId, HumanLegId,
-    IdempotencyKey, IdentityError, InteractionId, OutcomeSchemaRevisionId,
-    ResultProjectionCommandId, ResultProjectionReceiptId, ToolCallId, ToolRevisionId,
-    TranscriptSegmentId, TranscriptSnapshotId,
+    ConversationFinalizationJobId, ConversationFinalizationReceiptId, ConversationResultId,
+    EvaluationId, EvaluationRubricRevisionId, EventId, ExecutionGeneration, HandoffCommandId,
+    HandoffId, HandoffReceiptId, HumanLegId, IdempotencyKey, IdentityError, InteractionId,
+    OutcomeSchemaRevisionId, ResultProjectionCommandId, ResultProjectionReceiptId, ToolCallId,
+    ToolRevisionId, TranscriptSegmentId, TranscriptSnapshotId,
 };
 pub use state::{AgentReleaseState, CallAttemptState, CampaignState};
