@@ -1,7 +1,9 @@
 use converact_contracts::canonical_sha256_with_max_bytes;
-use converact_tool_broker_core::{ToolProposal, ToolProposalInput};
+use converact_tool_broker_core::{
+    ApprovalGrant, ApprovalGrantInput, ToolProposal, ToolProposalInput,
+};
 use converact_voice_agent_contracts::{
-    AgentReleaseId, CallAttemptId, CampaignContactId, CampaignId, EnvelopeContext,
+    AgentReleaseId, ApprovalId, CallAttemptId, CampaignContactId, CampaignId, EnvelopeContext,
     EnvelopeContextInput, ExecutionGeneration, InteractionId, ToolCallId, ToolRevisionId,
     VOICE_AGENT_SCHEMA_VERSION,
 };
@@ -33,6 +35,25 @@ pub fn proposal() -> ToolProposal {
         arguments,
         requested_at_ms: 1_000,
         deadline_ms: 10_000,
+    })
+    .unwrap()
+}
+
+#[allow(dead_code)] // Each integration-test crate compiles this shared support independently.
+pub fn approval(proposal: &ToolProposal) -> ApprovalGrant {
+    ApprovalGrant::try_new(ApprovalGrantInput {
+        approval_id: ApprovalId::parse("approval-001").unwrap(),
+        tenant_id: proposal.context().tenant_id().to_owned(),
+        interaction_id: proposal.context().interaction_id().clone(),
+        call_attempt_id: proposal.context().call_attempt_id().clone(),
+        execution_generation: proposal.context().execution_generation(),
+        tool_revision_id: proposal.tool_revision_id().clone(),
+        tool_call_id: proposal.tool_call_id().clone(),
+        tool_schema_hash: proposal.tool_schema_hash().to_owned(),
+        arguments_hash: proposal.arguments_hash().to_owned(),
+        issued_at_ms: 1_500,
+        expires_at_ms: 9_000,
+        revoked: false,
     })
     .unwrap()
 }

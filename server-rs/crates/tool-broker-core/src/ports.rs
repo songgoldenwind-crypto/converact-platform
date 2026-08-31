@@ -1,6 +1,9 @@
 use std::future::Future;
 
-use crate::{ApprovalGrant, ToolDefinition, ToolProposal};
+use crate::{
+    ActionObservation, ActionReceipt, ApprovalGrant, AuthorizedToolAction, PrepareDecision,
+    ToolDefinition, ToolProposal,
+};
 
 /// Closed Policy result. Callers cannot invent a weaker interpretation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -60,4 +63,34 @@ pub trait ApprovalPort {
         &self,
         proposal: &ToolProposal,
     ) -> impl Future<Output = Result<Option<ApprovalGrant>, ToolPortError>> + Send;
+}
+
+/// Durable Action authority. Its atomic `prepare` result is the only execute permission.
+pub trait ToolActionStorePort {
+    fn prepare(
+        &self,
+        action: &AuthorizedToolAction,
+        now_ms: u64,
+    ) -> impl Future<Output = Result<PrepareDecision, ToolPortError>> + Send;
+
+    /// Atomically persists completed + state-observed evidence and its result projection.
+    fn finalize(
+        &self,
+        action: &AuthorizedToolAction,
+        observation: ActionObservation,
+        now_ms: u64,
+    ) -> impl Future<Output = Result<ActionReceipt, ToolPortError>> + Send;
+}
+
+/// Deployment-registered Rust Adapter. No method accepts an arbitrary URL or Secret.
+pub trait ToolActionPort {
+    fn execute(
+        &self,
+        action: &AuthorizedToolAction,
+    ) -> impl Future<Output = Result<ActionObservation, ToolPortError>> + Send;
+
+    fn query(
+        &self,
+        action: &AuthorizedToolAction,
+    ) -> impl Future<Output = Result<ActionObservation, ToolPortError>> + Send;
 }
