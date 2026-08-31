@@ -31,6 +31,7 @@ async fn failed_atomic_completion_leaves_no_attempt_projection_or_orphan_job() {
     assert_eq!(error.code(), "voice_agent_repository_unavailable");
     assert!(!app.has_attempt("tenant-a", "attempt-001"));
     assert_eq!(app.finalization_job_count(), 0);
+    assert_eq!(app.orchestrator_attempt_state().as_str(), "conversing");
 }
 
 #[tokio::test]

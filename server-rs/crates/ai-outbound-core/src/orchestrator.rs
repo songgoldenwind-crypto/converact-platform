@@ -71,7 +71,9 @@ where
     /// Advances one planned Attempt through the tracer-bullet happy path.
     ///
     /// Each external mutation has a durable intent before it is issued. An indeterminate
-    /// mutation result is persisted as `outcome_unknown` and is never retried here.
+    /// mutation result is persisted as `outcome_unknown` and is never retried here. The returned
+    /// terminal aggregate is deliberately not written through [`AttemptStorePort`]; the caller
+    /// must commit it together with the required post-call work in one atomic repository boundary.
     ///
     /// # Errors
     ///
@@ -242,7 +244,6 @@ where
         }
         attempt = transition(&attempt, AttemptCommand::Finalize)?;
         attempt = transition(&attempt, AttemptCommand::Complete)?;
-        self.store.persist_observation(&attempt).await?;
         Ok(attempt)
     }
 

@@ -24,8 +24,8 @@ use converact_contracts::health::{
 };
 use converact_runtime_health::RuntimeHealth;
 use converact_voice_agent_contracts::{
-    AgentDefinitionId, AgentReleaseId, CallAttemptId, CallId, CampaignId, ChannelAgentSessionId,
-    IdempotencyKey,
+    AgentDefinitionId, AgentReleaseId, CallAttemptId, CallAttemptState, CallId, CampaignId,
+    ChannelAgentSessionId, IdempotencyKey,
 };
 use converact_voice_agent_worker::{
     AdmissionReadiness, AgentReleaseResource, AttemptResource, AuthenticatedTenant,
@@ -191,6 +191,10 @@ impl TestWorker {
             .unwrap()
             .finalization_jobs
             .len()
+    }
+
+    pub fn orchestrator_attempt_state(&self) -> CallAttemptState {
+        self.state.lock().unwrap().attempt.state()
     }
 }
 

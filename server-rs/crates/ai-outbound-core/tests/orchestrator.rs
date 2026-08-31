@@ -6,7 +6,10 @@ use support::Harness;
 #[tokio::test]
 async fn reserve_precedes_dial_and_disclosure_precedes_conversation() {
     let harness = Harness::new();
-    harness.run_one_attempt().await.unwrap();
+    let terminal = harness.run_one_attempt().await.unwrap();
+
+    assert_eq!(terminal.state(), CallAttemptState::Completed);
+    assert_eq!(harness.attempt_state(), CallAttemptState::Conversing);
 
     assert_eq!(
         harness.operations(),
@@ -21,7 +24,6 @@ async fn reserve_precedes_dial_and_disclosure_precedes_conversation() {
             "agent.disclosure_completed",
             "agent.start_conversation",
             "rustpbx.terminal",
-            "outcome.finalize",
         ],
     );
 }
