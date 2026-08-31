@@ -25,7 +25,7 @@ Converact Agent Runtime / Converact Resolve`。本文导航的是已经迁入仓
 | 12 | [AI → Human → AI Handoff R1 计划](../plans/2026-08-31-ai-human-ai-handoff-r1.md) | D6 Rust Core、Store、Worker 的精准 TDD 顺序 | `controlled_slice_passed / real_integrations_not_run` |
 | 13 | [Conversation Result & Quality R1](./2026-08-31-conversation-result-quality-r1.md) | final transcript、outcome、evaluation、Bad Case 与异步故障隔离 | `controlled_rust_core_store_worker_api_passed / physical_integrations_not_run / production_not_run` |
 | 14 | [Conversation Result & Quality R1 计划](../plans/2026-08-31-conversation-result-quality-r1.md) | D7 Rust Core、Store、Worker 与 API 的精准 TDD 顺序 | `controlled_rust_slices_passed / migration_gates_not_run` |
-| 15 | [AI 外呼 Durable Post-call Finalization R1](../plans/2026-08-31-ai-outbound-post-call-finalization-r1.md) | 通话终态原子入库、异步结果/质检 job、reconcile 与故障隔离 | `accepted_plan / implementation_not_run / production_not_run` |
+| 15 | [AI 外呼 Durable Post-call Finalization R1](../plans/2026-08-31-ai-outbound-post-call-finalization-r1.md) | 通话终态原子入库、异步结果/质检 job、reconcile 与故障隔离 | `controlled_rust_slices_passed / physical_atomic_transaction_not_run / production_not_run` |
 
 权威冲突时按领域裁决，而不是简单“新文件覆盖所有旧文件”：
 
@@ -113,3 +113,4 @@ flowchart TD
 | 2026-08-31 | Conversation Result & Quality R1 | 固定 final-only transcript、版本化 outcome、rubric 复算、Bad Case 派生和异步故障隔离 |
 | 2026-08-31 | Conversation Result & Quality R1 checkpoint | Rust Core、Store、durable projection reconcile、PostgreSQL tenant adapter 与受权限查询 API 已有本地受控证据；物理集成、旧 writer 迁移与生产仍为 `not_run` |
 | 2026-08-31 | Durable Post-call Finalization R1 | 固定通话终态与异步 transcript/result/evaluation 的原子 settlement、durable job、租约和 reconcile 边界 |
+| 2026-08-31 | Durable Post-call Finalization R1 checkpoint | Rust Core/Store/Worker/API 与受控原子失败语义已有本地证据；物理 PostgreSQL 合并事务、真实通话与生产仍为 `not_run` |

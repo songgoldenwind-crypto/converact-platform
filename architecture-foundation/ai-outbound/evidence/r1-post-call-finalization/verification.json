@@ -1,0 +1,96 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-08-31",
+  "evidence_class": [
+    "local_contract",
+    "controlled_test_double"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "commit": "09b542467f9edbc79a3a446158c24882795b1c1c",
+    "tree": "473806d6ce34fcca568844073719dc5acd0ba001"
+  },
+  "environment": {
+    "os": "Darwin 25.2.0 arm64",
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)",
+    "command_path_prefix": "/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin:/Users/songjinfeng/.cargo/bin",
+    "rustc_path": "/Users/songjinfeng/.rustup/toolchains/1.94.1-aarch64-apple-darwin/bin/rustc"
+  },
+  "commands": [
+    {
+      "id": "ai_outbound_terminal_orchestration",
+      "working_directory": "server-rs",
+      "command": "cargo +1.94.1 test -p converact-ai-outbound-core --test orchestrator",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "id": "post_call_core_and_store",
+      "working_directory": "server-rs",
+      "command": "cargo +1.94.1 test -p converact-post-call-finalization-core -p converact-post-call-finalization-store",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 8,
+      "failed": 0
+    },
+    {
+      "id": "post_call_postgres_adapter",
+      "working_directory": "server-rs",
+      "command": "cargo +1.94.1 test -p converact-postgres-store --test post_call_finalization_store_contract",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 2,
+      "failed": 0
+    },
+    {
+      "id": "post_call_worker_closure",
+      "working_directory": "server-rs",
+      "command": "cargo +1.94.1 test -p converact-voice-agent-worker --test tracer_bullet --test post_call_finalization_worker --test conversation_projection_runtime --test postgres_finalization_queue_port --test http",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 19,
+      "failed": 0
+    },
+    {
+      "id": "post_call_scoped_clippy",
+      "working_directory": "server-rs",
+      "command": "cargo +1.94.1 clippy -p converact-ai-outbound-core -p converact-post-call-finalization-core -p converact-post-call-finalization-store -p converact-postgres-store -p converact-voice-agent-worker --all-targets -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "post_call_scoped_format",
+      "working_directory": "server-rs",
+      "command": "cargo +1.94.1 fmt -p converact-ai-outbound-core -p converact-post-call-finalization-core -p converact-post-call-finalization-store -p converact-postgres-store -p converact-voice-agent-worker -- --check",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "not_run": [
+    "physical_postgresql_combined_terminal_attempt_and_enqueue_transaction",
+    "physical_postgresql_migration_rls_trigger_lease_crash_recovery",
+    "production_voice_agent_repository_and_authorization_router",
+    "real_active_call_rustpbx_speech_sip_pstn_media_cdr_recording",
+    "real_result_evaluation_provider_and_human_review",
+    "legacy_typescript_writer_switch_drain_active_zero_deletion",
+    "browser_campaign_agent_dashboard_operations",
+    "performance",
+    "capacity",
+    "long_run",
+    "fault_campaign",
+    "independent_code_review",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_read": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}

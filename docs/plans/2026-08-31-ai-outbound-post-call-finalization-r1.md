@@ -1,6 +1,6 @@
 # AI Outbound durable post-call finalization R1
 
-> Status: `accepted_plan / implementation_not_run / production_not_run`
+> Status: `controlled_rust_slices_passed / physical_atomic_transaction_not_run / production_not_run`
 >
 > Date: 2026-08-31
 >
@@ -12,11 +12,11 @@ completed telephone interaction into a failed or repeated dial.
 
 ## 1. Current defect and target boundary
 
-The controlled `VoiceAgentWorker` currently waits for a simplified `ConversationEvidencePort`
-before saving the completed Attempt. That was sufficient for the first tracer bullet, but is not the
-target architecture: if evidence retrieval fails after hangup, the Worker returns an error and the
-completed Attempt projection is not saved. A later scheduler could misclassify the work and retry a
-physical dial.
+The initial controlled `VoiceAgentWorker` waited for a simplified `ConversationEvidencePort`
+before saving the completed Attempt. That was sufficient for the first tracer bullet, but was not
+the target architecture: if evidence retrieval failed after hangup, the Worker returned an error
+and the completed Attempt projection was not saved. A later scheduler could misclassify the work
+and retry a physical dial.
 
 R1 replaces that coupling with this durable sequence:
 
@@ -158,3 +158,19 @@ Use only focused Rust tests, formatting and Clippy for the touched packages. Do 
 do not connect to or modify a server, do not run performance tests, and do not start a TypeScript
 rewrite. The code slice is not production eligible until physical PostgreSQL, real authorization,
 real Active Call/Speech/RustPBX input, fault recovery and writer migration have direct evidence.
+
+## 7. Implementation checkpoint
+
+The local Rust checkpoint at `09b542467f9edbc79a3a446158c24882795b1c1c` implements the bounded
+job model, additive schema, SQL queue, tenant transaction adapters, independent Finalization
+Worker, D7 projection reuse and bounded inspection progress. The terminal aggregate is no longer
+persisted through the intermediate `AttemptStorePort`; only the repository
+`complete_attempt_and_enqueue` boundary may publish terminal progress. Its controlled failure test
+proves that neither a terminal projection nor an orphan job is written when that boundary rejects
+the commit.
+
+This checkpoint does **not** prove the combined terminal-Attempt update and enqueue against a
+physical PostgreSQL transaction. A concrete PostgreSQL `VoiceAgentRepository`, isolated database
+execution, real authorization/router wiring and real call evidence remain `not_run`. Exact local
+commands and evidence limits are recorded in
+[R1 Post-call Finalization evidence](../../architecture-foundation/ai-outbound/evidence/r1-post-call-finalization/README.md).
