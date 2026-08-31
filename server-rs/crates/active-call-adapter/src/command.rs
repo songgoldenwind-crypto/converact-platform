@@ -4,11 +4,15 @@ use crate::AdapterError;
 
 const MAX_DISCLOSURE_BYTES: usize = 4_096;
 const MAX_PLAY_ID_BYTES: usize = 255;
+const MAX_FADE_OUT_MS: u32 = 2_000;
 
 /// Safe subset of commands emitted to the private Active Call process.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AdapterCommand {
     PlayDisclosure { text: String, play_id: String },
+    InterruptOutput { fade_out_ms: Option<u32> },
+    PauseOutput,
+    ResumeOutput,
 }
 
 /// Encodes one validated command using the pinned Active Call camel-case wire shape.
@@ -35,6 +39,21 @@ pub fn encode_command(command: AdapterCommand) -> Result<Value, AdapterError> {
                 "autoHangup": false,
             }))
         }
+        AdapterCommand::InterruptOutput { fade_out_ms } => {
+            if fade_out_ms.is_some_and(|duration| duration > MAX_FADE_OUT_MS) {
+                return Err(AdapterError::InvalidPlaybackTiming);
+            }
+            let mut payload = json!({
+                "command": "interrupt",
+                "graceful": false,
+            });
+            if let Some(duration) = fade_out_ms {
+                payload["fadeOutMs"] = json!(duration);
+            }
+            Ok(payload)
+        }
+        AdapterCommand::PauseOutput => Ok(json!({ "command": "pause" })),
+        AdapterCommand::ResumeOutput => Ok(json!({ "command": "resume" })),
     }
 }
 

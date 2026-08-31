@@ -29,3 +29,45 @@ fn disclosure_rejects_empty_or_unbounded_content() {
         .is_err()
     );
 }
+
+#[test]
+fn handoff_output_controls_use_the_exact_safe_command_subset() {
+    assert_eq!(
+        encode_command(AdapterCommand::PauseOutput).unwrap(),
+        serde_json::json!({"command": "pause"})
+    );
+    assert_eq!(
+        encode_command(AdapterCommand::ResumeOutput).unwrap(),
+        serde_json::json!({"command": "resume"})
+    );
+    assert_eq!(
+        encode_command(AdapterCommand::InterruptOutput {
+            fade_out_ms: Some(80),
+        })
+        .unwrap(),
+        serde_json::json!({
+            "command": "interrupt",
+            "graceful": false,
+            "fadeOutMs": 80,
+        })
+    );
+    assert_eq!(
+        encode_command(AdapterCommand::InterruptOutput { fade_out_ms: None }).unwrap(),
+        serde_json::json!({
+            "command": "interrupt",
+            "graceful": false,
+        })
+    );
+}
+
+#[test]
+fn output_control_rejects_an_unbounded_fade() {
+    assert_eq!(
+        encode_command(AdapterCommand::InterruptOutput {
+            fade_out_ms: Some(2_001),
+        })
+        .unwrap_err()
+        .code(),
+        "active_call_playback_timing_invalid"
+    );
+}
