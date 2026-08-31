@@ -112,6 +112,10 @@ voice_agent_id!(ToolRevisionId);
 voice_agent_id!(ToolCallId);
 voice_agent_id!(ApprovalId);
 voice_agent_id!(ActionReceiptId);
+voice_agent_id!(HandoffId);
+voice_agent_id!(HandoffCommandId);
+voice_agent_id!(ContextPacketId);
+voice_agent_id!(HumanLegId);
 
 /// Positive generation that fences stale channel-agent commands and events.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]

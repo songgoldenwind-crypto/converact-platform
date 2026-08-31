@@ -140,6 +140,12 @@ impl EnvelopeContext {
         &self.call_attempt_id
     }
 
+    /// Returns the established `RustPBX` Call binding when one exists.
+    #[must_use]
+    pub const fn call_id(&self) -> Option<&CallId> {
+        self.call_id.as_ref()
+    }
+
     /// Returns the immutable Agent Release authority binding.
     #[must_use]
     pub const fn agent_release_id(&self) -> &AgentReleaseId {

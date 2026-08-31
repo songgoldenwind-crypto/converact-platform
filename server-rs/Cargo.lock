@@ -244,6 +244,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "converact-agent-handoff-core"
+version = "0.1.0"
+dependencies = [
+ "converact-voice-agent-contracts",
+ "serde",
+]
+
+[[package]]
 name = "converact-agent-tool-adapters"
 version = "0.1.0"
 dependencies = [
