@@ -117,6 +117,12 @@ voice_agent_id!(HandoffCommandId);
 voice_agent_id!(HandoffReceiptId);
 voice_agent_id!(ContextPacketId);
 voice_agent_id!(HumanLegId);
+voice_agent_id!(TranscriptSegmentId);
+voice_agent_id!(ConversationResultId);
+voice_agent_id!(OutcomeSchemaRevisionId);
+voice_agent_id!(EvaluationId);
+voice_agent_id!(EvaluationRubricRevisionId);
+voice_agent_id!(BadCaseId);
 
 /// Positive generation that fences stale channel-agent commands and events.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
