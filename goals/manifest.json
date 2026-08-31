@@ -21,7 +21,7 @@
     },
     {
       "path": "docs/design/README.md",
-      "sha256": "4eebddfccb7a6eab2d700e28c3584b428e27276694ebd229e26567f90703a04e",
+      "sha256": "87e2dfc6939f4af49179315db45887baf83ba83237f5156a0d6b678afdb81d05",
       "kind": "context"
     },
     {
@@ -77,6 +77,11 @@
     {
       "path": "docs/plans/2026-08-31-ai-outbound-campaign-scheduling-r1.md",
       "sha256": "b3bdd39921ee932a78681d06cb483768e4a6dc4333012289c82c47a106be2226",
+      "kind": "plan"
+    },
+    {
+      "path": "docs/plans/2026-08-31-ai-outbound-campaign-authoring-r1.md",
+      "sha256": "26cd95a4ece67b88d8d9985151728529dd937575ea49a61bfdeeef2cdf9c7dc9",
       "kind": "plan"
     },
     {
