@@ -850,6 +850,7 @@ Reconciler 查询：
 - [统一平台范围 R2](./2026-07-31-ai-native-multimodal-communications-execution-platform-r2.md)
 - [Active Call source lock](../../infra/converact/active-call/source-lock.json)
 - [Active Call upstream notice](../../infra/converact/active-call/UPSTREAM.md)
+- [AI 外呼 Active Call Tracer Bullet R1 实施计划](../plans/2026-08-31-ai-outbound-active-call-tracer-bullet-r1.md)
 
 ## 23. 变更记录
 

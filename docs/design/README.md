@@ -17,6 +17,7 @@ Converact Agent Runtime / Converact Resolve`。本文导航的是已经迁入仓
 | 4 | [R5 TDD 实施计划](./2026-07-31-unified-communication-foundation-r5-implementation-plan.md) | R5 通信实现顺序、测试、故障和 Evidence | `planned` |
 | 5 | [Resolve Assist Profile R1](./2026-07-31-ai-native-multimodal-resolution-platform-r1.md) | 首个 `resolution` Profile、Offer、Pilot、B1、ROI 和 Stop Gate | `retained_vertical_profile / proposed_for_profile_review` |
 | 6 | [AI 外呼与 Voice Agent 平台 R1](./2026-08-31-ai-outbound-active-call-platform-r1.md) | 行业通用 AI 外呼、Active Call 电话 Channel Agent、Campaign/Attempt/Tool/Handoff 权威和功能优先实施边界 | `accepted_design / implementation_not_started` |
+| 7 | [AI 外呼 Active Call Tracer Bullet R1 计划](../plans/2026-08-31-ai-outbound-active-call-tracer-bullet-r1.md) | Rust Agent/Campaign/Attempt、Active Call、RustPBX RWI、持久化与首条功能闭环的逐步 TDD 计划 | `planned` |
 
 权威冲突时按领域裁决，而不是简单“新文件覆盖所有旧文件”：
 

@@ -21,13 +21,18 @@
     },
     {
       "path": "docs/design/README.md",
-      "sha256": "c8bd102fa1fa8eb60a8590ed5bc1cf022b25b9be7f67863c67ceb6f8bad44019",
+      "sha256": "ef7d93441026cc8c43439924e30c5047d248d01a1975d2a1c357db19f1ed3eed",
       "kind": "context"
     },
     {
       "path": "docs/design/2026-08-31-ai-outbound-active-call-platform-r1.md",
-      "sha256": "74718dbb1c558155699533d30cfd770d7873c5f0d553cfc801845e02eb4c06c1",
+      "sha256": "2dcae100ada40e88c7d9fbf24bc59014757acd9c997be58798d432de6b1c79b6",
       "kind": "design"
+    },
+    {
+      "path": "docs/plans/2026-08-31-ai-outbound-active-call-tracer-bullet-r1.md",
+      "sha256": "f1f58f220e9498b70119ea7d33fe26773719df9bc59f9798d88d9d7a8dd96c84",
+      "kind": "plan"
     },
     {
       "path": "infra/converact/active-call/UPSTREAM.md",
