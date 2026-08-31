@@ -2,6 +2,7 @@
 members = [
   "apps/converact-api",
   "apps/converact-migration-tool",
+  "apps/converact-voice-agent-worker",
   "crates/active-call-adapter",
   "crates/audit",
   "crates/ai-outbound-core",

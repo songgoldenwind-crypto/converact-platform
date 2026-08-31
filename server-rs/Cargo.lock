@@ -511,6 +511,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "converact-voice-agent-worker"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "converact-ai-outbound-core",
+ "converact-contracts",
+ "converact-runtime-health",
+ "converact-tenant-auth",
+ "converact-voice-agent-contracts",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tower",
+]
+
+[[package]]
 name = "core-foundation"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
