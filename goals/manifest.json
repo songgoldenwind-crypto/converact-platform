@@ -1,7 +1,7 @@
 {
   "program_id": "converact-architecture-foundation-goals",
-  "manifest_version": "2.0.0",
-  "generated_date": "2026-07-31",
+  "manifest_version": "2.1.0",
+  "generated_date": "2026-08-31",
   "program_status": "not_started",
   "active_goal": null,
   "hash_algorithm": "SHA-256",
@@ -21,8 +21,23 @@
     },
     {
       "path": "docs/design/README.md",
-      "sha256": "130115f7962c2a898e5ca38d19ceccb23b707e795be1ff602d35f4a1358955db",
+      "sha256": "c8bd102fa1fa8eb60a8590ed5bc1cf022b25b9be7f67863c67ceb6f8bad44019",
       "kind": "context"
+    },
+    {
+      "path": "docs/design/2026-08-31-ai-outbound-active-call-platform-r1.md",
+      "sha256": "74718dbb1c558155699533d30cfd770d7873c5f0d553cfc801845e02eb4c06c1",
+      "kind": "design"
+    },
+    {
+      "path": "infra/converact/active-call/UPSTREAM.md",
+      "sha256": "4db9d9ddae51e5f860851deff380eab654dce190fe828419566beec12b4ef91a",
+      "kind": "source_notice"
+    },
+    {
+      "path": "infra/converact/active-call/source-lock.json",
+      "sha256": "ddc2578fc2ff10b71dc0da6ea433be3ad5107f01c499a115654b4b2e88f38f58",
+      "kind": "source_lock"
     },
     {
       "path": "docs/design/2026-07-31-ai-native-multimodal-communications-execution-platform-r2.md",
@@ -86,7 +101,7 @@
     },
     {
       "path": "docs/capacity/contracts/unified-voice-foundation-r4-v1.json",
-      "sha256": "0079307be54fcc99bd030cfbbdfc8f63ee97f1fa1861df5f15bda4026d58b79d",
+      "sha256": "6f362e2cce60019a3c7dc5b480fc5cf347b29117c7e27d23421ed79bcb757fd1",
       "kind": "contract"
     },
     {
@@ -106,7 +121,7 @@
     },
     {
       "path": "docs/capacity/schemas/unified-voice-foundation-r4.schema.json",
-      "sha256": "ce71f4d37644efc5575fe3b8abb52e555905f7e2b99f1471815c836368c81d37",
+      "sha256": "dd787396db453b5a764e3a6d7bf54476ed9509ab2ac5d485a19d47407cfe1372",
       "kind": "schema"
     },
     {

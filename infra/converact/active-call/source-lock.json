@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0.0",
+  "component_id": "active-call",
+  "integration_role": "sip-pstn-channel-agent",
+  "upstream": {
+    "repository": "https://github.com/miuda-ai/active-call",
+    "version": "0.3.83",
+    "release_ref": "main@6224d948cc0941ac48b4a5426477aeaf639c2e98",
+    "commit": "6224d948cc0941ac48b4a5426477aeaf639c2e98",
+    "tree": "9521ad341fb992ba6d491eb217983df8cf85d2cf",
+    "commit_signature": "unsigned",
+    "archive_url": "https://codeload.github.com/miuda-ai/active-call/tar.gz/6224d948cc0941ac48b4a5426477aeaf639c2e98",
+    "archive_sha256": "324096251975fdb70cea3c9b574526559d3d960645e252b56721ba3c3393040c",
+    "archive_size_bytes": 4612983,
+    "git_archive_sha256": "e831159885c47dbb60494105443384776f97f358bb78c302f5a2c17006d478b7",
+    "tracked_files": 239,
+    "cargo_toml_sha256": "2f81e6ca53f1379f2d0e3d565e93c9be8231fc3c1cf66d3ca4324580df3a4f7a",
+    "readme_sha256": "af2c15c3687b6e81e2ddda298ac0b8a5cd57385d82bd4cbae4495b2115b51ea2",
+    "license_declared": "MIT",
+    "license_file_present": false,
+    "cargo_lock_present": false
+  },
+  "qualification": {
+    "source_identity": "pinned",
+    "source_download": "verified",
+    "dependency_closure": "not_run",
+    "license_review": "not_run",
+    "build": "not_run",
+    "tests": "not_run",
+    "runtime_integration": "not_run",
+    "production_eligible": false
+  }
+}
