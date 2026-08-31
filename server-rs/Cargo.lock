@@ -360,6 +360,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "converact-conversation-result-store"
+version = "0.1.0"
+dependencies = [
+ "converact-contracts",
+ "converact-conversation-result-core",
+ "converact-voice-agent-contracts",
+ "serde_json",
+ "tokio-postgres",
+]
+
+[[package]]
 name = "converact-event-log"
 version = "0.1.0"
 dependencies = [

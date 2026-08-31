@@ -3250,3 +3250,154 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_converact_agent_handoff_applied_revision
 CREATE INDEX IF NOT EXISTS idx_converact_agent_handoff_reconcile_claim
   ON converact_agent_handoff_commands (tenant_id, prepared_at, command_id)
   WHERE command_state = 'prepared';
+
+CREATE TABLE IF NOT EXISTS converact_conversation_transcript_segments (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  segment_id TEXT NOT NULL,
+  interaction_id TEXT NOT NULL,
+  call_attempt_id TEXT NOT NULL,
+  agent_release_id TEXT NOT NULL,
+  source_event_id TEXT NOT NULL,
+  execution_generation INTEGER NOT NULL CHECK (execution_generation > 0),
+  segment_sequence INTEGER NOT NULL CHECK (segment_sequence > 0),
+  speaker TEXT NOT NULL,
+  language TEXT NOT NULL,
+  transcript_text TEXT NOT NULL,
+  start_offset_ms INTEGER NOT NULL CHECK (start_offset_ms >= 0),
+  end_offset_ms INTEGER NOT NULL CHECK (end_offset_ms >= start_offset_ms),
+  observed_at TEXT NOT NULL,
+  retention_policy_ref TEXT NOT NULL,
+  payload_hash TEXT NOT NULL CHECK (length(payload_hash) = 64),
+  historical INTEGER NOT NULL DEFAULT 0 CHECK (historical IN (0, 1)),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, segment_id),
+  UNIQUE (tenant_id, interaction_id, source_event_id),
+  UNIQUE (tenant_id, interaction_id, execution_generation, segment_sequence)
+);
+
+CREATE TABLE IF NOT EXISTS converact_conversation_snapshots (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  snapshot_id TEXT NOT NULL,
+  interaction_id TEXT NOT NULL,
+  call_attempt_id TEXT NOT NULL,
+  agent_release_id TEXT NOT NULL,
+  snapshot_revision INTEGER NOT NULL CHECK (snapshot_revision > 0),
+  transcript_snapshot_digest TEXT NOT NULL CHECK (length(transcript_snapshot_digest) = 64),
+  segment_count INTEGER NOT NULL CHECK (segment_count >= 0),
+  max_execution_generation INTEGER NOT NULL CHECK (max_execution_generation > 0),
+  call_terminal_observed INTEGER NOT NULL,
+  agent_terminal_observed INTEGER NOT NULL,
+  transcript_terminal_observed INTEGER NOT NULL,
+  payload_hash TEXT NOT NULL CHECK (length(payload_hash) = 64),
+  frozen_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, snapshot_id),
+  UNIQUE (tenant_id, interaction_id, snapshot_revision)
+);
+
+CREATE TABLE IF NOT EXISTS converact_conversation_results (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  result_id TEXT NOT NULL,
+  interaction_id TEXT NOT NULL,
+  call_attempt_id TEXT NOT NULL,
+  agent_release_id TEXT NOT NULL,
+  result_revision INTEGER NOT NULL CHECK (result_revision > 0),
+  outcome_schema_revision_id TEXT NOT NULL,
+  transcript_snapshot_digest TEXT NOT NULL CHECK (length(transcript_snapshot_digest) = 64),
+  summary_artifact_ref TEXT NOT NULL,
+  intent_code TEXT NOT NULL,
+  disposition_code TEXT NOT NULL,
+  outcome_code TEXT NOT NULL,
+  confidence_bps INTEGER NOT NULL CHECK (confidence_bps BETWEEN 0 AND 10000),
+  attributes TEXT NOT NULL CHECK (json_valid(attributes) AND json_type(attributes) = 'object'),
+  payload_hash TEXT NOT NULL CHECK (length(payload_hash) = 64),
+  created_at TEXT NOT NULL,
+  recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, result_id),
+  UNIQUE (tenant_id, interaction_id, result_revision)
+);
+
+CREATE TABLE IF NOT EXISTS converact_conversation_evaluations (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  evaluation_id TEXT NOT NULL,
+  interaction_id TEXT NOT NULL,
+  result_id TEXT NOT NULL,
+  result_revision INTEGER NOT NULL CHECK (result_revision > 0),
+  evaluator_release_id TEXT NOT NULL,
+  evaluation_rubric_revision_id TEXT NOT NULL,
+  dimension_scores TEXT NOT NULL CHECK (json_valid(dimension_scores)),
+  evidence_segment_ids TEXT NOT NULL CHECK (json_valid(evidence_segment_ids)),
+  violation_codes TEXT NOT NULL CHECK (json_valid(violation_codes)),
+  overall_score_bps INTEGER NOT NULL CHECK (overall_score_bps BETWEEN 0 AND 10000),
+  quality_grade TEXT NOT NULL CHECK (quality_grade IN ('pass', 'warn', 'fail')),
+  bad_case_reasons TEXT NOT NULL CHECK (json_valid(bad_case_reasons)),
+  payload_hash TEXT NOT NULL CHECK (length(payload_hash) = 64),
+  created_at TEXT NOT NULL,
+  recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, evaluation_id),
+  UNIQUE (tenant_id, result_id, evaluation_rubric_revision_id)
+);
+
+CREATE TABLE IF NOT EXISTS converact_conversation_bad_cases (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  bad_case_id TEXT NOT NULL,
+  interaction_id TEXT NOT NULL,
+  evaluation_id TEXT NOT NULL,
+  bad_case_reasons TEXT NOT NULL CHECK (json_valid(bad_case_reasons)),
+  review_state TEXT NOT NULL CHECK (review_state IN ('pending', 'reviewed', 'dismissed')),
+  payload_hash TEXT NOT NULL CHECK (length(payload_hash) = 64),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, bad_case_id),
+  UNIQUE (tenant_id, evaluation_id)
+);
+
+CREATE TABLE IF NOT EXISTS converact_conversation_projection_commands (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  command_id TEXT NOT NULL,
+  interaction_id TEXT NOT NULL,
+  command_kind TEXT NOT NULL,
+  payload_hash TEXT NOT NULL CHECK (length(payload_hash) = 64),
+  expected_result_revision INTEGER,
+  expected_execution_generation INTEGER NOT NULL,
+  command_state TEXT NOT NULL CHECK (command_state IN ('prepared', 'state_observed')),
+  resolution TEXT,
+  failure_code TEXT,
+  observed_entity_id TEXT,
+  observed_payload_hash TEXT,
+  lease_owner TEXT NOT NULL DEFAULT '',
+  lease_token_hash TEXT NOT NULL DEFAULT '',
+  lease_expires_at TEXT,
+  prepared_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  state_observed_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, command_id)
+);
+
+CREATE TABLE IF NOT EXISTS converact_conversation_projection_receipts (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  receipt_id TEXT NOT NULL,
+  command_id TEXT NOT NULL,
+  interaction_id TEXT NOT NULL,
+  stage TEXT NOT NULL CHECK (stage IN ('prepared', 'state_observed')),
+  receipt_digest TEXT NOT NULL CHECK (length(receipt_digest) = 64),
+  resolution TEXT,
+  failure_code TEXT,
+  observed_entity_id TEXT,
+  observed_payload_hash TEXT,
+  observed_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, receipt_id),
+  UNIQUE (tenant_id, command_id, stage)
+);
+
+CREATE INDEX IF NOT EXISTS idx_converact_conversation_transcript_order
+  ON converact_conversation_transcript_segments (
+    tenant_id, interaction_id, execution_generation, segment_sequence
+  );
+CREATE INDEX IF NOT EXISTS idx_converact_conversation_bad_case_queue
+  ON converact_conversation_bad_cases (tenant_id, review_state, created_at, bad_case_id);
+CREATE INDEX IF NOT EXISTS idx_converact_conversation_projection_claim
+  ON converact_conversation_projection_commands (tenant_id, prepared_at, command_id)
+  WHERE command_state = 'prepared';
