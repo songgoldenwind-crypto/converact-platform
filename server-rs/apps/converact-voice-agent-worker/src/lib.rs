@@ -2,6 +2,7 @@
 
 #![forbid(unsafe_code)]
 
+mod active_call_handoff;
 mod campaign_admin;
 mod campaign_admin_http;
 mod campaign_retry;
@@ -21,6 +22,7 @@ mod repository;
 mod tool_runtime;
 mod worker;
 
+pub use active_call_handoff::ActiveCallHandoffPort;
 pub use campaign_admin::{
     AdminMutationResource, CampaignAdminAccess, CampaignAdminError, CampaignAdminPort,
 };

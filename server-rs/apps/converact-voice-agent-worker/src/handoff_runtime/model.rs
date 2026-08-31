@@ -226,6 +226,7 @@ pub struct GenerationCommit {
     tenant_id: Box<str>,
     handoff_id: HandoffId,
     call_id: CallId,
+    ai_session_id: ChannelAgentSessionId,
     owner: ControlOwner,
     generation: ExecutionGeneration,
     idempotency_key: HandoffCommandId,
@@ -240,6 +241,7 @@ impl GenerationCommit {
             tenant_id: handoff.context().tenant_id().into(),
             handoff_id: handoff.id().clone(),
             call_id: handoff.call_id().clone(),
+            ai_session_id: handoff.ai_session_id().clone(),
             owner: handoff.owner(),
             generation: handoff.execution_generation(),
             idempotency_key,
@@ -259,6 +261,11 @@ impl GenerationCommit {
     #[must_use]
     pub const fn call_id(&self) -> &CallId {
         &self.call_id
+    }
+
+    #[must_use]
+    pub const fn ai_session_id(&self) -> &ChannelAgentSessionId {
+        &self.ai_session_id
     }
 
     #[must_use]
