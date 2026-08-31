@@ -115,8 +115,8 @@ Kamailio / Trunk / PSTN
 | 现有 Agent/Campaign/Call Center UI 与 API | TypeScript 旧写路径仍存在；只读兼容映射已通过本地测试 | 保持兼容，权威写入迁到 Rust | writer switch `not_run` |
 | RustPBX 呼叫链 | Rust RWI v1 适配器与失败语义已通过本地合同测试 | 成为外呼 Call/Leg 唯一权威 | real RustPBX `not_run` |
 | Active Call 源码 | 已下载、精确 commit/hash 已核验 | 受控电话 Channel Agent | `false` |
-| Active Call 构建/测试 | 固定源码本地构建通过；上游测试因外部 `sipbot` 缺失为 `blocked_external`；Converact Adapter 11 项本地测试通过 | 自有 lockfile、构建和合同测试 | runtime/production `not_run` |
-| 多轮实时语音 | 受控端口完成 reserve/originate/attach/disclosure/start/finalize；平台稳定 Session ID、精确 Release 全组件摘要和有界 Playbook artifact 已通过本地合同；inline Playbook 私有预留 wire 已通过 loopback，未启动真实进程 | Active Call 驱动的真实功能闭环 | component resolver、SIP-leg/session 绑定、disclosure 后启动门、media/provider `not_run` |
+| Active Call 构建/测试 | 固定源码本地构建通过；上游测试因外部 `sipbot` 缺失为 `blocked_external`；预约、SIP session 绑定和显式启动门已通过本地精确源码/loopback 测试 | 自有 lockfile、构建和合同测试 | runtime/production `not_run` |
+| 多轮实时语音 | reserve/originate/attach/disclosure/start/finalize 的 Rust 契约、稳定 Session ID、精确 Release/component resolver、有界 Playbook artifact、SIP 控制头绑定、单 leg claim 和 disclosure 后显式启动门已通过本地合同；未启动真实进程 | Active Call 驱动的真实功能闭环 | RustPBX header 注入、完整 ChannelAgentPort 组合、真实 SIP/media/provider `not_run` |
 | Tool/Action | Rust Proposal/Policy/Approval/Broker/Receipt、持久化 Adapter、Active Call Worker 桥接及通用查询/变更 Adapter 已通过本地受控测试 | 接入真实 Provider | controlled slice passed；real provider/physical PostgreSQL `not_run` |
 | AI/人工协作 | Rust Handoff Core/Store/Worker 的 commit/abort/replay/unknown-query 和具体 Active Call 私有进程端口已通过本地受控/loopback 测试 | 接入真实人席、RustPBX 媒体切换与 Active Call | physical integration/production `not_run` |
 | Transcript/Outcome/QM | Rust final transcript/snapshot/result/evaluation/Bad Case、durable reconcile、权限化查询 API，以及 Active Call intent 候选到精确 Release OutcomeSchema/结果证据的投影已通过本地受控测试 | 接入真实 Speech/模型/UI 并迁移旧 writer | physical integration/writer switch/production `not_run` |
@@ -942,6 +942,7 @@ SIP 入站当前仍以 dialog ID 建会话并直接启动 Playbook，因此 SIP-
 - [Agent Release reservation binding evidence](../../architecture-foundation/ai-outbound/evidence/r1-agent-release-reservation-binding/README.md)
 - [Active Call Playbook reservation evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-playbook-reservation/README.md)
 - [Active Call session/artifact evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-session-artifact/README.md)
+- [Active Call SIP binding/start gate evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-sip-start-gate/README.md)
 
 ## 23. 变更记录
 
@@ -965,3 +966,4 @@ SIP 入站当前仍以 dialog ID 建会话并直接启动 Playbook，因此 SIP-
 | 2026-08-31 | R1 Active Call reservation overlay checkpoint | 精确源码覆盖层的稳定 ID、同载荷重放、漂移冲突和 pending/active 查询已通过；耐久性、原子交接、真实进程/Adapter 协调和生产仍为 `not_run` |
 | 2026-08-31 | R1 Active Call reservation adapter checkpoint | Rust Client 的稳定 ID、响应身份校验、pending/active/not-found 查询和 unknown-outcome 语义已通过；真实进程、durable Worker 协调和生产仍为 `not_run` |
 | 2026-08-31 | R1 Active Call session/artifact checkpoint | 平台稳定 Session ID、Agent 回执身份锁定、Release 全组件摘要和有界 Playbook artifact 已通过；确定性 component resolver、SIP-leg 绑定、disclosure 后启动门、真实媒体和生产仍为 `not_run` |
+| 2026-09-01 | R1 Active Call SIP/start-gate checkpoint | 固定源码覆盖层已把平台 Session ID 绑定到唯一 SIP leg，保留预约 Playbook 权威，并在显式 start 前阻止 Runner 进入业务对话；RustPBX header 注入、真实 SIP/媒体/Provider 和生产仍为 `not_run` |

@@ -110,6 +110,24 @@ async fn playbook_reservation_query_distinguishes_pending_active_and_missing() {
     assert_eq!(
         client
             .query_playbook_reservation(
+                &ChannelAgentSessionId::parse("agent-session-attached").unwrap(),
+            )
+            .await
+            .unwrap(),
+        PlaybookReservationState::Attached,
+    );
+    assert_eq!(
+        client
+            .query_playbook_reservation(
+                &ChannelAgentSessionId::parse("agent-session-started").unwrap(),
+            )
+            .await
+            .unwrap(),
+        PlaybookReservationState::Started,
+    );
+    assert_eq!(
+        client
+            .query_playbook_reservation(
                 &ChannelAgentSessionId::parse("agent-session-active").unwrap(),
             )
             .await
@@ -125,6 +143,42 @@ async fn playbook_reservation_query_distinguishes_pending_active_and_missing() {
             .unwrap(),
         PlaybookReservationState::NotFound,
     );
+}
+
+#[tokio::test]
+async fn conversation_start_is_one_idempotent_session_bound_mutation() {
+    let fake = FakeActiveCall::accept_playbook_reservations().await;
+    let client = ActiveCallClient::connect(fake.config()).unwrap();
+    let session_id = ChannelAgentSessionId::parse("agent-session-attached").unwrap();
+
+    let first = client
+        .start_playbook_conversation(session_id.clone())
+        .await
+        .unwrap();
+    let replay = client
+        .start_playbook_conversation(session_id.clone())
+        .await
+        .unwrap();
+
+    assert_eq!(first.session_id, session_id);
+    assert_eq!(replay.session_id, session_id);
+    assert_eq!(fake.playbook_start_count(), 2);
+}
+
+#[tokio::test]
+async fn conversation_start_timeout_is_unknown_and_not_retried() {
+    let fake = FakeActiveCall::accept_playbook_reservations().await;
+    let client = ActiveCallClient::connect(fake.config()).unwrap();
+
+    let error = client
+        .start_playbook_conversation(
+            ChannelAgentSessionId::parse("agent-session-start-timeout").unwrap(),
+        )
+        .await
+        .unwrap_err();
+
+    assert_eq!(error.kind(), ClientFailureKind::OutcomeUnknown);
+    assert_eq!(fake.playbook_start_count(), 1);
 }
 
 #[tokio::test]

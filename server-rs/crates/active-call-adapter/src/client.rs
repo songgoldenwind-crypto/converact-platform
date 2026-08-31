@@ -213,10 +213,18 @@ pub struct ReservedPlaybookSession {
     pub session_id: ChannelAgentSessionId,
 }
 
+/// Acknowledgement that an attached Playbook conversation is started.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ConversationStarted {
+    pub session_id: ChannelAgentSessionId,
+}
+
 /// Current process-local Playbook reservation observation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PlaybookReservationState {
     Pending,
+    Attached,
+    Started,
     Active,
     NotFound,
 }
@@ -339,6 +347,34 @@ impl ActiveCallClient {
         tokio::time::timeout(self.config.timeout, operation)
             .await
             .map_err(|_| reservation_unknown("active_call_playbook_timeout"))?
+    }
+
+    /// Starts an already attached platform-owned Playbook conversation exactly once.
+    ///
+    /// The overlay treats a repeated start for the same started session as an idempotent replay.
+    /// A timeout or ambiguous response remains `OutcomeUnknown`; callers must query the
+    /// reservation state and must not issue a blind retry.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Rejected` when the session is still pending or absent and `OutcomeUnknown` for
+    /// transport, timeout, server, malformed-response or identity-drift failures.
+    pub async fn start_playbook_conversation(
+        &self,
+        session_id: ChannelAgentSessionId,
+    ) -> Result<ConversationStarted, ClientError> {
+        let url = playbook_reservation_start_url(&self.config.endpoint, &session_id)?;
+        let operation = async {
+            let response =
+                self.client.post(url).send().await.map_err(|_| {
+                    reservation_unknown("active_call_playbook_start_transport_unknown")
+                })?;
+            self.accept_playbook_start_response(response, session_id)
+                .await
+        };
+        tokio::time::timeout(self.config.timeout, operation)
+            .await
+            .map_err(|_| reservation_unknown("active_call_playbook_start_timeout"))?
     }
 
     /// Queries the process-local Playbook reservation overlay, retrying only this read operation.
@@ -505,6 +541,40 @@ impl ActiveCallClient {
         Err(reservation_unknown("active_call_playbook_server_unknown"))
     }
 
+    async fn accept_playbook_start_response(
+        &self,
+        response: Response,
+        expected_session_id: ChannelAgentSessionId,
+    ) -> Result<ConversationStarted, ClientError> {
+        let status = response.status();
+        let body = collect_bounded(response, self.config.max_response_bytes)
+            .await
+            .map_err(|_| reservation_unknown("active_call_playbook_start_response_unbounded"))?;
+        if status.is_success() {
+            let acknowledgement: PlaybookReservationResponse = serde_json::from_slice(&body)
+                .map_err(|_| reservation_unknown("active_call_playbook_start_response_invalid"))?;
+            if acknowledgement.session_id != expected_session_id.as_str()
+                || acknowledgement.state != "started"
+            {
+                return Err(reservation_unknown(
+                    "active_call_playbook_start_ack_invalid",
+                ));
+            }
+            return Ok(ConversationStarted {
+                session_id: expected_session_id,
+            });
+        }
+        if status.is_client_error() {
+            return Err(ClientError::new(
+                ClientFailureKind::Rejected,
+                "active_call_playbook_start_rejected",
+            ));
+        }
+        Err(reservation_unknown(
+            "active_call_playbook_start_server_unknown",
+        ))
+    }
+
     async fn fetch_playbook_reservation(
         &self,
         url: Url,
@@ -540,6 +610,8 @@ impl ActiveCallClient {
         }
         match observation.state.as_str() {
             "pending" => Ok(PlaybookReservationState::Pending),
+            "attached" => Ok(PlaybookReservationState::Attached),
+            "started" => Ok(PlaybookReservationState::Started),
             "active" => Ok(PlaybookReservationState::Active),
             _ => Err(invalid_response("active_call_playbook_status_unknown")),
         }
@@ -776,6 +848,17 @@ fn playbook_reservation_status_url(
         .push("reservations")
         .push(session_id.as_str());
     drop(segments);
+    Ok(url)
+}
+
+fn playbook_reservation_start_url(
+    base: &Url,
+    session_id: &ChannelAgentSessionId,
+) -> Result<Url, ClientError> {
+    let mut url = playbook_reservation_status_url(base, session_id)?;
+    url.path_segments_mut()
+        .map_err(|()| invalid_configuration("active_call_endpoint_invalid"))?
+        .push("start");
     Ok(url)
 }
 

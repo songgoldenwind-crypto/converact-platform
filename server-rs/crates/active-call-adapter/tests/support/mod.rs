@@ -67,6 +67,7 @@ pub struct FakeActiveCall {
     command_count: Arc<AtomicUsize>,
     status_count: Arc<AtomicUsize>,
     playbook_reservation_count: Arc<AtomicUsize>,
+    playbook_start_count: Arc<AtomicUsize>,
     last_playbook_reservation: Arc<Mutex<Option<serde_json::Value>>>,
 }
 
@@ -95,6 +96,7 @@ impl FakeActiveCall {
             command_count,
             status_count: Arc::new(AtomicUsize::new(0)),
             playbook_reservation_count: Arc::new(AtomicUsize::new(0)),
+            playbook_start_count: Arc::new(AtomicUsize::new(0)),
             last_playbook_reservation: Arc::new(Mutex::new(None)),
         }
     }
@@ -139,6 +141,7 @@ impl FakeActiveCall {
             command_count: Arc::new(AtomicUsize::new(0)),
             status_count,
             playbook_reservation_count: Arc::new(AtomicUsize::new(0)),
+            playbook_start_count: Arc::new(AtomicUsize::new(0)),
             last_playbook_reservation: Arc::new(Mutex::new(None)),
         }
     }
@@ -167,6 +170,7 @@ impl FakeActiveCall {
             command_count,
             status_count: Arc::new(AtomicUsize::new(0)),
             playbook_reservation_count: Arc::new(AtomicUsize::new(0)),
+            playbook_start_count: Arc::new(AtomicUsize::new(0)),
             last_playbook_reservation: Arc::new(Mutex::new(None)),
         }
     }
@@ -176,6 +180,8 @@ impl FakeActiveCall {
         let handler_count = Arc::clone(&count);
         let last = Arc::new(Mutex::new(None));
         let handler_last = Arc::clone(&last);
+        let start_count = Arc::new(AtomicUsize::new(0));
+        let handler_start_count = Arc::clone(&start_count);
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let router = Router::new()
@@ -206,7 +212,31 @@ impl FakeActiveCall {
                             "state": "active"
                         }))
                         .into_response(),
+                        "agent-session-attached" => Json(json!({
+                            "session_id": id,
+                            "state": "attached"
+                        }))
+                        .into_response(),
+                        "agent-session-started" => Json(json!({
+                            "session_id": id,
+                            "state": "started"
+                        }))
+                        .into_response(),
                         _ => StatusCode::NOT_FOUND.into_response(),
+                    }
+                }),
+            )
+            .route(
+                "/api/playbook/reservations/{id}/start",
+                post(move |Path(id): Path<String>| {
+                    let count = Arc::clone(&handler_start_count);
+                    async move {
+                        count.fetch_add(1, Ordering::SeqCst);
+                        if id == "agent-session-start-timeout" {
+                            std::future::pending::<axum::response::Response>().await
+                        } else {
+                            Json(json!({ "session_id": id, "state": "started" })).into_response()
+                        }
                     }
                 }),
             );
@@ -219,6 +249,7 @@ impl FakeActiveCall {
             command_count: Arc::new(AtomicUsize::new(0)),
             status_count: Arc::new(AtomicUsize::new(0)),
             playbook_reservation_count: count,
+            playbook_start_count: start_count,
             last_playbook_reservation: last,
         }
     }
@@ -247,6 +278,7 @@ impl FakeActiveCall {
             command_count: Arc::new(AtomicUsize::new(0)),
             status_count: Arc::new(AtomicUsize::new(0)),
             playbook_reservation_count: count,
+            playbook_start_count: Arc::new(AtomicUsize::new(0)),
             last_playbook_reservation: Arc::new(Mutex::new(None)),
         }
     }
@@ -275,6 +307,7 @@ impl FakeActiveCall {
             command_count: Arc::new(AtomicUsize::new(0)),
             status_count: Arc::new(AtomicUsize::new(0)),
             playbook_reservation_count: count,
+            playbook_start_count: Arc::new(AtomicUsize::new(0)),
             last_playbook_reservation: Arc::new(Mutex::new(None)),
         }
     }
@@ -293,6 +326,10 @@ impl FakeActiveCall {
 
     pub fn playbook_reservation_count(&self) -> usize {
         self.playbook_reservation_count.load(Ordering::SeqCst)
+    }
+
+    pub fn playbook_start_count(&self) -> usize {
+        self.playbook_start_count.load(Ordering::SeqCst)
     }
 
     pub fn last_playbook_reservation(&self) -> Option<serde_json::Value> {

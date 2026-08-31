@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_at": "2026-09-01",
+  "scope": "local_exact_source_overlay_and_loopback_contracts",
+  "active_call": {
+    "commit": "6224d948cc0941ac48b4a5426477aeaf639c2e98",
+    "tree": "9521ad341fb992ba6d491eb217983df8cf85d2cf"
+  },
+  "checks": {
+    "overlay_node_tests": { "passed": 3, "failed": 0 },
+    "exact_source_focused_rust_tests": { "passed": 3, "failed": 0, "filtered": 255 },
+    "active_call_adapter_client_tests": { "passed": 11, "failed": 0 },
+    "worker_reservation_adapter_tests": { "passed": 2, "failed": 0 },
+    "scoped_adapter_worker_clippy": "passed",
+    "rustfmt": "passed",
+    "diff_check": "passed",
+    "clippy_deny_warnings": {
+      "status": "failed_upstream_baseline",
+      "pre_existing_upstream_findings": 266
+    }
+  },
+  "capabilities": [
+    "sip_platform_session_binding",
+    "single_leg_reservation_claim",
+    "control_header_redaction",
+    "reserved_playbook_authority",
+    "pending_attached_started_query",
+    "explicit_idempotent_conversation_start"
+  ],
+  "not_run": [
+    "rustpbx_header_injection",
+    "real_sip_leg",
+    "running_active_call_process",
+    "real_media_and_provider_chain",
+    "disclosure_audio_completion",
+    "intent_and_terminal_outcome",
+    "private_control_header_authentication",
+    "crash_and_multi_node_recovery",
+    "production_eligibility",
+    "performance_and_capacity"
+  ],
+  "production_eligible": false
+}

@@ -23,31 +23,42 @@
   "overlay": {
     "status": "controlled_local_passed",
     "apply_script": "infra/converact/active-call/apply-overlay.mjs",
-    "apply_script_sha256": "b35ea605d25b93f2f8c2c919a10c6e66ce529e6763754ebaf30c89814125a70f",
+    "apply_script_sha256": "e3fcbe5358c09d68dcb683cf045c62816cd2970c7b0221c6b2afa743d54ea5aa",
     "readme": "infra/converact/active-call/README.md",
-    "readme_sha256": "62738863a3ff4ad2e55e21122de14952b400cce3bde5d22ff207fb82e2061bba",
+    "readme_sha256": "502d06e5e98041af4ea19bca4c496b7a181086c09e3267d4d8f7bacbdeaf83a4",
     "target_files": [
+      "src/app.rs",
       "src/handler/playbook.rs",
-      "src/handler/handler.rs"
+      "src/handler/handler.rs",
+      "src/playbook/runner.rs",
+      "src/useragent/playbook_handler.rs"
     ],
     "capabilities": [
       "client_selected_stable_session_id",
       "same_id_same_content_replay",
       "same_id_different_content_conflict",
-      "pending_or_active_reservation_query"
+      "pending_attached_started_or_active_reservation_query",
+      "sip_platform_session_binding",
+      "single_sip_leg_reservation_claim",
+      "control_header_redaction_before_dialogue",
+      "reserved_playbook_authority",
+      "explicit_idempotent_conversation_start"
     ],
     "limitations": [
       "reservation_state_is_process_memory_only",
-      "pending_to_active_transition_is_not_atomic",
+      "pending_to_attached_transition_is_not_crash_durable",
+      "active_call_does_not_verify_disclosure_completion",
+      "control_header_transport_authentication_not_implemented",
       "not_found_does_not_authorize_blind_retry"
     ],
     "verification": {
       "exact_source_apply_twice": "passed",
       "rustfmt": "passed",
       "focused_rust_tests": {
-        "passed": 2,
+        "passed": 3,
         "failed": 0
-      }
+      },
+      "clippy_deny_warnings": "failed_pre_existing_upstream_baseline"
     },
     "production_eligible": false
   },
