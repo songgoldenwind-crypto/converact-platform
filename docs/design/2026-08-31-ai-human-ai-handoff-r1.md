@@ -165,8 +165,8 @@ Tool Broker、旧 warm-transfer TypeScript 或 Voice↔LiveKit Handoff 继承证
 截至 2026-08-31，本地受控证据已覆盖 Rust Core、命令/receipt Store、惰性 PostgreSQL
 Adapter、Worker normal/replay/abort/unknown-query 路径和 AI/human generation 切换，详见
 [R1 human Handoff evidence](../../architecture-foundation/ai-outbound/evidence/r1-human-handoff/README.md)。
-具体 Active Call 私有进程端口还通过了 replacement-session 存在性查询、确定性缺失处理和
-human-generation 后旧播放 interrupt 的本地 loopback 合同，详见
+具体 Active Call 私有进程端口还通过了 replacement-session 存在性查询、AI generation
+commit 时再次确认、确定性缺失处理和 human-generation 后旧播放 interrupt 的本地 loopback 合同，详见
 [R1 Active Call Handoff Adapter evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-handoff-adapter/README.md)。
 Active Call `/command` 只证明命令入队，不证明执行或媒体-owner 已改变。
 物理 PostgreSQL、真实 RustPBX/Active Call/人席、SIP/PSTN/媒体/录音和生产仍为 `not_run`。

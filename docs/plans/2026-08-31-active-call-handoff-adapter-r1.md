@@ -29,14 +29,16 @@ Pause/Resume as proof of AI/human ownership.
 2. `query_ai_resume` performs the same read-only query and never creates or resumes a second
    session.
 3. `GenerationCommit` carries the exact AI session bound to the committed Handoff state.
-4. A committed human generation sends one non-graceful `interrupt` to the previous AI session to
+4. A committed AI generation rechecks that exact replacement session after the durable owner
+   commit. If it disappeared after prepare, notification fails into reconcile-required.
+5. A committed human generation sends one non-graceful `interrupt` to the previous AI session to
    remove residual playback. A committed AI generation sends no Pause/Resume command: the model
    requires a new session, and RustPBX media activation remains the authority for making it audible.
-5. Command acceptance is only cleanup notification delivery. Timeout, ambiguous response,
+6. Command acceptance is only cleanup notification delivery. Timeout, ambiguous response,
    rejection or invalid response makes the Handoff reconcile-required; it is not recorded as
    successful output suppression.
-6. Provider errors remain low-cardinality and contain no endpoint, tenant, customer or transcript.
-7. The adapter does not expose Active Call Hangup, REFER, Bridge or direct Tool execution.
+7. Provider errors remain low-cardinality and contain no endpoint, tenant, customer or transcript.
+8. The adapter does not expose Active Call Hangup, REFER, Bridge or direct Tool execution.
 
 ## Minimal TDD sequence
 

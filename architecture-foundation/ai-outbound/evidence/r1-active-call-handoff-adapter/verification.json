@@ -7,8 +7,8 @@
   "production_eligible": false,
   "converact": {
     "branch": "codex/converact-platform-rename",
-    "commit": "838475792f9f1a172a79c5516c1be0b7422594ce",
-    "tree": "80d0fa152fe4b20f57d206ebc0e4398b622969de"
+    "commit": "a20d51a6f11cad0e9441f140208a6f99b9a86d41",
+    "tree": "12976d0d9c839231323b53a33063c7c1ca1e76ca"
   },
   "active_call": {
     "version": "0.3.83",
@@ -22,7 +22,7 @@
       "command": "cargo +1.94.1 test -p converact-voice-agent-worker active_call_handoff --lib",
       "exit_code": 0,
       "result": "passed",
-      "passed": 4,
+      "passed": 5,
       "failed": 0
     },
     {

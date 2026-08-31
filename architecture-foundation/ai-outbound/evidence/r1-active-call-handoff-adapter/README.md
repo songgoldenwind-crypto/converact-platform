@@ -7,7 +7,7 @@
 > Production eligibility: `false`
 
 This record proves the bounded `ChannelAgentHandoffPort` implementation at Converact commit
-`838475792f9f1a172a79c5516c1be0b7422594ce`. The adapter targets pinned Active Call `0.3.83`
+`a20d51a6f11cad0e9441f140208a6f99b9a86d41`. The adapter targets pinned Active Call `0.3.83`
 commit `6224d948cc0941ac48b4a5426477aeaf639c2e98`; the real process was not started.
 
 ## Observed scope
@@ -19,6 +19,8 @@ commit `6224d948cc0941ac48b4a5426477aeaf639c2e98`; the real process was not star
 - a committed human generation sends one non-graceful interrupt command to the previous AI
   session in the controlled invocation;
 - a committed AI generation does not send Resume to a fresh, unpaused playback track;
+- the replacement session is queried again at AI generation commit, so a prepare-to-commit
+  disappearance becomes reconcile-required rather than a false success;
 - the existing Handoff generation/replay/abort/unknown-query tests remain green;
 - provider errors remain bounded codes and the concrete port contains no Hangup, REFER, Bridge or
   direct Tool operation.
@@ -28,7 +30,7 @@ execution receipt and is not evidence that RustPBX changed the audible media own
 
 ## Fresh verification
 
-- Active Call Handoff adapter loopback tests: 4 passed, 0 failed;
+- Active Call Handoff adapter loopback tests: 5 passed, 0 failed;
 - existing Handoff runtime compatibility tests: 4 passed, 0 failed;
 - scoped Rust formatting: passed;
 - scoped Rust Clippy with warnings denied: passed.

@@ -875,8 +875,9 @@ Core/Store/Worker/API、D8 post-call finalization 的本地 Rust 切片均已有
 泄露按键。Adapter 同时只开放 Pause、Resume 与非 graceful Interrupt 三个输出控制命令，
 不开放 Hangup、REFER 或 Bridge；真实 VAD/打断质量、命令投递与端到端电话路径仍未证明。
 具体 `ChannelAgentHandoffPort` 已在本地 loopback 下接入 Active Call client：替换 session 不存在
-时确定失败，人工 generation 提交后只清理旧 AI 当前播放，新 AI generation 不错误恢复一个并未
-暂停的播放轨。该证据不包含 Active Call 命令执行回执或 RustPBX 媒体-owner 切换。
+时确定失败，AI generation commit 前再次确认其仍存在，人工 generation 提交后只清理旧 AI
+当前播放，新 AI generation 不错误恢复一个并未暂停的播放轨。该证据不包含 Active Call 命令
+执行回执或 RustPBX 媒体-owner 切换。
 物理 PostgreSQL、真实 RustPBX/Active Call/Speech、SIP/PSTN/媒体、真实 Tool/审批/模型供应商、
 生产路由授权、Dashboard、旧 writer 迁移、性能、容量和生产部署均保持 `not_run`，后续必须按
 独立 Evidence Gate 逐项推进。
