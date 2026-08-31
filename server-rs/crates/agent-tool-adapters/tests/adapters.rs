@@ -65,6 +65,48 @@ async fn query_and_idempotent_mutation_dispatch_through_typed_provider_ports() {
     );
 }
 
+#[tokio::test]
+async fn unknown_capability_effect_mismatch_and_invalid_arguments_fail_closed() {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let adapter =
+        AgentToolAdapter::new(Directory(Arc::clone(&calls)), FollowUps(Arc::clone(&calls)));
+    let unknown = authorized(
+        "customer.export",
+        ToolEffectClass::Query,
+        "tool-call-unknown",
+        json!({}),
+    )
+    .await;
+    let mismatched = authorized(
+        "customer.lookup",
+        ToolEffectClass::Mutation,
+        "tool-call-mismatched",
+        json!({"customer_id": "customer-001"}),
+    )
+    .await;
+    let invalid = authorized(
+        "customer.lookup",
+        ToolEffectClass::Query,
+        "tool-call-invalid",
+        json!({"customer_id": " "}),
+    )
+    .await;
+
+    assert_eq!(
+        adapter.execute(&unknown).await.unwrap_err().code(),
+        "agent_tool_capability_rejected"
+    );
+    assert_eq!(
+        adapter.execute(&mismatched).await.unwrap_err().code(),
+        "agent_tool_capability_rejected"
+    );
+    assert_eq!(
+        adapter.execute(&invalid).await.unwrap_err().code(),
+        "agent_tool_arguments_invalid"
+    );
+    assert!(calls.lock().unwrap().is_empty());
+}
+
 struct Directory(Arc<Mutex<Vec<String>>>);
 
 impl CustomerDirectoryPort for Directory {
