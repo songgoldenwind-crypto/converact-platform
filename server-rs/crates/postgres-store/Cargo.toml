@@ -11,6 +11,8 @@ converact-audit = { path = "../audit" }
 converact-agent-handoff-core = { path = "../agent-handoff-core" }
 converact-agent-handoff-store = { path = "../agent-handoff-store" }
 converact-contracts = { path = "../contracts" }
+converact-conversation-result-core = { path = "../conversation-result-core" }
+converact-conversation-result-store = { path = "../conversation-result-store" }
 converact-event-log = { path = "../event-log" }
 converact-idempotency = { path = "../idempotency" }
 converact-kernel-ids = { path = "../kernel-ids" }
@@ -19,6 +21,7 @@ converact-migration-store = { path = "../migration-store" }
 converact-outbox-worker = { path = "../outbox-worker" }
 converact-tool-broker-core = { path = "../tool-broker-core" }
 converact-tool-broker-store = { path = "../tool-broker-store" }
+converact-voice-agent-contracts = { path = "../voice-agent-contracts" }
 deadpool-postgres.workspace = true
 hex.workspace = true
 serde_json.workspace = true

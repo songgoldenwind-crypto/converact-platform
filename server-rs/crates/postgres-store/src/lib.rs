@@ -9,9 +9,14 @@ use deadpool_postgres::{
     tokio_postgres::{Config as PgConfig, Socket, tls::MakeTlsConnect},
 };
 
+mod conversation_result;
 mod handoff;
 mod tool_action;
 
+pub use conversation_result::{
+    PostgresConversationResultStore, PostgresConversationResultStoreError,
+    PostgresProjectionWriteDecision, PostgresTranscriptAppendDecision,
+};
 pub use handoff::{
     PostgresHandoffCreateDecision, PostgresHandoffPrepareDecision, PostgresHandoffStore,
     PostgresHandoffStoreError,
