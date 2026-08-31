@@ -1,6 +1,6 @@
 # R1 Active Call SIP binding and conversation-start gate evidence
 
-Date: 2026-09-01  
+Date: 2026-09-01
 Scope: local exact-source overlay and Rust loopback contracts only
 
 ## Proven
