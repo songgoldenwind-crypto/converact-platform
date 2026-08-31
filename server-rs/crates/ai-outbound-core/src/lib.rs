@@ -6,6 +6,7 @@ mod campaign;
 mod compliance;
 mod orchestrator;
 mod ports;
+mod retry;
 
 use std::{error::Error, fmt};
 
@@ -25,6 +26,7 @@ pub use ports::{
     ChannelAgentPort, CompliancePort, EffectIntent, OriginateCall, PlayDisclosure, PortError,
     PortFailureKind, ReserveAgent, StartConversation, TelephonyPort, TerminateCall,
 };
+pub use retry::{RetryCandidate, RetryDecision, RetryPlan, RetryPolicy, plan_retry};
 
 /// Stable rejection categories shared by the outbound authority aggregates.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -37,6 +39,9 @@ pub enum DomainError {
     RevisionExhausted,
     InvalidAttemptIdentifier,
     SameAttemptIdentity,
+    InvalidRetryPolicy,
+    InvalidAttemptNumber,
+    InvalidRetrySchedule,
 }
 
 impl fmt::Display for DomainError {
@@ -50,6 +55,9 @@ impl fmt::Display for DomainError {
             Self::RevisionExhausted => "ai_outbound_revision_exhausted",
             Self::InvalidAttemptIdentifier => "ai_outbound_attempt_identifier_invalid",
             Self::SameAttemptIdentity => "ai_outbound_attempt_identity_reused",
+            Self::InvalidRetryPolicy => "ai_outbound_retry_policy_invalid",
+            Self::InvalidAttemptNumber => "ai_outbound_attempt_number_invalid",
+            Self::InvalidRetrySchedule => "ai_outbound_retry_schedule_invalid",
         })
     }
 }
