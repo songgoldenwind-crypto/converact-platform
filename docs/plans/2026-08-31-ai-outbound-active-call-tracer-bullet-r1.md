@@ -1002,7 +1002,7 @@ pub trait CompliancePort {
 pub trait ChannelAgentPort {
     fn reserve(&self, request: ReserveAgent)
         -> impl Future<Output = Result<AgentReservation, PortError>> + Send;
-    fn attach(&self, request: AttachCall)
+    fn confirm_attachment(&self, request: AgentLegBinding)
         -> impl Future<Output = Result<(), PortError>> + Send;
     fn play_disclosure(&self, request: PlayDisclosure)
         -> impl Future<Output = Result<(), PortError>> + Send;
@@ -1015,6 +1015,8 @@ pub trait ChannelAgentPort {
 pub trait TelephonyPort {
     fn originate(&self, request: OriginateCall)
         -> impl Future<Output = Result<CallObservation, PortError>> + Send;
+    fn add_agent_leg(&self, request: AgentLegBinding)
+        -> impl Future<Output = Result<(), PortError>> + Send;
     fn query(&self, call_id: &CallId)
         -> impl Future<Output = Result<CallObservation, PortError>> + Send;
     fn terminate(&self, request: TerminateCall)
@@ -1024,6 +1026,8 @@ pub trait TelephonyPort {
 pub trait AttemptStorePort {
     fn load(&self, attempt_id: &CallAttemptId)
         -> impl Future<Output = Result<CallAttempt, PortError>> + Send;
+    fn load_dial_binding(&self, attempt_id: &CallAttemptId)
+        -> impl Future<Output = Result<OutboundDialBinding, PortError>> + Send;
     fn persist_intent(&self, attempt: &CallAttempt)
         -> impl Future<Output = Result<(), PortError>> + Send;
     fn persist_observation(&self, attempt: &CallAttempt)

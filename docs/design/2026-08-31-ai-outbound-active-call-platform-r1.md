@@ -113,7 +113,7 @@ Kamailio / Trunk / PSTN
 | 能力 | 当前状态 | 本设计目标 | 生产资格 |
 | --- | --- | --- | --- |
 | 现有 Agent/Campaign/Call Center UI 与 API | TypeScript 旧写路径仍存在；只读兼容映射已通过本地测试 | 保持兼容，权威写入迁到 Rust | writer switch `not_run` |
-| RustPBX 呼叫链 | Rust RWI v1 适配器与失败语义已通过本地合同测试 | 成为外呼 Call/Leg 唯一权威 | real RustPBX `not_run` |
+| RustPBX 呼叫链 | 具体 Rust `TelephonyPort` 已通过本地 loopback：精确 originate、O(1) inspect、answer 后 Agent leg、hangup 与 unknown-outcome；无进程内 Call 表 | 成为外呼 Call/Leg 唯一权威并接入 durable runtime | physical dial store/runtime composition/real RustPBX `not_run` |
 | Active Call 源码 | 已下载、精确 commit/hash 已核验 | 受控电话 Channel Agent | `false` |
 | Active Call 构建/测试 | 固定源码本地构建通过；上游测试因外部 `sipbot` 缺失为 `blocked_external`；预约、SIP session 绑定和显式启动门已通过本地精确源码/loopback 测试 | 自有 lockfile、构建和合同测试 | runtime/production `not_run` |
 | 多轮实时语音 | reserve/originate/attach/disclosure/start/finalize 的 Rust 契约、稳定 Session ID、精确 Release/component resolver、有界 Playbook artifact、SIP 控制头绑定、单 leg claim、精确 disclosure `TrackEnd` 启动门和完整 `ChannelAgentPort` 已通过本地合同；未启动真实进程 | Active Call 驱动的真实功能闭环 | RustPBX header 注入、真实 SIP/media/provider、可听披露与录音连续性 `not_run` |
@@ -738,11 +738,14 @@ Reconciler 查询：
 
 - 合规 gate；
 - Agent capacity reserve；
-- RustPBX originate；
-- answer 后桥接；
+- RustPBX originate：具体 `TelephonyPort` 的精确 RWI wire、身份校验与 answer 观察已通过本地
+  loopback；物理 dial-binding Store、运行时组合与真实进程 `not_run`；
+- answer 后桥接：RustPBX `call.leg_add` 创建唯一 Agent SIP leg，Active Call 仅确认关联；本地
+  合同已通过，真实 SIP/RTP `not_run`；
 - disclosure；
 - 多轮语音；
-- hangup 与最终收敛。
+- hangup 与最终收敛：`session.inspect_call` 使用 O(1) Registry lookup；进程内 known-call
+  全局表已删除，正常终态和 unknown mutation reconcile 保持不同语义；真实恢复 `not_run`。
 
 ### D5：知识、工具和外部效果
 
@@ -916,6 +919,13 @@ mutation 不自动重试，也不把 not-found 解释成安全重建。真实进
 标识在进入 `CallCommand` 前 fail-closed，Debug 不显示原值。平台 wire 测试、固定源码三个精确
 单测、补丁重放文件摘要及动态-leg 集成目标编译已通过。真实 RustPBX/Active Call 进程、客户接听
 事件到 leg-add 的 durable 编排、SIP 头在线观测、RTP 音频与端到端会话附着仍为 `not_run`。
+ivekit.87 进一步增加只读 `session.inspect_call`，按 `call_id` 对现有并发 Registry 做单次键查找并
+返回精确 `CallInfo` 或 `null`。具体 Rust `TelephonyPort` 已在 loopback 中完成客户 originate、
+answer 观察、Agent leg、hangup 与终态查询；mutation receipt 缺失保持 `OutcomeUnknown` 且不重放。
+Adapter 不保留进程内 known-call HashSet/Mutex，也不通过 `session.list_calls` 扫描。只有已走过
+answer/disclosure/conversation 的编排上下文可在正常 finalization 中把 `NotFound` 接受为终态；
+unknown mutation 的 reconcile 仍把原始观察交给后续策略。物理 dial-binding Store、应用组合、
+真实进程、重启与媒体仍为 `not_run`。
 平台现在还会从 tenant、物理 Attempt 和精确 Release 稳定派生 Active Call Session ID；Agent
 不得替换该身份。Release 的八个组件摘要随预留继续传递，有界 Playbook artifact 会校验声明摘要
 并隐藏 Prompt 内容。但该边界不冒充源组件到 Playbook 的确定性编译证明。固定源码 overlay 和
@@ -956,6 +966,7 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 - [Active Call session/artifact evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-session-artifact/README.md)
 - [Active Call SIP binding/start gate evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-sip-start-gate/README.md)
 - [Active Call complete channel-agent port evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-channel-agent-port/README.md)
+- [RustPBX TelephonyPort evidence](../../architecture-foundation/ai-outbound/evidence/r1-rustpbx-telephony-port/README.md)
 
 ## 23. 变更记录
 
@@ -981,3 +992,4 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 | 2026-08-31 | R1 Active Call session/artifact checkpoint | 平台稳定 Session ID、Agent 回执身份锁定、Release 全组件摘要和有界 Playbook artifact 已通过；确定性 component resolver、SIP-leg 绑定、disclosure 后启动门、真实媒体和生产仍为 `not_run` |
 | 2026-09-01 | R1 Active Call SIP/start-gate checkpoint | 固定源码覆盖层已把平台 Session ID 绑定到唯一 SIP leg，保留预约 Playbook 权威，并在显式 start 前阻止 Runner 进入业务对话；RustPBX header 注入、真实 SIP/媒体/Provider 和生产仍为 `not_run` |
 | 2026-09-01 | R1 Active Call complete channel-port checkpoint | Rust 完整 `ChannelAgentPort` 已组合精确 Release artifact、稳定 session 预留、附着/media-ready、披露命令、精确 `TrackEnd`、显式 start 与 terminal 查询，并以每 session 串行化保证并发预留重放只产生一次外部 mutation；真实进程、RustPBX header、SIP/媒体/provider、可听披露、录音与生产仍为 `not_run` |
+| 2026-09-01 | R1 RustPBX TelephonyPort checkpoint | Rust 具体端口、immutable dial contract、精确 originate/inspect/Agent-leg/hangup wire 和 unknown-outcome 已通过本地 loopback；ivekit.87 O(1) inspect 精确源码测试通过且已删除进程内 known-call 全局锁；物理 Store/runtime、真实进程/SIP/媒体和生产仍为 `not_run` |

@@ -40,12 +40,13 @@ async fn reserve_precedes_dial_and_disclosure_precedes_conversation() {
             "agent.reserve",
             "rustpbx.originate",
             "rustpbx.answered",
-            "agent.attach",
+            "rustpbx.agent_leg_add",
+            "agent.attachment_confirmed",
             "agent.media_ready",
             "agent.disclosure",
             "agent.disclosure_completed",
             "agent.start_conversation",
-            "rustpbx.terminal",
+            "rustpbx.not_found",
         ],
     );
 }
@@ -83,6 +84,10 @@ async fn reservation_and_originate_keep_tenant_and_agent_session_binding() {
     assert_eq!(harness.reserved_tenant_id().unwrap().as_str(), "tenant-001");
     assert_eq!(
         harness.originated_agent_session_id().unwrap().as_str(),
+        "agent-session-platform-selected"
+    );
+    assert_eq!(
+        harness.added_agent_session_id().unwrap().as_str(),
         "agent-session-platform-selected"
     );
 }

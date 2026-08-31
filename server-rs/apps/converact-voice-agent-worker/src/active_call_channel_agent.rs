@@ -5,7 +5,7 @@ use converact_active_call_adapter::{
     encode_command,
 };
 use converact_ai_outbound_core::{
-    AgentObservation, AgentReleaseBinding, AgentReservation, AttachCall, ChannelAgentPort,
+    AgentLegBinding, AgentObservation, AgentReleaseBinding, AgentReservation, ChannelAgentPort,
     PlayDisclosure, PortError, ReserveAgent, StartConversation,
 };
 use converact_voice_agent_contracts::{CallAttemptId, CallId, ChannelAgentSessionId, TenantId};
@@ -211,7 +211,7 @@ where
         }
     }
 
-    async fn attach_inner(&self, request: AttachCall) -> Result<(), PortError> {
+    async fn confirm_attachment_inner(&self, request: AgentLegBinding) -> Result<(), PortError> {
         let binding = self.session(&request.session_id).await?;
         let mut state = binding.lock().await;
         state.validate_attempt(&request.attempt_id)?;
@@ -349,8 +349,8 @@ where
         self.reserve_inner(request).await
     }
 
-    async fn attach(&self, request: AttachCall) -> Result<(), PortError> {
-        self.attach_inner(request).await
+    async fn confirm_attachment(&self, request: AgentLegBinding) -> Result<(), PortError> {
+        self.confirm_attachment_inner(request).await
     }
 
     async fn play_disclosure(&self, request: PlayDisclosure) -> Result<(), PortError> {

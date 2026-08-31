@@ -1767,6 +1767,21 @@ ivekit.85 queue and every resulting changed-file digest matched the tested tree.
 No server, container, real SIP peer, RTP media, end-to-end Agent attachment or
 production path was exercised; those states remain `not_run`.
 
+## Constant-time call inspection
+
+ivekit.87 adds the read-only `session.inspect_call` RWI command. It performs one
+keyed lookup in RustPBX's existing concurrent active-call registry and returns
+either the exact `CallInfo` object or `null`. It does not claim ownership, scan
+the recent-call list, create a task, or mutate Call/Leg/media state. Converact's
+AI outbound telephony adapter uses this command to distinguish ringing,
+answered and absent calls while keeping `call.originate`, `call.leg_add` and
+`call.hangup` as the only mutations in the first slice.
+
+Two focused exact-source tests prove the JSON command identity and both found
+and missing registry outcomes. The canonical patch is
+`rustpbx-converact-call-inspect.patch`; real processes, SIP/PSTN, media and
+production remain `not_run`.
+
 ## Reproducibility
 
 - RustPBX: `6c49ee76baa54fdbf8f98020cc9bee158c7c15de`

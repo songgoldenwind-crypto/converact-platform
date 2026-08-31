@@ -1,6 +1,19 @@
 use converact_rustpbx_rwi_adapter::{
-    AddAgentLegRequest, BridgeRequest, OriginateRequest, RwiCommand, encode_command,
+    AddAgentLegRequest, BridgeRequest, InspectCallRequest, OriginateRequest, RwiCommand,
+    encode_command,
 };
+
+#[test]
+fn inspect_call_uses_the_constant_time_pinned_rustpbx_wire() {
+    let inspect = encode_command(RwiCommand::InspectCall(InspectCallRequest {
+        action_id: "query-001".to_owned(),
+        call_id: "call-001".to_owned(),
+    }))
+    .unwrap();
+
+    assert_eq!(inspect["action"], "session.inspect_call");
+    assert_eq!(inspect["params"]["call_id"], "call-001");
+}
 
 #[test]
 fn originate_uses_the_exact_pinned_rustpbx_wire_without_agent_headers() {

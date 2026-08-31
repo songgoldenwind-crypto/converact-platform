@@ -12,7 +12,7 @@ use axum::{
 };
 use converact_active_call_adapter::{ActiveCallClient, ClientConfig};
 use converact_ai_outbound_core::{
-    AgentObservation, AgentReleaseBinding, AttachCall, ChannelAgentPort, PlayDisclosure,
+    AgentLegBinding, AgentObservation, AgentReleaseBinding, ChannelAgentPort, PlayDisclosure,
     PortFailureKind, ReleaseComponentDigests, ReserveAgent, StartConversation,
 };
 use converact_voice_agent_contracts::{
@@ -61,7 +61,7 @@ async fn complete_channel_agent_port_runs_reserve_attach_disclose_start_and_term
     fake.set_state("media_ready");
 
     agent
-        .attach(AttachCall {
+        .confirm_attachment(AgentLegBinding {
             attempt_id: attempt_id.clone(),
             call_id: CallId::parse("call-001").unwrap(),
             session_id: session_id.clone(),
@@ -206,7 +206,7 @@ async fn disclosure_unknown_cannot_be_cleared_by_an_earlier_media_ready_observat
         .unwrap();
     fake.set_state("media_ready");
     agent
-        .attach(AttachCall {
+        .confirm_attachment(AgentLegBinding {
             attempt_id: attempt_id.clone(),
             call_id: CallId::parse("call-001").unwrap(),
             session_id: session_id.clone(),
@@ -268,7 +268,7 @@ async fn start_unknown_cannot_be_cleared_by_disclosure_completed_observation() {
         .unwrap();
     fake.set_state("media_ready");
     agent
-        .attach(AttachCall {
+        .confirm_attachment(AgentLegBinding {
             attempt_id: attempt_id.clone(),
             call_id: CallId::parse("call-001").unwrap(),
             session_id: session_id.clone(),
@@ -340,7 +340,7 @@ async fn attach_not_found_freezes_reservation_as_outcome_unknown() {
     fake.set_state("not_found");
 
     let attach = agent
-        .attach(AttachCall {
+        .confirm_attachment(AgentLegBinding {
             attempt_id,
             call_id: CallId::parse("call-001").unwrap(),
             session_id,
@@ -386,7 +386,7 @@ async fn concurrent_resolver_failure_cannot_orphan_the_successful_reservation() 
     second.await.unwrap().unwrap();
     fake.set_state("media_ready");
     agent
-        .attach(AttachCall {
+        .confirm_attachment(AgentLegBinding {
             attempt_id,
             call_id: CallId::parse("call-001").unwrap(),
             session_id,

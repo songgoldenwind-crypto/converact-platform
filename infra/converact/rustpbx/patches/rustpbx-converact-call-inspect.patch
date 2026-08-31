@@ -1,0 +1,170 @@
+diff --git a/src/call/adapters/rwi_adapter.rs b/src/call/adapters/rwi_adapter.rs
+index 414ca51d..71d1b969 100644
+--- a/src/call/adapters/rwi_adapter.rs
++++ b/src/call/adapters/rwi_adapter.rs
+@@ -46,6 +46,7 @@ pub fn rwi_to_call_command(
+         RwiCommandPayload::Subscribe { .. }
+         | RwiCommandPayload::Unsubscribe { .. }
+         | RwiCommandPayload::ListCalls
++        | RwiCommandPayload::InspectCall { .. }
+         | RwiCommandPayload::SetVar { .. }
+         | RwiCommandPayload::GetVar { .. }
+         | RwiCommandPayload::AttachCall { .. }
+diff --git a/src/rwi/handler.rs b/src/rwi/handler.rs
+index 7aa20130..678fe0b1 100644
+--- a/src/rwi/handler.rs
++++ b/src/rwi/handler.rs
+@@ -434,6 +434,10 @@ fn build_command_result_event(
+                     event["status"] = serde_json::json!("success");
+                     event["data"] = serde_json::json!(calls);
+                 }
++                CommandResult::InspectedCall(call) => {
++                    event["status"] = serde_json::json!("success");
++                    event["data"] = serde_json::json!(call);
++                }
+                 CommandResult::CallFound { call_id } => {
+                     event["status"] = serde_json::json!("success");
+                     event["data"] = serde_json::json!({ "call_id": call_id });
+@@ -690,6 +694,7 @@ fn extract_call_id<'a>(cmd: &'a RwiCommandPayload) -> Option<&'a str> {
+         RwiCommandPayload::Subscribe { .. } => None,
+         RwiCommandPayload::Unsubscribe { .. } => None,
+         RwiCommandPayload::ListCalls => None,
++        RwiCommandPayload::InspectCall { call_id } => Some(call_id.as_str()),
+         RwiCommandPayload::AttachCall { call_id, .. } => Some(call_id.as_str()),
+         RwiCommandPayload::DetachCall { call_id } => Some(call_id.as_str()),
+         RwiCommandPayload::Originate(r) => Some(r.call_id.as_str()),
+diff --git a/src/rwi/processor.rs b/src/rwi/processor.rs
+index b2baf975..0a5b7f0d 100644
+--- a/src/rwi/processor.rs
++++ b/src/rwi/processor.rs
+@@ -999,6 +999,9 @@ impl RwiCommandProcessor {
+                 let calls = self.list_calls().await;
+                 return Ok(CommandResult::ListCalls(calls));
+             }
++            RwiCommandPayload::InspectCall { call_id } => {
++                return Ok(CommandResult::InspectedCall(self.inspect_call(call_id)));
++            }
+             RwiCommandPayload::AttachCall { call_id, mode: _ } => {
+                 if self.call_registry.get_handle(call_id).is_some() {
+                     return Ok(CommandResult::CallFound {
+@@ -3093,6 +3096,18 @@ impl RwiCommandProcessor {
+             .collect()
+     }
+ 
++    fn inspect_call(&self, call_id: &str) -> Option<CallInfo> {
++        self.call_registry.get(call_id).map(|entry| CallInfo {
++            session_id: entry.session_id,
++            caller: entry.caller,
++            callee: entry.callee,
++            direction: entry.direction,
++            status: entry.status.to_string(),
++            started_at: entry.started_at.to_rfc3339(),
++            answered_at: entry.answered_at.map(|value| value.to_rfc3339()),
++        })
++    }
++
+     async fn get_handle(&self, call_id: &str) -> Result<SipSessionHandle, CommandError> {
+         self.call_registry
+             .get_handle(call_id)
+@@ -5208,6 +5223,7 @@ impl RwiCommandProcessor {
+ pub enum CommandResult {
+     Success,
+     ListCalls(Vec<CallInfo>),
++    InspectedCall(Option<CallInfo>),
+     CallFound {
+         call_id: String,
+     },
+@@ -5761,6 +5777,38 @@ mod tests {
+         }
+     }
+ 
++    #[tokio::test]
++    async fn inspect_call_is_an_exact_registry_lookup() {
++        let (processor, _cm) = create_test_processor();
++        let _handle = create_test_call(
++            &processor.call_registry,
++            "call-inspect-001",
++            "sip:caller@example.test",
++            "sip:callee@example.test",
++            DialDirection::Outbound,
++        );
++
++        let found = processor
++            .process_command(RwiCommandPayload::InspectCall {
++                call_id: "call-inspect-001".into(),
++            })
++            .await
++            .unwrap();
++        let missing = processor
++            .process_command(RwiCommandPayload::InspectCall {
++                call_id: "call-inspect-missing".into(),
++            })
++            .await
++            .unwrap();
++
++        assert!(matches!(
++            found,
++            CommandResult::InspectedCall(Some(CallInfo { ref session_id, .. }))
++                if session_id == "call-inspect-001"
++        ));
++        assert!(matches!(missing, CommandResult::InspectedCall(None)));
++    }
++
+     #[tokio::test]
+     async fn test_answer_call_not_found() {
+         let (processor, _cm) = create_test_processor();
+diff --git a/src/rwi/session.rs b/src/rwi/session.rs
+index fad919a5..35728034 100644
+--- a/src/rwi/session.rs
++++ b/src/rwi/session.rs
+@@ -72,6 +72,9 @@ pub enum RwiCommandPayload {
+         key: String,
+     },
+     ListCalls,
++    InspectCall {
++        call_id: String,
++    },
+     AttachCall {
+         call_id: String,
+         mode: OwnershipMode,
+@@ -608,6 +611,8 @@ pub enum RwiRequestPayload {
+     Unsubscribe { contexts: Option<Vec<String>> },
+     #[serde(rename = "session.list_calls", alias = "ListCalls")]
+     ListCalls,
++    #[serde(rename = "session.inspect_call")]
++    InspectCall { call_id: Option<String> },
+     #[serde(rename = "session.attach_call")]
+     AttachCall {
+         call_id: Option<String>,
+@@ -855,6 +860,9 @@ impl From<RwiRequest> for RwiCommandPayload {
+                 contexts: contexts.unwrap_or_default(),
+             },
+             RwiRequestPayload::ListCalls => RwiCommandPayload::ListCalls,
++            RwiRequestPayload::InspectCall { call_id } => RwiCommandPayload::InspectCall {
++                call_id: call_id.unwrap_or_default(),
++            },
+             RwiRequestPayload::AttachCall { call_id, mode } => RwiCommandPayload::AttachCall {
+                 call_id: call_id.unwrap_or_default(),
+                 mode: match mode.as_deref() {
+@@ -1324,6 +1332,21 @@ mod tests {
+         assert!(session.owned_calls.is_empty());
+     }
+ 
++    #[test]
++    fn inspect_call_wire_preserves_the_exact_call_identity() {
++        let request: RwiRequest = serde_json::from_value(serde_json::json!({
++            "action": "session.inspect_call",
++            "action_id": "query-001",
++            "params": { "call_id": "call-001" },
++        }))
++        .unwrap();
++
++        assert!(matches!(
++            RwiCommandPayload::from(request),
++            RwiCommandPayload::InspectCall { call_id } if call_id == "call-001"
++        ));
++    }
++
+     #[test]
+     fn test_subscribe() {
+         let (mut session, _rx) = create_test_session();

@@ -5,10 +5,10 @@ use converact_voice_agent_contracts::{
 };
 
 use crate::{
-    AgentObservation, AgentReleaseBinding, AttachCall, AttemptStorePort, CallAttempt,
+    AgentLegBinding, AgentObservation, AgentReleaseBinding, AttemptStorePort, CallAttempt,
     CallObservation, ChannelAgentPort, ComplianceDecision, CompliancePort, DomainError,
-    EffectIntent, OriginateCall, PlayDisclosure, PortError, PortFailureKind, ReserveAgent,
-    StartConversation, TelephonyPort,
+    EffectIntent, OriginateCall, OutboundDialBinding, PlayDisclosure, PortError, PortFailureKind,
+    ReserveAgent, StartConversation, TelephonyPort,
 };
 
 /// Stable orchestration failure safe to persist and expose to workers.
@@ -87,10 +87,10 @@ where
         release: &AgentReleaseBinding,
         session_id: &ChannelAgentSessionId,
     ) -> Result<CallAttempt, OrchestrationError> {
-        let attempt = self
+        let (attempt, dial) = self
             .prepare_attempt(tenant_id, attempt_id, release, session_id)
             .await?;
-        let (attempt, call_id) = self.originate_and_attach(attempt, session_id).await?;
+        let (attempt, call_id) = self.originate_and_attach(attempt, session_id, dial).await?;
         let attempt = self.disclose_and_start(attempt, session_id).await?;
         self.finalize_when_terminal(attempt, &call_id).await
     }
@@ -101,7 +101,7 @@ where
         attempt_id: &CallAttemptId,
         release: &AgentReleaseBinding,
         session_id: &ChannelAgentSessionId,
-    ) -> Result<CallAttempt, OrchestrationError> {
+    ) -> Result<(CallAttempt, OutboundDialBinding), OrchestrationError> {
         let mut attempt = self.store.load(attempt_id).await?;
         attempt = transition(&attempt, AttemptCommand::Claim)?;
         self.store.persist_observation(&attempt).await?;
@@ -117,6 +117,8 @@ where
             }
         };
         self.store.persist_observation(&attempt).await?;
+
+        let dial = self.store.load_dial_binding(attempt.id()).await?;
 
         self.store
             .persist_intent(&attempt, EffectIntent::ReserveAgent)
@@ -146,13 +148,14 @@ where
         attempt = transition(&attempt, AttemptCommand::ReserveAgentCapacity)?;
         self.store.persist_observation(&attempt).await?;
 
-        Ok(attempt)
+        Ok((attempt, dial))
     }
 
     async fn originate_and_attach(
         &self,
         mut attempt: CallAttempt,
         session_id: &ChannelAgentSessionId,
+        dial: OutboundDialBinding,
     ) -> Result<(CallAttempt, CallId), OrchestrationError> {
         let call_id = CallId::parse(attempt.id().as_str())
             .map_err(|_| OrchestrationError::new("call_identity_invalid"))?;
@@ -166,6 +169,7 @@ where
                 attempt_id: attempt.id().clone(),
                 call_id: call_id.clone(),
                 agent_session_id: session_id.clone(),
+                dial,
             })
             .await
         {
@@ -190,15 +194,16 @@ where
         self.store
             .persist_intent(&attempt, EffectIntent::AttachAgent)
             .await?;
-        let attach_result = self
-            .agent
-            .attach(AttachCall {
-                attempt_id: attempt.id().clone(),
-                call_id: observed_call_id.clone(),
-                session_id: session_id.clone(),
-            })
-            .await;
+        let binding = AgentLegBinding {
+            attempt_id: attempt.id().clone(),
+            call_id: observed_call_id.clone(),
+            session_id: session_id.clone(),
+        };
+        let attach_result = self.telephony.add_agent_leg(binding.clone()).await;
         self.require_known_post_answer_effect(&attempt, attach_result)
+            .await?;
+        let confirm_result = self.agent.confirm_attachment(binding).await;
+        self.require_known_post_answer_effect(&attempt, confirm_result)
             .await?;
         attempt = transition(&attempt, AttemptCommand::AttachAgent)?;
         self.store.persist_observation(&attempt).await?;
@@ -261,7 +266,8 @@ where
         call_id: &CallId,
     ) -> Result<CallAttempt, OrchestrationError> {
         match self.telephony.query(call_id).await? {
-            CallObservation::Terminal(observed) if &observed == call_id => {}
+            CallObservation::Terminal(observed) | CallObservation::NotFound(observed)
+                if &observed == call_id => {}
             _ => {
                 return self
                     .mark_unknown(attempt, "telephony_observation_unexpected")

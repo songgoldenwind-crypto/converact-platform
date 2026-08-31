@@ -11,11 +11,11 @@ use axum::{
     http::{Method, Request, Response},
 };
 use converact_ai_outbound_core::{
-    AgentDraft, AgentObservation, AgentReleaseBinding, AgentReservation, AttachCall,
+    AgentDraft, AgentLegBinding, AgentObservation, AgentReleaseBinding, AgentReservation,
     AttemptStorePort, CallAttempt, CallObservation, Campaign, CampaignCommand, ChannelAgentPort,
-    ComplianceDecision, CompliancePort, EffectIntent, OriginateCall, PlayDisclosure, PortError,
-    ReleaseComponentDigests, ReserveAgent, StartConversation, TelephonyPort, TerminateCall,
-    publish_agent,
+    ComplianceDecision, CompliancePort, EffectIntent, OriginateCall, OutboundDialBinding,
+    OutboundDialBindingInput, PlayDisclosure, PortError, ReleaseComponentDigests, ReserveAgent,
+    StartConversation, TelephonyPort, TerminateCall, publish_agent,
 };
 use converact_contracts::health::{
     ConfigurationCheck, ConfigurationStatus, DatabaseCheck, DatabaseStatus, MigrationCheck,
@@ -256,7 +256,7 @@ impl ChannelAgentPort for FakeAgent {
         })
     }
 
-    async fn attach(&self, _request: AttachCall) -> Result<(), PortError> {
+    async fn confirm_attachment(&self, _request: AgentLegBinding) -> Result<(), PortError> {
         Ok(())
     }
 
@@ -289,6 +289,10 @@ impl TelephonyPort for FakeTelephony {
         Ok(CallObservation::Answered(request.call_id))
     }
 
+    async fn add_agent_leg(&self, _request: AgentLegBinding) -> Result<(), PortError> {
+        Ok(())
+    }
+
     async fn query(&self, call_id: &CallId) -> Result<CallObservation, PortError> {
         Ok(CallObservation::Terminal(call_id.clone()))
     }
@@ -304,6 +308,19 @@ struct FakeAttemptStore(Arc<Mutex<ControlledState>>);
 impl AttemptStorePort for FakeAttemptStore {
     async fn load(&self, _attempt_id: &CallAttemptId) -> Result<CallAttempt, PortError> {
         Ok(self.0.lock().unwrap().attempt.clone())
+    }
+
+    async fn load_dial_binding(
+        &self,
+        _attempt_id: &CallAttemptId,
+    ) -> Result<OutboundDialBinding, PortError> {
+        OutboundDialBinding::try_new(OutboundDialBindingInput {
+            destination: "+8613800138000".to_owned(),
+            caller_id: Some("+8610000000000".to_owned()),
+            timeout_secs: 30,
+            trunk: Some("carrier-a".to_owned()),
+        })
+        .map_err(|_| PortError::rejected("ai_outbound_dial_binding_invalid"))
     }
 
     async fn persist_intent(

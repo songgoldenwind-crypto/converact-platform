@@ -59,11 +59,19 @@ pub struct ListCallsRequest {
     pub action_id: String,
 }
 
+/// Constant-time status query for one exact `RustPBX` call.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InspectCallRequest {
+    pub action_id: String,
+    pub call_id: String,
+}
+
 /// Closed command set accepted by the first Rust adapter.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RwiCommand {
     Subscribe(SubscribeRequest),
     ListCalls(ListCallsRequest),
+    InspectCall(InspectCallRequest),
     Originate(OriginateRequest),
     AddAgentLeg(AddAgentLegRequest),
     Hangup(HangupRequest),
@@ -126,6 +134,15 @@ pub fn encode_command(command: RwiCommand) -> Result<Value, RwiError> {
                 "action": "session.list_calls",
                 "action_id": request.action_id,
                 "params": {},
+            })
+        }
+        RwiCommand::InspectCall(request) => {
+            validate_identifier(&request.action_id)?;
+            validate_identifier(&request.call_id)?;
+            json!({
+                "action": "session.inspect_call",
+                "action_id": request.action_id,
+                "params": { "call_id": request.call_id },
             })
         }
         RwiCommand::Originate(request) => encode_originate(&request)?,

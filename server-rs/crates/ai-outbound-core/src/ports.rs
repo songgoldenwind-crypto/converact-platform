@@ -8,6 +8,10 @@ use crate::{
     CallAttempt, ComplianceDecision, ReleaseComponentDigests, agent_release::is_lowercase_sha256,
 };
 
+const MAX_DIAL_DESTINATION_BYTES: usize = 512;
+const MAX_DIAL_IDENTIFIER_BYTES: usize = 255;
+const MAX_DIAL_TIMEOUT_SECONDS: u32 = 120;
+
 /// Invalid immutable Agent Release identity at the execution boundary.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AgentReleaseBindingError {
@@ -156,9 +160,116 @@ pub struct AgentReservation {
     pub session_id: ChannelAgentSessionId,
 }
 
-/// Request to attach a reserved agent session to an answered call.
+/// Immutable dial values resolved from the Contact and exact Campaign dial-policy revision.
+#[derive(Clone, Eq, PartialEq)]
+pub struct OutboundDialBinding {
+    destination: Box<str>,
+    caller_id: Option<Box<str>>,
+    timeout_secs: u32,
+    trunk: Option<Box<str>>,
+}
+
+/// Untrusted values used to construct one immutable dial binding.
+pub struct OutboundDialBindingInput {
+    pub destination: String,
+    pub caller_id: Option<String>,
+    pub timeout_secs: u32,
+    pub trunk: Option<String>,
+}
+
+/// Invalid runtime dial binding.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum OutboundDialBindingError {
+    InvalidDestination,
+    InvalidCallerId,
+    InvalidTimeout,
+    InvalidTrunk,
+}
+
+impl fmt::Display for OutboundDialBindingError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::InvalidDestination => "ai_outbound_destination_invalid",
+            Self::InvalidCallerId => "ai_outbound_caller_id_invalid",
+            Self::InvalidTimeout => "ai_outbound_dial_timeout_invalid",
+            Self::InvalidTrunk => "ai_outbound_trunk_invalid",
+        })
+    }
+}
+
+impl Error for OutboundDialBindingError {}
+
+impl OutboundDialBinding {
+    /// Validates the complete dial binding before any telephony mutation can occur.
+    ///
+    /// # Errors
+    ///
+    /// Rejects malformed destinations, caller identities, timeouts and trunk identifiers.
+    pub fn try_new(input: OutboundDialBindingInput) -> Result<Self, OutboundDialBindingError> {
+        if !valid_dial_destination(&input.destination) {
+            return Err(OutboundDialBindingError::InvalidDestination);
+        }
+        if input
+            .caller_id
+            .as_deref()
+            .is_some_and(|value| !valid_dial_destination(value))
+        {
+            return Err(OutboundDialBindingError::InvalidCallerId);
+        }
+        if input.timeout_secs == 0 || input.timeout_secs > MAX_DIAL_TIMEOUT_SECONDS {
+            return Err(OutboundDialBindingError::InvalidTimeout);
+        }
+        if input
+            .trunk
+            .as_deref()
+            .is_some_and(|value| !valid_dial_identifier(value))
+        {
+            return Err(OutboundDialBindingError::InvalidTrunk);
+        }
+        Ok(Self {
+            destination: input.destination.into(),
+            caller_id: input.caller_id.map(Into::into),
+            timeout_secs: input.timeout_secs,
+            trunk: input.trunk.map(Into::into),
+        })
+    }
+
+    #[must_use]
+    pub fn destination(&self) -> &str {
+        &self.destination
+    }
+
+    #[must_use]
+    pub fn caller_id(&self) -> Option<&str> {
+        self.caller_id.as_deref()
+    }
+
+    #[must_use]
+    pub const fn timeout_secs(&self) -> u32 {
+        self.timeout_secs
+    }
+
+    #[must_use]
+    pub fn trunk(&self) -> Option<&str> {
+        self.trunk.as_deref()
+    }
+}
+
+impl fmt::Debug for OutboundDialBinding {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("OutboundDialBinding")
+            .field("destination", &"[REDACTED]")
+            .field("caller_id", &self.caller_id.as_ref().map(|_| "[REDACTED]"))
+            .field("timeout_secs", &self.timeout_secs)
+            .field("trunk", &self.trunk.as_ref().map(|_| "[REDACTED]"))
+            .finish()
+    }
+}
+
+/// One reserved Agent session bound to one RustPBX-owned call leg.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AttachCall {
+pub struct AgentLegBinding {
     pub attempt_id: CallAttemptId,
     pub call_id: CallId,
     pub session_id: ChannelAgentSessionId,
@@ -194,6 +305,7 @@ pub struct OriginateCall {
     pub attempt_id: CallAttemptId,
     pub call_id: CallId,
     pub agent_session_id: ChannelAgentSessionId,
+    pub dial: OutboundDialBinding,
 }
 
 /// Closed observations accepted from the `RustPBX` adapter.
@@ -208,6 +320,7 @@ pub enum CallObservation {
 /// Request to terminate a call by its stable authority identifier.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TerminateCall {
+    pub attempt_id: CallAttemptId,
     pub call_id: CallId,
 }
 
@@ -228,7 +341,13 @@ pub trait ChannelAgentPort {
         request: ReserveAgent,
     ) -> impl Future<Output = Result<AgentReservation, PortError>> + Send;
 
-    fn attach(&self, request: AttachCall) -> impl Future<Output = Result<(), PortError>> + Send;
+    /// Confirms that the RustPBX-created Agent leg claimed this reservation.
+    ///
+    /// This is a read/association check. It must not create a SIP or media leg.
+    fn confirm_attachment(
+        &self,
+        request: AgentLegBinding,
+    ) -> impl Future<Output = Result<(), PortError>> + Send;
 
     fn play_disclosure(
         &self,
@@ -253,6 +372,12 @@ pub trait TelephonyPort {
         request: OriginateCall,
     ) -> impl Future<Output = Result<CallObservation, PortError>> + Send;
 
+    /// Creates the only Agent SIP leg for an already answered customer call.
+    fn add_agent_leg(
+        &self,
+        request: AgentLegBinding,
+    ) -> impl Future<Output = Result<(), PortError>> + Send;
+
     fn query(
         &self,
         call_id: &CallId,
@@ -271,6 +396,12 @@ pub trait AttemptStorePort {
         attempt_id: &CallAttemptId,
     ) -> impl Future<Output = Result<CallAttempt, PortError>> + Send;
 
+    /// Loads the immutable Contact destination and exact dial-policy result for this Attempt.
+    fn load_dial_binding(
+        &self,
+        attempt_id: &CallAttemptId,
+    ) -> impl Future<Output = Result<OutboundDialBinding, PortError>> + Send;
+
     fn persist_intent(
         &self,
         attempt: &CallAttempt,
@@ -281,4 +412,42 @@ pub trait AttemptStorePort {
         &self,
         attempt: &CallAttempt,
     ) -> impl Future<Output = Result<(), PortError>> + Send;
+}
+
+fn valid_dial_identifier(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    let Some((&first, remainder)) = bytes.split_first() else {
+        return false;
+    };
+    bytes.len() <= MAX_DIAL_IDENTIFIER_BYTES
+        && first.is_ascii_alphanumeric()
+        && remainder
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-'))
+}
+
+fn valid_dial_destination(value: &str) -> bool {
+    if value.is_empty()
+        || value.len() > MAX_DIAL_DESTINATION_BYTES
+        || value
+            .chars()
+            .any(|character| character.is_control() || character.is_whitespace())
+    {
+        return false;
+    }
+    if let Some(number) = value.strip_prefix('+') {
+        return (8..=15).contains(&number.len())
+            && number.as_bytes().first() != Some(&b'0')
+            && number.bytes().all(|byte| byte.is_ascii_digit());
+    }
+    let Some(address) = value
+        .strip_prefix("sip:")
+        .or_else(|| value.strip_prefix("sips:"))
+    else {
+        return false;
+    };
+    let Some((user, host)) = address.split_once('@') else {
+        return false;
+    };
+    !user.is_empty() && !host.is_empty() && !host.contains('@')
 }

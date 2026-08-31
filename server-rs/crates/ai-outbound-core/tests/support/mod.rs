@@ -6,12 +6,12 @@ use std::{
 };
 
 use converact_ai_outbound_core::{
-    AgentDraft, AgentObservation, AgentReleaseBinding, AgentReservation, AttachCall,
+    AgentDraft, AgentLegBinding, AgentObservation, AgentReleaseBinding, AgentReservation,
     AttemptCommand, AttemptStorePort, CallAttempt, CallObservation, Campaign, CampaignCommand,
     ChannelAgentPort, ComplianceDecision, ComplianceInput, CompliancePort, ConsentBasis,
     EffectIntent, EvidenceStatus, GateStatus, OrchestrationError, OriginateCall,
-    OutboundOrchestrator, PlayDisclosure, PortError, ReleaseComponentDigests, ReserveAgent,
-    StartConversation, TelephonyPort, TerminateCall,
+    OutboundDialBinding, OutboundDialBindingInput, OutboundOrchestrator, PlayDisclosure, PortError,
+    ReleaseComponentDigests, ReserveAgent, StartConversation, TelephonyPort, TerminateCall,
 };
 use converact_voice_agent_contracts::{
     AgentDefinitionId, AgentReleaseId, CallAttemptId, CallAttemptState, CallId, CampaignId,
@@ -167,6 +167,7 @@ impl Harness {
             reserved_agent_session_id: None,
             reserved_tenant_id: None,
             originated_agent_session_id: None,
+            added_agent_session_id: None,
         }));
         Self {
             compliance: FakeCompliance(state.clone()),
@@ -229,6 +230,10 @@ impl Harness {
             .clone()
     }
 
+    pub fn added_agent_session_id(&self) -> Option<ChannelAgentSessionId> {
+        self.state.lock().unwrap().added_agent_session_id.clone()
+    }
+
     fn orchestrator(
         &self,
     ) -> OutboundOrchestrator<'_, FakeCompliance, FakeAgent, FakeTelephony, FakeStore> {
@@ -249,6 +254,7 @@ struct HarnessState {
     reserved_agent_session_id: Option<ChannelAgentSessionId>,
     reserved_tenant_id: Option<TenantId>,
     originated_agent_session_id: Option<ChannelAgentSessionId>,
+    added_agent_session_id: Option<ChannelAgentSessionId>,
 }
 
 #[derive(Clone, Copy)]
@@ -302,8 +308,8 @@ impl ChannelAgentPort for FakeAgent {
         }
     }
 
-    async fn attach(&self, _request: AttachCall) -> Result<(), PortError> {
-        self.0.lock().unwrap().record("agent.attach");
+    async fn confirm_attachment(&self, _request: AgentLegBinding) -> Result<(), PortError> {
+        self.0.lock().unwrap().record("agent.attachment_confirmed");
         Ok(())
     }
 
@@ -376,12 +382,22 @@ impl TelephonyPort for FakeTelephony {
         }
     }
 
+    fn add_agent_leg(
+        &self,
+        request: AgentLegBinding,
+    ) -> impl Future<Output = Result<(), PortError>> + Send {
+        let mut state = self.0.lock().unwrap();
+        state.added_agent_session_id = Some(request.session_id);
+        state.record("rustpbx.agent_leg_add");
+        ready(Ok(()))
+    }
+
     fn query(
         &self,
         call_id: &CallId,
     ) -> impl Future<Output = Result<CallObservation, PortError>> + Send {
-        self.0.lock().unwrap().record("rustpbx.terminal");
-        ready(Ok(CallObservation::Terminal(call_id.clone())))
+        self.0.lock().unwrap().record("rustpbx.not_found");
+        ready(Ok(CallObservation::NotFound(call_id.clone())))
     }
 
     fn terminate(
@@ -401,6 +417,13 @@ impl AttemptStorePort for FakeStore {
         _attempt_id: &CallAttemptId,
     ) -> impl Future<Output = Result<CallAttempt, PortError>> + Send {
         ready(Ok(self.0.lock().unwrap().attempt.clone()))
+    }
+
+    fn load_dial_binding(
+        &self,
+        _attempt_id: &CallAttemptId,
+    ) -> impl Future<Output = Result<OutboundDialBinding, PortError>> + Send {
+        ready(Ok(fixture_dial_binding()))
     }
 
     fn persist_intent(
@@ -423,4 +446,14 @@ impl AttemptStorePort for FakeStore {
         state.attempt = attempt.clone();
         ready(Ok(()))
     }
+}
+
+pub fn fixture_dial_binding() -> OutboundDialBinding {
+    OutboundDialBinding::try_new(OutboundDialBindingInput {
+        destination: "+8613800138000".to_owned(),
+        caller_id: Some("+8610000000000".to_owned()),
+        timeout_secs: 30,
+        trunk: Some("carrier-a".to_owned()),
+    })
+    .unwrap()
 }
