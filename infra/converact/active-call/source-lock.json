@@ -20,13 +20,44 @@
     "license_file_present": false,
     "cargo_lock_present": false
   },
+  "overlay": {
+    "status": "controlled_local_passed",
+    "apply_script": "infra/converact/active-call/apply-overlay.mjs",
+    "apply_script_sha256": "b35ea605d25b93f2f8c2c919a10c6e66ce529e6763754ebaf30c89814125a70f",
+    "readme": "infra/converact/active-call/README.md",
+    "readme_sha256": "62738863a3ff4ad2e55e21122de14952b400cce3bde5d22ff207fb82e2061bba",
+    "target_files": [
+      "src/handler/playbook.rs",
+      "src/handler/handler.rs"
+    ],
+    "capabilities": [
+      "client_selected_stable_session_id",
+      "same_id_same_content_replay",
+      "same_id_different_content_conflict",
+      "pending_or_active_reservation_query"
+    ],
+    "limitations": [
+      "reservation_state_is_process_memory_only",
+      "pending_to_active_transition_is_not_atomic",
+      "not_found_does_not_authorize_blind_retry"
+    ],
+    "verification": {
+      "exact_source_apply_twice": "passed",
+      "rustfmt": "passed",
+      "focused_rust_tests": {
+        "passed": 2,
+        "failed": 0
+      }
+    },
+    "production_eligible": false
+  },
   "qualification": {
     "source_identity": "pinned",
     "source_download": "verified",
     "dependency_closure": "not_run",
     "license_review": "not_run",
     "build": "passed_local",
-    "tests": "blocked_external",
+    "tests": "focused_overlay_passed_local",
     "runtime_integration": "not_run",
     "production_eligible": false,
     "local_evidence": "docs/evidence/active-call-exact-source-local-qualification-2026-08-31.md"

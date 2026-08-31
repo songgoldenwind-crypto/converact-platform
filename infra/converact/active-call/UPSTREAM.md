@@ -24,9 +24,16 @@ is not an acceptable source identity.
 
 ## Current gates
 
-The source has been downloaded and its identity verified. No upstream build,
-test, runtime, quality, latency, capacity, or production claim has been adopted
-as Converact evidence. Those gates remain `not_run`.
+The source has been downloaded and its identity verified. A Converact build-time
+overlay has been applied twice to an isolated copy of this exact source and its
+two focused Rust tests pass locally. The canonical detached development checkout
+remains unchanged. The overlay adds only a stable Playbook reservation identity,
+same-payload replay, payload-conflict rejection and pending/active query.
+
+This is not runtime qualification. The reservation remains process-local and the
+upstream pending-to-active handoff is not atomic, so a transient `404` is not
+proof that no effect exists. Real process integration, restart reconciliation,
+quality, latency, capacity and production eligibility remain `not_run`.
 
 Upstream declares `MIT` in `Cargo.toml` and the README, but the pinned tree does
 not contain the referenced `LICENSE` file. The source is available for local

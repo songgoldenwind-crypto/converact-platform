@@ -245,13 +245,23 @@
       "kind": "evidence"
     },
     {
+      "path": "infra/converact/active-call/README.md",
+      "sha256": "62738863a3ff4ad2e55e21122de14952b400cce3bde5d22ff207fb82e2061bba",
+      "kind": "source_notice"
+    },
+    {
+      "path": "infra/converact/active-call/apply-overlay.mjs",
+      "sha256": "b35ea605d25b93f2f8c2c919a10c6e66ce529e6763754ebaf30c89814125a70f",
+      "kind": "source_notice"
+    },
+    {
       "path": "infra/converact/active-call/UPSTREAM.md",
-      "sha256": "4db9d9ddae51e5f860851deff380eab654dce190fe828419566beec12b4ef91a",
+      "sha256": "c2f0017af3f3e07adfab58ed27b9d40ea4e325e7be2a5914a608783dd6e5ec78",
       "kind": "source_notice"
     },
     {
       "path": "infra/converact/active-call/source-lock.json",
-      "sha256": "9369712a70b5c38058ffea5a758fa261221951e5dde68b3efe18697c819efe9a",
+      "sha256": "3b9c395b0e557af38e59fe7a391f31b4c9f309a444cf8b0d2e618e96be3cffdb",
       "kind": "source_lock"
     },
     {
