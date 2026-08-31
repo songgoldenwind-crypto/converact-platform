@@ -9,8 +9,8 @@ use axum::{
 };
 use converact_ai_outbound_core::{
     AgentDraft, CampaignCommand, CampaignSchedule, CampaignTransition, CreateCampaign,
-    ImportContact, ImportContactInput, ImportContacts, RecordingMode, ReleaseComponentDigests,
-    publish_agent,
+    DialPolicyRevision, DialPolicyRevisionInput, ImportContact, ImportContactInput, ImportContacts,
+    RecordingMode, ReleaseComponentDigests, publish_agent,
 };
 use converact_voice_agent_contracts::{
     AgentDefinitionId, AgentReleaseId, CallAttemptId, CampaignContactId, CampaignId,
@@ -126,11 +126,19 @@ async fn create_campaign<P: CampaignAdminPort>(
     else {
         return error_response(StatusCode::BAD_REQUEST, "request_body_invalid");
     };
+    let Ok(dial_policy) = DialPolicyRevision::try_new(DialPolicyRevisionInput {
+        revision_id: body.dial_policy_revision,
+        caller_id: body.dial_policy.caller_id,
+        timeout_secs: body.dial_policy.timeout_secs,
+        trunk: body.dial_policy.trunk,
+    }) else {
+        return error_response(StatusCode::BAD_REQUEST, "request_body_invalid");
+    };
     let Ok(campaign) = CreateCampaign::try_new(
         campaign_id,
         release_id,
         &body.audience_id,
-        &body.dial_policy_revision,
+        dial_policy,
         schedule,
     ) else {
         return error_response(StatusCode::BAD_REQUEST, "request_body_invalid");
@@ -400,7 +408,15 @@ struct CreateCampaignBody {
     agent_release_id: String,
     audience_id: String,
     dial_policy_revision: String,
+    dial_policy: DialPolicyBody,
     schedule: CampaignScheduleBody,
+}
+
+#[derive(Deserialize)]
+struct DialPolicyBody {
+    caller_id: Option<String>,
+    timeout_secs: u32,
+    trunk: Option<String>,
 }
 
 #[derive(Deserialize)]

@@ -2924,6 +2924,18 @@ CREATE TABLE IF NOT EXISTS converact_agent_releases (
   PRIMARY KEY (tenant_id, id)
 );
 
+CREATE TABLE IF NOT EXISTS converact_outbound_dial_policy_revisions (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  id TEXT NOT NULL,
+  content_hash TEXT NOT NULL CHECK (length(content_hash) = 64),
+  caller_id TEXT,
+  timeout_secs INTEGER NOT NULL CHECK (timeout_secs BETWEEN 1 AND 120),
+  trunk TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, id),
+  UNIQUE (tenant_id, id, content_hash)
+);
+
 CREATE TABLE IF NOT EXISTS converact_outbound_campaigns (
   tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   id TEXT NOT NULL,
@@ -2941,7 +2953,9 @@ CREATE TABLE IF NOT EXISTS converact_outbound_campaigns (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (tenant_id, id),
   FOREIGN KEY (tenant_id, agent_release_id)
-    REFERENCES converact_agent_releases(tenant_id, id) ON DELETE RESTRICT
+    REFERENCES converact_agent_releases(tenant_id, id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id, dial_policy_revision)
+    REFERENCES converact_outbound_dial_policy_revisions(tenant_id, id) ON DELETE RESTRICT
 );
 
 CREATE TABLE IF NOT EXISTS converact_outbound_campaign_contacts (
@@ -2988,6 +3002,14 @@ CREATE TABLE IF NOT EXISTS converact_outbound_call_attempts (
     recording_mode IN ('disabled', 'always', 'after_disclosure', 'on_demand')
   ),
   retention_until TEXT NOT NULL,
+  dial_policy_revision TEXT,
+  dial_policy_content_hash TEXT CHECK (
+    dial_policy_content_hash IS NULL OR length(dial_policy_content_hash) = 64
+  ),
+  dial_destination TEXT,
+  dial_caller_id TEXT,
+  dial_timeout_secs INTEGER CHECK (dial_timeout_secs BETWEEN 1 AND 120),
+  dial_trunk TEXT,
   lease_owner TEXT NOT NULL DEFAULT '',
   lease_token_hash TEXT NOT NULL DEFAULT '' CHECK (
     lease_token_hash = '' OR length(lease_token_hash) = 64
@@ -3008,7 +3030,17 @@ CREATE TABLE IF NOT EXISTS converact_outbound_call_attempts (
   FOREIGN KEY (tenant_id, agent_release_id)
     REFERENCES converact_agent_releases(tenant_id, id) ON DELETE RESTRICT,
   FOREIGN KEY (tenant_id, previous_attempt_id)
-    REFERENCES converact_outbound_call_attempts(tenant_id, id) ON DELETE RESTRICT
+    REFERENCES converact_outbound_call_attempts(tenant_id, id) ON DELETE RESTRICT,
+  FOREIGN KEY (tenant_id, dial_policy_revision, dial_policy_content_hash)
+    REFERENCES converact_outbound_dial_policy_revisions(tenant_id, id, content_hash)
+    ON DELETE RESTRICT,
+  CHECK (
+    (dial_policy_revision IS NULL AND dial_policy_content_hash IS NULL AND dial_destination IS NULL AND
+      dial_caller_id IS NULL AND dial_timeout_secs IS NULL AND dial_trunk IS NULL) OR
+    (dial_policy_revision IS NOT NULL AND dial_policy_content_hash IS NOT NULL AND
+      dial_destination IS NOT NULL AND
+      dial_timeout_secs BETWEEN 1 AND 120)
+  )
 );
 
 CREATE TABLE IF NOT EXISTS converact_outbound_attempt_events (

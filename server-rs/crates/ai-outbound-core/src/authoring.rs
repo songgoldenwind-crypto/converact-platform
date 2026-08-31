@@ -7,12 +7,15 @@ use converact_voice_agent_contracts::{
 use serde::Serialize;
 use serde_json::json;
 
-use crate::CampaignCommand;
+use crate::{
+    CampaignCommand,
+    dial::{MAX_DIAL_TIMEOUT_SECONDS, valid_dial_destination, valid_dial_identifier},
+};
 
 const MAX_BATCH_SIZE: usize = 500;
 const MAX_IDENTIFIER_BYTES: usize = 255;
-const MAX_DESTINATION_BYTES: usize = 255;
 const MAX_TIME_ZONE_BYTES: usize = 64;
+const DIAL_POLICY_SCHEMA_VERSION: u16 = 1;
 
 /// Stable validation failures for Campaign authoring input.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -106,13 +109,109 @@ impl CampaignSchedule {
     }
 }
 
+/// Untrusted input for one immutable outbound dial-policy revision.
+pub struct DialPolicyRevisionInput {
+    pub revision_id: String,
+    pub caller_id: Option<String>,
+    pub timeout_secs: u32,
+    pub trunk: Option<String>,
+}
+
+/// Content-addressed dial policy frozen before any Campaign contact is imported.
+#[derive(Clone, Eq, PartialEq)]
+pub struct DialPolicyRevision {
+    revision_id: Box<str>,
+    caller_id: Option<Box<str>>,
+    timeout_secs: u32,
+    trunk: Option<Box<str>>,
+    content_hash: Box<str>,
+}
+
+impl DialPolicyRevision {
+    /// Validates and content-addresses the complete dial policy.
+    ///
+    /// # Errors
+    ///
+    /// Rejects malformed revision, caller identity, timeout or trunk values.
+    pub fn try_new(input: DialPolicyRevisionInput) -> Result<Self, AuthoringError> {
+        if !valid_dial_identifier(&input.revision_id)
+            || input
+                .caller_id
+                .as_deref()
+                .is_some_and(|value| !valid_dial_destination(value))
+            || input.timeout_secs == 0
+            || input.timeout_secs > MAX_DIAL_TIMEOUT_SECONDS
+            || input
+                .trunk
+                .as_deref()
+                .is_some_and(|value| !valid_dial_identifier(value))
+        {
+            return Err(AuthoringError::InvalidDialPolicy);
+        }
+        let content_hash = canonical_sha256(&json!({
+            "schema_version": DIAL_POLICY_SCHEMA_VERSION,
+            "revision_id": input.revision_id.as_str(),
+            "caller_id": input.caller_id.as_deref(),
+            "timeout_secs": input.timeout_secs,
+            "trunk": input.trunk.as_deref(),
+        }))
+        .map_err(|_| AuthoringError::RequestHashFailed)?
+        .into();
+        Ok(Self {
+            revision_id: input.revision_id.into(),
+            caller_id: input.caller_id.map(Into::into),
+            timeout_secs: input.timeout_secs,
+            trunk: input.trunk.map(Into::into),
+            content_hash,
+        })
+    }
+
+    #[must_use]
+    pub fn revision_id(&self) -> &str {
+        &self.revision_id
+    }
+
+    #[must_use]
+    pub fn caller_id(&self) -> Option<&str> {
+        self.caller_id.as_deref()
+    }
+
+    #[must_use]
+    pub const fn timeout_secs(&self) -> u32 {
+        self.timeout_secs
+    }
+
+    #[must_use]
+    pub fn trunk(&self) -> Option<&str> {
+        self.trunk.as_deref()
+    }
+
+    #[must_use]
+    pub fn content_hash(&self) -> &str {
+        &self.content_hash
+    }
+}
+
+impl fmt::Debug for DialPolicyRevision {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("DialPolicyRevision")
+            .field("revision_id", &self.revision_id)
+            .field("caller_id", &self.caller_id.as_ref().map(|_| "[REDACTED]"))
+            .field("timeout_secs", &self.timeout_secs)
+            .field("trunk", &self.trunk.as_ref().map(|_| "[REDACTED]"))
+            .field("content_hash", &self.content_hash)
+            .finish()
+    }
+}
+
 /// Validated creation of one draft Campaign bound to an immutable Agent Release.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CreateCampaign {
     campaign_id: CampaignId,
     agent_release_id: AgentReleaseId,
     audience_id: Box<str>,
-    dial_policy_revision: Box<str>,
+    dial_policy: DialPolicyRevision,
     schedule: CampaignSchedule,
     request_hash: Box<str>,
 }
@@ -127,20 +226,18 @@ impl CreateCampaign {
         campaign_id: CampaignId,
         agent_release_id: AgentReleaseId,
         audience_id: &str,
-        dial_policy_revision: &str,
+        dial_policy: DialPolicyRevision,
         schedule: CampaignSchedule,
     ) -> Result<Self, AuthoringError> {
         if !valid_identifier(audience_id) {
             return Err(AuthoringError::InvalidAudience);
         }
-        if !valid_identifier(dial_policy_revision) {
-            return Err(AuthoringError::InvalidDialPolicy);
-        }
         let request_hash = canonical_sha256(&json!({
             "campaign_id": campaign_id,
             "agent_release_id": agent_release_id,
             "audience_id": audience_id,
-            "dial_policy_revision": dial_policy_revision,
+            "dial_policy_revision": dial_policy.revision_id(),
+            "dial_policy_content_hash": dial_policy.content_hash(),
             "schedule": schedule,
         }))
         .map_err(|_| AuthoringError::RequestHashFailed)?
@@ -149,7 +246,7 @@ impl CreateCampaign {
             campaign_id,
             agent_release_id,
             audience_id: audience_id.into(),
-            dial_policy_revision: dial_policy_revision.into(),
+            dial_policy,
             schedule,
             request_hash,
         })
@@ -172,7 +269,12 @@ impl CreateCampaign {
 
     #[must_use]
     pub fn dial_policy_revision(&self) -> &str {
-        &self.dial_policy_revision
+        self.dial_policy.revision_id()
+    }
+
+    #[must_use]
+    pub const fn dial_policy(&self) -> &DialPolicyRevision {
+        &self.dial_policy
     }
 
     #[must_use]
@@ -225,7 +327,7 @@ impl ImportContact {
         if !valid_identifier(&input.external_contact_id) {
             return Err(AuthoringError::InvalidExternalContact);
         }
-        if !valid_destination(&input.destination) {
+        if !valid_dial_destination(&input.destination) {
             return Err(AuthoringError::InvalidDestination);
         }
         if !valid_identifier(&input.consent_id) {
@@ -512,15 +614,6 @@ fn valid_identifier(value: &str) -> bool {
         && remainder
             .iter()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-'))
-}
-
-fn valid_destination(value: &str) -> bool {
-    value.len() >= 3
-        && value.len() <= MAX_DESTINATION_BYTES
-        && value.is_ascii()
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_graphic() && !matches!(byte, b'"' | b'\'' | b'`'))
 }
 
 fn valid_time_zone(value: &str) -> bool {

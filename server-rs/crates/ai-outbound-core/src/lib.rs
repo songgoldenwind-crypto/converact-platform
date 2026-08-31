@@ -5,6 +5,7 @@ mod authoring;
 mod call_attempt;
 mod campaign;
 mod compliance;
+mod dial;
 mod orchestrator;
 mod ports;
 mod retry;
@@ -15,8 +16,8 @@ pub use agent_release::{
     AgentDraft, AgentRelease, AgentReleaseError, ReleaseComponentDigests, publish_agent,
 };
 pub use authoring::{
-    AuthoringError, CampaignSchedule, CampaignTransition, CreateCampaign, ImportContact,
-    ImportContactInput, ImportContacts, RecordingMode,
+    AuthoringError, CampaignSchedule, CampaignTransition, CreateCampaign, DialPolicyRevision,
+    DialPolicyRevisionInput, ImportContact, ImportContactInput, ImportContacts, RecordingMode,
 };
 pub use call_attempt::CallAttempt;
 pub use campaign::{Campaign, CampaignCommand};

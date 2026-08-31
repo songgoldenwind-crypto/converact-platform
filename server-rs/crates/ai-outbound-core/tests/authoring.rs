@@ -1,7 +1,7 @@
 use converact_ai_outbound_core::{
     AgentDraft, AuthoringError, CampaignCommand, CampaignSchedule, CampaignTransition,
-    CreateCampaign, ImportContact, ImportContactInput, ImportContacts, RecordingMode,
-    ReleaseComponentDigests, publish_agent,
+    CreateCampaign, DialPolicyRevision, DialPolicyRevisionInput, ImportContact, ImportContactInput,
+    ImportContacts, RecordingMode, ReleaseComponentDigests, publish_agent,
 };
 use converact_voice_agent_contracts::{
     AgentDefinitionId, AgentReleaseId, CallAttemptId, CampaignContactId, CampaignId,
@@ -33,7 +33,7 @@ fn campaign_and_transition_commands_have_deterministic_content_hashes() {
         CampaignId::parse("campaign-001").unwrap(),
         AgentReleaseId::parse("release-001").unwrap(),
         "audience-001",
-        "dial-policy-r1",
+        dial_policy(),
         CampaignSchedule::try_new(1_800_000_000_000, "Asia/Shanghai").unwrap(),
     )
     .unwrap();
@@ -41,7 +41,7 @@ fn campaign_and_transition_commands_have_deterministic_content_hashes() {
         CampaignId::parse("campaign-001").unwrap(),
         AgentReleaseId::parse("release-001").unwrap(),
         "audience-001",
-        "dial-policy-r1",
+        dial_policy(),
         CampaignSchedule::try_new(1_800_000_000_000, "Asia/Shanghai").unwrap(),
     )
     .unwrap();
@@ -50,6 +50,9 @@ fn campaign_and_transition_commands_have_deterministic_content_hashes() {
     assert_eq!(left.request_hash().len(), 64);
     assert_eq!(left.audience_id(), "audience-001");
     assert_eq!(left.dial_policy_revision(), "dial-policy-r1");
+    assert_eq!(left.dial_policy().caller_id(), Some("+8610000000000"));
+    assert_eq!(left.dial_policy().timeout_secs(), 30);
+    assert_eq!(left.dial_policy().trunk(), Some("carrier-a"));
 
     let transition = CampaignTransition::try_new(
         CampaignId::parse("campaign-001").unwrap(),
@@ -61,6 +64,26 @@ fn campaign_and_transition_commands_have_deterministic_content_hashes() {
     assert_eq!(transition.command(), CampaignCommand::Schedule);
     assert_eq!(transition.expected_revision(), 1);
     assert_eq!(transition.request_hash().len(), 64);
+}
+
+#[test]
+fn dial_policy_is_bounded_content_addressed_and_redacted() {
+    let policy = dial_policy();
+    let debug = format!("{policy:?}");
+
+    assert_eq!(policy.revision_id(), "dial-policy-r1");
+    assert_eq!(policy.content_hash().len(), 64);
+    assert!(!debug.contains("10000000000"));
+    assert!(!debug.contains("carrier-a"));
+    assert_eq!(
+        DialPolicyRevision::try_new(DialPolicyRevisionInput {
+            revision_id: "dial-policy-r2".to_owned(),
+            caller_id: Some("+8610000000000\r\nX-Evil: yes".to_owned()),
+            timeout_secs: 30,
+            trunk: None,
+        }),
+        Err(AuthoringError::InvalidDialPolicy),
+    );
 }
 
 #[test]
@@ -177,6 +200,16 @@ fn campaign_schedule_and_transition_revision_are_bounded() {
 
 fn contact(index: usize) -> ImportContact {
     ImportContact::try_new(contact_input(index)).unwrap()
+}
+
+fn dial_policy() -> DialPolicyRevision {
+    DialPolicyRevision::try_new(DialPolicyRevisionInput {
+        revision_id: "dial-policy-r1".to_owned(),
+        caller_id: Some("+8610000000000".to_owned()),
+        timeout_secs: 30,
+        trunk: Some("carrier-a".to_owned()),
+    })
+    .unwrap()
 }
 
 fn contact_input(index: usize) -> ImportContactInput {

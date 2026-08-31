@@ -52,6 +52,16 @@ pub async fn seed_attempts(client: &mut Client, tenant: &TenantId) {
         .unwrap();
     transaction
         .execute(
+            "INSERT INTO converact_outbound_dial_policy_revisions (
+               tenant_id, id, content_hash, caller_id, timeout_secs, trunk
+             ) VALUES ($1, 'policy-r1', repeat('b', 64), '+8610000000000', 30, 'carrier-a')
+             ON CONFLICT (tenant_id, id) DO NOTHING",
+            &[&tenant.as_str()],
+        )
+        .await
+        .unwrap();
+    transaction
+        .execute(
             "INSERT INTO converact_outbound_campaigns (
                tenant_id, id, agent_release_id, audience_id, dial_policy_revision, state, schedule
              ) VALUES ($1, 'campaign-001', 'release-001', 'audience-001', 'policy-r1',
@@ -83,10 +93,14 @@ pub async fn seed_attempts(client: &mut Client, tenant: &TenantId) {
                 "INSERT INTO converact_outbound_call_attempts (
                    tenant_id, id, campaign_id, campaign_contact_id, attempt_number,
                    interaction_id, agent_release_id, execution_generation, state,
-                   idempotency_key, consent_id, recording_mode, retention_until, scheduled_for
+                   idempotency_key, consent_id, recording_mode, retention_until,
+                   dial_policy_revision, dial_policy_content_hash, dial_destination,
+                   dial_caller_id, dial_timeout_secs, dial_trunk, scheduled_for
                  ) VALUES ($1, $2, 'campaign-001', 'contact-001', $3, $4, 'release-001', 1,
                    'planned', $5, 'consent-001', 'after_disclosure',
-                   transaction_timestamp() + interval '30 days', transaction_timestamp())
+                   transaction_timestamp() + interval '30 days', 'policy-r1', repeat('b', 64),
+                   '+8613800138000', '+8610000000000', 30, 'carrier-a',
+                   transaction_timestamp())
                  ON CONFLICT (tenant_id, id) DO NOTHING",
                 &[
                     &tenant.as_str(),

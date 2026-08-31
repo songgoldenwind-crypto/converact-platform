@@ -163,6 +163,28 @@ async fn oversized_contact_batch_is_rejected_before_the_port() {
     assert_eq!(port.calls(), 0);
 }
 
+#[tokio::test]
+async fn campaign_requires_complete_validated_dial_policy_content() {
+    let (app, port) = app();
+    let access = CampaignAdminAccess::new(false, true, false);
+    let mut body = create_campaign_body();
+    body.as_object_mut().unwrap().remove("dial_policy");
+
+    let response = request(
+        &app,
+        Method::POST,
+        "/internal/v1/voice-agent/admin/campaigns",
+        body,
+        Some("tenant-a"),
+        Some(access),
+        Some("create-campaign-missing-policy"),
+    )
+    .await;
+
+    assert_eq!(response.status(), 400);
+    assert_eq!(port.calls(), 0);
+}
+
 #[test]
 fn campaign_admin_has_no_realtime_call_or_media_authority() {
     let sources = [
@@ -336,6 +358,11 @@ fn create_campaign_body() -> Value {
         "agent_release_id":"release-001",
         "audience_id":"audience-001",
         "dial_policy_revision":"dial-policy-r1",
+        "dial_policy":{
+            "caller_id":"+8610000000000",
+            "timeout_secs":30,
+            "trunk":"carrier-a"
+        },
         "schedule":{"starts_at_ms":1_800_000_000_000_u64,"time_zone":"Asia/Shanghai"}
     })
 }

@@ -73,6 +73,12 @@ fn postgres_retry_insert_preserves_authority_and_gates_new_dials() {
         "consent_id",
         "recording_mode",
         "retention_until",
+        "dial_policy_revision",
+        "dial_policy_content_hash",
+        "dial_destination",
+        "dial_caller_id",
+        "dial_timeout_secs",
+        "dial_trunk",
         "execution_generation",
         "'planned'",
         "ON CONFLICT DO NOTHING",
@@ -82,6 +88,24 @@ fn postgres_retry_insert_preserves_authority_and_gates_new_dials() {
         assert!(
             source.contains(required),
             "missing retry invariant {required}"
+        );
+    }
+}
+
+#[test]
+fn dial_binding_loads_only_from_the_attempt_snapshot_and_fails_closed() {
+    let source = include_str!("../src/postgres.rs");
+
+    for required in [
+        "load_dial_binding",
+        "SELECT dial_destination, dial_caller_id, dial_timeout_secs, dial_trunk",
+        "OutboundDialBinding::try_new",
+        "StoreError::AttemptNotFound",
+        "StoreError::StoredRowInvalid",
+    ] {
+        assert!(
+            source.contains(required),
+            "missing dial-load invariant {required}"
         );
     }
 }

@@ -1,5 +1,6 @@
 use std::{error::Error, fmt};
 
+use converact_ai_outbound_core::{OutboundDialBinding, OutboundDialBindingInput};
 use converact_kernel_ids::TenantId;
 use converact_voice_agent_contracts::{
     CallAttemptId, CallAttemptState, EventId, ExecutionGeneration, IdempotencyKey,
@@ -50,6 +51,12 @@ WITH predecessor AS MATERIALIZED (
          attempt.consent_id,
          attempt.recording_mode,
          attempt.retention_until,
+         attempt.dial_policy_revision,
+         attempt.dial_policy_content_hash,
+         attempt.dial_destination,
+         attempt.dial_caller_id,
+         attempt.dial_timeout_secs,
+         attempt.dial_trunk,
          contact.id AS locked_contact_id
   FROM converact_outbound_call_attempts AS attempt
   JOIN converact_outbound_campaigns AS campaign
@@ -76,6 +83,8 @@ WITH predecessor AS MATERIALIZED (
     previous_attempt_id, interaction_id, call_id, channel_agent_session_id,
     agent_release_id, execution_generation, state, idempotency_key,
     compliance_reason, consent_id, recording_mode, retention_until,
+    dial_policy_revision, dial_policy_content_hash, dial_destination,
+    dial_caller_id, dial_timeout_secs, dial_trunk,
     scheduled_for
   )
   SELECT $1, $3, predecessor.campaign_id, predecessor.campaign_contact_id, $6,
@@ -83,6 +92,9 @@ WITH predecessor AS MATERIALIZED (
          predecessor.agent_release_id, 1, 'planned', $8,
          NULL, predecessor.consent_id, predecessor.recording_mode,
          predecessor.retention_until,
+         predecessor.dial_policy_revision, predecessor.dial_policy_content_hash,
+         predecessor.dial_destination, predecessor.dial_caller_id,
+         predecessor.dial_timeout_secs, predecessor.dial_trunk,
          to_timestamp($7::double precision / 1000.0)
   FROM predecessor
   ON CONFLICT DO NOTHING
@@ -151,6 +163,7 @@ pub enum StoreError {
     AdminNotFound,
     AdminStale,
     AdminNotAllowed,
+    AttemptNotFound,
     StoredRowInvalid,
 }
 
@@ -169,6 +182,7 @@ impl StoreError {
             Self::AdminNotFound => "ai_outbound_admin_not_found",
             Self::AdminStale => "ai_outbound_admin_stale",
             Self::AdminNotAllowed => "ai_outbound_admin_not_allowed",
+            Self::AttemptNotFound => "ai_outbound_attempt_not_found",
             Self::StoredRowInvalid => "ai_outbound_stored_row_invalid",
         }
     }
@@ -338,6 +352,40 @@ impl AiOutboundStore {
     #[must_use]
     pub const fn new(config: StoreConfig) -> Self {
         Self { config }
+    }
+
+    /// Loads the exact immutable dial snapshot for one physical Attempt.
+    ///
+    /// # Errors
+    ///
+    /// Rejects absent Attempts and legacy, partial or malformed snapshots without dialing.
+    pub async fn load_dial_binding(
+        &self,
+        transaction: &Transaction<'_>,
+        tenant_id: &TenantId,
+        attempt_id: &CallAttemptId,
+    ) -> Result<OutboundDialBinding, StoreError> {
+        let row = transaction
+            .query_opt(
+                "SELECT dial_destination, dial_caller_id, dial_timeout_secs, dial_trunk
+                 FROM converact_outbound_call_attempts
+                 WHERE tenant_id = $1 AND id = $2",
+                &[&tenant_id.as_str(), &attempt_id.as_str()],
+            )
+            .await
+            .map_err(|_| StoreError::DatabaseUnavailable)?
+            .ok_or(StoreError::AttemptNotFound)?;
+        let destination: &str = row.try_get(0).map_err(|_| StoreError::StoredRowInvalid)?;
+        let caller_id: Option<&str> = row.try_get(1).map_err(|_| StoreError::StoredRowInvalid)?;
+        let timeout_secs: i32 = row.try_get(2).map_err(|_| StoreError::StoredRowInvalid)?;
+        let trunk: Option<&str> = row.try_get(3).map_err(|_| StoreError::StoredRowInvalid)?;
+        OutboundDialBinding::try_new(OutboundDialBindingInput {
+            destination: destination.to_owned(),
+            caller_id: caller_id.map(str::to_owned),
+            timeout_secs: u32::try_from(timeout_secs).map_err(|_| StoreError::StoredRowInvalid)?,
+            trunk: trunk.map(str::to_owned),
+        })
+        .map_err(|_| StoreError::StoredRowInvalid)
     }
 
     /// Claims a bounded batch using the database clock and `SKIP LOCKED`.

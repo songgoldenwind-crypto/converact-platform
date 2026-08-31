@@ -289,6 +289,7 @@ dependencies = [
 name = "converact-ai-outbound-store"
 version = "0.1.0"
 dependencies = [
+ "converact-ai-outbound-core",
  "converact-kernel-ids",
  "converact-voice-agent-contracts",
  "serde_json",

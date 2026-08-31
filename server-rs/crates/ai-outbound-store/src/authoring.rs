@@ -1,5 +1,6 @@
 use tokio_postgres::{Row, Transaction};
 
+use converact_ai_outbound_core::{DialPolicyRevision, DialPolicyRevisionInput};
 use converact_kernel_ids::TenantId;
 use converact_voice_agent_contracts::{
     AgentDefinitionId, AgentReleaseId, CallAttemptId, CampaignContactId, CampaignId, CampaignState,
@@ -116,6 +117,10 @@ pub struct CampaignCreateWrite {
     pub agent_release_id: AgentReleaseId,
     pub audience_id: String,
     pub dial_policy_revision: String,
+    pub dial_policy_content_hash: String,
+    pub dial_caller_id: Option<String>,
+    pub dial_timeout_secs: u32,
+    pub dial_trunk: Option<String>,
     pub schedule: Value,
     pub request_hash: String,
 }
@@ -158,10 +163,11 @@ pub struct CampaignTransitionWrite {
 }
 
 /// Durable Campaign projection returned only while its row is locked by the caller transaction.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct StoredCampaign {
     id: CampaignId,
     agent_release_id: AgentReleaseId,
+    dial_policy: DialPolicyRevision,
     state: CampaignState,
     active_attempts: u32,
     revision: u64,
@@ -179,6 +185,11 @@ impl StoredCampaign {
     }
 
     #[must_use]
+    pub const fn dial_policy(&self) -> &DialPolicyRevision {
+        &self.dial_policy
+    }
+
+    #[must_use]
     pub const fn state(&self) -> CampaignState {
         self.state
     }
@@ -191,6 +202,20 @@ impl StoredCampaign {
     #[must_use]
     pub const fn revision(&self) -> u64 {
         self.revision
+    }
+}
+
+impl std::fmt::Debug for StoredCampaign {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("StoredCampaign")
+            .field("id", &self.id)
+            .field("agent_release_id", &self.agent_release_id)
+            .field("dial_policy", &self.dial_policy)
+            .field("state", &self.state)
+            .field("active_attempts", &self.active_attempts)
+            .field("revision", &self.revision)
+            .finish()
     }
 }
 
@@ -298,14 +323,17 @@ impl AiOutboundStore {
         {
             return Ok(receipt);
         }
+        insert_dial_policy(transaction, command).await?;
         let inserted = transaction
             .query_opt(
                 "INSERT INTO converact_outbound_campaigns (
                    tenant_id, id, agent_release_id, audience_id, dial_policy_revision,
                    state, schedule, active_attempts, revision
                  )
-                 SELECT $1, $2, release.id, $4, $5, 'draft', $6, 0, 1
+                 SELECT $1, $2, release.id, $4, policy.id, 'draft', $6, 0, 1
                  FROM converact_agent_releases AS release
+                 JOIN converact_outbound_dial_policy_revisions AS policy
+                   ON policy.tenant_id = release.tenant_id AND policy.id = $5
                  WHERE release.tenant_id = $1 AND release.id = $3 AND release.state = 'published'
                  ON CONFLICT DO NOTHING RETURNING id",
                 &[
@@ -358,10 +386,16 @@ impl AiOutboundStore {
     ) -> Result<StoredCampaign, StoreError> {
         let row = transaction
             .query_opt(
-                "SELECT id, agent_release_id, state, active_attempts, revision
-                 FROM converact_outbound_campaigns
-                 WHERE tenant_id = $1 AND id = $2
-                 FOR UPDATE",
+                "SELECT campaign.id, campaign.agent_release_id, campaign.state,
+                        campaign.active_attempts, campaign.revision,
+                        policy.id, policy.content_hash, policy.caller_id,
+                        policy.timeout_secs, policy.trunk
+                 FROM converact_outbound_campaigns AS campaign
+                 LEFT JOIN converact_outbound_dial_policy_revisions AS policy
+                   ON policy.tenant_id = campaign.tenant_id
+                  AND policy.id = campaign.dial_policy_revision
+                 WHERE campaign.tenant_id = $1 AND campaign.id = $2
+                 FOR UPDATE OF campaign",
                 &[&tenant_id.as_str(), &campaign_id.as_str()],
             )
             .await
@@ -656,6 +690,60 @@ async fn release_matches(
     )
 }
 
+async fn insert_dial_policy(
+    transaction: &Transaction<'_>,
+    command: &CampaignCreateWrite,
+) -> Result<(), StoreError> {
+    let timeout_secs =
+        i32::try_from(command.dial_timeout_secs).map_err(|_| StoreError::InvalidInput)?;
+    let inserted = transaction
+        .query_opt(
+            "INSERT INTO converact_outbound_dial_policy_revisions (
+               tenant_id, id, content_hash, caller_id, timeout_secs, trunk
+             ) VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT DO NOTHING RETURNING id",
+            &[
+                &command.tenant_id.as_str(),
+                &command.dial_policy_revision,
+                &command.dial_policy_content_hash,
+                &command.dial_caller_id,
+                &timeout_secs,
+                &command.dial_trunk,
+            ],
+        )
+        .await
+        .map_err(|_| StoreError::DatabaseUnavailable)?
+        .is_some();
+    if !inserted && !dial_policy_matches(transaction, command).await? {
+        return Err(StoreError::AdminConflict);
+    }
+    Ok(())
+}
+
+async fn dial_policy_matches(
+    transaction: &Transaction<'_>,
+    command: &CampaignCreateWrite,
+) -> Result<bool, StoreError> {
+    let row = transaction
+        .query_opt(
+            "SELECT content_hash, caller_id, timeout_secs, trunk
+             FROM converact_outbound_dial_policy_revisions
+             WHERE tenant_id = $1 AND id = $2",
+            &[&command.tenant_id.as_str(), &command.dial_policy_revision],
+        )
+        .await
+        .map_err(|_| StoreError::DatabaseUnavailable)?;
+    let Some(row) = row else {
+        return Ok(false);
+    };
+    Ok(
+        row.try_get::<_, &str>(0).ok() == Some(command.dial_policy_content_hash.as_str())
+            && row.try_get::<_, Option<&str>>(1).ok() == Some(command.dial_caller_id.as_deref())
+            && row.try_get::<_, i32>(2).ok() == i32::try_from(command.dial_timeout_secs).ok()
+            && row.try_get::<_, Option<&str>>(3).ok() == Some(command.dial_trunk.as_deref()),
+    )
+}
+
 async fn campaign_matches(
     transaction: &Transaction<'_>,
     command: &CampaignCreateWrite,
@@ -726,11 +814,13 @@ async fn insert_contact_and_attempt(
             "INSERT INTO converact_outbound_call_attempts (
                tenant_id, id, campaign_id, campaign_contact_id, attempt_number,
                previous_attempt_id, interaction_id, agent_release_id, execution_generation,
-               state, idempotency_key, consent_id, recording_mode, retention_until, scheduled_for
+               state, idempotency_key, consent_id, recording_mode, retention_until,
+               dial_policy_revision, dial_policy_content_hash, dial_destination,
+               dial_caller_id, dial_timeout_secs, dial_trunk, scheduled_for
              ) VALUES (
                $1, $2, $3, $4, 1, NULL, $5, $6, 1, 'planned', $7, $8, $9,
-               to_timestamp($10::double precision / 1000.0),
-               to_timestamp($11::double precision / 1000.0)
+               to_timestamp($10::double precision / 1000.0), $11, $12, $13, $14, $15, $16,
+               to_timestamp($17::double precision / 1000.0)
              ) ON CONFLICT DO NOTHING RETURNING id",
             &[
                 &command.tenant_id.as_str(),
@@ -743,6 +833,13 @@ async fn insert_contact_and_attempt(
                 &contact.consent_id,
                 &contact.recording_mode,
                 &retention_until_ms,
+                &campaign.dial_policy.revision_id(),
+                &campaign.dial_policy.content_hash(),
+                &contact.destination,
+                &campaign.dial_policy.caller_id(),
+                &i32::try_from(campaign.dial_policy.timeout_secs())
+                    .map_err(|_| StoreError::StoredRowInvalid)?,
+                &campaign.dial_policy.trunk(),
                 &scheduled_for_ms,
             ],
         )
@@ -805,10 +902,26 @@ fn parse_stored_campaign(row: &Row) -> Result<StoredCampaign, StoreError> {
     let state: &str = row.try_get(2).map_err(|_| StoreError::StoredRowInvalid)?;
     let active_attempts: i32 = row.try_get(3).map_err(|_| StoreError::StoredRowInvalid)?;
     let revision: i64 = row.try_get(4).map_err(|_| StoreError::StoredRowInvalid)?;
+    let policy_id: &str = row.try_get(5).map_err(|_| StoreError::StoredRowInvalid)?;
+    let policy_hash: &str = row.try_get(6).map_err(|_| StoreError::StoredRowInvalid)?;
+    let caller_id: Option<&str> = row.try_get(7).map_err(|_| StoreError::StoredRowInvalid)?;
+    let timeout_secs: i32 = row.try_get(8).map_err(|_| StoreError::StoredRowInvalid)?;
+    let trunk: Option<&str> = row.try_get(9).map_err(|_| StoreError::StoredRowInvalid)?;
+    let dial_policy = DialPolicyRevision::try_new(DialPolicyRevisionInput {
+        revision_id: policy_id.to_owned(),
+        caller_id: caller_id.map(str::to_owned),
+        timeout_secs: u32::try_from(timeout_secs).map_err(|_| StoreError::StoredRowInvalid)?,
+        trunk: trunk.map(str::to_owned),
+    })
+    .map_err(|_| StoreError::StoredRowInvalid)?;
+    if dial_policy.content_hash() != policy_hash {
+        return Err(StoreError::StoredRowInvalid);
+    }
     Ok(StoredCampaign {
         id: CampaignId::parse(id).map_err(|_| StoreError::StoredRowInvalid)?,
         agent_release_id: AgentReleaseId::parse(release_id)
             .map_err(|_| StoreError::StoredRowInvalid)?,
+        dial_policy,
         state: parse_campaign_state(state)?,
         active_attempts: u32::try_from(active_attempts)
             .map_err(|_| StoreError::StoredRowInvalid)?,
@@ -834,8 +947,15 @@ fn validate_release(command: &AgentReleaseWrite) -> Result<(), StoreError> {
 }
 
 fn validate_campaign_create(command: &CampaignCreateWrite) -> Result<(), StoreError> {
+    let dial_policy = DialPolicyRevision::try_new(DialPolicyRevisionInput {
+        revision_id: command.dial_policy_revision.clone(),
+        caller_id: command.dial_caller_id.clone(),
+        timeout_secs: command.dial_timeout_secs,
+        trunk: command.dial_trunk.clone(),
+    })
+    .map_err(|_| StoreError::InvalidInput)?;
     if !valid_identifier(&command.audience_id)
-        || !valid_identifier(&command.dial_policy_revision)
+        || dial_policy.content_hash() != command.dial_policy_content_hash
         || !is_lowercase_sha256(&command.request_hash)
         || json_size(&command.schedule)? > MAX_JSON_BYTES
         || !command.schedule.is_object()

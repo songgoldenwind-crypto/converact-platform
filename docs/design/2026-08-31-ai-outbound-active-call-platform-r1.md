@@ -113,6 +113,7 @@ Kamailio / Trunk / PSTN
 | 能力 | 当前状态 | 本设计目标 | 生产资格 |
 | --- | --- | --- | --- |
 | 现有 Agent/Campaign/Call Center UI 与 API | TypeScript 旧写路径仍存在；只读兼容映射已通过本地测试 | 保持兼容，权威写入迁到 Rust | writer switch `not_run` |
+| Dial Policy 与 Attempt 拨号快照 | Rust 不可变 Policy、Campaign 绑定、滚动 schema、首次 Attempt/重试快照和 fail-closed load 已通过精准本地测试 | 接入租户 PostgreSQL runtime，旧空快照保持不可拨号 | physical PostgreSQL/runtime composition/production `not_run` |
 | RustPBX 呼叫链 | 具体 Rust `TelephonyPort` 已通过本地 loopback：精确 originate、O(1) inspect、answer 后 Agent leg、hangup 与 unknown-outcome；无进程内 Call 表 | 成为外呼 Call/Leg 唯一权威并接入 durable runtime | physical dial store/runtime composition/real RustPBX `not_run` |
 | Active Call 源码 | 已下载、精确 commit/hash 已核验 | 受控电话 Channel Agent | `false` |
 | Active Call 构建/测试 | 固定源码本地构建通过；上游测试因外部 `sipbot` 缺失为 `blocked_external`；预约、SIP session 绑定和显式启动门已通过本地精确源码/loopback 测试 | 自有 lockfile、构建和合同测试 | runtime/production `not_run` |
@@ -316,6 +317,24 @@ requested/prepared/human_leg_dialing -> aborted
 ```
 
 只有观察到人工 Leg 已连接后才能 `commit`。Abort 必须恢复 AI 或按政策结束，不能留下无声客户。
+
+### 6.5 Dial Policy 与物理 Attempt 快照
+
+`DialPolicyRevision` 是发布后不可原地修改的拨号策略，固定：
+
+- revision ID 与 canonical content hash；
+- 可选 caller ID；
+- `1..=120` 秒拨号超时；
+- 可选 trunk；
+- E.164 或 SIP/SIPS 地址约束。
+
+Campaign 必须绑定一个已持久化的精确 Policy revision。导入 Contact 时，将 Contact destination 与
+Policy 的 revision、content hash、caller ID、timeout 和 trunk 一次性复制到首个物理 Attempt；
+Retry 只能从其 predecessor 复制同一快照。Worker 拨号只读取 Attempt 快照，不重新查询可变 Campaign、
+Contact 或默认配置，因此重放和恢复不会因后来配置变化而改变目标或线路。
+
+迁移期间旧 Attempt 允许保留全空快照，避免伪造历史和阻塞滚动部署；运行时加载遇到全空、部分空、
+非法或 hash 不一致的行必须 fail-closed，不允许回退到环境变量、租户默认值或当前 Campaign Policy。
 
 ## 7. 正常执行流程
 
