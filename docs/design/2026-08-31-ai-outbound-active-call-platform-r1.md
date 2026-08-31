@@ -594,6 +594,20 @@ Handoff Core 的路由、prepare/commit、generation fencing 与 receipt。相�
 当前 Customer State/Dialogue recommendation 仅有本地内存合同；durable Store、Worker 实时接线、
 Active Call Prompt/Scene 消费、Handoff 提案桥接、策略运营配置和真实通话验证仍为 `not_run`。
 
+### 9.8 理解证据耐久化
+
+Additive migration `133_converact_conversation_understanding.sql` 已冻结不可变 understanding record
+与每领域 latest head。record 保存 Intent observation、Emotion observation/fusion、Customer State
+snapshot 和 Dialogue recommendation 的规范化载荷、hash、authority/generation、turn、时钟与保留
+策略；head 仅保存恢复所需的最新定位和单调 revision。恢复索引以 tenant、Attempt、generation、
+domain 开头，禁止依赖全局扫描；head 复合外键必须指向同一 Interaction/Attempt/generation/domain/
+turn/time/hash 的实际 record。
+
+record 不允许普通 UPDATE/DELETE，head 只能 revision `+1` 且 turn/time 不倒退。到期清理只能调用
+tenant-bound、当前时间上限、每批 1–1000 条的 security-definer retention 函数；运行角色不持有表级
+DELETE。当前证明仅为 PostgreSQL migration 与 SQLite development mirror 的静态 schema 合同；
+SQL Adapter、物理 PostgreSQL 执行、恢复重放和 writer switch 仍为 `not_run`。
+
 ## 10. AI 与人工座席闭环
 
 ### 10.1 Context Packet
@@ -1029,6 +1043,7 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 - [Active Call Intent → Outcome Projection R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-intent-outcome/README.md)
 - [Emotion Understanding Core R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-emotion-understanding-core/README.md)
 - [Customer State and Dialogue Policy R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-customer-state-dialogue-policy/README.md)
+- [Conversation Understanding Store Schema R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-understanding-store-schema/README.md)
 - [Active Call Reservation Overlay R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-reservation-overlay/README.md)
 - [Active Call Reservation Adapter R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-reservation-adapter/README.md)
 - [Agent Release reservation binding evidence](../../architecture-foundation/ai-outbound/evidence/r1-agent-release-reservation-binding/README.md)
@@ -1066,3 +1081,4 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 | 2026-09-01 | R1 Intent Understanding Core checkpoint | Release-bound 层级 Catalog、Slot allow-list、top-k、basis-point confidence、证据来源和 `unknown/provisional/clarification_required/confirmed/changed` Rust 状态机已有本地合同证据；真实分类 Provider、融合、校准、Store、Active Call 实时接入和质量仍为 `not_run` |
 | 2026-09-01 | R1 Emotion Understanding Core checkpoint | Release-bound Catalog、声学/文本证据约束、top-k/confidence/intensity、同 authority/turn 融合与确认后压力趋势 Rust 状态机已有本地合同证据；真实模型/融合算法、校准、Store、Policy 消费、音频与生产仍为 `not_run` |
 | 2026-09-01 | R1 Customer State/Dialogue Policy checkpoint | 同 authority 的 Intent/Emotion 快照、Release-bound Policy、情绪优先澄清与恶化压力人工接管建议已有本地合同证据；建议不具有 Handoff/Tool/电话动作权，Store、Worker/Active Call 接线和生产仍为 `not_run` |
+| 2026-09-01 | R1 Understanding Store schema checkpoint | additive immutable record + fenced latest-head schema、复合 evidence FK、Attempt/generation/domain 有界恢复索引及专用保留期清理函数已有本地合同证据；SQL Adapter、物理 PostgreSQL、恢复重放和生产仍为 `not_run` |

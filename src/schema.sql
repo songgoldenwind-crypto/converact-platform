@@ -3521,3 +3521,81 @@ CREATE TABLE IF NOT EXISTS converact_post_call_finalization_receipts (
 CREATE INDEX IF NOT EXISTS idx_converact_post_call_finalization_claim
   ON converact_post_call_finalization_jobs (tenant_id, enqueued_at, job_id)
   WHERE state IN ('pending', 'claimed', 'reconcile_required');
+
+-- ===== Converact durable conversation understanding (SQLite development mirror) =====
+
+CREATE TABLE IF NOT EXISTS converact_conversation_understanding_records (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  record_id TEXT NOT NULL,
+  record_kind TEXT NOT NULL CHECK (record_kind IN (
+    'intent_observation', 'emotion_observation', 'emotion_fusion',
+    'customer_state_snapshot', 'dialogue_recommendation'
+  )),
+  domain TEXT NOT NULL CHECK (domain IN ('intent', 'emotion', 'customer_state', 'dialogue')),
+  interaction_id TEXT NOT NULL,
+  call_attempt_id TEXT NOT NULL,
+  call_id TEXT,
+  agent_release_id TEXT NOT NULL,
+  channel_agent_session_id TEXT,
+  execution_generation INTEGER NOT NULL CHECK (execution_generation > 0),
+  turn_index INTEGER NOT NULL CHECK (turn_index >= 0),
+  observed_at TEXT NOT NULL,
+  retention_policy_ref TEXT NOT NULL,
+  retention_until TEXT NOT NULL,
+  payload TEXT NOT NULL CHECK (json_valid(payload) AND json_type(payload) = 'object'),
+  payload_hash TEXT NOT NULL CHECK (length(payload_hash) = 64),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, record_id),
+  UNIQUE (
+    tenant_id, record_id, domain, record_kind, interaction_id, call_attempt_id,
+    execution_generation, turn_index, observed_at, payload_hash
+  ),
+  CHECK (
+    (record_kind = 'intent_observation' AND domain = 'intent') OR
+    (record_kind IN ('emotion_observation', 'emotion_fusion') AND domain = 'emotion') OR
+    (record_kind = 'customer_state_snapshot' AND domain = 'customer_state') OR
+    (record_kind = 'dialogue_recommendation' AND domain = 'dialogue')
+  )
+);
+
+CREATE TABLE IF NOT EXISTS converact_conversation_understanding_heads (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  interaction_id TEXT NOT NULL,
+  call_attempt_id TEXT NOT NULL,
+  execution_generation INTEGER NOT NULL CHECK (execution_generation > 0),
+  domain TEXT NOT NULL CHECK (domain IN ('intent', 'emotion', 'customer_state', 'dialogue')),
+  head_revision INTEGER NOT NULL CHECK (head_revision > 0),
+  record_id TEXT NOT NULL,
+  record_kind TEXT NOT NULL CHECK (record_kind IN (
+    'intent_observation', 'emotion_fusion', 'customer_state_snapshot', 'dialogue_recommendation'
+  )),
+  turn_index INTEGER NOT NULL CHECK (turn_index >= 0),
+  observed_at TEXT NOT NULL,
+  payload_hash TEXT NOT NULL CHECK (length(payload_hash) = 64),
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, interaction_id, call_attempt_id, execution_generation, domain),
+  UNIQUE (tenant_id, record_id),
+  FOREIGN KEY (
+    tenant_id, record_id, domain, record_kind, interaction_id, call_attempt_id,
+    execution_generation, turn_index, observed_at, payload_hash
+  ) REFERENCES converact_conversation_understanding_records (
+    tenant_id, record_id, domain, record_kind, interaction_id, call_attempt_id,
+    execution_generation, turn_index, observed_at, payload_hash
+  ) ON DELETE RESTRICT,
+  CHECK (
+    (record_kind = 'intent_observation' AND domain = 'intent') OR
+    (record_kind = 'emotion_fusion' AND domain = 'emotion') OR
+    (record_kind = 'customer_state_snapshot' AND domain = 'customer_state') OR
+    (record_kind = 'dialogue_recommendation' AND domain = 'dialogue')
+  )
+);
+
+CREATE INDEX IF NOT EXISTS idx_converact_understanding_attempt_records
+  ON converact_conversation_understanding_records (
+    tenant_id, call_attempt_id, execution_generation, domain, turn_index, observed_at
+  );
+
+CREATE INDEX IF NOT EXISTS idx_converact_understanding_attempt_heads
+  ON converact_conversation_understanding_heads (
+    tenant_id, call_attempt_id, execution_generation, domain
+  );
