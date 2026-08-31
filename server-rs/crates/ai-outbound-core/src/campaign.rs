@@ -52,6 +52,36 @@ impl Campaign {
         }
     }
 
+    /// Restores one validated durable Campaign row before applying Core transitions.
+    ///
+    /// # Errors
+    ///
+    /// Rejects zero revision and terminal rows that still claim active Attempts.
+    pub fn restore(
+        id: CampaignId,
+        state: CampaignState,
+        active_attempts: u32,
+        revision: u64,
+    ) -> Result<Self, DomainError> {
+        if revision == 0 {
+            return Err(DomainError::InvalidRevision);
+        }
+        if active_attempts != 0
+            && matches!(
+                state,
+                CampaignState::Completed | CampaignState::Cancelled | CampaignState::Archived
+            )
+        {
+            return Err(DomainError::InvalidTransition);
+        }
+        Ok(Self {
+            id,
+            state,
+            active_attempts,
+            revision,
+        })
+    }
+
     /// Applies one exhaustive Campaign transition.
     ///
     /// # Errors
