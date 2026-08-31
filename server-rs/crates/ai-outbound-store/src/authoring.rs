@@ -195,6 +195,25 @@ impl StoredCampaign {
 }
 
 impl AiOutboundStore {
+    /// Loads an exact content-free replay before a Core state transition is recalculated.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a reused key with another command/hash and sanitizes database failures.
+    pub async fn replay_admin_command(
+        &self,
+        transaction: &Transaction<'_>,
+        tenant_id: &TenantId,
+        idempotency_key: &IdempotencyKey,
+        kind: AdminCommandKind,
+        request_hash: &str,
+    ) -> Result<Option<AdminWriteReceipt>, StoreError> {
+        if !is_lowercase_sha256(request_hash) {
+            return Err(StoreError::InvalidInput);
+        }
+        existing_receipt(transaction, tenant_id, idempotency_key, kind, request_hash).await
+    }
+
     /// Inserts or exactly replays an immutable published Agent Release.
     ///
     /// # Errors

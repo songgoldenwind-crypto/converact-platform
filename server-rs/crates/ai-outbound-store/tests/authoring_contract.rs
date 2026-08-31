@@ -63,6 +63,7 @@ fn postgres_authoring_path_preserves_single_authority_and_atomic_import() {
         "expected_campaign_revision",
         "lock_campaign",
         "persist_campaign_transition",
+        "replay_admin_command",
     ] {
         assert!(
             source.contains(required),
