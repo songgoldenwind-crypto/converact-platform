@@ -152,3 +152,17 @@ generation 时，Broker 才返回 `Consumable` ToolResult。旧 generation 返�
 
 证据见 [R1 Tool Action evidence](../../architecture-foundation/ai-outbound/evidence/r1-tool-action/README.md)。
 证据等级仅为 `local_contract + controlled_test_double`；本节不改变第 9 节任何 `not_run` 项。
+
+## 11. 首批通用业务 Adapter
+
+D5 下一条功能切片固定两个行业无关能力，不把汽车、保险或某一 CRM 写进 Core：
+
+| capability | 类别 | 输入 | Provider Port | 结果 |
+| --- | --- | --- | --- | --- |
+| `customer.lookup` | query | bounded `customer_id` | `CustomerDirectoryPort` | typed customer snapshot / not found |
+| `task.create_follow_up` | mutation | `customer_id`、bounded reason、due time | `FollowUpTaskPort` | created / not applied / outcome unknown |
+
+Adapter 必须使用 `AuthorizedToolAction` 中固定的 capability/effect class；不接受 URL、Secret、shell、
+SQL 或动态代码。变更 Provider 的幂等键固定使用 `ToolCallId`，ambiguous execute 只能通过
+`FollowUpTaskPort.query(ToolCallId)` 收敛。Provider 只负责外部系统协议，不能拥有 Tool Policy、
+Approval、Receipt 或 Agent 状态。
