@@ -320,8 +320,48 @@ impl EmotionObservation {
     }
 
     #[must_use]
+    pub const fn id(&self) -> &EmotionObservationId {
+        &self.id
+    }
+
+    #[must_use]
+    pub const fn context(&self) -> &EnvelopeContext {
+        &self.context
+    }
+
+    #[must_use]
+    pub const fn catalog_revision_id(&self) -> &EmotionCatalogRevisionId {
+        &self.catalog_revision_id
+    }
+
+    #[must_use]
+    pub const fn source(&self) -> EmotionSource {
+        self.source
+    }
+
+    #[must_use]
+    pub fn provider_revision(&self) -> &str {
+        &self.provider_revision
+    }
+
+    #[must_use]
+    pub fn transcript_segment_ids(&self) -> &[TranscriptSegmentId] {
+        &self.transcript_segment_ids
+    }
+
+    #[must_use]
+    pub fn audio_evidence_window_ids(&self) -> &[AudioEvidenceWindowId] {
+        &self.audio_evidence_window_ids
+    }
+
+    #[must_use]
     pub const fn turn_index(&self) -> u32 {
         self.turn_index
+    }
+
+    #[must_use]
+    pub const fn observed_at_ms(&self) -> u64 {
+        self.observed_at_ms
     }
 
     #[must_use]
