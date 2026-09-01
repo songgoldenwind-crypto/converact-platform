@@ -1,0 +1,81 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-09-01",
+  "evidence_class": [
+    "local_contract"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "parent_commit": "948c08b0cc15dc9d09adcb2edc12df31ac643192"
+  },
+  "commands": [
+    {
+      "id": "contextual_intent_provider_contract",
+      "working_directory": "server-rs",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test contextual_intent_provider",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "id": "intent_confidence_router_contract",
+      "working_directory": "server-rs",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test intent_confidence_router",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "id": "contextual_intent_provider_scoped_format",
+      "working_directory": "server-rs",
+      "command": "rustfmt --edition 2024 --check <5 changed Rust files>",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "contextual_intent_provider_scoped_clippy",
+      "working_directory": "server-rs",
+      "command": "cargo clippy --locked -p converact-voice-agent-worker --lib --test contextual_intent_provider --test intent_confidence_router -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "contextual_intent_provider_evidence_json",
+      "working_directory": ".",
+      "command": "python3 -m json.tool architecture-foundation/ai-outbound/evidence/r1-contextual-intent-provider/verification.json",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "contextual_intent_provider_diff_check",
+      "working_directory": ".",
+      "command": "git diff --check",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "not_run": [
+    "real_llm_provider_pool_http_or_native_adapter_and_rendered_prompt_artifact",
+    "real_intent_slot_accuracy_calibration_fallback_latency_and_provider_failover",
+    "durable_raw_contributor_and_resolution_schema_codec_transaction",
+    "transcript_provider_worker_composition_and_complete_four_domain_turn_commit",
+    "active_call_live_sse_gap_recovery_and_physical_postgresql",
+    "real_sip_pstn_media_recording",
+    "performance",
+    "capacity",
+    "long_run",
+    "independent_review",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_read": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}

@@ -12,8 +12,9 @@ advance the authoritative Intent state exactly once.
 - If Safety misses, Fast Classifier runs. A confirmed/changed result closes the turn immediately.
 - Unknown, provisional or low-margin Fast output creates a bounded pending resolution. It does not
   mutate or durably advance Intent state before the Contextual LLM result arrives.
-- A Contextual LLM observation must use the same Release, Catalog, authority, turn and transcript
-  evidence. Resolution advances from the original previous state, not from the Fast preview.
+- A Contextual LLM observation must use the same Release, Catalog, authority, turn and current
+  transcript anchor. It may add bounded prior transcript evidence. Resolution advances from the
+  original previous state, not from the Fast preview.
 - If Layer 2 is unavailable, an explicit fallback closes the original Fast result so the call can
   clarify or remain unknown without a second same-turn state transition.
 - A resolution content-hashes the selected observation plus all unique contributors. Diagnostics

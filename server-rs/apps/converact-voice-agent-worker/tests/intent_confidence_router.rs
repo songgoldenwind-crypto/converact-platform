@@ -259,7 +259,10 @@ fn contextual_observation(
                 confidence_bps: 9_300,
             }],
             slots: BTreeMap::default(),
-            evidence_segment_ids: vec![segment.id().clone()],
+            evidence_segment_ids: vec![
+                TranscriptSegmentId::parse("segment-prior-context").unwrap(),
+                segment.id().clone(),
+            ],
             turn_index: 1,
             observed_at_ms: segment.observed_at_ms() + 1,
         },

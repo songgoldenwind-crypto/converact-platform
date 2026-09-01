@@ -19,8 +19,8 @@ Production eligibility: `false`
   `confirmed` or `changed` closes immediately; unknown, provisional and insufficient-margin output
   creates a pending resolution and does not mutate the authoritative state.
 - A pending resolution owns the original state, exact Catalog, policy and Fast observation. A
-  Contextual LLM observation must match Release, Catalog, complete authority, turn and exact
-  transcript evidence, and cannot predate Fast evidence.
+  Contextual LLM observation must match Release, Catalog, complete authority, turn and the exact
+  current transcript anchor, may add prior context evidence, and cannot predate Fast evidence.
 - Contextual resolution advances from the original state exactly once. It does not first apply Fast
   and does not fabricate a second turn index to bypass stale-observation checks.
 - Explicit fallback closes the original Fast observation when Layer 2 is unavailable, preserving

@@ -73,6 +73,7 @@ impl IntentTurnResolution {
             return Err(IntentConfidenceRouterError::ResolutionInvalid);
         }
         let selected = checkpoint.observation();
+        let selected_anchor = selected.evidence_segment_ids().last();
         if !contributors
             .iter()
             .any(|observation| observation.payload_hash() == selected.payload_hash())
@@ -80,7 +81,7 @@ impl IntentTurnResolution {
                 observation.context() != selected.context()
                     || observation.catalog_revision_id() != selected.catalog_revision_id()
                     || observation.turn_index() != selected.turn_index()
-                    || observation.evidence_segment_ids() != selected.evidence_segment_ids()
+                    || observation.evidence_segment_ids().last() != selected_anchor
             })
         {
             return Err(IntentConfidenceRouterError::ResolutionInvalid);
@@ -174,7 +175,8 @@ impl PendingIntentTurn {
             || contextual.context() != self.fast_observation.context()
             || contextual.catalog_revision_id() != self.fast_observation.catalog_revision_id()
             || contextual.turn_index() != self.fast_observation.turn_index()
-            || contextual.evidence_segment_ids() != self.fast_observation.evidence_segment_ids()
+            || contextual.evidence_segment_ids().last()
+                != self.fast_observation.evidence_segment_ids().last()
             || contextual.observed_at_ms() < self.fast_observation.observed_at_ms()
         {
             return Err(IntentConfidenceRouterError::ContextualEvidenceMismatch);
