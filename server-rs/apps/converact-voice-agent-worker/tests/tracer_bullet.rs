@@ -37,6 +37,18 @@ async fn long_lived_attempt_is_supervised_before_atomic_terminal_commit() {
 }
 
 #[tokio::test]
+async fn recovered_active_attempt_resumes_observation_without_another_dial() {
+    let app = TestWorker::controlled();
+
+    let attempt = app.resume_one_contact_with_session().await.unwrap();
+
+    assert_eq!(app.active_session_count(), 1);
+    assert_eq!(attempt.state().as_str(), "completed");
+    assert_eq!(app.finalization_job_count(), 1);
+    assert_eq!(app.telephony().originate_count(), 0);
+}
+
+#[tokio::test]
 async fn campaign_release_is_bound_to_the_agent_reservation() {
     let app = TestWorker::controlled();
     let release = app.publish_fixture_agent();

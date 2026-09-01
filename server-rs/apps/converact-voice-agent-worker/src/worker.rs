@@ -126,7 +126,8 @@ where
             .finalize_active_attempt(active.clone())
             .await
             .map_err(|error| WorkerError::new(error.code()))?;
-        self.commit_terminal(&binding, &active, attempt).await
+        self.commit_terminal(&binding.campaign_id, binding.release.id(), &active, attempt)
+            .await
     }
 
     /// Starts one call, supervises its durable Active Call event stream, and only then commits the
@@ -168,8 +169,61 @@ where
         if !binding.matches_active_context(&context, &active) {
             return Err(WorkerError::new("voice_agent_active_context_mismatch"));
         }
+        self.supervise_and_complete(&context, active, session).await
+    }
+
+    /// Resumes one fenced `conversing` Attempt from persisted Call and Agent Session authority.
+    /// No compliance, reservation, dial, attach, disclosure or conversation-start mutation is
+    /// replayed on this path.
+    ///
+    /// # Errors
+    ///
+    /// Returns stable lease, authority, supervision, terminal observation or commit failures.
+    pub async fn resume_attempt_with_active_session<E>(
+        &self,
+        tenant: &AuthenticatedTenant,
+        attempt_id: &CallAttemptId,
+        session: &E,
+    ) -> Result<AttemptResource, WorkerError>
+    where
+        S: ActiveAttemptContextPort + ActiveAttemptLeasePort,
+        E: ActiveCallSessionPort<S>,
+    {
+        let attempt = self
+            .attempt_store
+            .load(attempt_id)
+            .await
+            .map_err(|error| WorkerError::new(error.code()))?;
+        let context = self.attempt_store.load_active_envelope_context().await?;
+        let (Some(call_id), Some(session_id)) =
+            (context.call_id(), context.channel_agent_session_id())
+        else {
+            return Err(WorkerError::new("voice_agent_active_context_mismatch"));
+        };
+        if context.tenant_id() != tenant.as_str() || context.call_attempt_id() != attempt_id {
+            return Err(WorkerError::new("voice_agent_active_context_mismatch"));
+        }
+        let active = converact_ai_outbound_core::ActiveAttemptExecution::try_new(
+            attempt,
+            call_id.clone(),
+            session_id.clone(),
+        )
+        .map_err(|error| WorkerError::new(error.code()))?;
+        self.supervise_and_complete(&context, active, session).await
+    }
+
+    async fn supervise_and_complete<E>(
+        &self,
+        context: &converact_voice_agent_contracts::EnvelopeContext,
+        active: converact_ai_outbound_core::ActiveAttemptExecution,
+        session: &E,
+    ) -> Result<AttemptResource, WorkerError>
+    where
+        S: ActiveAttemptLeasePort,
+        E: ActiveCallSessionPort<S>,
+    {
         match session
-            .supervise_active_call(&context, &self.attempt_store)
+            .supervise_active_call(context, &self.attempt_store)
             .await?
         {
             ActiveCallSessionSupervisorOutcome::Completed => {}
@@ -182,11 +236,23 @@ where
                 ));
             }
         }
+        let orchestrator = OutboundOrchestrator::new(
+            &self.compliance,
+            &self.agent,
+            &self.telephony,
+            &self.attempt_store,
+        );
         let attempt = orchestrator
             .finalize_active_attempt(active.clone())
             .await
             .map_err(|error| WorkerError::new(error.code()))?;
-        self.commit_terminal(&binding, &active, attempt).await
+        self.commit_terminal(
+            context.campaign_id(),
+            context.agent_release_id(),
+            &active,
+            attempt,
+        )
+        .await
     }
 
     async fn load_execution_binding(
@@ -239,14 +305,15 @@ where
 
     async fn commit_terminal(
         &self,
-        binding: &AttemptExecutionBinding,
+        campaign_id: &CampaignId,
+        release_id: &AgentReleaseId,
         active: &converact_ai_outbound_core::ActiveAttemptExecution,
         attempt: converact_ai_outbound_core::CallAttempt,
     ) -> Result<AttemptResource, WorkerError> {
         let terminal = TerminalAttemptCommit::try_new(
             attempt.clone(),
-            binding.campaign_id.clone(),
-            binding.release.id().clone(),
+            campaign_id.clone(),
+            release_id.clone(),
             active.call_id().clone(),
             active.channel_agent_session_id().clone(),
         )
@@ -255,11 +322,8 @@ where
             .complete_and_enqueue(terminal)
             .await
             .map_err(|error| WorkerError::new(error.code()))?;
-        let resource = AttemptResource::terminal_pending(
-            binding.campaign_id.as_str(),
-            binding.release.id().as_str(),
-            &attempt,
-        );
+        let resource =
+            AttemptResource::terminal_pending(campaign_id.as_str(), release_id.as_str(), &attempt);
         Ok(resource)
     }
 

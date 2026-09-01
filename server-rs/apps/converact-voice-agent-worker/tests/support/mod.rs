@@ -12,11 +12,11 @@ use axum::{
 };
 use converact_ai_outbound_core::{
     ActiveAttemptExecution, AgentDraft, AgentLegBinding, AgentObservation, AgentReleaseBinding,
-    AgentReservation, AttemptCompletionPort, AttemptStorePort, CallAttempt, CallObservation,
-    Campaign, CampaignCommand, ChannelAgentPort, ComplianceDecision, CompliancePort, EffectIntent,
-    OriginateCall, OutboundDialBinding, OutboundDialBindingInput, PlayDisclosure, PortError,
-    ReleaseComponentDigests, ReserveAgent, StartConversation, TelephonyPort, TerminalAttemptCommit,
-    TerminateCall, publish_agent,
+    AgentReservation, AttemptCompletionPort, AttemptStorePort, CallAttempt,
+    CallAttemptRestoreInput, CallObservation, Campaign, CampaignCommand, ChannelAgentPort,
+    ComplianceDecision, CompliancePort, EffectIntent, OriginateCall, OutboundDialBinding,
+    OutboundDialBindingInput, PlayDisclosure, PortError, ReleaseComponentDigests, ReserveAgent,
+    StartConversation, TelephonyPort, TerminalAttemptCommit, TerminateCall, publish_agent,
 };
 use converact_contracts::health::{
     ConfigurationCheck, ConfigurationStatus, DatabaseCheck, DatabaseStatus, MigrationCheck,
@@ -145,6 +145,40 @@ impl TestWorker {
             .run_attempt_with_active_session(
                 &tenant,
                 campaign_id,
+                &attempt_id,
+                &ControlledActiveSession {
+                    state: Arc::clone(&self.state),
+                    repository: Arc::clone(&self.repository.state),
+                },
+            )
+            .await
+    }
+
+    pub async fn resume_one_contact_with_session(&self) -> Result<AttemptResource, WorkerError> {
+        let tenant = AuthenticatedTenant::try_from_verified_tenant_id("tenant-a").unwrap();
+        let attempt_id = CallAttemptId::parse("attempt-001").unwrap();
+        let attempt = CallAttempt::restore(CallAttemptRestoreInput {
+            id: attempt_id.clone(),
+            previous_attempt_id: None,
+            state: CallAttemptState::Conversing,
+            revision: 11,
+            disclosure_completed: true,
+        })
+        .unwrap();
+        let active = ActiveAttemptExecution::try_new(
+            attempt.clone(),
+            CallId::parse(attempt_id.as_str()).unwrap(),
+            ChannelAgentSessionId::parse("session-recovered-001").unwrap(),
+        )
+        .unwrap();
+        {
+            let mut state = self.state.lock().unwrap();
+            state.attempt = attempt;
+            state.active_execution = Some(active);
+        }
+        self.worker
+            .resume_attempt_with_active_session(
+                &tenant,
                 &attempt_id,
                 &ControlledActiveSession {
                     state: Arc::clone(&self.state),
