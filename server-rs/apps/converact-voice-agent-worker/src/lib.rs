@@ -12,6 +12,7 @@ mod active_call_playbook_artifact;
 mod active_call_playbook_postgres;
 mod active_call_playbook_resolver;
 mod active_call_reservation;
+mod active_call_session_supervisor;
 mod active_call_transcript;
 mod active_call_transcript_postgres;
 mod active_call_understanding;
@@ -88,6 +89,11 @@ pub use active_call_playbook_resolver::{
     ActiveCallPlaybookResolverError,
 };
 pub use active_call_reservation::{ActiveCallReservationAdapter, ActiveCallReservationObservation};
+pub use active_call_session_supervisor::{
+    ActiveAttemptLeasePort, ActiveCallEventCyclePort, ActiveCallSessionSupervisor,
+    ActiveCallSessionSupervisorConfig, ActiveCallSessionSupervisorConfigError,
+    ActiveCallSessionSupervisorOutcome,
+};
 pub use active_call_transcript::{
     ActiveCallTranscriptBinding, ActiveCallTranscriptBindingInput,
     ActiveCallTranscriptDurabilityPort, ActiveCallTranscriptIngestError,
