@@ -370,6 +370,7 @@ struct FailingProcessor;
 impl ActiveCallEventProcessorPort for FailingProcessor {
     async fn process(
         &self,
+        _context: &EnvelopeContext,
         _event: &NormalizedEvent,
     ) -> Result<(), ActiveCallEventProcessingError> {
         Err(ActiveCallEventProcessingError::new(
@@ -385,7 +386,13 @@ impl Processor {
 }
 
 impl ActiveCallEventProcessorPort for Processor {
-    async fn process(&self, event: &NormalizedEvent) -> Result<(), ActiveCallEventProcessingError> {
+    async fn process(
+        &self,
+        context: &EnvelopeContext,
+        event: &NormalizedEvent,
+    ) -> Result<(), ActiveCallEventProcessingError> {
+        assert_eq!(context, event.authority());
+        assert_eq!(context.call_attempt_id().as_str(), "attempt-001");
         self.log.lock().unwrap().push(match event {
             NormalizedEvent::MediaReady { .. } => "process:media_ready",
             NormalizedEvent::ConversationCompleted { .. } => "process:terminal",

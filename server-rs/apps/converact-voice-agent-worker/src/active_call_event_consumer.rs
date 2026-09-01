@@ -398,6 +398,7 @@ impl Error for ActiveCallEventProcessingError {}
 pub trait ActiveCallEventProcessorPort: Sync {
     fn process(
         &self,
+        context: &EnvelopeContext,
         event: &NormalizedEvent,
     ) -> impl Future<Output = Result<(), ActiveCallEventProcessingError>> + Send;
 }
@@ -436,7 +437,16 @@ where
     D::Append: TranscriptUnderstandingAppendReceipt,
     P: FinalTranscriptUnderstandingPort,
 {
-    async fn process(&self, event: &NormalizedEvent) -> Result<(), ActiveCallEventProcessingError> {
+    async fn process(
+        &self,
+        context: &EnvelopeContext,
+        event: &NormalizedEvent,
+    ) -> Result<(), ActiveCallEventProcessingError> {
+        if context != event.authority() {
+            return Err(ActiveCallEventProcessingError::new(
+                "active_call_event_processor_authority_invalid",
+            ));
+        }
         process_active_call_understanding_event(
             self.store,
             self.processor,
@@ -748,7 +758,7 @@ where
     P: ActiveCallEventProcessorPort,
 {
     processor
-        .process(normalized)
+        .process(context, normalized)
         .await
         .map_err(|_| ActiveCallEventConsumerError::ProcessingFailed)?;
     inbox
