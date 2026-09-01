@@ -5,6 +5,7 @@
 mod adapter;
 mod model;
 mod ports;
+mod schema;
 
 pub use adapter::AgentToolAdapter;
 pub use model::{
@@ -12,3 +13,4 @@ pub use model::{
     FollowUpExecuteResult, FollowUpQuery, FollowUpRequest, FollowUpTaskId,
 };
 pub use ports::{CustomerDirectoryPort, FollowUpTaskPort};
+pub use schema::AgentToolSchema;
