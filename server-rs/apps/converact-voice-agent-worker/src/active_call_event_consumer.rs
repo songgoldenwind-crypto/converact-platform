@@ -420,6 +420,75 @@ pub trait ActiveCallTranscriptBindingPort: Sync {
     > + Send;
 }
 
+/// Required projection for media-binding and final-transcript events.
+pub trait ActiveCallTranscriptProjectionPort: Sync {
+    fn project_transcript_event(
+        &self,
+        context: &EnvelopeContext,
+        event: &NormalizedEvent,
+    ) -> impl Future<Output = Result<(), ActiveCallEventProcessingError>> + Send;
+}
+
+/// Required projection for effectful Tool proposals.
+pub trait ActiveCallToolProjectionPort: Sync {
+    fn project_tool_event(
+        &self,
+        context: &EnvelopeContext,
+        event: &NormalizedEvent,
+    ) -> impl Future<Output = Result<(), ActiveCallEventProcessingError>> + Send;
+}
+
+/// Closed event router: effectful events require one explicit projection before acknowledgement.
+pub struct ActiveCallEventProjectionRouter<'a, T, K> {
+    transcripts: &'a T,
+    tools: &'a K,
+}
+
+impl<'a, T, K> ActiveCallEventProjectionRouter<'a, T, K> {
+    #[must_use]
+    pub const fn new(transcripts: &'a T, tools: &'a K) -> Self {
+        Self { transcripts, tools }
+    }
+}
+
+impl<T, K> ActiveCallEventProcessorPort for ActiveCallEventProjectionRouter<'_, T, K>
+where
+    T: ActiveCallTranscriptProjectionPort,
+    K: ActiveCallToolProjectionPort,
+{
+    async fn process(
+        &self,
+        context: &EnvelopeContext,
+        event: &NormalizedEvent,
+    ) -> Result<(), ActiveCallEventProcessingError> {
+        if context != event.authority() || !event.is_durable() {
+            return Err(ActiveCallEventProcessingError::new(
+                "active_call_event_projection_authority_invalid",
+            ));
+        }
+        match event {
+            NormalizedEvent::MediaReady { .. } | NormalizedEvent::TranscriptFinal { .. } => {
+                self.transcripts
+                    .project_transcript_event(context, event)
+                    .await
+            }
+            NormalizedEvent::ToolProposed { .. } => {
+                self.tools.project_tool_event(context, event).await
+            }
+            NormalizedEvent::PlaybackInterrupted { .. }
+            | NormalizedEvent::HoldChanged { .. }
+            | NormalizedEvent::InactivityDetected { .. }
+            | NormalizedEvent::ConversationCompleted { .. } => Ok(()),
+            NormalizedEvent::TranscriptDelta { .. }
+            | NormalizedEvent::SpeechStarted { .. }
+            | NormalizedEvent::UtteranceEnded { .. }
+            | NormalizedEvent::DtmfInput { .. } => Err(ActiveCallEventProcessingError::new(
+                "active_call_event_projection_transient_invalid",
+            )),
+        }
+    }
+}
+
 /// Shared adapter that resolves each durable event's exact call binding before understanding.
 pub struct ActiveCallUnderstandingEventProcessor<'a, B, D, P> {
     bindings: &'a B,
@@ -445,14 +514,15 @@ impl<'a, B, D, P> ActiveCallUnderstandingEventProcessor<'a, B, D, P> {
     }
 }
 
-impl<B, D, P> ActiveCallEventProcessorPort for ActiveCallUnderstandingEventProcessor<'_, B, D, P>
+impl<B, D, P> ActiveCallTranscriptProjectionPort
+    for ActiveCallUnderstandingEventProcessor<'_, B, D, P>
 where
     B: ActiveCallTranscriptBindingPort,
     D: ActiveCallTranscriptDurabilityPort + TranscriptUnderstandingHistoryPort + Sync,
     D::Append: TranscriptUnderstandingAppendReceipt,
     P: FinalTranscriptUnderstandingPort,
 {
-    async fn process(
+    async fn project_transcript_event(
         &self,
         context: &EnvelopeContext,
         event: &NormalizedEvent,
@@ -474,7 +544,9 @@ where
                 .await;
         }
         if !matches!(event, NormalizedEvent::TranscriptFinal { .. }) {
-            return Ok(());
+            return Err(ActiveCallEventProcessingError::new(
+                "active_call_transcript_projection_event_invalid",
+            ));
         }
         let binding = self.bindings.load_binding(context).await?.ok_or_else(|| {
             ActiveCallEventProcessingError::new("active_call_transcript_binding_not_available")

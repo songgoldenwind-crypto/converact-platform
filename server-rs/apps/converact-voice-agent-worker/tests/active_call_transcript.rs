@@ -12,9 +12,9 @@ use converact_voice_agent_contracts::{
     VOICE_AGENT_SCHEMA_VERSION,
 };
 use converact_voice_agent_worker::{
-    ActiveCallEventProcessingError, ActiveCallEventProcessorPort, ActiveCallTranscriptBinding,
-    ActiveCallTranscriptBindingInput, ActiveCallTranscriptBindingPort,
-    ActiveCallTranscriptDurabilityPort, ActiveCallTranscriptIngestError,
+    ActiveCallEventProcessingError, ActiveCallTranscriptBinding, ActiveCallTranscriptBindingInput,
+    ActiveCallTranscriptBindingPort, ActiveCallTranscriptDurabilityPort,
+    ActiveCallTranscriptIngestError, ActiveCallTranscriptProjectionPort,
     ActiveCallUnderstandingEventOutcome, ActiveCallUnderstandingEventProcessor,
     FinalTranscriptUnderstandingError, FinalTranscriptUnderstandingPort,
     TranscriptUnderstandingAppendReceipt, TranscriptUnderstandingDisposition,
@@ -285,9 +285,12 @@ async fn shared_processor_binds_media_then_resolves_the_exact_call_for_each_fina
     )
     .unwrap();
 
-    processor.process(&authority, &media_ready).await.unwrap();
     processor
-        .process(
+        .project_transcript_event(&authority, &media_ready)
+        .await
+        .unwrap();
+    processor
+        .project_transcript_event(
             &authority,
             &final_event(
                 &authority,
