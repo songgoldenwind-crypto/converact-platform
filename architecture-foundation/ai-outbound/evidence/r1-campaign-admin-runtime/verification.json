@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "evidence_id": "ai-outbound-r1-campaign-admin-runtime-20260901",
+  "status": "passed_local_composition",
+  "source_commits": [
+    "6bb53b6731433a67a7c673b1ad0c9d5e82dcf858",
+    "a614e5585c49318576fab12dca84f8304959515a",
+    "c0b68ace036d7575f04e4d7855db22ee21270334",
+    "8972fcab71358281fe1c9f79290f4a66cea891aa"
+  ],
+  "toolchain": {
+    "rust": "1.94.1",
+    "locked": true
+  },
+  "verification": [
+    {
+      "scope": "postgres_campaign_admin_contract_and_unit",
+      "passed": 5,
+      "failed": 0
+    },
+    {
+      "scope": "tenant_auth_hs256_rs256_capabilities",
+      "passed": 6,
+      "failed": 0
+    },
+    {
+      "scope": "worker_campaign_http_auth_adapter_process",
+      "passed": 15,
+      "failed": 0
+    },
+    {
+      "scope": "worker_postgres_campaign_admin_unit",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "scope": "voice_agent_executable_check",
+      "status": "passed"
+    },
+    {
+      "scope": "scoped_clippy_deny_warnings",
+      "status": "passed"
+    }
+  ],
+  "not_run": [
+    "physical_postgresql_campaign_admin_transaction",
+    "real_platform_issuer_capability_provisioning",
+    "operator_ui_or_file_import",
+    "real_sip_pstn_campaign_call",
+    "remote_server",
+    "production",
+    "performance",
+    "capacity",
+    "long_run"
+  ],
+  "constraints": {
+    "docker_used": false,
+    "remote_server_changed": false,
+    "broad_regression_run": false,
+    "performance_run": false
+  }
+}

@@ -3,7 +3,7 @@
 > **For agentic workers:** Execute inline with repository TDD rules. Do not use subagents,
 > servers, Docker, broad regression suites or performance tests.
 >
-> **Status:** `controlled_core_store_http_slices_passed / concrete_postgres_runtime_adapter_not_run /
+> **Status:** `executable_campaign_admin_composed / physical_postgres_not_run /
 > production_not_run`
 
 **Goal:** Make the approved Rust AI-outbound model callable for immutable Agent publication,
@@ -132,8 +132,9 @@ Approaches considered:
   deployment `not_run`.
 - [x] Commit only clean evidence/status files.
 
-The three focused layers now prove the ten frozen behaviors at local contract and controlled-test
-double level. The Store SQL is real, but no concrete `CampaignAdminPort` to `PostgresRuntime`
-composition has been activated, so physical transaction behavior remains `not_run`. R1 is not
-production eligible until that adapter, the physical PostgreSQL transaction, production capability
-middleware, real UI/import workflow and real call path have direct evidence.
+The executable Rust Worker now composes a concrete `CampaignAdminPort` through the bounded
+tenant-transaction-owning `PostgresRuntime` adapter. Verified token capabilities separately gate
+Agent publication, Campaign management and Contact import, and the port rejects a tenant outside
+the Worker's fixed claim authority before database access. Physical PostgreSQL transaction
+execution, the real UI/import workflow, issuer provisioning for the new capabilities and the real
+call path remain `not_run`; R1 is not production eligible until those have direct evidence.
