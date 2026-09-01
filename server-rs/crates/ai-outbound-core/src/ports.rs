@@ -334,10 +334,6 @@ impl ActiveAttemptExecution {
     pub const fn channel_agent_session_id(&self) -> &ChannelAgentSessionId {
         &self.channel_agent_session_id
     }
-
-    pub(crate) fn into_attempt(self) -> CallAttempt {
-        self.attempt
-    }
 }
 
 /// Request to play mandatory identity and recording disclosure.

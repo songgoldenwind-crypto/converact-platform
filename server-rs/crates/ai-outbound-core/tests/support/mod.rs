@@ -147,6 +147,12 @@ impl Harness {
         Self::configured(AgentReservationOutcome::Reserved, false, true)
     }
 
+    pub fn with_active_call() -> Self {
+        let harness = Self::new();
+        harness.state.lock().unwrap().telephony_query_is_active = true;
+        harness
+    }
+
     pub fn with_unclaimed_attempt() -> Self {
         let harness = Self::new();
         harness.state.lock().unwrap().attempt = planned_attempt();
@@ -176,6 +182,7 @@ impl Harness {
             added_agent_session_id: None,
             persisted_call_id: None,
             persisted_agent_session_id: None,
+            telephony_query_is_active: false,
         }));
         Self {
             compliance: FakeCompliance(state.clone()),
@@ -201,20 +208,32 @@ impl Harness {
     pub async fn start_one_attempt(
         &self,
     ) -> Result<(CallAttempt, CallId, ChannelAgentSessionId), OrchestrationError> {
-        let active = self
-            .orchestrator()
+        let active = self.start_active_execution().await?;
+        Ok((
+            active.attempt().clone(),
+            active.call_id().clone(),
+            active.channel_agent_session_id().clone(),
+        ))
+    }
+
+    pub async fn start_active_execution(
+        &self,
+    ) -> Result<ActiveAttemptExecution, OrchestrationError> {
+        self.orchestrator()
             .start_one_attempt(
                 &TenantId::parse("tenant-001").unwrap(),
                 &self.attempt_id,
                 &agent_release_binding(),
                 &requested_agent_session_id(),
             )
-            .await?;
-        Ok((
-            active.attempt().clone(),
-            active.call_id().clone(),
-            active.channel_agent_session_id().clone(),
-        ))
+            .await
+    }
+
+    pub async fn observe_active_attempt(
+        &self,
+        active: &ActiveAttemptExecution,
+    ) -> Result<Option<CallAttempt>, OrchestrationError> {
+        self.orchestrator().observe_active_attempt(active).await
     }
 
     pub async fn reconcile(&self) -> Result<CallObservation, OrchestrationError> {
@@ -292,6 +311,7 @@ struct HarnessState {
     added_agent_session_id: Option<ChannelAgentSessionId>,
     persisted_call_id: Option<CallId>,
     persisted_agent_session_id: Option<ChannelAgentSessionId>,
+    telephony_query_is_active: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -437,8 +457,14 @@ impl TelephonyPort for FakeTelephony {
         &self,
         call_id: &CallId,
     ) -> impl Future<Output = Result<CallObservation, PortError>> + Send {
-        self.0.lock().unwrap().record("rustpbx.not_found");
-        ready(Ok(CallObservation::NotFound(call_id.clone())))
+        let mut state = self.0.lock().unwrap();
+        if state.telephony_query_is_active {
+            state.record("rustpbx.active");
+            ready(Ok(CallObservation::Active(call_id.clone())))
+        } else {
+            state.record("rustpbx.not_found");
+            ready(Ok(CallObservation::NotFound(call_id.clone())))
+        }
     }
 
     fn terminate(

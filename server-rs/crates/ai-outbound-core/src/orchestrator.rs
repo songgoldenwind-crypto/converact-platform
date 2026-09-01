@@ -129,9 +129,40 @@ where
         &self,
         active: ActiveAttemptExecution,
     ) -> Result<CallAttempt, OrchestrationError> {
-        let call_id = active.call_id().clone();
-        self.finalize_when_terminal(active.into_attempt(), &call_id)
-            .await
+        self.observe_active_attempt(&active)
+            .await?
+            .ok_or_else(|| OrchestrationError::new("call_not_terminal"))
+    }
+
+    /// Observes one started execution without treating a live Call as an uncertain mutation.
+    ///
+    /// `None` means the exact `RustPBX` Call remains active. A terminal aggregate is returned only
+    /// after the same Call identity is confirmed terminal or absent.
+    ///
+    /// # Errors
+    ///
+    /// Returns a stable query failure. An observation with a different identity is persisted as
+    /// `outcome_unknown` so that reconciliation can resolve the authority mismatch.
+    pub async fn observe_active_attempt(
+        &self,
+        active: &ActiveAttemptExecution,
+    ) -> Result<Option<CallAttempt>, OrchestrationError> {
+        let call_id = active.call_id();
+        match self.telephony.query(call_id).await? {
+            CallObservation::Active(observed) if &observed == call_id => Ok(None),
+            CallObservation::Terminal(observed) | CallObservation::NotFound(observed)
+                if &observed == call_id =>
+            {
+                let mut attempt = active.attempt().clone();
+                attempt = transition(&attempt, AttemptCommand::Finalize)?;
+                attempt = transition(&attempt, AttemptCommand::Complete)?;
+                Ok(Some(attempt))
+            }
+            _ => {
+                self.mark_unknown(active.attempt().clone(), "telephony_observation_unexpected")
+                    .await
+            }
+        }
     }
 
     async fn prepare_attempt(
@@ -296,25 +327,6 @@ where
         self.require_known_post_answer_effect(&attempt, conversation_result)
             .await?;
 
-        Ok(attempt)
-    }
-
-    async fn finalize_when_terminal(
-        &self,
-        mut attempt: CallAttempt,
-        call_id: &CallId,
-    ) -> Result<CallAttempt, OrchestrationError> {
-        match self.telephony.query(call_id).await? {
-            CallObservation::Terminal(observed) | CallObservation::NotFound(observed)
-                if &observed == call_id => {}
-            _ => {
-                return self
-                    .mark_unknown(attempt, "telephony_observation_unexpected")
-                    .await;
-            }
-        }
-        attempt = transition(&attempt, AttemptCommand::Finalize)?;
-        attempt = transition(&attempt, AttemptCommand::Complete)?;
         Ok(attempt)
     }
 

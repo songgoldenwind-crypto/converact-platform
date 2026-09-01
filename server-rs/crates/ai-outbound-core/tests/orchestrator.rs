@@ -82,6 +82,18 @@ async fn started_attempt_returns_without_observing_a_terminal_call() {
 }
 
 #[tokio::test]
+async fn active_call_observation_keeps_attempt_conversing() {
+    let harness = Harness::with_active_call();
+    let active = harness.start_active_execution().await.unwrap();
+
+    let terminal = harness.observe_active_attempt(&active).await.unwrap();
+
+    assert_eq!(terminal, None);
+    assert_eq!(harness.attempt_state(), CallAttemptState::Conversing);
+    assert_eq!(harness.operations().last(), Some(&"rustpbx.active"));
+}
+
+#[tokio::test]
 async fn orchestrator_accepts_only_an_atomically_preclaimed_attempt() {
     let harness = Harness::with_unclaimed_attempt();
 
