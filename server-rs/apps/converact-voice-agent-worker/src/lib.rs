@@ -61,6 +61,11 @@ pub use active_call_transcript::{
     ActiveCallTranscriptDurabilityPort, ActiveCallTranscriptIngestError,
     append_active_call_final_transcript,
 };
+pub use active_call_transcript_postgres::{
+    PostgresTranscriptUnderstandingSource, TranscriptUnderstandingHistoryPort,
+    TranscriptUnderstandingSourceError, map_postgres_transcript_understanding_disposition,
+    prepare_postgres_transcript_understanding_source,
+};
 pub use campaign_admin::{
     AdminMutationResource, CampaignAdminAccess, CampaignAdminError, CampaignAdminPort,
 };

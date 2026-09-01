@@ -87,6 +87,7 @@ fn conversation_quality_queries_are_tenant_transaction_bound() {
     for required in [
         "load_latest_result",
         "list_transcript",
+        "load_recent_transcript_window",
         "list_evaluations",
         "list_bad_cases",
         "with_tenant_transaction",

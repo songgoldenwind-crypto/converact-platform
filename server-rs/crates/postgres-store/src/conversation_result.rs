@@ -9,7 +9,8 @@ use converact_conversation_result_store::{
     ConversationResultStoreError, ConversationResultView, EntityCursor, EvaluationProjectionWrite,
     ProjectionCommand, ProjectionCommandKind, ProjectionFinalizeDecision,
     ProjectionPrepareDecision, ProjectionWriteDecision, QueryLimit, QueryPage,
-    TranscriptAppendDecision, TranscriptSegmentView,
+    TranscriptAppendDecision, TranscriptHistoryLimit, TranscriptHistoryWindow,
+    TranscriptSegmentView,
 };
 use converact_kernel_ids::TenantId;
 use converact_voice_agent_contracts::{
@@ -423,6 +424,30 @@ impl PostgresConversationResultStore {
                         limit,
                     )
                     .await
+                })
+            })
+            .await
+            .map_err(map_transaction_error)
+    }
+
+    /// Loads one typed bounded dialogue window ending at an exact append receipt segment.
+    ///
+    /// # Errors
+    ///
+    /// Returns only sanitized tenant, Store or transaction failures.
+    pub async fn load_recent_transcript_window(
+        &self,
+        current: &TranscriptSegment,
+        limit: TranscriptHistoryLimit,
+    ) -> Result<TranscriptHistoryWindow, PostgresConversationResultStoreError> {
+        let tenant = tenant(current.context())?;
+        let current = current.clone();
+        let sql = self.sql;
+        self.runtime
+            .with_tenant_transaction(&tenant, move |transaction| {
+                Box::pin(async move {
+                    sql.load_recent_transcript_window(transaction, &current, limit)
+                        .await
                 })
             })
             .await

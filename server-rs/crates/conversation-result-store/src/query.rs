@@ -1,5 +1,9 @@
 use std::collections::BTreeMap;
 
+use converact_conversation_result_core::{
+    TranscriptSegment, TranscriptSegmentInput, TranscriptSpeaker,
+};
+use converact_voice_agent_contracts::{EnvelopeContext, EventId, TranscriptSegmentId};
 use serde::Serialize;
 use serde_json::Value;
 use tokio_postgres::{Row, Transaction};
@@ -7,6 +11,7 @@ use tokio_postgres::{Row, Transaction};
 use crate::{ConversationResultSqlStore, ConversationResultStoreError};
 
 const MAX_QUERY_LIMIT: u16 = 100;
+const MAX_TRANSCRIPT_HISTORY_SEGMENTS: u16 = 32;
 const MAX_CURSOR_BYTES: usize = 255;
 
 /// Bounded list limit validated before SQL construction.
@@ -34,6 +39,79 @@ impl QueryLimit {
 
     fn fetch_count(self) -> i64 {
         i64::from(self.0) + 1
+    }
+}
+
+/// Strict upper bound for one real-time understanding context window.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TranscriptHistoryLimit(u16);
+
+impl TranscriptHistoryLimit {
+    /// Creates a context limit between 1 and 32 final dialogue segments.
+    ///
+    /// # Errors
+    ///
+    /// Rejects zero and values above the runtime classifier contract.
+    pub const fn new(value: u16) -> Result<Self, ConversationResultStoreError> {
+        if value == 0 || value > MAX_TRANSCRIPT_HISTORY_SEGMENTS {
+            Err(ConversationResultStoreError::InvalidQuery)
+        } else {
+            Ok(Self(value))
+        }
+    }
+
+    #[must_use]
+    pub const fn get(self) -> u16 {
+        self.0
+    }
+
+    const fn query_count(self) -> i64 {
+        self.0 as i64
+    }
+}
+
+/// Store-ordered typed transcript context ending at one exact append receipt segment.
+#[derive(Clone, Eq, PartialEq)]
+pub struct TranscriptHistoryWindow {
+    segments: Vec<TranscriptSegment>,
+}
+
+impl TranscriptHistoryWindow {
+    /// Closes an untrusted Store result into one exact bounded understanding window.
+    ///
+    /// # Errors
+    ///
+    /// Rejects empty/oversized results, authority drift, system rows, non-increasing sequence or a
+    /// final row that is not the exact current append receipt segment.
+    pub fn try_new(
+        current: &TranscriptSegment,
+        segments: Vec<TranscriptSegment>,
+        limit: TranscriptHistoryLimit,
+    ) -> Result<Self, ConversationResultStoreError> {
+        if segments.is_empty()
+            || segments.len() > usize::from(limit.get())
+            || segments.last() != Some(current)
+            || segments.iter().any(|segment| {
+                segment.context() != current.context()
+                    || segment.speaker() == TranscriptSpeaker::System
+            })
+            || segments
+                .windows(2)
+                .any(|pair| pair[0].sequence() >= pair[1].sequence())
+        {
+            return Err(ConversationResultStoreError::StoredRowInvalid);
+        }
+        Ok(Self { segments })
+    }
+
+    #[must_use]
+    pub fn segments(&self) -> &[TranscriptSegment] {
+        &self.segments
+    }
+
+    #[must_use]
+    pub fn into_segments(self) -> Vec<TranscriptSegment> {
+        self.segments
     }
 }
 
@@ -265,6 +343,54 @@ impl ConversationResultSqlStore {
         })
     }
 
+    /// Loads one bounded typed dialogue window ending at the exact current append receipt.
+    ///
+    /// # Errors
+    ///
+    /// Returns database, conversion or stored-row failures. Any authority, payload-hash, order or
+    /// anchor drift fails closed.
+    pub async fn load_recent_transcript_window(
+        &self,
+        transaction: &Transaction<'_>,
+        current: &TranscriptSegment,
+        limit: TranscriptHistoryLimit,
+    ) -> Result<TranscriptHistoryWindow, ConversationResultStoreError> {
+        let context = current.context();
+        let generation = i64::try_from(context.execution_generation().get())
+            .map_err(|_| ConversationResultStoreError::NumericOverflow)?;
+        let sequence = i64::try_from(current.sequence())
+            .map_err(|_| ConversationResultStoreError::NumericOverflow)?;
+        let rows = transaction
+            .query(
+                "SELECT segment_id, source_event_id, segment_sequence, speaker, language,
+                        transcript_text, start_offset_ms, end_offset_ms,
+                        floor(extract(epoch FROM observed_at) * 1000)::BIGINT,
+                        retention_policy_ref, payload_hash, historical
+                 FROM converact_conversation_transcript_segments
+                 WHERE tenant_id = $1 AND interaction_id = $2
+                   AND call_attempt_id = $3 AND agent_release_id = $4
+                   AND execution_generation = $5 AND segment_sequence <= $6
+                   AND speaker <> 'system'
+                 ORDER BY segment_sequence DESC LIMIT $7",
+                &[
+                    &context.tenant_id(),
+                    &context.interaction_id().as_str(),
+                    &context.call_attempt_id().as_str(),
+                    &context.agent_release_id().as_str(),
+                    &generation,
+                    &sequence,
+                    &limit.query_count(),
+                ],
+            )
+            .await
+            .map_err(|_| ConversationResultStoreError::DatabaseUnavailable)?;
+        let mut segments = Vec::with_capacity(rows.len());
+        for row in rows.iter().rev() {
+            segments.push(typed_transcript_segment(row, context)?);
+        }
+        TranscriptHistoryWindow::try_new(current, segments, limit)
+    }
+
     /// Lists immutable evaluations newest first without transcript text.
     ///
     /// # Errors
@@ -479,6 +605,49 @@ fn transcript_view(row: &Row) -> Result<TranscriptSegmentView, ConversationResul
     })
 }
 
+fn typed_transcript_segment(
+    row: &Row,
+    context: &EnvelopeContext,
+) -> Result<TranscriptSegment, ConversationResultStoreError> {
+    if bool_at(row, 11)? {
+        return Err(ConversationResultStoreError::StoredRowInvalid);
+    }
+    let stored_payload_hash = string_at(row, 10)?;
+    let segment = TranscriptSegment::try_new(TranscriptSegmentInput {
+        id: TranscriptSegmentId::parse(&string_at(row, 0)?)
+            .map_err(|_| ConversationResultStoreError::StoredRowInvalid)?,
+        context: context.clone(),
+        source_event_id: EventId::parse(&string_at(row, 1)?)
+            .map_err(|_| ConversationResultStoreError::StoredRowInvalid)?,
+        sequence: u64_at(row, 2)?,
+        speaker: transcript_speaker_at(row, 3)?,
+        language: string_at(row, 4)?,
+        text: string_at(row, 5)?,
+        start_offset_ms: u64_at(row, 6)?,
+        end_offset_ms: u64_at(row, 7)?,
+        observed_at_ms: u64_at(row, 8)?,
+        retention_policy_ref: string_at(row, 9)?,
+    })
+    .map_err(|_| ConversationResultStoreError::StoredRowInvalid)?;
+    if segment.payload_hash() != stored_payload_hash {
+        return Err(ConversationResultStoreError::StoredRowInvalid);
+    }
+    Ok(segment)
+}
+
+fn transcript_speaker_at(
+    row: &Row,
+    index: usize,
+) -> Result<TranscriptSpeaker, ConversationResultStoreError> {
+    match string_at(row, index)?.as_str() {
+        "customer" => Ok(TranscriptSpeaker::Customer),
+        "ai_agent" => Ok(TranscriptSpeaker::AiAgent),
+        "human_agent" => Ok(TranscriptSpeaker::HumanAgent),
+        "system" => Ok(TranscriptSpeaker::System),
+        _ => Err(ConversationResultStoreError::StoredRowInvalid),
+    }
+}
+
 fn evaluation_view(row: &Row) -> Result<ConversationEvaluationView, ConversationResultStoreError> {
     Ok(ConversationEvaluationView {
         evaluation_id: string_at(row, 0)?,
@@ -513,6 +682,11 @@ fn string_at(row: &Row, index: usize) -> Result<String, ConversationResultStoreE
 }
 
 fn i64_at(row: &Row, index: usize) -> Result<i64, ConversationResultStoreError> {
+    row.try_get(index)
+        .map_err(|_| ConversationResultStoreError::StoredRowInvalid)
+}
+
+fn bool_at(row: &Row, index: usize) -> Result<bool, ConversationResultStoreError> {
     row.try_get(index)
         .map_err(|_| ConversationResultStoreError::StoredRowInvalid)
 }

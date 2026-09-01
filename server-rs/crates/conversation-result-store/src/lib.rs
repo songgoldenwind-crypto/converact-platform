@@ -15,5 +15,5 @@ pub use model::{
 pub use postgres::ConversationResultSqlStore;
 pub use query::{
     BadCaseView, ConversationEvaluationView, ConversationResultView, EntityCursor, QueryLimit,
-    QueryPage, TranscriptSegmentView,
+    QueryPage, TranscriptHistoryLimit, TranscriptHistoryWindow, TranscriptSegmentView,
 };
