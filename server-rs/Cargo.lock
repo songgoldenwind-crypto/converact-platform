@@ -388,6 +388,7 @@ name = "converact-conversation-understanding-store"
 version = "0.1.0"
 dependencies = [
  "converact-contracts",
+ "converact-conversation-understanding-core",
  "converact-voice-agent-contracts",
  "serde_json",
  "tokio-postgres",

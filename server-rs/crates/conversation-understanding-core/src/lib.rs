@@ -13,13 +13,13 @@ pub use customer_state::{
 };
 pub use emotion::{
     CustomerDistressTrend, EmotionCandidate, EmotionCandidateInput, EmotionCatalog,
-    EmotionCatalogInput, EmotionDecisionPolicy, EmotionDefinitionInput, EmotionFusion,
-    EmotionFusionInput, EmotionObservation, EmotionObservationInput, EmotionSource, EmotionState,
-    EmotionStatus, EmotionValence,
+    EmotionCatalogInput, EmotionCheckpoint, EmotionDecisionPolicy, EmotionDefinitionInput,
+    EmotionFusion, EmotionFusionInput, EmotionObservation, EmotionObservationInput, EmotionSource,
+    EmotionState, EmotionStatus, EmotionValence,
 };
 pub use error::UnderstandingError;
 pub use intent::{
-    IntentCandidate, IntentCandidateInput, IntentCatalog, IntentCatalogInput, IntentDecisionPolicy,
-    IntentDefinitionInput, IntentObservation, IntentObservationInput, IntentSource, IntentState,
-    IntentStatus,
+    IntentCandidate, IntentCandidateInput, IntentCatalog, IntentCatalogInput, IntentCheckpoint,
+    IntentDecisionPolicy, IntentDefinitionInput, IntentObservation, IntentObservationInput,
+    IntentSource, IntentState, IntentStatus,
 };

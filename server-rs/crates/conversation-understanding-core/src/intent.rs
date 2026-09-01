@@ -5,8 +5,8 @@ use converact_voice_agent_contracts::{
     AgentReleaseId, EnvelopeContext, IntentCatalogRevisionId, IntentObservationId,
     TranscriptSegmentId,
 };
-use serde::Serialize;
-use serde_json::json;
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
 
 use crate::UnderstandingError;
 
@@ -127,7 +127,7 @@ impl IntentCatalog {
 }
 
 /// Provider class that produced one independently traceable Intent observation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum IntentSource {
     SafetyRule,
@@ -258,8 +258,11 @@ impl IntentObservation {
             .map(|(key, value)| (key.into(), value.into()))
             .collect();
         let payload_hash = canonical_sha256(&json!({
+            "schema_version": input.context.schema_version(),
             "tenant_id": input.context.tenant_id(),
             "interaction_id": input.context.interaction_id().as_str(),
+            "campaign_id": input.context.campaign_id().as_str(),
+            "campaign_contact_id": input.context.campaign_contact_id().as_str(),
             "call_attempt_id": input.context.call_attempt_id().as_str(),
             "call_id": input.context.call_id().map(converact_voice_agent_contracts::CallId::as_str),
             "agent_release_id": input.context.agent_release_id().as_str(),
@@ -365,7 +368,7 @@ impl IntentDecisionPolicy {
 }
 
 /// Realtime interpretation status. It is evidence, never an action authorization.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum IntentStatus {
     Unknown,
@@ -533,6 +536,263 @@ impl fmt::Debug for IntentState {
     }
 }
 
+/// Versioned O(1) recovery checkpoint containing the accepted observation and resulting state.
+#[derive(Clone, Eq, PartialEq)]
+pub struct IntentCheckpoint {
+    observation: IntentObservation,
+    state: IntentState,
+}
+
+impl IntentCheckpoint {
+    /// Binds one observation to the exact state projection it produced.
+    ///
+    /// # Errors
+    ///
+    /// Rejects context, catalog, turn, clock, primary candidate or evidence-hash drift.
+    pub fn try_new(
+        observation: IntentObservation,
+        state: IntentState,
+    ) -> Result<Self, UnderstandingError> {
+        if observation.context != state.context
+            || observation.catalog_revision_id != state.catalog_revision_id
+            || observation.turn_index != state.last_turn_index
+            || observation.observed_at_ms != state.last_observed_at_ms
+            || state.last_observation_hash.as_deref() != Some(observation.payload_hash())
+            || state.primary_intent.as_deref() != observation.primary().map(IntentCandidate::code)
+            || state.revision < 2
+        {
+            return Err(UnderstandingError::InvalidIntentCheckpoint);
+        }
+        Ok(Self { observation, state })
+    }
+
+    /// Restores and revalidates one untrusted versioned checkpoint payload.
+    ///
+    /// # Errors
+    ///
+    /// Rejects unknown fields/versions, invalid observations, catalog drift and inconsistent state.
+    pub fn from_value(payload: Value, catalog: &IntentCatalog) -> Result<Self, UnderstandingError> {
+        let wire: IntentCheckpointWire = serde_json::from_value(payload)
+            .map_err(|_| UnderstandingError::InvalidIntentCheckpoint)?;
+        if wire.checkpoint_schema_version != 1 {
+            return Err(UnderstandingError::InvalidIntentCheckpoint);
+        }
+        let expected_observation_hash = wire.observation.payload_hash.clone();
+        let observation = IntentObservation::try_new(wire.observation.into_input(), catalog)?;
+        if observation.payload_hash() != expected_observation_hash {
+            return Err(UnderstandingError::InvalidIntentCheckpoint);
+        }
+        let state = restore_intent_state(wire.state, catalog)?;
+        Self::try_new(observation, state)
+    }
+
+    /// Serializes the validated checkpoint without exposing it through `Debug`.
+    #[must_use]
+    pub fn to_value(&self) -> Value {
+        json!({
+            "checkpoint_schema_version": 1,
+            "observation": {
+                "id": self.observation.id,
+                "context": self.observation.context,
+                "catalog_revision_id": self.observation.catalog_revision_id,
+                "source": self.observation.source,
+                "provider_revision": self.observation.provider_revision,
+                "candidates": self.observation.candidates,
+                "slots": self.observation.slots,
+                "evidence_segment_ids": self.observation.evidence_segment_ids,
+                "turn_index": self.observation.turn_index,
+                "observed_at_ms": self.observation.observed_at_ms,
+                "payload_hash": self.observation.payload_hash,
+            },
+            "state": {
+                "context": self.state.context,
+                "catalog_revision_id": self.state.catalog_revision_id,
+                "status": self.state.status,
+                "primary_intent": self.state.primary_intent,
+                "confirmed_intent": self.state.confirmed_intent,
+                "previous_confirmed_intent": self.state.previous_confirmed_intent,
+                "last_turn_index": self.state.last_turn_index,
+                "last_observed_at_ms": self.state.last_observed_at_ms,
+                "revision": self.state.revision,
+                "last_observation_hash": self.state.last_observation_hash,
+            }
+        })
+    }
+
+    #[must_use]
+    pub const fn observation(&self) -> &IntentObservation {
+        &self.observation
+    }
+
+    #[must_use]
+    pub const fn state(&self) -> &IntentState {
+        &self.state
+    }
+
+    #[must_use]
+    pub fn record_id(&self) -> &str {
+        self.observation.id.as_str()
+    }
+
+    #[must_use]
+    pub const fn context(&self) -> &EnvelopeContext {
+        &self.observation.context
+    }
+
+    #[must_use]
+    pub const fn turn_index(&self) -> u32 {
+        self.observation.turn_index
+    }
+
+    #[must_use]
+    pub const fn observed_at_ms(&self) -> u64 {
+        self.observation.observed_at_ms
+    }
+}
+
+impl fmt::Debug for IntentCheckpoint {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("IntentCheckpoint")
+            .field("observation", &self.observation)
+            .field("state", &self.state)
+            .finish()
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct IntentCheckpointWire {
+    checkpoint_schema_version: u16,
+    observation: IntentObservationWire,
+    state: IntentStateWire,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct IntentObservationWire {
+    id: IntentObservationId,
+    context: EnvelopeContext,
+    catalog_revision_id: IntentCatalogRevisionId,
+    source: IntentSource,
+    provider_revision: String,
+    candidates: Vec<IntentCandidateWire>,
+    slots: BTreeMap<String, String>,
+    evidence_segment_ids: Vec<TranscriptSegmentId>,
+    turn_index: u32,
+    observed_at_ms: u64,
+    payload_hash: String,
+}
+
+impl IntentObservationWire {
+    fn into_input(self) -> IntentObservationInput {
+        IntentObservationInput {
+            id: self.id,
+            context: self.context,
+            catalog_revision_id: self.catalog_revision_id,
+            source: self.source,
+            provider_revision: self.provider_revision,
+            candidates: self
+                .candidates
+                .into_iter()
+                .map(|candidate| IntentCandidateInput {
+                    code: candidate.code,
+                    confidence_bps: candidate.confidence_bps,
+                })
+                .collect(),
+            slots: self.slots,
+            evidence_segment_ids: self.evidence_segment_ids,
+            turn_index: self.turn_index,
+            observed_at_ms: self.observed_at_ms,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct IntentCandidateWire {
+    code: String,
+    confidence_bps: u16,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct IntentStateWire {
+    context: EnvelopeContext,
+    catalog_revision_id: IntentCatalogRevisionId,
+    status: IntentStatus,
+    primary_intent: Option<String>,
+    confirmed_intent: Option<String>,
+    previous_confirmed_intent: Option<String>,
+    last_turn_index: u32,
+    last_observed_at_ms: u64,
+    revision: u64,
+    last_observation_hash: Option<String>,
+}
+
+fn restore_intent_state(
+    wire: IntentStateWire,
+    catalog: &IntentCatalog,
+) -> Result<IntentState, UnderstandingError> {
+    let primary_valid = wire
+        .primary_intent
+        .as_deref()
+        .is_none_or(|intent| catalog.contains(intent));
+    let confirmed_valid = wire
+        .confirmed_intent
+        .as_deref()
+        .is_none_or(|intent| catalog.contains(intent));
+    let previous_valid = wire
+        .previous_confirmed_intent
+        .as_deref()
+        .is_none_or(|intent| catalog.contains(intent));
+    let status_valid = match wire.status {
+        IntentStatus::Unknown => wire.primary_intent.is_none(),
+        IntentStatus::Provisional | IntentStatus::ClarificationRequired => {
+            wire.primary_intent.is_some() && wire.previous_confirmed_intent.is_none()
+        }
+        IntentStatus::Confirmed => {
+            wire.primary_intent.is_some()
+                && wire.primary_intent == wire.confirmed_intent
+                && wire.previous_confirmed_intent.is_none()
+        }
+        IntentStatus::Changed => {
+            wire.primary_intent.is_some()
+                && wire.primary_intent == wire.confirmed_intent
+                && wire.previous_confirmed_intent.is_some()
+                && wire.previous_confirmed_intent != wire.confirmed_intent
+        }
+    };
+    let Some(last_observation_hash) = wire.last_observation_hash else {
+        return Err(UnderstandingError::InvalidIntentCheckpoint);
+    };
+    if wire.catalog_revision_id != catalog.id
+        || wire.context.agent_release_id() != &catalog.agent_release_id
+        || wire.last_turn_index == 0
+        || wire.last_observed_at_ms == 0
+        || wire.revision < 2
+        || !lowercase_sha256(&last_observation_hash)
+        || !primary_valid
+        || !confirmed_valid
+        || !previous_valid
+        || !status_valid
+    {
+        return Err(UnderstandingError::InvalidIntentCheckpoint);
+    }
+    Ok(IntentState {
+        context: wire.context,
+        catalog_revision_id: wire.catalog_revision_id,
+        status: wire.status,
+        primary_intent: wire.primary_intent.map(Into::into),
+        confirmed_intent: wire.confirmed_intent.map(Into::into),
+        previous_confirmed_intent: wire.previous_confirmed_intent.map(Into::into),
+        last_turn_index: wire.last_turn_index,
+        last_observed_at_ms: wire.last_observed_at_ms,
+        revision: wire.revision,
+        last_observation_hash: Some(last_observation_hash.into()),
+    })
+}
+
 fn classify(
     primary: Option<&IntentCandidate>,
     observation: &IntentObservation,
@@ -609,6 +869,12 @@ fn has_parent_cycle(definitions: &BTreeMap<Box<str>, IntentDefinition>) -> bool 
 fn unique_segments(values: &[TranscriptSegmentId]) -> bool {
     let mut seen = std::collections::HashSet::with_capacity(values.len());
     values.iter().all(|value| seen.insert(value.as_str()))
+}
+
+fn lowercase_sha256(value: &str) -> bool {
+    value.len() == 64
+        && value.as_bytes().iter().all(u8::is_ascii_hexdigit)
+        && !value.as_bytes().iter().any(u8::is_ascii_uppercase)
 }
 
 fn bounded_unique(values: &[String], maximum_items: usize, maximum_bytes: usize) -> bool {

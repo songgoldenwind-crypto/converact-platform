@@ -5,8 +5,8 @@ use converact_voice_agent_contracts::{
     AgentReleaseId, AudioEvidenceWindowId, EmotionCatalogRevisionId, EmotionFusionId,
     EmotionObservationId, EnvelopeContext, TranscriptSegmentId,
 };
-use serde::Serialize;
-use serde_json::json;
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
 
 use crate::UnderstandingError;
 
@@ -20,7 +20,7 @@ const MAX_INTENSITY: u8 = 4;
 const MAX_DISTRESS_RANK: u8 = 4;
 
 /// Stable polarity metadata for a Release-owned emotion label.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EmotionValence {
     Negative,
@@ -122,7 +122,7 @@ impl EmotionCatalog {
 }
 
 /// Provider class that produced one independently traceable emotion signal.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EmotionSource {
     AcousticModel,
@@ -278,8 +278,11 @@ impl EmotionObservation {
             })
             .collect();
         let payload_hash = canonical_sha256(&json!({
+            "schema_version": input.context.schema_version(),
             "tenant_id": input.context.tenant_id(),
             "interaction_id": input.context.interaction_id().as_str(),
+            "campaign_id": input.context.campaign_id().as_str(),
+            "campaign_contact_id": input.context.campaign_contact_id().as_str(),
             "call_attempt_id": input.context.call_attempt_id().as_str(),
             "call_id": input.context.call_id().map(converact_voice_agent_contracts::CallId::as_str),
             "agent_release_id": input.context.agent_release_id().as_str(),
@@ -433,8 +436,11 @@ impl EmotionFusion {
             })
             .collect();
         let payload_hash = canonical_sha256(&json!({
+            "schema_version": input.context.schema_version(),
             "tenant_id": input.context.tenant_id(),
             "interaction_id": input.context.interaction_id().as_str(),
+            "campaign_id": input.context.campaign_id().as_str(),
+            "campaign_contact_id": input.context.campaign_contact_id().as_str(),
             "call_attempt_id": input.context.call_attempt_id().as_str(),
             "call_id": input.context.call_id().map(converact_voice_agent_contracts::CallId::as_str),
             "agent_release_id": input.context.agent_release_id().as_str(),
@@ -525,7 +531,7 @@ impl EmotionDecisionPolicy {
 }
 
 /// Confidence state of the latest fused observation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EmotionStatus {
     Unknown,
@@ -534,7 +540,7 @@ pub enum EmotionStatus {
 }
 
 /// Trend of confirmed customer distress, not a generic positive/negative business judgment.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CustomerDistressTrend {
     Unknown,
@@ -747,6 +753,340 @@ impl fmt::Debug for EmotionState {
             .field("last_fusion_hash", &self.last_fusion_hash)
             .finish_non_exhaustive()
     }
+}
+
+/// Versioned O(1) recovery checkpoint containing fused evidence and its resulting state.
+#[derive(Clone, Eq, PartialEq)]
+pub struct EmotionCheckpoint {
+    fusion: EmotionFusion,
+    state: EmotionState,
+}
+
+impl EmotionCheckpoint {
+    /// Binds one fused result to the exact state projection it produced.
+    ///
+    /// # Errors
+    ///
+    /// Rejects context, catalog, turn, clock, primary candidate or evidence-hash drift.
+    pub fn try_new(fusion: EmotionFusion, state: EmotionState) -> Result<Self, UnderstandingError> {
+        let primary = fusion.primary();
+        let confirmed_matches = state.status != EmotionStatus::Confirmed
+            || (state.confirmed_emotion.as_deref() == primary.map(EmotionCandidate::code)
+                && state.confirmed_intensity == primary.map(EmotionCandidate::intensity));
+        if fusion.context != state.context
+            || fusion.catalog_revision_id != state.catalog_revision_id
+            || fusion.turn_index != state.last_turn_index
+            || fusion.observed_at_ms != state.last_observed_at_ms
+            || state.last_fusion_hash.as_deref() != Some(fusion.payload_hash())
+            || state.primary_emotion.as_deref() != primary.map(EmotionCandidate::code)
+            || state.revision < 2
+            || !confirmed_matches
+        {
+            return Err(UnderstandingError::InvalidEmotionCheckpoint);
+        }
+        Ok(Self { fusion, state })
+    }
+
+    /// Restores and revalidates one untrusted versioned checkpoint payload.
+    ///
+    /// # Errors
+    ///
+    /// Rejects unknown fields/versions, invalid fusion evidence, catalog drift and inconsistent
+    /// state.
+    pub fn from_value(
+        payload: Value,
+        catalog: &EmotionCatalog,
+    ) -> Result<Self, UnderstandingError> {
+        let wire: EmotionCheckpointWire = serde_json::from_value(payload)
+            .map_err(|_| UnderstandingError::InvalidEmotionCheckpoint)?;
+        if wire.checkpoint_schema_version != 1 {
+            return Err(UnderstandingError::InvalidEmotionCheckpoint);
+        }
+        let fusion = restore_emotion_fusion(wire.fusion, catalog)?;
+        let state = restore_emotion_state(wire.state, catalog)?;
+        Self::try_new(fusion, state)
+    }
+
+    /// Serializes the validated checkpoint without exposing customer labels through `Debug`.
+    #[must_use]
+    pub fn to_value(&self) -> Value {
+        json!({
+            "checkpoint_schema_version": 1,
+            "fusion": {
+                "id": self.fusion.id,
+                "context": self.fusion.context,
+                "catalog_revision_id": self.fusion.catalog_revision_id,
+                "fusion_revision": self.fusion.fusion_revision,
+                "candidates": self.fusion.candidates,
+                "contributor_hashes": self.fusion.contributor_hashes,
+                "turn_index": self.fusion.turn_index,
+                "observed_at_ms": self.fusion.observed_at_ms,
+                "payload_hash": self.fusion.payload_hash,
+            },
+            "state": {
+                "context": self.state.context,
+                "catalog_revision_id": self.state.catalog_revision_id,
+                "status": self.state.status,
+                "primary_emotion": self.state.primary_emotion,
+                "confirmed_emotion": self.state.confirmed_emotion,
+                "confirmed_intensity": self.state.confirmed_intensity,
+                "confirmed_distress_score": self.state.confirmed_distress_score,
+                "distress_trend": self.state.distress_trend,
+                "consecutive_distress_turns": self.state.consecutive_distress_turns,
+                "last_turn_index": self.state.last_turn_index,
+                "last_observed_at_ms": self.state.last_observed_at_ms,
+                "revision": self.state.revision,
+                "last_fusion_hash": self.state.last_fusion_hash,
+            }
+        })
+    }
+
+    #[must_use]
+    pub const fn fusion(&self) -> &EmotionFusion {
+        &self.fusion
+    }
+
+    #[must_use]
+    pub const fn state(&self) -> &EmotionState {
+        &self.state
+    }
+
+    #[must_use]
+    pub fn record_id(&self) -> &str {
+        self.fusion.id.as_str()
+    }
+
+    #[must_use]
+    pub const fn context(&self) -> &EnvelopeContext {
+        &self.fusion.context
+    }
+
+    #[must_use]
+    pub const fn turn_index(&self) -> u32 {
+        self.fusion.turn_index
+    }
+
+    #[must_use]
+    pub const fn observed_at_ms(&self) -> u64 {
+        self.fusion.observed_at_ms
+    }
+}
+
+impl fmt::Debug for EmotionCheckpoint {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("EmotionCheckpoint")
+            .field("fusion", &self.fusion)
+            .field("state", &self.state)
+            .finish()
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EmotionCheckpointWire {
+    checkpoint_schema_version: u16,
+    fusion: EmotionFusionWire,
+    state: EmotionStateWire,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EmotionFusionWire {
+    id: EmotionFusionId,
+    context: EnvelopeContext,
+    catalog_revision_id: EmotionCatalogRevisionId,
+    fusion_revision: String,
+    candidates: Vec<EmotionCandidateWire>,
+    contributor_hashes: Vec<String>,
+    turn_index: u32,
+    observed_at_ms: u64,
+    payload_hash: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EmotionCandidateWire {
+    code: String,
+    confidence_bps: u16,
+    intensity: u8,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EmotionStateWire {
+    context: EnvelopeContext,
+    catalog_revision_id: EmotionCatalogRevisionId,
+    status: EmotionStatus,
+    primary_emotion: Option<String>,
+    confirmed_emotion: Option<String>,
+    confirmed_intensity: Option<u8>,
+    confirmed_distress_score: Option<u8>,
+    distress_trend: CustomerDistressTrend,
+    consecutive_distress_turns: u16,
+    last_turn_index: u32,
+    last_observed_at_ms: u64,
+    revision: u64,
+    last_fusion_hash: Option<String>,
+}
+
+fn restore_emotion_fusion(
+    wire: EmotionFusionWire,
+    catalog: &EmotionCatalog,
+) -> Result<EmotionFusion, UnderstandingError> {
+    let candidate_inputs: Vec<EmotionCandidateInput> = wire
+        .candidates
+        .iter()
+        .map(|candidate| EmotionCandidateInput {
+            code: candidate.code.clone(),
+            confidence_bps: candidate.confidence_bps,
+            intensity: candidate.intensity,
+        })
+        .collect();
+    let mut contributor_hashes = wire.contributor_hashes;
+    contributor_hashes.sort_unstable();
+    if wire.catalog_revision_id != catalog.id
+        || wire.context.agent_release_id() != &catalog.agent_release_id
+        || wire.candidates.len() > MAX_CANDIDATES
+        || contributor_hashes.is_empty()
+        || contributor_hashes.len() > MAX_CONTRIBUTORS
+        || contributor_hashes.windows(2).any(|pair| pair[0] == pair[1])
+        || contributor_hashes
+            .iter()
+            .any(|hash| !lowercase_sha256(hash))
+        || wire.turn_index == 0
+        || wire.observed_at_ms == 0
+        || !bounded_identifier(&wire.fusion_revision, MAX_PROVIDER_REVISION_BYTES)
+        || !candidate_inputs_valid(&candidate_inputs, catalog)
+    {
+        return Err(UnderstandingError::InvalidEmotionCheckpoint);
+    }
+    let candidates: Box<[EmotionCandidate]> = candidate_inputs
+        .into_iter()
+        .map(|candidate| EmotionCandidate {
+            code: candidate.code.into(),
+            confidence_bps: candidate.confidence_bps,
+            intensity: candidate.intensity,
+        })
+        .collect();
+    let contributor_hashes: Box<[Box<str>]> =
+        contributor_hashes.into_iter().map(Into::into).collect();
+    let payload_hash = canonical_sha256(&json!({
+        "schema_version": wire.context.schema_version(),
+        "tenant_id": wire.context.tenant_id(),
+        "interaction_id": wire.context.interaction_id().as_str(),
+        "campaign_id": wire.context.campaign_id().as_str(),
+        "campaign_contact_id": wire.context.campaign_contact_id().as_str(),
+        "call_attempt_id": wire.context.call_attempt_id().as_str(),
+        "call_id": wire.context.call_id().map(converact_voice_agent_contracts::CallId::as_str),
+        "agent_release_id": wire.context.agent_release_id().as_str(),
+        "channel_agent_session_id": wire.context.channel_agent_session_id().map(converact_voice_agent_contracts::ChannelAgentSessionId::as_str),
+        "execution_generation": wire.context.execution_generation().get(),
+        "emotion_fusion_id": wire.id.as_str(),
+        "emotion_catalog_revision_id": wire.catalog_revision_id.as_str(),
+        "fusion_revision": wire.fusion_revision,
+        "candidates": candidates,
+        "contributor_hashes": contributor_hashes,
+        "turn_index": wire.turn_index,
+        "observed_at_ms": wire.observed_at_ms,
+    }))
+    .map_err(|_| UnderstandingError::InvalidEmotionCheckpoint)?;
+    if payload_hash != wire.payload_hash {
+        return Err(UnderstandingError::InvalidEmotionCheckpoint);
+    }
+    Ok(EmotionFusion {
+        id: wire.id,
+        context: wire.context,
+        catalog_revision_id: wire.catalog_revision_id,
+        fusion_revision: wire.fusion_revision.into(),
+        candidates,
+        contributor_hashes,
+        turn_index: wire.turn_index,
+        observed_at_ms: wire.observed_at_ms,
+        payload_hash: payload_hash.into(),
+    })
+}
+
+fn restore_emotion_state(
+    wire: EmotionStateWire,
+    catalog: &EmotionCatalog,
+) -> Result<EmotionState, UnderstandingError> {
+    let primary_valid = wire
+        .primary_emotion
+        .as_deref()
+        .is_none_or(|emotion| catalog.contains(emotion));
+    let confirmed_valid = wire
+        .confirmed_emotion
+        .as_deref()
+        .is_none_or(|emotion| catalog.contains(emotion));
+    let confirmed_shape_valid = match (
+        wire.confirmed_emotion.as_deref(),
+        wire.confirmed_intensity,
+        wire.confirmed_distress_score,
+    ) {
+        (None, None, None) => wire.consecutive_distress_turns == 0,
+        (Some(emotion), Some(intensity), Some(score)) if intensity <= MAX_INTENSITY => {
+            let Some(definition) = catalog.definitions.get(emotion) else {
+                return Err(UnderstandingError::InvalidEmotionCheckpoint);
+            };
+            let expected = if definition.valence == EmotionValence::Negative {
+                definition
+                    .distress_rank
+                    .saturating_mul(MAX_INTENSITY.saturating_add(1))
+                    .saturating_add(intensity)
+            } else {
+                0
+            };
+            score == expected && (expected != 0 || wire.consecutive_distress_turns == 0)
+        }
+        _ => false,
+    };
+    let status_valid = match wire.status {
+        EmotionStatus::Unknown => true,
+        EmotionStatus::Provisional => wire.primary_emotion.is_some(),
+        EmotionStatus::Confirmed => {
+            wire.primary_emotion.is_some()
+                && wire.primary_emotion == wire.confirmed_emotion
+                && wire.confirmed_intensity.is_some()
+        }
+    };
+    let Some(last_fusion_hash) = wire.last_fusion_hash else {
+        return Err(UnderstandingError::InvalidEmotionCheckpoint);
+    };
+    if wire.catalog_revision_id != catalog.id
+        || wire.context.agent_release_id() != &catalog.agent_release_id
+        || wire.last_turn_index == 0
+        || wire.last_observed_at_ms == 0
+        || wire.revision < 2
+        || !lowercase_sha256(&last_fusion_hash)
+        || !primary_valid
+        || !confirmed_valid
+        || !confirmed_shape_valid
+        || !status_valid
+    {
+        return Err(UnderstandingError::InvalidEmotionCheckpoint);
+    }
+    Ok(EmotionState {
+        context: wire.context,
+        catalog_revision_id: wire.catalog_revision_id,
+        status: wire.status,
+        primary_emotion: wire.primary_emotion.map(Into::into),
+        confirmed_emotion: wire.confirmed_emotion.map(Into::into),
+        confirmed_intensity: wire.confirmed_intensity,
+        confirmed_distress_score: wire.confirmed_distress_score,
+        distress_trend: wire.distress_trend,
+        consecutive_distress_turns: wire.consecutive_distress_turns,
+        last_turn_index: wire.last_turn_index,
+        last_observed_at_ms: wire.last_observed_at_ms,
+        revision: wire.revision,
+        last_fusion_hash: Some(last_fusion_hash.into()),
+    })
+}
+
+fn lowercase_sha256(value: &str) -> bool {
+    value.len() == 64
+        && value.as_bytes().iter().all(u8::is_ascii_hexdigit)
+        && !value.as_bytes().iter().any(u8::is_ascii_uppercase)
 }
 
 fn candidate_inputs_valid(inputs: &[EmotionCandidateInput], catalog: &EmotionCatalog) -> bool {

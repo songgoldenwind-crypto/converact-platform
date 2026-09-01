@@ -11,6 +11,7 @@ pub enum UnderstandingError {
     IntentAuthorityMismatch,
     StaleIntentObservation,
     IntentRevisionExhausted,
+    InvalidIntentCheckpoint,
     InvalidEmotionCatalog,
     InvalidEmotionPolicy,
     InvalidEmotionObservation,
@@ -21,6 +22,7 @@ pub enum UnderstandingError {
     StaleEmotionFusion,
     EmotionRevisionExhausted,
     EmotionCanonicalPayloadInvalid,
+    InvalidEmotionCheckpoint,
     InvalidCustomerState,
     CustomerStateAuthorityMismatch,
     CustomerStateCanonicalPayloadInvalid,
@@ -43,6 +45,7 @@ impl UnderstandingError {
             Self::IntentAuthorityMismatch => "conversation_intent_authority_mismatch",
             Self::StaleIntentObservation => "conversation_intent_observation_stale",
             Self::IntentRevisionExhausted => "conversation_intent_revision_exhausted",
+            Self::InvalidIntentCheckpoint => "conversation_intent_checkpoint_invalid",
             Self::InvalidEmotionCatalog => "conversation_emotion_catalog_invalid",
             Self::InvalidEmotionPolicy => "conversation_emotion_policy_invalid",
             Self::InvalidEmotionObservation => "conversation_emotion_observation_invalid",
@@ -55,6 +58,7 @@ impl UnderstandingError {
             Self::EmotionCanonicalPayloadInvalid => {
                 "conversation_emotion_canonical_payload_invalid"
             }
+            Self::InvalidEmotionCheckpoint => "conversation_emotion_checkpoint_invalid",
             Self::InvalidCustomerState => "conversation_customer_state_invalid",
             Self::CustomerStateAuthorityMismatch => {
                 "conversation_customer_state_authority_mismatch"

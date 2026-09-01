@@ -538,6 +538,7 @@ impl UnderstandingHeadExpectation {
 pub enum UnderstandingStoreError {
     InvalidRecord,
     InvalidHeadExpectation,
+    CheckpointInvalid,
     HeadRevisionExhausted,
     HeadAdvanceNotAllowed,
     DatabaseUnavailable,
@@ -552,6 +553,7 @@ impl UnderstandingStoreError {
         match self {
             Self::InvalidRecord => "understanding_store_record_invalid",
             Self::InvalidHeadExpectation => "understanding_store_head_expectation_invalid",
+            Self::CheckpointInvalid => "understanding_store_checkpoint_invalid",
             Self::HeadRevisionExhausted => "understanding_store_head_revision_exhausted",
             Self::HeadAdvanceNotAllowed => "understanding_store_head_advance_not_allowed",
             Self::DatabaseUnavailable => "understanding_store_database_unavailable",

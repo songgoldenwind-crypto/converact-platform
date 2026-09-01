@@ -2,9 +2,14 @@
 
 #![forbid(unsafe_code)]
 
+mod codec;
 mod model;
 mod postgres;
 
+pub use codec::{
+    encode_emotion_checkpoint, encode_intent_checkpoint, restore_emotion_checkpoint,
+    restore_intent_checkpoint,
+};
 pub use model::{
     AppendAction, AppendUnderstandingRecord, RecordPresence, UnderstandingDomain,
     UnderstandingHead, UnderstandingHeadExpectation, UnderstandingHeadExpectationInput,
