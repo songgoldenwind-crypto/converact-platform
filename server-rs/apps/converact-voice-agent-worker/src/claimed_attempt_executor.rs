@@ -209,7 +209,11 @@ where
                     )
                     .await
             }
-            CallAttemptState::Conversing => {
+            CallAttemptState::Conversing
+            | CallAttemptState::HandoffPending
+            | CallAttemptState::HumanActive
+            | CallAttemptState::AiResuming
+            | CallAttemptState::Finalizing => {
                 let campaign_id = converact_voice_agent_contracts::CampaignId::parse(campaign.id())
                     .map_err(|_| WorkerError::new("voice_agent_campaign_id_invalid"))?;
                 let release_id =
@@ -330,6 +334,31 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn long_call_executor_recovers_every_post_start_state_without_redial() {
+        for state in [
+            CallAttemptState::HandoffPending,
+            CallAttemptState::HumanActive,
+            CallAttemptState::AiResuming,
+            CallAttemptState::Finalizing,
+        ] {
+            let fixture = LongCallFixture::new(state);
+
+            ClaimedAttemptExecutor::execute(&fixture.executor, fixture.claim)
+                .await
+                .unwrap();
+
+            assert_eq!(fixture.probe.originate_calls.load(Ordering::SeqCst), 0);
+            assert_eq!(fixture.probe.active_session_calls.load(Ordering::SeqCst), 1);
+            assert_eq!(fixture.state.lock().unwrap().completions, 1);
+            assert_eq!(
+                fixture.state.lock().unwrap().attempt.state(),
+                CallAttemptState::Completed,
+                "{state:?}",
+            );
+        }
+    }
+
     struct Fixture {
         executor: VoiceAgentClaimExecutor<Probe, Probe, Probe, FixedRepository>,
         claim: TestClaim,
@@ -409,17 +438,27 @@ mod tests {
                 CallAttemptState::Claimed => CallAttempt::new(attempt_id.clone())
                     .apply(AttemptCommand::Claim)
                     .unwrap(),
-                CallAttemptState::Conversing => CallAttempt::restore(CallAttemptRestoreInput {
+                CallAttemptState::Conversing
+                | CallAttemptState::HandoffPending
+                | CallAttemptState::HumanActive
+                | CallAttemptState::AiResuming
+                | CallAttemptState::Finalizing => CallAttempt::restore(CallAttemptRestoreInput {
                     id: attempt_id.clone(),
                     previous_attempt_id: None,
-                    state: CallAttemptState::Conversing,
-                    revision: 11,
+                    state: attempt_state,
+                    revision: match attempt_state {
+                        CallAttemptState::Conversing => 10,
+                        CallAttemptState::HandoffPending | CallAttemptState::Finalizing => 11,
+                        CallAttemptState::HumanActive => 12,
+                        CallAttemptState::AiResuming => 13,
+                        _ => unreachable!(),
+                    },
                     disclosure_completed: true,
                 })
                 .unwrap(),
                 _ => panic!("unsupported fixture state"),
             };
-            let active_execution = (attempt_state == CallAttemptState::Conversing).then(|| {
+            let active_execution = (attempt_state != CallAttemptState::Claimed).then(|| {
                 ActiveAttemptExecution::try_new(
                     attempt.clone(),
                     CallId::parse(attempt_id.as_str()).unwrap(),

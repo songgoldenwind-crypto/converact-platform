@@ -1,7 +1,7 @@
 use std::{error::Error, fmt};
 
 use converact_voice_agent_contracts::{
-    AttemptCommand, CallAttemptId, CallId, ChannelAgentSessionId, TenantId,
+    AttemptCommand, CallAttemptId, CallAttemptState, CallId, ChannelAgentSessionId, TenantId,
 };
 
 use crate::{
@@ -154,7 +154,9 @@ where
                 if &observed == call_id =>
             {
                 let mut attempt = active.attempt().clone();
-                attempt = transition(&attempt, AttemptCommand::Finalize)?;
+                if attempt.state() != CallAttemptState::Finalizing {
+                    attempt = transition(&attempt, AttemptCommand::Finalize)?;
+                }
                 attempt = transition(&attempt, AttemptCommand::Complete)?;
                 Ok(Some(attempt))
             }

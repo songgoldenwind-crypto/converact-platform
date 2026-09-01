@@ -296,7 +296,10 @@ fn handoff_transition(
             Some(CallAttemptState::Conversing)
         }
         (
-            CallAttemptState::Conversing | CallAttemptState::HumanActive,
+            CallAttemptState::Conversing
+            | CallAttemptState::HandoffPending
+            | CallAttemptState::HumanActive
+            | CallAttemptState::AiResuming,
             AttemptCommand::Finalize,
         ) => Some(CallAttemptState::Finalizing),
         (CallAttemptState::Finalizing, AttemptCommand::Complete) => {

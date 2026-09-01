@@ -1,7 +1,12 @@
 mod support;
 
-use converact_ai_outbound_core::{AgentReleaseBinding, AgentReleaseBindingError};
-use converact_voice_agent_contracts::{AgentReleaseId, CallAttemptState};
+use converact_ai_outbound_core::{
+    ActiveAttemptExecution, AgentReleaseBinding, AgentReleaseBindingError, CallAttempt,
+    CallAttemptRestoreInput,
+};
+use converact_voice_agent_contracts::{
+    AgentReleaseId, CallAttemptId, CallAttemptState, CallId, ChannelAgentSessionId,
+};
 use support::{Harness, release_digests};
 
 #[test]
@@ -91,6 +96,40 @@ async fn active_call_observation_keeps_attempt_conversing() {
     assert_eq!(terminal, None);
     assert_eq!(harness.attempt_state(), CallAttemptState::Conversing);
     assert_eq!(harness.operations().last(), Some(&"rustpbx.active"));
+}
+
+#[tokio::test]
+async fn terminal_call_completes_every_recoverable_post_start_state() {
+    for (state, revision) in [
+        (CallAttemptState::Conversing, 10),
+        (CallAttemptState::HandoffPending, 11),
+        (CallAttemptState::HumanActive, 12),
+        (CallAttemptState::AiResuming, 13),
+        (CallAttemptState::Finalizing, 11),
+    ] {
+        let attempt = CallAttempt::restore(CallAttemptRestoreInput {
+            id: CallAttemptId::parse("attempt-001").unwrap(),
+            previous_attempt_id: None,
+            state,
+            revision,
+            disclosure_completed: true,
+        })
+        .unwrap();
+        let active = ActiveAttemptExecution::try_new(
+            attempt,
+            CallId::parse("attempt-001").unwrap(),
+            ChannelAgentSessionId::parse("session-001").unwrap(),
+        )
+        .unwrap();
+
+        let terminal = Harness::new()
+            .observe_active_attempt(&active)
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(terminal.state(), CallAttemptState::Completed, "{state:?}");
+    }
 }
 
 #[tokio::test]

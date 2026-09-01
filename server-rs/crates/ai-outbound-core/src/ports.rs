@@ -289,6 +289,7 @@ pub struct AgentLegBinding {
 }
 
 /// One fully started physical call awaiting an independently observed terminal event.
+/// Ownership may be AI, human, or in a durable ownership transition.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ActiveAttemptExecution {
     attempt: CallAttempt,
@@ -301,15 +302,21 @@ impl ActiveAttemptExecution {
     ///
     /// # Errors
     ///
-    /// Rejects a pre-conversation aggregate or a Call identity that differs from the frozen
-    /// one-Call-per-Attempt identity used by this runtime generation.
+    /// Rejects a pre-conversation/terminal aggregate or a Call identity that differs from the
+    /// frozen one-Call-per-Attempt identity used by this runtime generation.
     pub fn try_new(
         attempt: CallAttempt,
         call_id: CallId,
         channel_agent_session_id: ChannelAgentSessionId,
     ) -> Result<Self, PortError> {
-        if attempt.state() != CallAttemptState::Conversing
-            || attempt.id().as_str() != call_id.as_str()
+        if !matches!(
+            attempt.state(),
+            CallAttemptState::Conversing
+                | CallAttemptState::HandoffPending
+                | CallAttemptState::HumanActive
+                | CallAttemptState::AiResuming
+                | CallAttemptState::Finalizing
+        ) || attempt.id().as_str() != call_id.as_str()
         {
             return Err(PortError::rejected("ai_outbound_active_execution_invalid"));
         }
