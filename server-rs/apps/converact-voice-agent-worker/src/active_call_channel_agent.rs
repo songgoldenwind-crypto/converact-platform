@@ -604,8 +604,8 @@ fn map_client_mutation_error(error: ClientError) -> PortError {
         ClientFailureKind::OutcomeUnknown | ClientFailureKind::InvalidResponse => {
             PortError::outcome_unknown(error.code())
         }
-        ClientFailureKind::InvalidConfiguration | ClientFailureKind::Rejected => {
-            PortError::rejected(error.code())
-        }
+        ClientFailureKind::InvalidConfiguration
+        | ClientFailureKind::Rejected
+        | ClientFailureKind::CoverageGap => PortError::rejected(error.code()),
     }
 }

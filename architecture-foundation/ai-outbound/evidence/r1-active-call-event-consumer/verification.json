@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0.0",
+  "evidence_id": "r1-active-call-event-consumer",
+  "recorded_at": "2026-09-01",
+  "source_parent_commit": "abaf55ead232ed74a0d0518372a149905874c01f",
+  "checks": [
+    {
+      "id": "worker_event_consumer_contract",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test active_call_event_consumer",
+      "status": "passed",
+      "passed": 9,
+      "failed": 0
+    },
+    {
+      "id": "postgres_event_inbox_contract",
+      "command": "cargo test --locked -p converact-postgres-store --test active_call_event_inbox_contract",
+      "status": "passed",
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "id": "postgres_store_scoped_clippy",
+      "command": "cargo clippy --locked -p converact-postgres-store --lib --test active_call_event_inbox_contract -- -D warnings",
+      "status": "passed"
+    },
+    {
+      "id": "worker_consumer_scoped_clippy",
+      "command": "cargo clippy --locked -p converact-voice-agent-worker --lib --test active_call_event_consumer -- -D warnings",
+      "status": "passed"
+    },
+    {
+      "id": "development_schema_parse",
+      "command": "sqlite3 :memory: < src/schema.sql",
+      "status": "passed"
+    },
+    {
+      "id": "physical_postgresql_runtime_role",
+      "command": "ephemeral PostgreSQL 14.18: apply migration 136 and exercise append/replay/apply/terminal/reconcile, reject append/mark after reconcile, and check RLS/cross-tenant mutation as opc_runtime",
+      "status": "passed"
+    },
+    {
+      "id": "diff_check",
+      "command": "git diff --check",
+      "status": "passed"
+    }
+  ],
+  "not_run": [
+    "running_pinned_active_call_process_and_live_sse_reconnect",
+    "active_call_source_process_crash_and_process_local_journal_loss",
+    "real_sip_pstn_audio_asr_and_model_quality",
+    "production_migration_runner_rolling_deployment_and_multi_node_race",
+    "capacity_performance_long_call_retention_and_production_eligibility"
+  ]
+}

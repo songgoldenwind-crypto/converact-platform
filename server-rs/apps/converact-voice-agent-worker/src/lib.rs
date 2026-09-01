@@ -4,6 +4,8 @@
 
 mod acoustic_emotion_classifier;
 mod active_call_channel_agent;
+mod active_call_event_consumer;
+mod active_call_event_postgres;
 mod active_call_handoff;
 mod active_call_intent;
 mod active_call_playbook_artifact;
@@ -55,6 +57,13 @@ pub use acoustic_emotion_classifier::{
 };
 pub use active_call_channel_agent::{
     ActiveCallChannelAgent, ActiveCallChannelAgentConfig, ActiveCallChannelAgentConfigError,
+};
+pub use active_call_event_consumer::{
+    ActiveCallDurableEvent, ActiveCallEventAppendDecision, ActiveCallEventConsumerError,
+    ActiveCallEventConsumerOutcome, ActiveCallEventInboxError, ActiveCallEventInboxPort,
+    ActiveCallEventInboxSnapshot, ActiveCallEventInboxStatus, ActiveCallEventProcessingError,
+    ActiveCallEventProcessorPort, ActiveCallEventReconcileReason,
+    ActiveCallUnderstandingEventProcessor, consume_active_call_events_once,
 };
 pub use active_call_handoff::ActiveCallHandoffPort;
 pub use active_call_intent::{

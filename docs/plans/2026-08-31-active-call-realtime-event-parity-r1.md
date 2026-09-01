@@ -1,7 +1,7 @@
 # Active Call realtime event parity R1 implementation plan
 
-> **Status:** `controlled_adapter_and_resumable_source_contract_passed / worker_runtime_not_run /
-> production_not_run`
+> **Status:** `controlled_adapter_and_resumable_source_contract_passed /
+> durable_worker_consumer_and_physical_store_passed / live_process_not_run / production_not_run`
 
 **Goal:** Preserve the pinned Active Call runtime's existing VAD, turn, barge-in, DTMF and call-state
 signals behind the Converact Rust adapter without reimplementing speech algorithms or granting Active
@@ -65,6 +65,30 @@ The exact-source overlay now offers a separate platform-only semantic event jour
 supplies numeric `Last-Event-ID`. It assigns contiguous SSE IDs, replays retained events, preserves
 the legacy stream when the header is absent, and returns `410 Gone` instead of silently accepting
 evicted, ahead-of-head or recorder-lag coverage. Retention is bounded by count and bytes and remains
-process-local. The matching Rust adapter validates the cursor on every resumed event. Worker cursor
-persistence, reconnect policy, terminal `/list` reconciliation and process-crash handling remain
-`not_run` and are the next implementation checkpoint.
+process-local. The matching Rust adapter validates the cursor on every resumed event.
+
+## Follow-on durable Worker checkpoint
+
+The Rust Worker now loads its durable cursor and complete bounded pending suffix before opening an
+SSE connection. It stores each canonical event payload and cursor before projection, applies pending
+events in order after restart, sends the last received cursor on resume, and advances the applied
+cursor only after the processor returns successfully. The concrete transcript processor is
+replay-idempotent: a crash after its durable turn commit but before cursor acknowledgement replays
+the transcript receipt and skips model work. Any future effectful event processor must provide the
+same stable idempotency contract.
+
+Clean EOF and recoverable stream errors query `/list`: an active session requests a supervisor-
+scheduled reconnect, while a disappeared session enters durable reconciliation. HTTP `410`, missing
+event IDs and cursor coverage loss enter the same fail-closed reconciliation boundary. A terminal
+event completes only after its projection is acknowledged. Neither the consumer nor Store creates
+an unbounded retry task or sleeps internally.
+
+Migration `136_converact_active_call_event_inbox.sql` adds a generation-fenced cursor head and
+bounded inbox. PostgreSQL functions serialize append, exact replay, ordered acknowledgement and
+reconciliation under one session-row lock. Direct runtime mutation is withheld; the runtime role
+receives tenant-filtered reads and `SECURITY DEFINER` transition functions that recheck
+`opc_current_tenant()`. The migration and transitions passed an ephemeral PostgreSQL 14.18 smoke
+test as `opc_runtime`, including an RLS visibility check and rejected cross-tenant mutation.
+
+The running pinned Active Call process, a real SIP/PSTN call, real ASR/model traffic, Active Call
+process-crash behavior, capacity, long-call retention and production eligibility remain `not_run`.

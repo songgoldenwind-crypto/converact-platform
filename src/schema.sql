@@ -3646,3 +3646,67 @@ CREATE INDEX IF NOT EXISTS idx_converact_understanding_attempt_heads
   ON converact_conversation_understanding_heads (
     tenant_id, call_attempt_id, execution_generation, domain
   );
+CREATE TABLE IF NOT EXISTS converact_active_call_event_sessions (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  contract_schema_version INTEGER NOT NULL CHECK (contract_schema_version > 0),
+  interaction_id TEXT NOT NULL CHECK (length(interaction_id) BETWEEN 1 AND 255),
+  campaign_id TEXT NOT NULL CHECK (length(campaign_id) BETWEEN 1 AND 255),
+  campaign_contact_id TEXT NOT NULL CHECK (length(campaign_contact_id) BETWEEN 1 AND 255),
+  call_attempt_id TEXT NOT NULL CHECK (length(call_attempt_id) BETWEEN 1 AND 255),
+  call_id TEXT CHECK (call_id IS NULL OR length(call_id) BETWEEN 1 AND 255),
+  agent_release_id TEXT NOT NULL CHECK (length(agent_release_id) BETWEEN 1 AND 255),
+  channel_agent_session_id TEXT NOT NULL CHECK (length(channel_agent_session_id) BETWEEN 1 AND 255),
+  execution_generation INTEGER NOT NULL CHECK (execution_generation > 0),
+  last_received_cursor INTEGER NOT NULL DEFAULT 0 CHECK (last_received_cursor >= 0),
+  last_applied_cursor INTEGER NOT NULL DEFAULT 0 CHECK (
+    last_applied_cursor >= 0 AND last_applied_cursor <= last_received_cursor
+  ),
+  terminal_cursor INTEGER CHECK (
+    terminal_cursor IS NULL OR terminal_cursor = last_received_cursor AND terminal_cursor > 0
+  ),
+  status TEXT NOT NULL DEFAULT 'active' CHECK (
+    status IN ('active', 'completed', 'reconcile_required')
+  ),
+  reconcile_reason TEXT CHECK (
+    reconcile_reason IS NULL OR reconcile_reason IN (
+      'coverage_gap', 'session_disappeared', 'invalid_event'
+    )
+  ),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, interaction_id, execution_generation),
+  UNIQUE (tenant_id, channel_agent_session_id, execution_generation),
+  CHECK (
+    (status = 'active' AND reconcile_reason IS NULL AND (
+      terminal_cursor IS NULL OR terminal_cursor > last_applied_cursor
+    )) OR
+    (status = 'completed' AND reconcile_reason IS NULL
+      AND terminal_cursor IS NOT NULL
+      AND terminal_cursor = last_received_cursor
+      AND terminal_cursor = last_applied_cursor) OR
+    (status = 'reconcile_required' AND reconcile_reason IS NOT NULL)
+  )
+);
+
+CREATE TABLE IF NOT EXISTS converact_active_call_event_inbox (
+  tenant_id TEXT NOT NULL,
+  interaction_id TEXT NOT NULL CHECK (length(interaction_id) BETWEEN 1 AND 255),
+  execution_generation INTEGER NOT NULL CHECK (execution_generation > 0),
+  event_cursor INTEGER NOT NULL CHECK (event_cursor > 0),
+  payload_digest TEXT NOT NULL CHECK (
+    length(payload_digest) = 64 AND payload_digest NOT GLOB '*[^0-9a-f]*'
+  ),
+  event_payload TEXT NOT NULL CHECK (
+    length(CAST(event_payload AS BLOB)) BETWEEN 1 AND 131072
+    AND json_valid(event_payload) AND json_type(event_payload) = 'object'
+  ),
+  terminal INTEGER NOT NULL CHECK (terminal IN (0, 1)),
+  received_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  applied_at TEXT,
+  PRIMARY KEY (tenant_id, interaction_id, execution_generation, event_cursor),
+  FOREIGN KEY (tenant_id, interaction_id, execution_generation)
+    REFERENCES converact_active_call_event_sessions (
+      tenant_id, interaction_id, execution_generation
+    ) ON DELETE RESTRICT,
+  CHECK (applied_at IS NULL OR applied_at >= received_at)
+);

@@ -9,6 +9,7 @@ use deadpool_postgres::{
     tokio_postgres::{Config as PgConfig, Socket, tls::MakeTlsConnect},
 };
 
+mod active_call_event;
 mod ai_outbound;
 mod conversation_result;
 mod conversation_understanding;
@@ -16,6 +17,11 @@ mod handoff;
 mod post_call_finalization;
 mod tool_action;
 
+pub use active_call_event::{
+    PostgresActiveCallEventAppendDecision, PostgresActiveCallEventReconcileReason,
+    PostgresActiveCallEventSnapshot, PostgresActiveCallEventStatus, PostgresActiveCallEventStore,
+    PostgresActiveCallEventStoreError, PostgresStoredActiveCallEvent,
+};
 pub use ai_outbound::{PostgresAiOutboundAttemptStore, PostgresLeasedAttemptStore};
 pub use conversation_result::{
     PostgresConversationResultStore, PostgresConversationResultStoreError,
