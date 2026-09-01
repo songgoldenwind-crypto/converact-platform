@@ -23,6 +23,7 @@ converact-post-call-finalization-core = { path = "../../crates/post-call-finaliz
 converact-post-call-finalization-store = { path = "../../crates/post-call-finalization-store" }
 converact-postgres-store = { path = "../../crates/postgres-store" }
 converact-runtime-health = { path = "../../crates/runtime-health" }
+converact-rustpbx-rwi-adapter = { path = "../../crates/rustpbx-rwi-adapter" }
 converact-tenant-auth = { path = "../../crates/tenant-auth" }
 converact-tool-broker-core = { path = "../../crates/tool-broker-core" }
 converact-voice-agent-contracts = { path = "../../crates/voice-agent-contracts" }

@@ -667,6 +667,7 @@ dependencies = [
  "converact-post-call-finalization-store",
  "converact-postgres-store",
  "converact-runtime-health",
+ "converact-rustpbx-rwi-adapter",
  "converact-tenant-auth",
  "converact-tool-broker-core",
  "converact-voice-agent-contracts",

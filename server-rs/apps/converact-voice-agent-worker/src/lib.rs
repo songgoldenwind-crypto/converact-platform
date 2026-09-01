@@ -47,6 +47,7 @@ mod postgres_repository;
 mod process;
 mod repository;
 mod result_generation;
+mod runtime_config;
 mod safety_intent_provider;
 mod structured_model_http_transport;
 mod text_emotion_classifier;
@@ -192,6 +193,10 @@ pub use repository::{
     ReconcileReceipt, RepositoryError, RepositoryErrorKind, VoiceAgentRepository,
 };
 pub use result_generation::ResultGenerationEvidence;
+pub use runtime_config::{
+    ActiveCallRuntimeConfig, DatabaseTransport, PlatformAuthRuntimeConfig, RustPbxRuntimeConfig,
+    VoiceAgentRuntimeConfig, VoiceAgentRuntimeConfigError,
+};
 pub use safety_intent_provider::{
     SafetyIntentMatchKind, SafetyIntentProvider, SafetyIntentProviderError, SafetyIntentRuleInput,
     SafetyIntentRuleSetInput,

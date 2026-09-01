@@ -208,6 +208,15 @@ impl ClientConfig {
         self.internal_service = internal_service;
         self
     }
+
+    /// Validates the complete transport policy without opening a connection.
+    ///
+    /// # Errors
+    ///
+    /// Rejects unsafe plaintext placement or runtime bounds outside the closed envelope.
+    pub fn validate(&self) -> Result<(), ClientError> {
+        validate_config(self)
+    }
 }
 
 impl fmt::Debug for ClientConfig {
