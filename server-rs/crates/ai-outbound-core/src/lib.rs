@@ -9,6 +9,7 @@ mod dial;
 mod orchestrator;
 mod ports;
 mod retry;
+mod speech_session;
 
 use std::{error::Error, fmt};
 
@@ -36,6 +37,7 @@ pub use ports::{
     TerminalAttemptCommit, TerminateCall,
 };
 pub use retry::{RetryCandidate, RetryDecision, RetryPlan, RetryPolicy, plan_retry};
+pub use speech_session::{SpeechSession, SpeechSessionError};
 
 /// Stable rejection categories shared by the outbound authority aggregates.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
