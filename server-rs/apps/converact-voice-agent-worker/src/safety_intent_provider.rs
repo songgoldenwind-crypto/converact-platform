@@ -278,6 +278,10 @@ impl SafetyIntentProvider {
     pub fn provider_revision(&self) -> &str {
         &self.provider_revision
     }
+
+    pub(crate) const fn catalog(&self) -> &IntentCatalog {
+        &self.catalog
+    }
 }
 
 impl fmt::Debug for SafetyIntentProvider {

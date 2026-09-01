@@ -23,6 +23,7 @@ mod conversation_quality_postgres;
 mod fast_intent_classifier;
 mod handoff_runtime;
 mod http;
+mod intent_confidence_router;
 mod lifecycle;
 mod model;
 mod post_call_finalization;
@@ -91,6 +92,10 @@ pub use handoff_runtime::{
     HumanLegObservation, TelephonyHandoffPort, VoiceHandoffPortError, VoiceHandoffRuntimeError,
 };
 pub use http::router;
+pub use intent_confidence_router::{
+    IntentConfidenceRouter, IntentConfidenceRouterError, IntentTurnResolution, IntentTurnRoute,
+    PendingIntentTurn,
+};
 pub use lifecycle::{AdmissionReadiness, ShutdownToken, WorkerConfig, WorkerConfigError};
 pub use model::{
     AgentReleaseResource, AttemptResource, AuthenticatedTenant, CampaignResource, ModelError,

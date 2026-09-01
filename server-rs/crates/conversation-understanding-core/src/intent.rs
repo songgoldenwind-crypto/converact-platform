@@ -315,6 +315,16 @@ impl IntentObservation {
     }
 
     #[must_use]
+    pub const fn context(&self) -> &EnvelopeContext {
+        &self.context
+    }
+
+    #[must_use]
+    pub const fn catalog_revision_id(&self) -> &IntentCatalogRevisionId {
+        &self.catalog_revision_id
+    }
+
+    #[must_use]
     pub fn primary(&self) -> Option<&IntentCandidate> {
         self.candidates.first()
     }
@@ -322,6 +332,11 @@ impl IntentObservation {
     #[must_use]
     pub const fn turn_index(&self) -> u32 {
         self.turn_index
+    }
+
+    #[must_use]
+    pub const fn observed_at_ms(&self) -> u64 {
+        self.observed_at_ms
     }
 
     #[must_use]
@@ -384,6 +399,26 @@ impl IntentDecisionPolicy {
             minimum_margin: minimum_margin_bps,
             safety_rule_confirm_min: safety_rule_confirm_min_bps,
         })
+    }
+
+    #[must_use]
+    pub const fn provisional_min_bps(self) -> u16 {
+        self.provisional_min
+    }
+
+    #[must_use]
+    pub const fn confirmed_min_bps(self) -> u16 {
+        self.confirmed_min
+    }
+
+    #[must_use]
+    pub const fn minimum_margin_bps(self) -> u16 {
+        self.minimum_margin
+    }
+
+    #[must_use]
+    pub const fn safety_rule_confirm_min_bps(self) -> u16 {
+        self.safety_rule_confirm_min
     }
 }
 

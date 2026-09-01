@@ -35,6 +35,7 @@ Converact Agent Runtime / Converact Resolve`。本文导航的是已经迁入仓
 | 22 | [AI 外呼与 Voice Agent 平台 R1：Understanding Worker](./2026-08-31-ai-outbound-active-call-platform-r1.md#98-理解证据耐久化) | Intent/Emotion/Customer State/Dialogue 的单次一致恢复、四领域原子提交和 tenant PostgreSQL adapter | `controlled_worker_store_contract_passed / physical_postgresql_and_real_provider_not_run / production_not_run` |
 | 23 | [AI 外呼与 Voice Agent 平台 R1：Safety Intent Provider](./2026-08-31-ai-outbound-active-call-platform-r1.md#95-意图识别) | final customer transcript 到 Release/Catalog-bound safety Intent checkpoint 的确定性 Layer-0 Provider | `controlled_rust_provider_passed / active_call_durable_ingest_and_real_configuration_not_run / production_not_run` |
 | 24 | [AI 外呼与 Voice Agent 平台 R1：Fast Intent Classifier Provider](./2026-08-31-ai-outbound-active-call-platform-r1.md#95-意图识别) | 精确模型制品、deadline 和 closed Catalog 约束下的 Layer-1 top-k Intent checkpoint 边界 | `controlled_rust_provider_contract_passed / real_model_runtime_and_accuracy_not_run / production_not_run` |
+| 25 | [AI 外呼与 Voice Agent 平台 R1：Intent Confidence Router](./2026-08-31-ai-outbound-active-call-platform-r1.md#95-意图识别) | Safety-first、Fast confidence gate、Contextual same-turn 单次状态推进与显式 fallback | `controlled_in_memory_router_passed / contextual_model_and_durable_resolution_not_run / production_not_run` |
 
 权威冲突时按领域裁决，而不是简单“新文件覆盖所有旧文件”：
 
@@ -135,3 +136,4 @@ flowchart TD
 | 2026-09-01 | Conversation Understanding Worker R1 checkpoint | Worker 窄端口、单 SQL 四领域恢复、fixed-order 原子 append 与 tenant PostgreSQL adapter 已通过本地精准测试；真实 Provider/Active Call、物理 PostgreSQL、重启/双节点和生产仍为 `not_run` |
 | 2026-09-01 | Safety Intent Provider R1 checkpoint | 有界 Release/Catalog-bound Rust Safety Rule Provider 已从 final customer transcript 生成稳定 Intent checkpoint，且类型上无业务动作权；真实 Active Call ingest、租户规则、分类模型、融合、质量和生产仍为 `not_run` |
 | 2026-09-01 | Fast Intent Classifier Provider R1 checkpoint | Rust Layer-1 端口已绑定 Release/Catalog 和 model/tokenizer/label-map/calibration 制品，验证 deadline、served revision、top-k 与置信度路由；真实模型、准确率、融合和生产仍为 `not_run` |
+| 2026-09-01 | Intent Confidence Router R1 checkpoint | Safety/Fast/Contextual 的同轮仲裁已避免双推进和伪造 turn；当前只证明内存 Router，Contextual 模型、durable resolution、真实 runtime/质量和生产仍为 `not_run` |

@@ -273,6 +273,10 @@ impl<P> FastIntentClassifierProvider<P> {
     pub fn artifact_revision(&self) -> &str {
         &self.artifact.revision
     }
+
+    pub(crate) const fn catalog(&self) -> &IntentCatalog {
+        &self.catalog
+    }
 }
 
 impl<P> FastIntentClassifierProvider<P>

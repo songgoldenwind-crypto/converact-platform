@@ -1,0 +1,90 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-09-01",
+  "evidence_class": [
+    "local_contract"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "parent_commit": "4c2e062e0ba95f710c49d0f78798523eef586781"
+  },
+  "commands": [
+    {
+      "id": "intent_confidence_router_contract",
+      "working_directory": "server-rs",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test intent_confidence_router",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "id": "fast_intent_classifier_contract",
+      "working_directory": "server-rs",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test fast_intent_classifier",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 5,
+      "failed": 0
+    },
+    {
+      "id": "safety_intent_provider_contract",
+      "working_directory": "server-rs",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test safety_intent_provider",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "id": "intent_confidence_router_scoped_format",
+      "working_directory": "server-rs",
+      "command": "rustfmt --edition 2024 --check <6 changed Rust files>",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "intent_confidence_router_scoped_clippy",
+      "working_directory": "server-rs",
+      "command": "cargo clippy --locked -p converact-conversation-understanding-core -p converact-voice-agent-worker --lib --test intent_confidence_router -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "intent_confidence_router_evidence_json",
+      "working_directory": ".",
+      "command": "python3 -m json.tool architecture-foundation/ai-outbound/evidence/r1-intent-confidence-router/verification.json",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "intent_confidence_router_diff_check",
+      "working_directory": ".",
+      "command": "git diff --check",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "not_run": [
+    "real_contextual_llm_provider_prompt_schema_artifact_and_inference",
+    "durable_raw_intent_contributor_and_resolution_schema_codec_transaction",
+    "real_fast_classifier_runtime_accuracy_calibration_and_fallback_quality",
+    "transcript_provider_worker_composition_and_complete_four_domain_turn_commit",
+    "active_call_live_sse_gap_recovery_and_physical_postgresql",
+    "real_sip_pstn_media_recording",
+    "performance",
+    "capacity",
+    "long_run",
+    "independent_review",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_read": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}
