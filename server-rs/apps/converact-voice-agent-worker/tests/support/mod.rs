@@ -26,7 +26,7 @@ use converact_contracts::health::{
 use converact_runtime_health::RuntimeHealth;
 use converact_voice_agent_contracts::{
     AgentDefinitionId, AgentReleaseId, CallAttemptId, CallAttemptState, CallId, CampaignId,
-    ChannelAgentSessionId, IdempotencyKey,
+    ChannelAgentSessionId, IdempotencyKey, TenantId,
 };
 use converact_voice_agent_worker::{
     AdmissionReadiness, AgentReleaseResource, AttemptResource, AuthenticatedTenant,
@@ -246,7 +246,11 @@ impl ControlledState {
 struct FakeCompliance;
 
 impl CompliancePort for FakeCompliance {
-    fn evaluate(&self, _attempt: &CallAttempt) -> Result<ComplianceDecision, PortError> {
+    async fn evaluate(
+        &self,
+        _tenant_id: &TenantId,
+        _attempt: &CallAttempt,
+    ) -> Result<ComplianceDecision, PortError> {
         Ok(ComplianceDecision::Approved)
     }
 }

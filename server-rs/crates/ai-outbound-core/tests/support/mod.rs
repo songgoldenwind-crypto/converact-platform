@@ -282,7 +282,11 @@ impl HarnessState {
 struct FakeCompliance(Arc<Mutex<HarnessState>>);
 
 impl CompliancePort for FakeCompliance {
-    fn evaluate(&self, _attempt: &CallAttempt) -> Result<ComplianceDecision, PortError> {
+    async fn evaluate(
+        &self,
+        _tenant_id: &TenantId,
+        _attempt: &CallAttempt,
+    ) -> Result<ComplianceDecision, PortError> {
         self.0.lock().unwrap().record("compliance.check");
         Ok(ComplianceDecision::Approved)
     }

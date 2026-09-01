@@ -344,15 +344,23 @@ pub trait CompliancePort {
     /// # Errors
     ///
     /// Returns a sanitized dependency failure when required policy evidence cannot be resolved.
-    fn evaluate(&self, attempt: &CallAttempt) -> Result<ComplianceDecision, PortError>;
+    fn evaluate(
+        &self,
+        tenant_id: &TenantId,
+        attempt: &CallAttempt,
+    ) -> impl Future<Output = Result<ComplianceDecision, PortError>> + Send;
 }
 
 impl<T> CompliancePort for Arc<T>
 where
     T: CompliancePort + ?Sized,
 {
-    fn evaluate(&self, attempt: &CallAttempt) -> Result<ComplianceDecision, PortError> {
-        self.as_ref().evaluate(attempt)
+    fn evaluate(
+        &self,
+        tenant_id: &TenantId,
+        attempt: &CallAttempt,
+    ) -> impl Future<Output = Result<ComplianceDecision, PortError>> + Send {
+        self.as_ref().evaluate(tenant_id, attempt)
     }
 }
 

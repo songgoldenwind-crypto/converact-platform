@@ -19,7 +19,7 @@ pub use authoring::{
     AuthoringError, CampaignSchedule, CampaignTransition, CreateCampaign, DialPolicyRevision,
     DialPolicyRevisionInput, ImportContact, ImportContactInput, ImportContacts, RecordingMode,
 };
-pub use call_attempt::{CallAttempt, CallAttemptRestoreInput};
+pub use call_attempt::{CallAttempt, CallAttemptRestoreInput, MAX_PHYSICAL_ATTEMPTS};
 pub use campaign::{Campaign, CampaignCommand};
 pub use compliance::{
     ComplianceDecision, ComplianceInput, ComplianceReason, ConsentBasis, EvidenceStatus,

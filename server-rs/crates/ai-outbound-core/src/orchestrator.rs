@@ -107,7 +107,7 @@ where
             return Err(OrchestrationError::new("orchestration_attempt_not_claimed"));
         }
 
-        attempt = match self.compliance.evaluate(&attempt)? {
+        attempt = match self.compliance.evaluate(tenant_id, &attempt).await? {
             ComplianceDecision::Approved => {
                 transition(&attempt, AttemptCommand::ApproveCompliance)?
             }

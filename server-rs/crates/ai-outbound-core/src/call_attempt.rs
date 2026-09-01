@@ -2,6 +2,9 @@ use converact_voice_agent_contracts::{AttemptCommand, CallAttemptId, CallAttempt
 
 use crate::DomainError;
 
+/// Hard ceiling for one Contact's physical Attempt lineage.
+pub const MAX_PHYSICAL_ATTEMPTS: u8 = 20;
+
 /// One physical dial. A retry always creates another value with another identifier.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CallAttempt {

@@ -1,18 +1,19 @@
 use std::{env, sync::Arc, time::Duration};
 
 use converact_ai_outbound_core::{
-    AttemptCompletionPort, CallAttempt, PortFailureKind, TerminalAttemptCommit,
+    AttemptCompletionPort, CallAttempt, ComplianceDecision, CompliancePort, ComplianceReason,
+    PortFailureKind, TerminalAttemptCommit,
 };
 use converact_ai_outbound_store::{AiOutboundStore, AttemptLease, AttemptLeaseInput, StoreConfig};
 use converact_kernel_ids::TenantId;
 use converact_post_call_finalization_store::{FinalizationSqlStore, FinalizationStoreConfig};
 use converact_postgres_store::{
-    PostgresLeasedAttemptStore, PostgresReconcileRequestDecision, PostgresRuntime,
-    PostgresRuntimeLimits, PostgresRuntimeSettings, PostgresVoiceAgentStore,
+    PostgresAiOutboundCompliancePort, PostgresLeasedAttemptStore, PostgresReconcileRequestDecision,
+    PostgresRuntime, PostgresRuntimeLimits, PostgresRuntimeSettings, PostgresVoiceAgentStore,
 };
 use converact_voice_agent_contracts::{
     AgentReleaseId, AttemptCommand, CallAttemptId, CallId, CampaignId, ChannelAgentSessionId,
-    ExecutionGeneration, IdempotencyKey,
+    ExecutionGeneration, IdempotencyKey, TenantId as VoiceTenantId,
 };
 use tokio_postgres::NoTls;
 
@@ -27,6 +28,7 @@ async fn terminal_attempt_and_post_call_job_commit_or_roll_back_together() {
 
     let runtime =
         Arc::new(PostgresRuntime::build(database_url.parse().unwrap(), NoTls, settings()).unwrap());
+    assert_compliance(Arc::clone(&runtime), &admin).await;
     seed_attempt(&admin, "attempt-001", "lease-a").await;
     let store = leased_store(Arc::clone(&runtime), "attempt-001", "lease-a");
     let command = completion("attempt-001");
@@ -87,6 +89,62 @@ async fn terminal_attempt_and_post_call_job_commit_or_roll_back_together() {
     assert_eq!(rolled_back.get::<_, &str>(0), "conversing");
     assert_eq!(rolled_back.get::<_, i64>(1), 10);
     assert_eq!(rolled_back.get::<_, i64>(2), 0);
+}
+
+async fn assert_compliance(runtime: Arc<PostgresRuntime>, admin: &tokio_postgres::Client) {
+    admin
+        .execute(
+            "INSERT INTO converact_outbound_call_attempts (
+               tenant_id, id, campaign_id, campaign_contact_id, attempt_number,
+               interaction_id, agent_release_id, execution_generation, state,
+               idempotency_key, consent_id, recording_mode, retention_until,
+               lease_owner, lease_token_hash, lease_expires_at, revision,
+               disclosure_completed, dial_policy_revision, dial_policy_content_hash,
+               dial_destination, dial_timeout_secs, scheduled_for
+             ) VALUES (
+               'tenant-a', 'attempt-compliance', 'campaign-001', 'contact-001', 3,
+               'interaction-compliance', 'release-001', 1, 'claimed',
+               'idempotency-compliance', 'consent-001', 'after_disclosure',
+               now() + interval '30 days', 'worker-compliance', repeat('c', 64),
+               now() + interval '5 minutes', 2, FALSE, 'dial-policy-001', repeat('b', 64),
+               '+8613800138000', 30, now()
+             )",
+            &[],
+        )
+        .await
+        .unwrap();
+    let attempt = CallAttempt::new(CallAttemptId::parse("attempt-compliance").unwrap())
+        .apply(AttemptCommand::Claim)
+        .unwrap();
+    let compliance = PostgresAiOutboundCompliancePort::new(runtime);
+    let decision = compliance
+        .evaluate(&VoiceTenantId::parse("tenant-a").unwrap(), &attempt)
+        .await
+        .unwrap();
+    assert_eq!(decision, ComplianceDecision::Approved);
+
+    admin
+        .execute(
+            "INSERT INTO converact_platform_consent_evidence (
+               tenant_id, consent_id, subject_id, scope, purpose, status,
+               policy_version, revocation_epoch, allowed_regions, retention_policy,
+               legal_hold_policy, evidence_ref, actor_id, occurred_at, expires_at, revision
+             ) VALUES (
+               'tenant-a', 'consent-001', 'external-001', 'phone_audio', 'ai_outbound',
+               'revoked', 1, 1, '[\"CN\"]'::jsonb, 'retain-30-days', 'none',
+               'evidence://consent-001/revoked', 'operator-001', now(), NULL, 2
+             )",
+            &[],
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        compliance
+            .evaluate(&VoiceTenantId::parse("tenant-a").unwrap(), &attempt)
+            .await
+            .unwrap(),
+        ComplianceDecision::Blocked(ComplianceReason::ConsentUnknown)
+    );
 }
 
 async fn assert_repository_queries(runtime: Arc<PostgresRuntime>) {
@@ -262,6 +320,7 @@ async fn install_schema(admin: &tokio_postgres::Client) {
         .await
         .unwrap();
     for migration in [
+        include_str!("../../../../src/migrations/108_converact_platform_identity_consent.sql"),
         include_str!("../../../../src/migrations/124_converact_ai_outbound.sql"),
         include_str!("../../../../src/migrations/128_post_call_finalization.sql"),
         include_str!("../../../../src/migrations/129_post_call_recovery_reason.sql"),
@@ -296,7 +355,10 @@ async fn install_schema(admin: &tokio_postgres::Client) {
                state, schedule
              ) VALUES (
                'tenant-a', 'campaign-001', 'release-001', 'audience-001',
-               'dial-policy-001', 'running', '{}'::jsonb
+               'dial-policy-001', 'running', jsonb_build_object(
+                 'starts_at_ms', 1,
+                 'time_zone', 'Asia/Shanghai'
+               )
              );
              INSERT INTO converact_outbound_campaign_contacts (
                tenant_id, id, campaign_id, external_contact_id, destination, consent_id,
@@ -305,6 +367,15 @@ async fn install_schema(admin: &tokio_postgres::Client) {
                'tenant-a', 'contact-001', 'campaign-001', 'external-001',
                '+8613800138000', 'consent-001', 'after_disclosure',
                now() + interval '30 days', 'active', now()
+             );
+             INSERT INTO converact_platform_consent_evidence (
+               tenant_id, consent_id, subject_id, scope, purpose, status,
+               policy_version, revocation_epoch, allowed_regions, retention_policy,
+               legal_hold_policy, evidence_ref, actor_id, occurred_at, expires_at, revision
+             ) VALUES (
+               'tenant-a', 'consent-001', 'external-001', 'phone_audio', 'ai_outbound',
+               'granted', 1, 0, '[\"CN\"]'::jsonb, 'retain-30-days', 'none',
+               'evidence://consent-001', 'operator-001', now(), now() + interval '30 days', 1
              );",
         )
         .await

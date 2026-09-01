@@ -1,7 +1,7 @@
 use std::{error::Error, fmt};
 
 use converact_ai_outbound_core::{
-    CallAttempt, CallAttemptRestoreInput, EffectIntent, OutboundDialBinding,
+    CallAttempt, CallAttemptRestoreInput, EffectIntent, MAX_PHYSICAL_ATTEMPTS, OutboundDialBinding,
     OutboundDialBindingInput,
 };
 use converact_contracts::canonical_sha256;
@@ -18,7 +18,6 @@ const MAX_IDENTIFIER_BYTES: usize = 255;
 const MAX_EVENT_TYPE_BYTES: usize = 128;
 const SHA256_HEX_BYTES: usize = 64;
 const MAX_EVENT_PAYLOAD_BYTES: usize = 131_072;
-const MAX_ATTEMPTS: u8 = 20;
 
 const APPEND_EFFECT_INTENT_SQL: &str = "
 INSERT INTO converact_outbound_attempt_events (
@@ -246,7 +245,7 @@ impl PlanRetryAttempt {
     pub fn try_new(input: PlanRetryAttemptInput) -> Result<Self, StoreError> {
         if input.previous_attempt_id == input.next_attempt_id
             || input.expected_previous_revision == 0
-            || !(2..=MAX_ATTEMPTS).contains(&input.next_attempt_number)
+            || !(2..=MAX_PHYSICAL_ATTEMPTS).contains(&input.next_attempt_number)
             || input.scheduled_for_ms == 0
         {
             return Err(StoreError::InvalidInput);

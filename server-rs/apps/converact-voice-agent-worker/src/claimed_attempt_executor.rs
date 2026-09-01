@@ -309,7 +309,11 @@ mod tests {
     }
 
     impl CompliancePort for Probe {
-        fn evaluate(&self, _attempt: &CallAttempt) -> Result<ComplianceDecision, PortError> {
+        async fn evaluate(
+            &self,
+            _tenant_id: &converact_voice_agent_contracts::TenantId,
+            _attempt: &CallAttempt,
+        ) -> Result<ComplianceDecision, PortError> {
             Ok(ComplianceDecision::Approved)
         }
     }
