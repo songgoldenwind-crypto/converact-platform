@@ -1,15 +1,18 @@
 use std::{sync::Arc, time::Duration};
 
-use converact_ai_outbound_core::{AgentDraft, ReleaseComponentDigests, publish_agent};
+use converact_ai_outbound_core::{publish_agent, AgentDraft, ReleaseComponentDigests};
 use converact_ai_outbound_store::{AiOutboundStore, StoreConfig};
+use converact_contracts::canonical_sha256_with_max_bytes;
 use converact_kernel_ids::TenantId;
 use converact_postgres_store::{
-    PostgresCampaignAdminStore, PostgresRuntime, PostgresRuntimeLimits, PostgresRuntimeSettings,
+    PostgresAgentToolSchema, PostgresCampaignAdminStore, PostgresRuntime, PostgresRuntimeLimits,
+    PostgresRuntimeSettings,
 };
 use converact_voice_agent_contracts::{AgentDefinitionId, AgentReleaseId, IdempotencyKey};
 use converact_voice_agent_worker::{
-    AuthenticatedTenant, CampaignAdminPort, PostgresCampaignAdminPort,
+    AgentReleaseToolManifest, AuthenticatedTenant, CampaignAdminPort, PostgresCampaignAdminPort,
 };
+use serde_json::{json, Value};
 use tokio_postgres::NoTls;
 
 #[test]
@@ -47,12 +50,16 @@ async fn port_rejects_a_tenant_outside_the_worker_authority_before_database_acce
     let (runtime, store) = store();
     let port = PostgresCampaignAdminPort::new(store, TenantId::parse("tenant-a").unwrap());
     let tenant = AuthenticatedTenant::try_from_verified_tenant_id("tenant-b").unwrap();
-    let release = release();
+    let manifest_value = tool_manifest();
+    let manifest_hash = canonical_sha256_with_max_bytes(&manifest_value, 65_536).unwrap();
+    let release = release(manifest_hash);
+    let manifest = AgentReleaseToolManifest::try_new(&release, manifest_value).unwrap();
 
     let error = port
         .publish_agent(
             &tenant,
             &release,
+            &manifest,
             &IdempotencyKey::parse("publish-release-001").unwrap(),
         )
         .await
@@ -110,7 +117,7 @@ fn store() -> (Arc<PostgresRuntime>, PostgresCampaignAdminStore) {
     (runtime, store)
 }
 
-fn release() -> converact_ai_outbound_core::AgentRelease {
+fn release(tool_schema_hash: String) -> converact_ai_outbound_core::AgentRelease {
     let draft = AgentDraft::try_new(
         AgentDefinitionId::parse("agent-001").unwrap(),
         AgentReleaseId::parse("release-001").unwrap(),
@@ -124,7 +131,7 @@ fn release() -> converact_ai_outbound_core::AgentRelease {
             prompt_revision_hash: "1".repeat(64),
             conversation_flow_revision_hash: "2".repeat(64),
             knowledge_revision_hash: "3".repeat(64),
-            tool_schema_hash: "4".repeat(64),
+            tool_schema_hash,
             speech_profile_hash: "5".repeat(64),
             compliance_policy_hash: "6".repeat(64),
             outcome_schema_hash: "7".repeat(64),
@@ -132,4 +139,19 @@ fn release() -> converact_ai_outbound_core::AgentRelease {
         },
     )
     .unwrap()
+}
+
+fn tool_manifest() -> Value {
+    let schemas = PostgresAgentToolSchema::new();
+    json!([{
+        "name": "customer.lookup",
+        "revision_id": "customer.lookup-r1",
+        "schema_hash": schemas.schema_hash("customer.lookup").unwrap(),
+        "arguments_schema": schemas.schema_document("customer.lookup").unwrap(),
+        "effect_class": "query",
+        "risk": "low",
+        "action_capability": "customer.lookup",
+        "policy_decision": "allowed",
+        "deadline_after_ms": 5_000,
+    }])
 }

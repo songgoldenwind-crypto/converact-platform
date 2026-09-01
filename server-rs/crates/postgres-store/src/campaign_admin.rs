@@ -9,8 +9,9 @@ use converact_ai_outbound_store::{
 };
 use converact_kernel_ids::TenantId;
 use converact_voice_agent_contracts::IdempotencyKey;
+use serde_json::Value;
 
-use crate::{PostgresRuntime, TransactionError};
+use crate::{PostgresReleaseToolManifest, PostgresRuntime, TransactionError};
 
 /// Sanitized failure returned by the tenant-scoped Campaign authoring adapter.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -72,14 +73,34 @@ impl PostgresCampaignAdminStore {
         &self,
         tenant_id: &TenantId,
         release: &AgentRelease,
+        tool_manifest: &Value,
         idempotency_key: &IdempotencyKey,
     ) -> Result<AdminWriteReceipt, PostgresCampaignAdminError> {
+        let tool_set_hash = release.components().tool_schema_hash.clone();
+        PostgresReleaseToolManifest::try_new(
+            release.id().clone(),
+            &tool_set_hash,
+            tool_manifest.clone(),
+        )
+        .map_err(|_| PostgresCampaignAdminError::Invalid)?;
         let command = release_write(tenant_id, release, idempotency_key)?;
+        let tool_manifest = tool_manifest.clone();
         let transaction_tenant = tenant_id.clone();
         let sql = self.sql;
         self.runtime
             .with_tenant_transaction(&transaction_tenant, move |transaction| {
-                Box::pin(async move { sql.publish_agent_release(transaction, &command).await })
+                Box::pin(async move {
+                    let receipt = sql.publish_agent_release(transaction, &command).await?;
+                    persist_release_tool_manifest(
+                        transaction,
+                        &command.tenant_id,
+                        &command.release_id,
+                        &tool_set_hash,
+                        &tool_manifest,
+                    )
+                    .await?;
+                    Ok(receipt)
+                })
             })
             .await
             .map_err(map_admin_write_error)
@@ -189,6 +210,53 @@ impl PostgresCampaignAdminStore {
             })
             .await
             .map_err(map_admin_write_error)
+    }
+}
+
+async fn persist_release_tool_manifest(
+    transaction: &tokio_postgres::Transaction<'_>,
+    tenant_id: &TenantId,
+    release_id: &converact_voice_agent_contracts::AgentReleaseId,
+    tool_set_hash: &str,
+    tool_manifest: &Value,
+) -> Result<(), StoreError> {
+    let inserted = transaction
+        .query_opt(
+            "INSERT INTO public.converact_agent_release_tool_manifests (
+               tenant_id, agent_release_id, tool_set_hash, tool_manifest
+             ) VALUES ($1, $2, $3, $4)
+             ON CONFLICT DO NOTHING RETURNING agent_release_id",
+            &[
+                &tenant_id.as_str(),
+                &release_id.as_str(),
+                &tool_set_hash,
+                &tool_manifest,
+            ],
+        )
+        .await
+        .map_err(|_| StoreError::DatabaseUnavailable)?
+        .is_some();
+    if inserted {
+        return Ok(());
+    }
+    let row = transaction
+        .query_opt(
+            "SELECT tool_set_hash, tool_manifest
+             FROM public.converact_agent_release_tool_manifests
+             WHERE tenant_id = $1 AND agent_release_id = $2",
+            &[&tenant_id.as_str(), &release_id.as_str()],
+        )
+        .await
+        .map_err(|_| StoreError::DatabaseUnavailable)?;
+    let Some(row) = row else {
+        return Err(StoreError::AdminConflict);
+    };
+    let stored_hash: String = row.try_get(0).map_err(|_| StoreError::StoredRowInvalid)?;
+    let stored_manifest: Value = row.try_get(1).map_err(|_| StoreError::StoredRowInvalid)?;
+    if stored_hash == tool_set_hash && stored_manifest == *tool_manifest {
+        Ok(())
+    } else {
+        Err(StoreError::AdminConflict)
     }
 }
 

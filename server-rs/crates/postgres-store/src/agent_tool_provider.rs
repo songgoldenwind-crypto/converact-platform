@@ -8,7 +8,7 @@ use converact_tool_broker_core::{
 };
 use converact_voice_agent_contracts::ToolCallId;
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 use crate::{PostgresRuntime, TransactionError};
 
@@ -139,6 +139,12 @@ impl PostgresAgentToolSchema {
     pub fn schema_hash(self, action_capability: &str) -> Option<String> {
         let (_, schema) = registered_schema(action_capability)?;
         canonical_sha256_with_max_bytes(&schema, MAX_SCHEMA_BYTES).ok()
+    }
+
+    /// Returns one immutable code-owned schema document for Release publication.
+    #[must_use]
+    pub fn schema_document(self, action_capability: &str) -> Option<Value> {
+        registered_schema(action_capability).map(|(_, schema)| schema)
     }
 }
 

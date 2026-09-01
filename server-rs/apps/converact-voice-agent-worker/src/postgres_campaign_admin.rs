@@ -8,7 +8,10 @@ use converact_kernel_ids::TenantId;
 use converact_postgres_store::{PostgresCampaignAdminError, PostgresCampaignAdminStore};
 use converact_voice_agent_contracts::IdempotencyKey;
 
-use crate::{AdminMutationResource, AuthenticatedTenant, CampaignAdminError, CampaignAdminPort};
+use crate::{
+    AdminMutationResource, AgentReleaseToolManifest, AuthenticatedTenant, CampaignAdminError,
+    CampaignAdminPort,
+};
 
 /// Application adapter from the Campaign Admin HTTP contract to tenant-scoped `PostgreSQL` writes.
 pub struct PostgresCampaignAdminPort {
@@ -36,11 +39,12 @@ impl CampaignAdminPort for PostgresCampaignAdminPort {
         &self,
         tenant: &AuthenticatedTenant,
         release: &AgentRelease,
+        tool_manifest: &AgentReleaseToolManifest,
         idempotency_key: &IdempotencyKey,
     ) -> Result<AdminMutationResource, CampaignAdminError> {
         let tenant = self.tenant(tenant)?;
         self.store
-            .publish_agent(&tenant, release, idempotency_key)
+            .publish_agent(&tenant, release, tool_manifest.value(), idempotency_key)
             .await
             .map_err(map_store_error)
             .and_then(|receipt| map_receipt(&receipt))

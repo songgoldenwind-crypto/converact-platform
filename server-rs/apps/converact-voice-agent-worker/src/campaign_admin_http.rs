@@ -1,16 +1,16 @@
 use std::sync::Arc;
 
 use axum::{
-    Extension, Json, Router,
     body::Body,
-    extract::{DefaultBodyLimit, Path, State, rejection::JsonRejection},
-    http::{HeaderMap, HeaderValue, Response, StatusCode, header},
+    extract::{rejection::JsonRejection, DefaultBodyLimit, Path, State},
+    http::{header, HeaderMap, HeaderValue, Response, StatusCode},
     routing::post,
+    Extension, Json, Router,
 };
 use converact_ai_outbound_core::{
-    AgentDraft, CampaignCommand, CampaignSchedule, CampaignTransition, CreateCampaign,
-    DialPolicyRevision, DialPolicyRevisionInput, ImportContact, ImportContactInput, ImportContacts,
-    RecordingMode, ReleaseComponentDigests, publish_agent,
+    publish_agent, AgentDraft, CampaignCommand, CampaignSchedule, CampaignTransition,
+    CreateCampaign, DialPolicyRevision, DialPolicyRevisionInput, ImportContact, ImportContactInput,
+    ImportContacts, RecordingMode, ReleaseComponentDigests,
 };
 use converact_voice_agent_contracts::{
     AgentDefinitionId, AgentReleaseId, CallAttemptId, CampaignContactId, CampaignId,
@@ -20,8 +20,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::campaign_admin::CampaignAdminErrorKind;
 use crate::{
-    AdminMutationResource, AuthenticatedTenant, CampaignAdminAccess, CampaignAdminError,
-    CampaignAdminPort,
+    AdminMutationResource, AgentReleaseToolManifest, AuthenticatedTenant, CampaignAdminAccess,
+    CampaignAdminError, CampaignAdminPort,
 };
 
 const MAX_ADMIN_BODY_BYTES: usize = 2 * 1024 * 1024;
@@ -83,9 +83,12 @@ async fn publish_release<P: CampaignAdminPort>(
     let Ok(release) = publish_agent(draft, body.components.into()) else {
         return error_response(StatusCode::BAD_REQUEST, "request_body_invalid");
     };
+    let Ok(tool_manifest) = AgentReleaseToolManifest::try_new(&release, body.tool_manifest) else {
+        return error_response(StatusCode::BAD_REQUEST, "request_body_invalid");
+    };
     match state
         .port
-        .publish_agent(&tenant, &release, &idempotency_key)
+        .publish_agent(&tenant, &release, &tool_manifest, &idempotency_key)
         .await
     {
         Ok(resource) => mutation_response(&resource, StatusCode::CREATED),
@@ -367,6 +370,7 @@ struct PublishAgentBody {
     name: String,
     language: String,
     components: ReleaseComponentsBody,
+    tool_manifest: serde_json::Value,
 }
 
 #[derive(Deserialize)]

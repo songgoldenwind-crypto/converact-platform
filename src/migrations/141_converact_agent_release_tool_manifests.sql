@@ -75,7 +75,7 @@ REVOKE ALL ON FUNCTION converact_agent_release_tool_manifest_immutable_guard() F
 DO $grant$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'opc_runtime') THEN
-    GRANT SELECT ON converact_agent_release_tool_manifests TO opc_runtime;
+    GRANT SELECT, INSERT ON converact_agent_release_tool_manifests TO opc_runtime;
   END IF;
 END
 $grant$;

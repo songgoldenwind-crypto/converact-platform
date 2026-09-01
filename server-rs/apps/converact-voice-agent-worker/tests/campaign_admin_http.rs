@@ -1,23 +1,25 @@
 use std::{
     collections::HashSet,
-    future::{Future, ready},
+    future::{ready, Future},
     sync::{Arc, Mutex},
 };
 
 use axum::{
+    body::{to_bytes, Body},
+    http::{header, Method, Request, Response},
     Router,
-    body::{Body, to_bytes},
-    http::{Method, Request, Response, header},
 };
 use converact_ai_outbound_core::{
     AgentRelease, CampaignTransition, CreateCampaign, ImportContacts,
 };
+use converact_contracts::canonical_sha256_with_max_bytes;
+use converact_postgres_store::PostgresAgentToolSchema;
 use converact_voice_agent_contracts::IdempotencyKey;
 use converact_voice_agent_worker::{
-    AdminMutationResource, AuthenticatedTenant, CampaignAdminAccess, CampaignAdminError,
-    CampaignAdminPort, campaign_admin_router,
+    campaign_admin_router, AdminMutationResource, AgentReleaseToolManifest, AuthenticatedTenant,
+    CampaignAdminAccess, CampaignAdminError, CampaignAdminPort,
 };
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use tower::ServiceExt;
 
 #[tokio::test]
@@ -146,6 +148,27 @@ async fn agent_campaign_contact_and_schedule_workflow_is_callable_and_replay_saf
 }
 
 #[tokio::test]
+async fn release_rejects_tool_manifest_digest_drift_before_port_invocation() {
+    let (app, port) = app();
+    let mut body = publish_body();
+    body["components"]["tool_schema_hash"] = json!("4".repeat(64));
+
+    let response = request(
+        &app,
+        Method::POST,
+        "/internal/v1/voice-agent/admin/releases",
+        body,
+        Some("tenant-a"),
+        Some(CampaignAdminAccess::new(true, false, false)),
+        Some("publish-release-drift"),
+    )
+    .await;
+
+    assert_eq!(response.status(), 400);
+    assert_eq!(port.calls(), 0);
+}
+
+#[tokio::test]
 async fn oversized_contact_batch_is_rejected_before_the_port() {
     let (app, port) = app();
     let response = request(
@@ -242,6 +265,7 @@ impl CampaignAdminPort for FakeAdmin {
         &self,
         _tenant: &AuthenticatedTenant,
         release: &AgentRelease,
+        _tool_manifest: &AgentReleaseToolManifest,
         idempotency_key: &IdempotencyKey,
     ) -> impl Future<Output = Result<AdminMutationResource, CampaignAdminError>> + Send {
         ready(self.receipt(idempotency_key, release.id().as_str(), "published", 1, 0))
@@ -334,6 +358,8 @@ async fn json_body(response: Response<Body>) -> Value {
 }
 
 fn publish_body() -> Value {
+    let tool_manifest = tool_manifest();
+    let tool_schema_hash = canonical_sha256_with_max_bytes(&tool_manifest, 65_536).unwrap();
     json!({
         "definition_id":"agent-001",
         "release_id":"release-001",
@@ -343,13 +369,44 @@ fn publish_body() -> Value {
             "prompt_revision_hash":"1".repeat(64),
             "conversation_flow_revision_hash":"2".repeat(64),
             "knowledge_revision_hash":"3".repeat(64),
-            "tool_schema_hash":"4".repeat(64),
+            "tool_schema_hash":tool_schema_hash,
             "speech_profile_hash":"5".repeat(64),
             "compliance_policy_hash":"6".repeat(64),
             "outcome_schema_hash":"7".repeat(64),
             "evaluation_rubric_hash":"8".repeat(64)
-        }
+        },
+        "tool_manifest": tool_manifest
     })
+}
+
+fn tool_manifest() -> Value {
+    let schemas = PostgresAgentToolSchema::new();
+    let lookup_schema = schemas.schema_document("customer.lookup").unwrap();
+    let follow_up_schema = schemas.schema_document("task.create_follow_up").unwrap();
+    json!([
+        {
+            "name": "customer.lookup",
+            "revision_id": "customer.lookup-r1",
+            "schema_hash": schemas.schema_hash("customer.lookup").unwrap(),
+            "arguments_schema": lookup_schema,
+            "effect_class": "query",
+            "risk": "low",
+            "action_capability": "customer.lookup",
+            "policy_decision": "allowed",
+            "deadline_after_ms": 5_000,
+        },
+        {
+            "name": "task.create_follow_up",
+            "revision_id": "task.create_follow_up-r1",
+            "schema_hash": schemas.schema_hash("task.create_follow_up").unwrap(),
+            "arguments_schema": follow_up_schema,
+            "effect_class": "mutation",
+            "risk": "low",
+            "action_capability": "task.create_follow_up",
+            "policy_decision": "allowed",
+            "deadline_after_ms": 5_000,
+        }
+    ])
 }
 
 fn create_campaign_body() -> Value {

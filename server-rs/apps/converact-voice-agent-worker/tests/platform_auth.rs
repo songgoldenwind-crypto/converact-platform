@@ -4,23 +4,25 @@ use std::{
 };
 
 use axum::{
-    Router,
     body::Body,
     http::{Method, Request, StatusCode},
+    Router,
 };
 use converact_ai_outbound_core::{
     AgentRelease, CampaignTransition, CreateCampaign, ImportContacts,
 };
+use converact_contracts::canonical_sha256_with_max_bytes;
+use converact_postgres_store::PostgresAgentToolSchema;
 use converact_runtime_health::RuntimeHealth;
 use converact_tenant_auth::Hs256PlatformTokenVerifier;
 use converact_voice_agent_contracts::IdempotencyKey;
 use converact_voice_agent_worker::{
-    AdminMutationResource, AdmissionReadiness, AgentReleaseResource, AttemptResource,
+    router_with_campaign_admin_and_platform_auth, router_with_platform_auth, AdminMutationResource,
+    AdmissionReadiness, AgentReleaseResource, AgentReleaseToolManifest, AttemptResource,
     AuthenticatedTenant, CampaignAdminError, CampaignAdminPort, CampaignResource, FixedWallClock,
     ReconcileReceipt, RepositoryError, ShutdownToken, VoiceAgentRepository, WorkerConfig,
-    router_with_campaign_admin_and_platform_auth, router_with_platform_auth,
 };
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use tower::ServiceExt;
 
 const FIXTURE: &str = include_str!("../../../tests/fixtures/platform-hs256-v1.json");
@@ -175,6 +177,8 @@ fn authenticated_admin_app(admin: Arc<ProbeAdmin>, fixture: &Value) -> Router {
 }
 
 async fn publish_request(app: &Router, authorization: &str) -> axum::response::Response {
+    let tool_manifest = tool_manifest();
+    let tool_schema_hash = canonical_sha256_with_max_bytes(&tool_manifest, 65_536).unwrap();
     let body = json!({
         "definition_id":"agent-001",
         "release_id":"release-001",
@@ -184,12 +188,13 @@ async fn publish_request(app: &Router, authorization: &str) -> axum::response::R
             "prompt_revision_hash":"1".repeat(64),
             "conversation_flow_revision_hash":"2".repeat(64),
             "knowledge_revision_hash":"3".repeat(64),
-            "tool_schema_hash":"4".repeat(64),
+            "tool_schema_hash":tool_schema_hash,
             "speech_profile_hash":"5".repeat(64),
             "compliance_policy_hash":"6".repeat(64),
             "outcome_schema_hash":"7".repeat(64),
             "evaluation_rubric_hash":"8".repeat(64)
-        }
+        },
+        "tool_manifest":tool_manifest
     });
     app.clone()
         .oneshot(
@@ -251,6 +256,7 @@ impl CampaignAdminPort for ProbeAdmin {
         &self,
         _tenant: &AuthenticatedTenant,
         release: &AgentRelease,
+        _tool_manifest: &AgentReleaseToolManifest,
         _idempotency_key: &IdempotencyKey,
     ) -> Result<AdminMutationResource, CampaignAdminError> {
         *self.calls.lock().unwrap() += 1;
@@ -281,6 +287,36 @@ impl CampaignAdminPort for ProbeAdmin {
     ) -> impl Future<Output = Result<AdminMutationResource, CampaignAdminError>> + Send {
         std::future::ready(Err(CampaignAdminError::unavailable()))
     }
+}
+
+fn tool_manifest() -> Value {
+    let schemas = PostgresAgentToolSchema::new();
+    json!([
+        {
+            "name": "customer.lookup",
+            "revision_id": "customer.lookup-r1",
+            "schema_hash": schemas.schema_hash("customer.lookup").unwrap(),
+            "arguments_schema": schemas.schema_document("customer.lookup").unwrap(),
+            "effect_class": "query",
+            "risk": "low",
+            "action_capability": "customer.lookup",
+            "policy_decision": "allowed",
+            "deadline_after_ms": 5_000,
+        },
+        {
+            "name": "task.create_follow_up",
+            "revision_id": "task.create_follow_up-r1",
+            "schema_hash": schemas.schema_hash("task.create_follow_up").unwrap(),
+            "arguments_schema": schemas
+                .schema_document("task.create_follow_up")
+                .unwrap(),
+            "effect_class": "mutation",
+            "risk": "low",
+            "action_capability": "task.create_follow_up",
+            "policy_decision": "allowed",
+            "deadline_after_ms": 5_000,
+        }
+    ])
 }
 
 impl VoiceAgentRepository for ProbeRepository {

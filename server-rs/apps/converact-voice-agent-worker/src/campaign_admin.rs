@@ -3,9 +3,11 @@ use std::{error::Error, fmt, future::Future};
 use converact_ai_outbound_core::{
     AgentRelease, CampaignTransition, CreateCampaign, ImportContacts,
 };
+use converact_contracts::canonical_sha256_with_max_bytes;
 use converact_tenant_auth::AuthenticatedPlatformIdentity;
 use converact_voice_agent_contracts::IdempotencyKey;
 use serde::Serialize;
+use serde_json::Value;
 
 use crate::AuthenticatedTenant;
 
@@ -15,6 +17,41 @@ const MAX_CONTACTS: u16 = 500;
 const PUBLISH_AGENT_CAPABILITY: &str = "voice_agent.agent.publish";
 const MANAGE_CAMPAIGN_CAPABILITY: &str = "voice_agent.campaign.manage";
 const IMPORT_CONTACTS_CAPABILITY: &str = "voice_agent.contacts.import";
+const MAX_TOOL_MANIFEST_BYTES: usize = 65_536;
+const MAX_RELEASE_TOOLS: usize = 64;
+
+/// Bounded immutable Tool manifest whose canonical digest is frozen in an Agent Release.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AgentReleaseToolManifest {
+    value: Value,
+}
+
+impl AgentReleaseToolManifest {
+    /// Validates the manifest container and its exact Release digest binding.
+    ///
+    /// # Errors
+    ///
+    /// Rejects non-arrays, empty/oversized registries and canonical digest drift.
+    pub fn try_new(release: &AgentRelease, value: Value) -> Result<Self, CampaignAdminError> {
+        let Some(tools) = value.as_array() else {
+            return Err(CampaignAdminError::invalid());
+        };
+        if tools.is_empty() || tools.len() > MAX_RELEASE_TOOLS {
+            return Err(CampaignAdminError::invalid());
+        }
+        let hash = canonical_sha256_with_max_bytes(&value, MAX_TOOL_MANIFEST_BYTES)
+            .map_err(|_| CampaignAdminError::invalid())?;
+        if hash != release.components().tool_schema_hash {
+            return Err(CampaignAdminError::invalid());
+        }
+        Ok(Self { value })
+    }
+
+    #[must_use]
+    pub const fn value(&self) -> &Value {
+        &self.value
+    }
+}
 
 /// Explicit authoring capabilities injected only after tenant authorization.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -224,6 +261,7 @@ pub trait CampaignAdminPort: Send + Sync + 'static {
         &self,
         tenant: &AuthenticatedTenant,
         release: &AgentRelease,
+        tool_manifest: &AgentReleaseToolManifest,
         idempotency_key: &IdempotencyKey,
     ) -> impl Future<Output = Result<AdminMutationResource, CampaignAdminError>> + Send;
 

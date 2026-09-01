@@ -73,3 +73,23 @@ fn campaign_transition_replays_before_reapplying_the_state_machine() {
 
     assert!(replay < lock && lock < apply);
 }
+
+#[test]
+fn release_and_tool_manifest_share_one_authoritative_transaction() {
+    let source = include_str!("../src/campaign_admin.rs");
+    let publish = source
+        .split("pub async fn publish_agent")
+        .nth(1)
+        .and_then(|tail| tail.split("\n    ///").next())
+        .expect("publish method");
+    let release = publish
+        .find("publish_agent_release")
+        .expect("release write");
+    let manifest = publish
+        .find("persist_release_tool_manifest")
+        .expect("manifest write");
+
+    assert!(release < manifest);
+    assert_eq!(publish.matches("with_tenant_transaction").count(), 1);
+    assert!(source.contains("ON CONFLICT DO NOTHING RETURNING agent_release_id"));
+}

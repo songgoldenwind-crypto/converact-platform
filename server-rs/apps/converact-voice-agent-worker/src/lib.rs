@@ -118,7 +118,8 @@ pub use adaptive_emotion_runtime::{
     AcousticEmotionFailurePolicy, AdaptiveEmotionTurnRuntime, AdaptiveEmotionTurnRuntimeError,
 };
 pub use campaign_admin::{
-    AdminMutationResource, CampaignAdminAccess, CampaignAdminError, CampaignAdminPort,
+    AdminMutationResource, AgentReleaseToolManifest, CampaignAdminAccess, CampaignAdminError,
+    CampaignAdminPort,
 };
 pub use campaign_admin_http::campaign_admin_router;
 pub use campaign_retry::{

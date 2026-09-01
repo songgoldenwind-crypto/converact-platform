@@ -22,7 +22,7 @@ fn migration_binds_one_immutable_tool_manifest_to_each_release() {
         "BEFORE UPDATE OR DELETE",
         "ENABLE ROW LEVEL SECURITY",
         "FORCE ROW LEVEL SECURITY",
-        "GRANT SELECT ON converact_agent_release_tool_manifests TO opc_runtime",
+        "GRANT SELECT, INSERT ON converact_agent_release_tool_manifests TO opc_runtime",
     ] {
         assert!(MIGRATION.contains(required), "missing invariant {required}");
     }

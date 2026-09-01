@@ -1,21 +1,23 @@
 use std::{env, sync::Arc, time::Duration};
 
 use converact_ai_outbound_core::{
-    AgentDraft, CampaignCommand, CampaignSchedule, CampaignTransition, CreateCampaign,
-    DialPolicyRevision, DialPolicyRevisionInput, ImportContact, ImportContactInput, ImportContacts,
-    RecordingMode, ReleaseComponentDigests, publish_agent,
+    publish_agent, AgentDraft, CampaignCommand, CampaignSchedule, CampaignTransition,
+    CreateCampaign, DialPolicyRevision, DialPolicyRevisionInput, ImportContact, ImportContactInput,
+    ImportContacts, RecordingMode, ReleaseComponentDigests,
 };
 use converact_ai_outbound_store::{AiOutboundStore, StoreConfig};
+use converact_contracts::canonical_sha256_with_max_bytes;
 use converact_kernel_ids::TenantId;
 use converact_post_call_finalization_store::{FinalizationSqlStore, FinalizationStoreConfig};
 use converact_postgres_store::{
-    PostgresAiOutboundAttemptStore, PostgresCampaignAdminStore, PostgresRuntime,
-    PostgresRuntimeLimits, PostgresRuntimeSettings,
+    PostgresAgentToolSchema, PostgresAiOutboundAttemptStore, PostgresCampaignAdminStore,
+    PostgresRuntime, PostgresRuntimeLimits, PostgresRuntimeSettings,
 };
 use converact_voice_agent_contracts::{
     AgentDefinitionId, AgentReleaseId, CallAttemptId, CampaignContactId, CampaignId,
     IdempotencyKey, InteractionId,
 };
+use serde_json::{json, Value};
 use tokio_postgres::NoTls;
 
 #[tokio::test]
@@ -32,29 +34,30 @@ async fn campaign_authoring_creates_one_claimable_physical_attempt() {
     let sql = AiOutboundStore::new(StoreConfig::new(30_000, 4).unwrap());
     let authoring = PostgresCampaignAdminStore::new(Arc::clone(&runtime), sql);
     let tenant = TenantId::parse("tenant-a").unwrap();
-    let release = release();
+    let tool_manifest = tool_manifest();
+    let release = release(canonical_sha256_with_max_bytes(&tool_manifest, 65_536).unwrap());
 
     let published = authoring
         .publish_agent(
             &tenant,
             &release,
+            &tool_manifest,
             &IdempotencyKey::parse("publish-release-001").unwrap(),
         )
         .await
         .unwrap();
     assert_eq!(published.state(), "published");
     assert!(!published.replayed());
-    assert!(
-        authoring
-            .publish_agent(
-                &tenant,
-                &release,
-                &IdempotencyKey::parse("publish-release-001").unwrap(),
-            )
-            .await
-            .unwrap()
-            .replayed()
-    );
+    assert!(authoring
+        .publish_agent(
+            &tenant,
+            &release,
+            &tool_manifest,
+            &IdempotencyKey::parse("publish-release-001").unwrap(),
+        )
+        .await
+        .unwrap()
+        .replayed());
 
     let campaign = campaign();
     let created = authoring
@@ -138,7 +141,7 @@ async fn assert_persisted_campaign(admin: &tokio_postgres::Client) {
     assert_eq!(row.get::<_, i64>(5), 5);
 }
 
-fn release() -> converact_ai_outbound_core::AgentRelease {
+fn release(tool_schema_hash: String) -> converact_ai_outbound_core::AgentRelease {
     let draft = AgentDraft::try_new(
         AgentDefinitionId::parse("agent-001").unwrap(),
         AgentReleaseId::parse("release-001").unwrap(),
@@ -152,7 +155,7 @@ fn release() -> converact_ai_outbound_core::AgentRelease {
             prompt_revision_hash: "1".repeat(64),
             conversation_flow_revision_hash: "2".repeat(64),
             knowledge_revision_hash: "3".repeat(64),
-            tool_schema_hash: "4".repeat(64),
+            tool_schema_hash,
             speech_profile_hash: "5".repeat(64),
             compliance_policy_hash: "6".repeat(64),
             outcome_schema_hash: "7".repeat(64),
@@ -160,6 +163,21 @@ fn release() -> converact_ai_outbound_core::AgentRelease {
         },
     )
     .unwrap()
+}
+
+fn tool_manifest() -> Value {
+    let schemas = PostgresAgentToolSchema::new();
+    json!([{
+        "name": "customer.lookup",
+        "revision_id": "customer.lookup-r1",
+        "schema_hash": schemas.schema_hash("customer.lookup").unwrap(),
+        "arguments_schema": schemas.schema_document("customer.lookup").unwrap(),
+        "effect_class": "query",
+        "risk": "low",
+        "action_capability": "customer.lookup",
+        "policy_decision": "allowed",
+        "deadline_after_ms": 5_000,
+    }])
 }
 
 fn campaign() -> CreateCampaign {
@@ -230,6 +248,7 @@ async fn install_schema(admin: &tokio_postgres::Client) {
         include_str!("../../../../src/migrations/130_converact_outbound_admin_receipts.sql"),
         include_str!("../../../../src/migrations/131_converact_outbound_dial_policy.sql"),
         include_str!("../../../../src/migrations/132_converact_outbound_attempt_recovery.sql"),
+        include_str!("../../../../src/migrations/141_converact_agent_release_tool_manifests.sql"),
     ] {
         admin.batch_execute(migration).await.unwrap();
     }
