@@ -22,6 +22,7 @@ mod conversation_quality;
 mod conversation_quality_http;
 mod conversation_quality_postgres;
 mod fast_intent_classifier;
+mod final_transcript_understanding;
 mod handoff_runtime;
 mod http;
 mod intent_confidence_router;
@@ -95,6 +96,11 @@ pub use fast_intent_classifier::{
     FastIntentCandidateOutput, FastIntentClassifierArtifactInput, FastIntentClassifierOutput,
     FastIntentClassifierPort, FastIntentClassifierPortError, FastIntentClassifierProvider,
     FastIntentClassifierProviderError, FastIntentClassifierRequest,
+};
+pub use final_transcript_understanding::{
+    FinalTranscriptUnderstandingError, FinalTranscriptUnderstandingInput,
+    FinalTranscriptUnderstandingOutcome, PersistedUnderstandingTurn,
+    TranscriptUnderstandingDisposition, process_final_transcript_understanding,
 };
 pub use handoff_runtime::{
     AiResumeCommandIds, AiResumeRequest, ChannelAgentHandoffPort, DurableCreateDecision,

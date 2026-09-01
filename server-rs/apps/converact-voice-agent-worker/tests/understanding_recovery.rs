@@ -27,12 +27,20 @@ use converact_voice_agent_contracts::{
     IntentObservationId, InteractionId, TranscriptSegmentId, VOICE_AGENT_SCHEMA_VERSION,
 };
 use converact_voice_agent_worker::{
-    CompleteUnderstandingTurnInput, FastIntentClassifierArtifactInput, FastIntentClassifierOutput,
-    FastIntentClassifierPort, FastIntentClassifierPortError, FastIntentClassifierProvider,
-    FastIntentClassifierRequest, IntentConfidenceRouter, IntentTurnRoute, SafetyIntentMatchKind,
-    SafetyIntentProvider, SafetyIntentRuleInput, SafetyIntentRuleSetInput, TextEmotionTurnRuntime,
+    CompleteUnderstandingTurnInput, ContextualIntentArtifactInput,
+    ContextualIntentClassifierOutput, ContextualIntentClassifierPort,
+    ContextualIntentClassifierPortError, ContextualIntentClassifierProvider,
+    ContextualIntentClassifierRequest, FastIntentClassifierArtifactInput,
+    FastIntentClassifierOutput, FastIntentClassifierPort, FastIntentClassifierPortError,
+    FastIntentClassifierProvider, FastIntentClassifierRequest, FinalTranscriptUnderstandingInput,
+    FinalTranscriptUnderstandingOutcome, IntentConfidenceRouter, IntentTurnRoute,
+    SafetyIntentMatchKind, SafetyIntentProvider, SafetyIntentRuleInput, SafetyIntentRuleSetInput,
+    TextEmotionCandidateOutput, TextEmotionClassifierArtifactInput, TextEmotionClassifierOutput,
+    TextEmotionClassifierPort, TextEmotionClassifierPortError, TextEmotionClassifierProvider,
+    TextEmotionClassifierRequest, TextEmotionTurnRuntime, TranscriptUnderstandingDisposition,
     UnderstandingAppendDecision, UnderstandingDurabilityPort, UnderstandingPortError,
     UnderstandingRecoveryInputs, UnderstandingRuntime, UnderstandingTurnWriteInput,
+    process_final_transcript_understanding,
 };
 
 struct FakeDurability {
@@ -264,6 +272,104 @@ async fn one_resolved_turn_builds_raw_evidence_and_four_heads_atomically() {
     assert_eq!(replay.batch(), prepared.batch());
     assert_eq!(replay.customer_state(), prepared.customer_state());
     assert_eq!(replay.dialogue(), prepared.dialogue());
+}
+
+#[tokio::test]
+async fn appended_final_transcript_runs_complete_understanding_while_replay_skips_models() {
+    let fixture = fixture();
+    let durability = FakeDurability {
+        heads: Vec::new(),
+        loads: AtomicUsize::new(0),
+        appends: AtomicUsize::new(0),
+    };
+    let safety = safety_provider(&fixture.intent_catalog);
+    let fast = never_fast_provider(&fixture.intent_catalog);
+    let contextual = never_contextual_provider(&fixture.intent_catalog);
+    let text_calls = AtomicUsize::new(0);
+    let text_emotion = text_emotion_provider(&fixture.emotion_catalog, &text_calls);
+    let history = vec![final_customer_segment("别再给我打电话了")];
+
+    let outcome = process_final_transcript_understanding(FinalTranscriptUnderstandingInput {
+        disposition: TranscriptUnderstandingDisposition::AppendedCurrent,
+        history: &history,
+        durability: &durability,
+        safety: &safety,
+        fast: &fast,
+        contextual: &contextual,
+        text_emotion: &text_emotion,
+        intent_catalog: &fixture.intent_catalog,
+        emotion_catalog: &fixture.emotion_catalog,
+        intent_policy: IntentDecisionPolicy::try_new(5_500, 8_000, 1_500, 9_500).unwrap(),
+        emotion_policy: EmotionDecisionPolicy::try_new(5_500, 8_000).unwrap(),
+        contextual_failure_policy:
+            converact_voice_agent_worker::ContextualFailurePolicy::FailClosed,
+        dialogue_policy: &fixture.dialogue_policy,
+        retention_policy_ref: "understanding-30-days-v1",
+        retention_until_ms: 2_592_003_000,
+    })
+    .await
+    .unwrap();
+    let FinalTranscriptUnderstandingOutcome::Persisted(processed) = outcome else {
+        panic!("new current final transcript must persist one turn");
+    };
+    assert_eq!(processed.turn_index(), 1);
+    assert_eq!(processed.decision(), UnderstandingAppendDecision::Replayed);
+    assert_eq!(durability.loads.load(Ordering::Relaxed), 1);
+    assert_eq!(durability.appends.load(Ordering::Relaxed), 1);
+    assert_eq!(text_calls.load(Ordering::Relaxed), 1);
+
+    let replay = process_final_transcript_understanding(FinalTranscriptUnderstandingInput {
+        disposition: TranscriptUnderstandingDisposition::ReplayedCurrent,
+        history: &history,
+        durability: &durability,
+        safety: &safety,
+        fast: &fast,
+        contextual: &contextual,
+        text_emotion: &text_emotion,
+        intent_catalog: &fixture.intent_catalog,
+        emotion_catalog: &fixture.emotion_catalog,
+        intent_policy: IntentDecisionPolicy::try_new(5_500, 8_000, 1_500, 9_500).unwrap(),
+        emotion_policy: EmotionDecisionPolicy::try_new(5_500, 8_000).unwrap(),
+        contextual_failure_policy:
+            converact_voice_agent_worker::ContextualFailurePolicy::FailClosed,
+        dialogue_policy: &fixture.dialogue_policy,
+        retention_policy_ref: "understanding-30-days-v1",
+        retention_until_ms: 2_592_003_000,
+    })
+    .await
+    .unwrap();
+    assert_eq!(replay, FinalTranscriptUnderstandingOutcome::SkippedReplay);
+    assert_eq!(durability.loads.load(Ordering::Relaxed), 1);
+    assert_eq!(durability.appends.load(Ordering::Relaxed), 1);
+    assert_eq!(text_calls.load(Ordering::Relaxed), 1);
+
+    let historical = process_final_transcript_understanding(FinalTranscriptUnderstandingInput {
+        disposition: TranscriptUnderstandingDisposition::Historical,
+        history: &history,
+        durability: &durability,
+        safety: &safety,
+        fast: &fast,
+        contextual: &contextual,
+        text_emotion: &text_emotion,
+        intent_catalog: &fixture.intent_catalog,
+        emotion_catalog: &fixture.emotion_catalog,
+        intent_policy: IntentDecisionPolicy::try_new(5_500, 8_000, 1_500, 9_500).unwrap(),
+        emotion_policy: EmotionDecisionPolicy::try_new(5_500, 8_000).unwrap(),
+        contextual_failure_policy:
+            converact_voice_agent_worker::ContextualFailurePolicy::FailClosed,
+        dialogue_policy: &fixture.dialogue_policy,
+        retention_policy_ref: "understanding-30-days-v1",
+        retention_until_ms: 2_592_003_000,
+    })
+    .await
+    .unwrap();
+    assert_eq!(
+        historical,
+        FinalTranscriptUnderstandingOutcome::SkippedHistorical
+    );
+    assert_eq!(durability.loads.load(Ordering::Relaxed), 1);
+    assert_eq!(durability.appends.load(Ordering::Relaxed), 1);
+    assert_eq!(text_calls.load(Ordering::Relaxed), 1);
 }
 
 #[tokio::test]
@@ -573,6 +679,86 @@ fn never_fast_provider(catalog: &IntentCatalog) -> FastIntentClassifierProvider<
         },
         catalog,
         NeverFast,
+    )
+    .unwrap()
+}
+
+struct NeverContextual;
+
+impl ContextualIntentClassifierPort for NeverContextual {
+    async fn classify<'a>(
+        &'a self,
+        _request: ContextualIntentClassifierRequest<'a>,
+    ) -> Result<ContextualIntentClassifierOutput, ContextualIntentClassifierPortError> {
+        panic!("Safety must short-circuit Contextual inference")
+    }
+}
+
+fn never_contextual_provider(
+    catalog: &IntentCatalog,
+) -> ContextualIntentClassifierProvider<NeverContextual> {
+    ContextualIntentClassifierProvider::try_new(
+        ContextualIntentArtifactInput {
+            agent_release_id: AgentReleaseId::parse("release-001").unwrap(),
+            intent_catalog_revision_id: catalog.id().clone(),
+            model_profile_sha256: "5".repeat(64),
+            prompt_template_sha256: "6".repeat(64),
+            label_map_sha256: "7".repeat(64),
+            output_schema_sha256: "8".repeat(64),
+            calibration_sha256: "9".repeat(64),
+            supported_languages: vec!["zh-CN".to_owned()],
+            max_context_segments: 16,
+            max_context_bytes: 32_768,
+            max_candidates: 5,
+            max_slots: 16,
+            inference_deadline_ms: 100,
+        },
+        catalog,
+        NeverContextual,
+    )
+    .unwrap()
+}
+
+struct FixedTextEmotion<'a> {
+    calls: &'a AtomicUsize,
+}
+
+impl TextEmotionClassifierPort for FixedTextEmotion<'_> {
+    async fn classify<'a>(
+        &'a self,
+        request: TextEmotionClassifierRequest<'a>,
+    ) -> Result<TextEmotionClassifierOutput, TextEmotionClassifierPortError> {
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        Ok(TextEmotionClassifierOutput {
+            served_artifact_revision: request.artifact_revision().to_owned(),
+            candidates: vec![TextEmotionCandidateOutput {
+                code: "customer.angry".to_owned(),
+                confidence_bps: 8_700,
+                intensity: 4,
+            }],
+        })
+    }
+}
+
+fn text_emotion_provider<'a>(
+    catalog: &EmotionCatalog,
+    calls: &'a AtomicUsize,
+) -> TextEmotionClassifierProvider<FixedTextEmotion<'a>> {
+    TextEmotionClassifierProvider::try_new(
+        TextEmotionClassifierArtifactInput {
+            agent_release_id: AgentReleaseId::parse("release-001").unwrap(),
+            emotion_catalog_revision_id: catalog.id().clone(),
+            model_sha256: "a".repeat(64),
+            tokenizer_sha256: "b".repeat(64),
+            label_map_sha256: "c".repeat(64),
+            calibration_sha256: "d".repeat(64),
+            supported_languages: vec!["zh-CN".to_owned()],
+            max_input_bytes: 4_096,
+            max_candidates: 5,
+            inference_deadline_ms: 100,
+        },
+        catalog,
+        FixedTextEmotion { calls },
     )
     .unwrap()
 }
