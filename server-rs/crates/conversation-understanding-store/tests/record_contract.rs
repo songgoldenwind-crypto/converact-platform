@@ -34,6 +34,32 @@ fn raw_emotion_signal_is_durable_but_cannot_become_authoritative_head() {
 }
 
 #[test]
+fn raw_intent_contributors_and_resolution_are_durable_but_never_heads() {
+    for kind in [
+        UnderstandingRecordKind::IntentProviderObservation,
+        UnderstandingRecordKind::IntentResolutionEvidence,
+    ] {
+        let record = record(kind);
+        assert_eq!(record.domain(), UnderstandingDomain::Intent);
+        assert!(!record.can_advance_head());
+        assert_eq!(
+            converact_conversation_understanding_store::AppendUnderstandingRecord::try_new(
+                record,
+                Some(
+                    UnderstandingHeadExpectation::try_new(UnderstandingHeadExpectationInput {
+                        expected_revision: 0,
+                        expected_record_id: None,
+                        expected_payload_hash: None,
+                    })
+                    .unwrap(),
+                ),
+            ),
+            Err(UnderstandingStoreError::HeadAdvanceNotAllowed)
+        );
+    }
+}
+
+#[test]
 fn malformed_payload_hash_retention_and_size_fail_closed() {
     let mut input = record_input(UnderstandingRecordKind::IntentObservation);
     input.payload_hash = "0".repeat(64);

@@ -69,3 +69,18 @@ fn recovery_loads_all_four_domains_with_one_bounded_sql_statement() {
         );
     }
 }
+
+#[test]
+fn atomic_turn_appends_record_only_intent_evidence_before_authoritative_heads() {
+    let source = include_str!("../src/postgres.rs");
+    let evidence = source
+        .find("for evidence in batch.evidence_commands()")
+        .expect("missing bounded evidence append");
+    let heads = source
+        .find("let commands = batch.commands()")
+        .expect("missing authoritative head append");
+
+    assert!(evidence < heads);
+    assert!(source.contains("AppendOutcome::RecordOnlyAppended"));
+    assert!(source.contains("AppendOutcome::RecordOnlyReplay"));
+}

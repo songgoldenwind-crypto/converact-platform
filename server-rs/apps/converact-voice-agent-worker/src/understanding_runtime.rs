@@ -13,6 +13,8 @@ use converact_conversation_understanding_store::{
 };
 use converact_voice_agent_contracts::EnvelopeContext;
 
+use crate::intent_confidence_router::IntentTurnResolution;
+
 /// Bounded persistence or recovery failure without customer data or storage topology.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct UnderstandingPortError {
@@ -72,6 +74,18 @@ pub struct UnderstandingRecoveryInputs<'a> {
 #[derive(Clone, Copy)]
 pub struct UnderstandingTurnWriteInput<'a> {
     pub intent_checkpoint: &'a IntentCheckpoint,
+    pub emotion_checkpoint: &'a EmotionCheckpoint,
+    pub customer_state: &'a CustomerStateSnapshot,
+    pub dialogue: &'a DialogueRecommendation,
+    pub dialogue_policy: &'a DialoguePolicy,
+    pub retention_policy_ref: &'a str,
+    pub retention_until_ms: u64,
+}
+
+/// Exact Router resolution and dependent domain inputs for one atomic understanding turn commit.
+#[derive(Clone, Copy)]
+pub struct ResolvedUnderstandingTurnWriteInput<'a> {
+    pub intent_resolution: &'a IntentTurnResolution,
     pub emotion_checkpoint: &'a EmotionCheckpoint,
     pub customer_state: &'a CustomerStateSnapshot,
     pub dialogue: &'a DialogueRecommendation,
@@ -168,6 +182,47 @@ impl RecoveredUnderstanding {
         &self,
         input: UnderstandingTurnWriteInput<'_>,
     ) -> Result<UnderstandingTurnBatch, UnderstandingPortError> {
+        self.prepare_turn_with_evidence(input, Vec::new())
+    }
+
+    /// Builds one atomic write containing raw Intent contributors, resolution and four heads.
+    ///
+    /// # Errors
+    ///
+    /// Rejects invalid Router evidence, retention, authority, dependency or head fencing before
+    /// SQL. The selected Intent checkpoint remains the rolling-compatible Intent head.
+    pub fn prepare_resolved_turn(
+        &self,
+        input: ResolvedUnderstandingTurnWriteInput<'_>,
+    ) -> Result<UnderstandingTurnBatch, UnderstandingPortError> {
+        let evidence = input
+            .intent_resolution
+            .encode_evidence_records(input.retention_policy_ref, input.retention_until_ms)
+            .map_err(|_| append_input_invalid())?
+            .into_iter()
+            .map(|record| {
+                AppendUnderstandingRecord::try_new(record, None).map_err(|_| append_input_invalid())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        self.prepare_turn_with_evidence(
+            UnderstandingTurnWriteInput {
+                intent_checkpoint: input.intent_resolution.checkpoint(),
+                emotion_checkpoint: input.emotion_checkpoint,
+                customer_state: input.customer_state,
+                dialogue: input.dialogue,
+                dialogue_policy: input.dialogue_policy,
+                retention_policy_ref: input.retention_policy_ref,
+                retention_until_ms: input.retention_until_ms,
+            },
+            evidence,
+        )
+    }
+
+    fn prepare_turn_with_evidence(
+        &self,
+        input: UnderstandingTurnWriteInput<'_>,
+        evidence: Vec<AppendUnderstandingRecord>,
+    ) -> Result<UnderstandingTurnBatch, UnderstandingPortError> {
         if input.intent_checkpoint.context() != &self.context
             || input.emotion_checkpoint.context() != &self.context
             || input.customer_state.context() != &self.context
@@ -212,7 +267,8 @@ impl RecoveredUnderstanding {
         ];
         let [intent, emotion, customer_state, dialogue] =
             records.map(|record| record.map_err(|_| append_input_invalid()));
-        UnderstandingTurnBatch::try_new(
+        UnderstandingTurnBatch::try_new_with_evidence(
+            evidence,
             append_command(intent?, self.intent_head.as_ref())?,
             append_command(emotion?, self.emotion_head.as_ref())?,
             append_command(customer_state?, self.customer_state_head.as_ref())?,

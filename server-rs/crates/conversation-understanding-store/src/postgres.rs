@@ -202,7 +202,7 @@ impl UnderstandingSqlStore {
         }
     }
 
-    /// Appends the fixed Intent → Emotion → Customer State → Dialogue graph in one caller-owned
+    /// Appends record-only Intent evidence and the fixed four-head graph in one caller-owned
     /// transaction. Any error must roll back the whole transaction.
     ///
     /// # Errors
@@ -213,6 +213,14 @@ impl UnderstandingSqlStore {
         transaction: &Transaction<'_>,
         batch: &UnderstandingTurnBatch,
     ) -> Result<UnderstandingTurnAppendOutcome, UnderstandingStoreError> {
+        for evidence in batch.evidence_commands() {
+            if !matches!(
+                self.append(transaction, evidence).await?,
+                AppendOutcome::RecordOnlyAppended | AppendOutcome::RecordOnlyReplay
+            ) {
+                return Err(UnderstandingStoreError::StoredRowInvalid);
+            }
+        }
         let commands = batch.commands();
         UnderstandingTurnAppendOutcome::classify([
             self.append(transaction, &commands[0]).await?,

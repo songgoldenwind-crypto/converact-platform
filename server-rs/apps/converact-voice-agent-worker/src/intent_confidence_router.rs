@@ -6,6 +6,9 @@ use converact_conversation_understanding_core::{
     IntentCatalog, IntentCheckpoint, IntentDecisionPolicy, IntentObservation, IntentSource,
     IntentState, IntentStatus,
 };
+use converact_conversation_understanding_store::{
+    UnderstandingRecord, UnderstandingRecordInput, UnderstandingRecordKind,
+};
 use serde_json::json;
 
 use crate::{FastIntentClassifierPort, FastIntentClassifierProvider, SafetyIntentProvider};
@@ -53,6 +56,7 @@ impl Error for IntentConfidenceRouterError {}
 pub struct IntentTurnResolution {
     checkpoint: IntentCheckpoint,
     contributors: Box<[IntentObservation]>,
+    policy: IntentDecisionPolicy,
     resolution_hash: Box<str>,
 }
 
@@ -106,6 +110,7 @@ impl IntentTurnResolution {
         Ok(Self {
             checkpoint,
             contributors: contributors.into(),
+            policy,
             resolution_hash: resolution_hash.into(),
         })
     }
@@ -134,6 +139,103 @@ impl IntentTurnResolution {
     pub fn resolution_hash(&self) -> &str {
         &self.resolution_hash
     }
+
+    #[must_use]
+    pub const fn router_revision(&self) -> &'static str {
+        ROUTER_REVISION
+    }
+
+    #[must_use]
+    pub const fn policy(&self) -> IntentDecisionPolicy {
+        self.policy
+    }
+
+    /// Encodes every raw Provider contribution followed by the immutable Router resolution.
+    ///
+    /// # Errors
+    ///
+    /// Rejects retention or canonical record construction that no longer matches the validated
+    /// in-memory resolution.
+    pub fn encode_evidence_records(
+        &self,
+        retention_policy_ref: &str,
+        retention_until_ms: u64,
+    ) -> Result<Vec<UnderstandingRecord>, IntentConfidenceRouterError> {
+        let mut records = Vec::with_capacity(self.contributors.len() + 1);
+        for observation in &self.contributors {
+            records.push(intent_evidence_record(IntentEvidenceRecordInput {
+                record_id: format!("intent-provider.{}", observation.payload_hash()),
+                context: observation.context(),
+                kind: UnderstandingRecordKind::IntentProviderObservation,
+                turn_index: observation.turn_index(),
+                observed_at_ms: observation.observed_at_ms(),
+                retention_policy_ref,
+                retention_until_ms,
+                payload: observation.to_value(),
+            })?);
+        }
+        let selected = self.checkpoint.observation();
+        let payload = json!({
+            "resolution_schema_version": 1,
+            "router_revision": ROUTER_REVISION,
+            "resolution_hash": self.resolution_hash,
+            "selected_observation_hash": selected.payload_hash(),
+            "selected_source": selected.source(),
+            "selected_checkpoint": self.checkpoint.to_value(),
+            "contributors": self.contributors.iter().map(|observation| json!({
+                "observation_id": observation.id().as_str(),
+                "payload_hash": observation.payload_hash(),
+                "source": observation.source(),
+            })).collect::<Vec<_>>(),
+            "policy": {
+                "provisional_min_bps": self.policy.provisional_min_bps(),
+                "confirmed_min_bps": self.policy.confirmed_min_bps(),
+                "minimum_margin_bps": self.policy.minimum_margin_bps(),
+                "safety_rule_confirm_min_bps": self.policy.safety_rule_confirm_min_bps(),
+            },
+        });
+        records.push(intent_evidence_record(IntentEvidenceRecordInput {
+            record_id: format!("intent-resolution.{}", self.resolution_hash),
+            context: selected.context(),
+            kind: UnderstandingRecordKind::IntentResolutionEvidence,
+            turn_index: selected.turn_index(),
+            observed_at_ms: selected.observed_at_ms(),
+            retention_policy_ref,
+            retention_until_ms,
+            payload,
+        })?);
+        Ok(records)
+    }
+}
+
+struct IntentEvidenceRecordInput<'a> {
+    record_id: String,
+    context: &'a converact_voice_agent_contracts::EnvelopeContext,
+    kind: UnderstandingRecordKind,
+    turn_index: u32,
+    observed_at_ms: u64,
+    retention_policy_ref: &'a str,
+    retention_until_ms: u64,
+    payload: serde_json::Value,
+}
+
+fn intent_evidence_record(
+    input: IntentEvidenceRecordInput<'_>,
+) -> Result<UnderstandingRecord, IntentConfidenceRouterError> {
+    let payload_hash = canonical_sha256(&input.payload)
+        .map_err(|_| IntentConfidenceRouterError::ResolutionInvalid)?;
+    UnderstandingRecord::try_new(UnderstandingRecordInput {
+        record_id: input.record_id,
+        context: input.context.clone(),
+        kind: input.kind,
+        turn_index: input.turn_index,
+        observed_at_ms: input.observed_at_ms,
+        retention_policy_ref: input.retention_policy_ref.to_owned(),
+        retention_until_ms: input.retention_until_ms,
+        payload: input.payload,
+        payload_hash,
+    })
+    .map_err(|_| IntentConfidenceRouterError::ResolutionInvalid)
 }
 
 impl fmt::Debug for IntentTurnResolution {

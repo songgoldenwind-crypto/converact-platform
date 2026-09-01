@@ -47,6 +47,207 @@ fn one_turn_batch_has_exactly_four_ordered_authoritative_domains() {
         "customer-state-001"
     );
     assert_eq!(batch.commands()[3].record().record_id(), "dialogue-001");
+    assert!(batch.evidence_commands().is_empty());
+}
+
+#[test]
+fn intent_evidence_precedes_the_four_authoritative_heads_in_one_batch() {
+    let batch = UnderstandingTurnBatch::try_new_with_evidence(
+        vec![
+            record_only(
+                "intent-provider-fast-001",
+                UnderstandingRecordKind::IntentProviderObservation,
+                1,
+                1_000,
+            ),
+            record_only(
+                "intent-provider-contextual-001",
+                UnderstandingRecordKind::IntentProviderObservation,
+                1,
+                1_001,
+            ),
+            record_only(
+                "intent-resolution-001",
+                UnderstandingRecordKind::IntentResolutionEvidence,
+                1,
+                1_001,
+            ),
+        ],
+        command(
+            "intent-001",
+            UnderstandingRecordKind::IntentObservation,
+            1,
+            1_001,
+        ),
+        command(
+            "emotion-001",
+            UnderstandingRecordKind::EmotionFusion,
+            1,
+            1_050,
+        ),
+        command(
+            "customer-state-001",
+            UnderstandingRecordKind::CustomerStateSnapshot,
+            1,
+            1_100,
+        ),
+        command(
+            "dialogue-001",
+            UnderstandingRecordKind::DialogueRecommendation,
+            1,
+            1_200,
+        ),
+    )
+    .unwrap();
+
+    assert_eq!(batch.evidence_commands().len(), 3);
+    assert_eq!(
+        batch.evidence_commands()[0].record().kind(),
+        UnderstandingRecordKind::IntentProviderObservation
+    );
+    assert_eq!(
+        batch.evidence_commands()[2].record().kind(),
+        UnderstandingRecordKind::IntentResolutionEvidence
+    );
+    assert!(
+        batch
+            .evidence_commands()
+            .iter()
+            .all(|command| command.head_expectation().is_none())
+    );
+}
+
+#[test]
+fn incomplete_or_reversed_intent_evidence_fails_before_sql() {
+    let (intent, emotion, customer_state, dialogue) = heads();
+    assert_eq!(
+        UnderstandingTurnBatch::try_new_with_evidence(
+            vec![record_only(
+                "intent-provider-fast-001",
+                UnderstandingRecordKind::IntentProviderObservation,
+                1,
+                1_000,
+            )],
+            intent,
+            emotion,
+            customer_state,
+            dialogue,
+        ),
+        Err(UnderstandingStoreError::InvalidBatch)
+    );
+
+    let (intent, emotion, customer_state, dialogue) = heads();
+    assert_eq!(
+        UnderstandingTurnBatch::try_new_with_evidence(
+            vec![
+                record_only(
+                    "intent-resolution-001",
+                    UnderstandingRecordKind::IntentResolutionEvidence,
+                    1,
+                    1_001,
+                ),
+                record_only(
+                    "intent-provider-fast-001",
+                    UnderstandingRecordKind::IntentProviderObservation,
+                    1,
+                    1_000,
+                ),
+            ],
+            intent,
+            emotion,
+            customer_state,
+            dialogue,
+        ),
+        Err(UnderstandingStoreError::InvalidBatch)
+    );
+}
+
+#[test]
+fn intent_evidence_authority_or_record_identity_drift_fails_before_sql() {
+    let (intent, emotion, customer_state, dialogue) = heads();
+    assert_eq!(
+        UnderstandingTurnBatch::try_new_with_evidence(
+            vec![
+                record_only_for(
+                    &context("other-attempt"),
+                    "intent-provider-fast-001",
+                    UnderstandingRecordKind::IntentProviderObservation,
+                    1,
+                    1_000,
+                ),
+                record_only(
+                    "intent-resolution-001",
+                    UnderstandingRecordKind::IntentResolutionEvidence,
+                    1,
+                    1_001,
+                ),
+            ],
+            intent,
+            emotion,
+            customer_state,
+            dialogue,
+        ),
+        Err(UnderstandingStoreError::InvalidBatch)
+    );
+
+    let (intent, emotion, customer_state, dialogue) = heads();
+    assert_eq!(
+        UnderstandingTurnBatch::try_new_with_evidence(
+            vec![
+                record_only(
+                    "intent-001",
+                    UnderstandingRecordKind::IntentProviderObservation,
+                    1,
+                    1_000,
+                ),
+                record_only(
+                    "intent-resolution-001",
+                    UnderstandingRecordKind::IntentResolutionEvidence,
+                    1,
+                    1_001,
+                ),
+            ],
+            intent,
+            emotion,
+            customer_state,
+            dialogue,
+        ),
+        Err(UnderstandingStoreError::InvalidBatch)
+    );
+}
+
+fn heads() -> (
+    AppendUnderstandingRecord,
+    AppendUnderstandingRecord,
+    AppendUnderstandingRecord,
+    AppendUnderstandingRecord,
+) {
+    (
+        command(
+            "intent-001",
+            UnderstandingRecordKind::IntentObservation,
+            1,
+            1_001,
+        ),
+        command(
+            "emotion-001",
+            UnderstandingRecordKind::EmotionFusion,
+            1,
+            1_050,
+        ),
+        command(
+            "customer-state-001",
+            UnderstandingRecordKind::CustomerStateSnapshot,
+            1,
+            1_100,
+        ),
+        command(
+            "dialogue-001",
+            UnderstandingRecordKind::DialogueRecommendation,
+            1,
+            1_200,
+        ),
+    )
 }
 
 #[test]
@@ -188,6 +389,44 @@ fn command_for(
         ),
     )
     .unwrap()
+}
+
+fn record_only(
+    record_id: &str,
+    kind: UnderstandingRecordKind,
+    turn_index: u32,
+    observed_at_ms: u64,
+) -> AppendUnderstandingRecord {
+    record_only_for(
+        &context("attempt-001"),
+        record_id,
+        kind,
+        turn_index,
+        observed_at_ms,
+    )
+}
+
+fn record_only_for(
+    context: &EnvelopeContext,
+    record_id: &str,
+    kind: UnderstandingRecordKind,
+    turn_index: u32,
+    observed_at_ms: u64,
+) -> AppendUnderstandingRecord {
+    let payload = json!({"record_id": record_id});
+    let record = UnderstandingRecord::try_new(UnderstandingRecordInput {
+        record_id: record_id.to_owned(),
+        context: context.clone(),
+        kind,
+        turn_index,
+        observed_at_ms,
+        retention_policy_ref: "understanding-30-days-v1".to_owned(),
+        retention_until_ms: 9_999,
+        payload_hash: canonical_sha256(&payload).unwrap(),
+        payload,
+    })
+    .unwrap();
+    AppendUnderstandingRecord::try_new(record, None).unwrap()
 }
 
 fn context(attempt: &str) -> EnvelopeContext {

@@ -88,3 +88,31 @@ fn development_schema_mirrors_record_and_head_authority() {
         );
     }
 }
+
+#[test]
+fn additive_intent_evidence_migration_preserves_legacy_heads() {
+    let migration =
+        include_str!("../../../../src/migrations/135_converact_intent_resolution_evidence.sql");
+    let schema = include_str!("../../../../src/schema.sql");
+
+    for required in [
+        "intent_provider_observation",
+        "intent_resolution_evidence",
+        "converact_conversation_understanding_records_record_kind_check",
+        "converact_conversation_understanding_records_check",
+        "NOT VALID",
+        "VALIDATE CONSTRAINT",
+    ] {
+        assert!(
+            migration.contains(required),
+            "missing migration invariant {required}"
+        );
+        if required.starts_with("intent_") {
+            assert!(
+                schema.contains(required),
+                "missing schema invariant {required}"
+            );
+        }
+    }
+    assert!(!migration.contains("ALTER TABLE converact_conversation_understanding_heads"));
+}

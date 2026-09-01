@@ -3568,8 +3568,9 @@ CREATE TABLE IF NOT EXISTS converact_conversation_understanding_records (
   tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   record_id TEXT NOT NULL,
   record_kind TEXT NOT NULL CHECK (record_kind IN (
-    'intent_observation', 'emotion_observation', 'emotion_fusion',
-    'customer_state_snapshot', 'dialogue_recommendation'
+    'intent_observation', 'intent_provider_observation', 'intent_resolution_evidence',
+    'emotion_observation', 'emotion_fusion', 'customer_state_snapshot',
+    'dialogue_recommendation'
   )),
   domain TEXT NOT NULL CHECK (domain IN ('intent', 'emotion', 'customer_state', 'dialogue')),
   contract_schema_version INTEGER NOT NULL CHECK (contract_schema_version > 0),
@@ -3595,7 +3596,9 @@ CREATE TABLE IF NOT EXISTS converact_conversation_understanding_records (
     execution_generation, turn_index, observed_at, payload_hash
   ),
   CHECK (
-    (record_kind = 'intent_observation' AND domain = 'intent') OR
+    (record_kind IN (
+      'intent_observation', 'intent_provider_observation', 'intent_resolution_evidence'
+    ) AND domain = 'intent') OR
     (record_kind IN ('emotion_observation', 'emotion_fusion') AND domain = 'emotion') OR
     (record_kind = 'customer_state_snapshot' AND domain = 'customer_state') OR
     (record_kind = 'dialogue_recommendation' AND domain = 'dialogue')

@@ -294,6 +294,46 @@ impl IntentObservation {
         })
     }
 
+    /// Restores one raw Provider observation from its exact versioned evidence payload.
+    ///
+    /// # Errors
+    ///
+    /// Rejects unknown fields or versions, catalog drift and any canonical payload-hash mismatch.
+    pub fn from_value(payload: Value, catalog: &IntentCatalog) -> Result<Self, UnderstandingError> {
+        let wire: IntentObservationEvidenceWire = serde_json::from_value(payload)
+            .map_err(|_| UnderstandingError::InvalidIntentObservation)?;
+        if wire.observation_schema_version != 1 {
+            return Err(UnderstandingError::InvalidIntentObservation);
+        }
+        let expected_payload_hash = wire.observation.payload_hash.clone();
+        let observation = Self::try_new(wire.observation.into_input(), catalog)?;
+        if observation.payload_hash() != expected_payload_hash {
+            return Err(UnderstandingError::InvalidIntentObservation);
+        }
+        Ok(observation)
+    }
+
+    /// Serializes one validated raw Provider observation for immutable audit storage.
+    #[must_use]
+    pub fn to_value(&self) -> Value {
+        json!({
+            "observation_schema_version": 1,
+            "observation": {
+                "id": self.id,
+                "context": self.context,
+                "catalog_revision_id": self.catalog_revision_id,
+                "source": self.source,
+                "provider_revision": self.provider_revision,
+                "candidates": self.candidates,
+                "slots": self.slots,
+                "evidence_segment_ids": self.evidence_segment_ids,
+                "turn_index": self.turn_index,
+                "observed_at_ms": self.observed_at_ms,
+                "payload_hash": self.payload_hash,
+            }
+        })
+    }
+
     #[must_use]
     pub const fn id(&self) -> &IntentObservationId {
         &self.id
@@ -738,6 +778,13 @@ struct IntentCheckpointWire {
     checkpoint_schema_version: u16,
     observation: IntentObservationWire,
     state: IntentStateWire,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct IntentObservationEvidenceWire {
+    observation_schema_version: u16,
+    observation: IntentObservationWire,
 }
 
 #[derive(Deserialize)]

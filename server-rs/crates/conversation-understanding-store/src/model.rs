@@ -6,6 +6,7 @@ use serde_json::Value;
 
 const MAX_IDENTIFIER_BYTES: usize = 255;
 const MAX_PAYLOAD_BYTES: usize = 131_072;
+const MAX_TURN_EVIDENCE_COMMANDS: usize = 4;
 
 /// One independently fenced understanding authority domain.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -32,6 +33,8 @@ impl UnderstandingDomain {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum UnderstandingRecordKind {
     IntentObservation,
+    IntentProviderObservation,
+    IntentResolutionEvidence,
     EmotionObservation,
     EmotionFusion,
     CustomerStateSnapshot,
@@ -43,6 +46,8 @@ impl UnderstandingRecordKind {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::IntentObservation => "intent_observation",
+            Self::IntentProviderObservation => "intent_provider_observation",
+            Self::IntentResolutionEvidence => "intent_resolution_evidence",
             Self::EmotionObservation => "emotion_observation",
             Self::EmotionFusion => "emotion_fusion",
             Self::CustomerStateSnapshot => "customer_state_snapshot",
@@ -53,7 +58,9 @@ impl UnderstandingRecordKind {
     #[must_use]
     pub const fn domain(self) -> UnderstandingDomain {
         match self {
-            Self::IntentObservation => UnderstandingDomain::Intent,
+            Self::IntentObservation
+            | Self::IntentProviderObservation
+            | Self::IntentResolutionEvidence => UnderstandingDomain::Intent,
             Self::EmotionObservation | Self::EmotionFusion => UnderstandingDomain::Emotion,
             Self::CustomerStateSnapshot => UnderstandingDomain::CustomerState,
             Self::DialogueRecommendation => UnderstandingDomain::Dialogue,
@@ -62,12 +69,19 @@ impl UnderstandingRecordKind {
 
     #[must_use]
     pub const fn can_advance_head(self) -> bool {
-        !matches!(self, Self::EmotionObservation)
+        !matches!(
+            self,
+            Self::IntentProviderObservation
+                | Self::IntentResolutionEvidence
+                | Self::EmotionObservation
+        )
     }
 
     pub(crate) fn parse(value: &str) -> Result<Self, UnderstandingStoreError> {
         match value {
             "intent_observation" => Ok(Self::IntentObservation),
+            "intent_provider_observation" => Ok(Self::IntentProviderObservation),
+            "intent_resolution_evidence" => Ok(Self::IntentResolutionEvidence),
             "emotion_observation" => Ok(Self::EmotionObservation),
             "emotion_fusion" => Ok(Self::EmotionFusion),
             "customer_state_snapshot" => Ok(Self::CustomerStateSnapshot),
@@ -422,6 +436,7 @@ pub struct AppendUnderstandingRecord {
 /// a Customer State or Dialogue decision without its exact Intent and Emotion dependencies.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UnderstandingTurnBatch {
+    evidence_commands: Box<[AppendUnderstandingRecord]>,
     commands: [AppendUnderstandingRecord; 4],
 }
 
@@ -433,6 +448,26 @@ impl UnderstandingTurnBatch {
     /// Rejects record-only commands, wrong kinds, mixed authority, zero turns, a Customer State
     /// older than either source, or a Dialogue decision older than its Customer State.
     pub fn try_new(
+        intent: AppendUnderstandingRecord,
+        emotion: AppendUnderstandingRecord,
+        customer_state: AppendUnderstandingRecord,
+        dialogue: AppendUnderstandingRecord,
+    ) -> Result<Self, UnderstandingStoreError> {
+        Self::try_new_with_evidence(Vec::new(), intent, emotion, customer_state, dialogue)
+    }
+
+    /// Adds bounded record-only Intent contributors and one resolution before the four heads.
+    ///
+    /// Empty evidence remains valid during rolling writer migration. A non-empty sequence must be
+    /// one to three Provider observations followed by exactly one resolution for the selected
+    /// Intent checkpoint's authority and turn.
+    ///
+    /// # Errors
+    ///
+    /// Rejects malformed evidence order, head-bearing evidence, duplicate identities, mixed
+    /// authority, turn or clock drift in addition to the four-head graph invariants.
+    pub fn try_new_with_evidence(
+        evidence_commands: Vec<AppendUnderstandingRecord>,
         intent: AppendUnderstandingRecord,
         emotion: AppendUnderstandingRecord,
         customer_state: AppendUnderstandingRecord,
@@ -470,7 +505,44 @@ impl UnderstandingTurnBatch {
         {
             return Err(UnderstandingStoreError::InvalidBatch);
         }
-        Ok(Self { commands })
+        if !evidence_commands.is_empty() {
+            let Some((resolution, contributors)) = evidence_commands.split_last() else {
+                return Err(UnderstandingStoreError::InvalidBatch);
+            };
+            let mut record_ids = std::collections::HashSet::with_capacity(evidence_commands.len());
+            if evidence_commands.len() > MAX_TURN_EVIDENCE_COMMANDS
+                || contributors.is_empty()
+                || resolution.record().kind() != UnderstandingRecordKind::IntentResolutionEvidence
+                || resolution.head_expectation().is_some()
+                || contributors.iter().any(|command| {
+                    command.record().kind() != UnderstandingRecordKind::IntentProviderObservation
+                        || command.head_expectation().is_some()
+                })
+                || evidence_commands.iter().any(|evidence| {
+                    commands
+                        .iter()
+                        .any(|head| evidence.record().record_id() == head.record().record_id())
+                })
+                || evidence_commands.iter().any(|command| {
+                    let record = command.record();
+                    record.context() != intent.context()
+                        || record.turn_index() != intent.turn_index()
+                        || record.observed_at_ms() > intent.observed_at_ms()
+                        || !record_ids.insert(record.record_id())
+                })
+            {
+                return Err(UnderstandingStoreError::InvalidBatch);
+            }
+        }
+        Ok(Self {
+            evidence_commands: evidence_commands.into(),
+            commands,
+        })
+    }
+
+    #[must_use]
+    pub fn evidence_commands(&self) -> &[AppendUnderstandingRecord] {
+        &self.evidence_commands
     }
 
     #[must_use]
@@ -489,7 +561,7 @@ impl AppendUnderstandingRecord {
     ///
     /// # Errors
     ///
-    /// Rejects an attempt to make a raw Emotion observation authoritative.
+    /// Rejects an attempt to make raw Provider or resolution evidence authoritative.
     pub fn try_new(
         record: UnderstandingRecord,
         head_expectation: Option<UnderstandingHeadExpectation>,

@@ -82,6 +82,29 @@ fn observation_is_bounded_schema_validated_hashed_and_redacted() {
 }
 
 #[test]
+fn raw_observation_wire_round_trips_and_rejects_hash_drift() {
+    let observation = observation(
+        1,
+        IntentSource::ContextualLlm,
+        &[("callback.specific_time", 9_100)],
+        BTreeMap::from([("callback_time".to_owned(), "tomorrow-15:00".to_owned())]),
+    );
+
+    let payload = observation.to_value();
+    assert_eq!(
+        IntentObservation::from_value(payload.clone(), &catalog()).unwrap(),
+        observation
+    );
+
+    let mut tampered = payload;
+    tampered["observed_at_ms"] = serde_json::json!(9_999);
+    assert_eq!(
+        IntentObservation::from_value(tampered, &catalog()),
+        Err(UnderstandingError::InvalidIntentObservation)
+    );
+}
+
+#[test]
 fn confidence_policy_drives_unknown_provisional_clarify_confirm_and_change() {
     let policy = IntentDecisionPolicy::try_new(5_500, 8_500, 2_000, 9_500).unwrap();
     let initial = IntentState::new(context(1), catalog().id().clone());

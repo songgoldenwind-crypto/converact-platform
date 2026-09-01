@@ -124,8 +124,8 @@ pub use tool_runtime::{
     ToolRuntimeError,
 };
 pub use understanding_runtime::{
-    RecoveredUnderstanding, UnderstandingAppendDecision, UnderstandingDurabilityPort,
-    UnderstandingPortError, UnderstandingRecoveryInputs, UnderstandingRuntime,
-    UnderstandingTurnWriteInput,
+    RecoveredUnderstanding, ResolvedUnderstandingTurnWriteInput, UnderstandingAppendDecision,
+    UnderstandingDurabilityPort, UnderstandingPortError, UnderstandingRecoveryInputs,
+    UnderstandingRuntime, UnderstandingTurnWriteInput,
 };
 pub use worker::{VoiceAgentWorker, WorkerError};

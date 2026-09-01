@@ -140,6 +140,40 @@ async fn ambiguous_fast_result_waits_and_contextual_result_advances_original_sta
         Some("callback.later")
     );
     assert_eq!(resolution.checkpoint().turn_index(), 1);
+
+    let evidence = resolution
+        .encode_evidence_records("understanding-30-days-v1", 2_592_003_001)
+        .unwrap();
+    assert_eq!(evidence.len(), 3);
+    assert_eq!(
+        evidence[0].kind(),
+        converact_conversation_understanding_store::UnderstandingRecordKind::IntentProviderObservation
+    );
+    assert_eq!(
+        evidence[1].kind(),
+        converact_conversation_understanding_store::UnderstandingRecordKind::IntentProviderObservation
+    );
+    assert_eq!(
+        evidence[2].kind(),
+        converact_conversation_understanding_store::UnderstandingRecordKind::IntentResolutionEvidence
+    );
+    assert!(evidence.iter().all(|record| !record.can_advance_head()));
+    assert!(
+        evidence[..2]
+            .iter()
+            .all(|record| record.record_id() != resolution.checkpoint().record_id())
+    );
+    assert_eq!(
+        evidence[2].payload()["resolution_hash"],
+        resolution.resolution_hash()
+    );
+    assert_eq!(
+        evidence[2].payload()["contributors"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
 }
 
 #[tokio::test]

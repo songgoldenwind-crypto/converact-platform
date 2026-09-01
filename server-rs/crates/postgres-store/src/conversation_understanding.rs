@@ -62,7 +62,7 @@ impl PostgresConversationUnderstandingStore {
             .map_err(map_transaction_error)
     }
 
-    /// Commits all four fenced domain heads atomically in their fixed dependency order.
+    /// Commits bounded record-only Intent evidence and all four fenced heads atomically.
     ///
     /// # Errors
     ///
