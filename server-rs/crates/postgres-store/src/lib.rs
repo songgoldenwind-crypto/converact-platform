@@ -20,7 +20,8 @@ pub use ai_outbound::{PostgresAiOutboundAttemptStore, PostgresLeasedAttemptStore
 pub use conversation_result::{
     PostgresConversationResultStore, PostgresConversationResultStoreError,
     PostgresProjectionFinalizeDecision, PostgresProjectionPrepareDecision,
-    PostgresProjectionWriteDecision, PostgresTranscriptAppendDecision,
+    PostgresProjectionWriteDecision, PostgresSequencedTranscriptAppend,
+    PostgresTranscriptAppendDecision,
 };
 pub use conversation_understanding::{
     PostgresConversationUnderstandingStore, PostgresConversationUnderstandingStoreError,

@@ -2,7 +2,7 @@ use std::{error::Error, fmt};
 
 use converact_contracts::canonical_sha256;
 use converact_conversation_result_core::{
-    ConversationResult, Evaluation, TranscriptGenerationStatus,
+    ConversationResult, Evaluation, TranscriptGenerationStatus, TranscriptSegment,
 };
 use converact_voice_agent_contracts::{
     BadCaseId, ExecutionGeneration, InteractionId, ResultProjectionCommandId,
@@ -176,6 +176,37 @@ pub enum ProjectionFinalizeDecision {
 pub enum TranscriptAppendDecision {
     Appended(TranscriptGenerationStatus),
     Replay(TranscriptGenerationStatus),
+}
+
+/// One Store-sequenced immutable segment and its exact append/replay classification.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SequencedTranscriptAppend {
+    segment: TranscriptSegment,
+    decision: TranscriptAppendDecision,
+}
+
+impl SequencedTranscriptAppend {
+    pub(crate) const fn new(
+        segment: TranscriptSegment,
+        decision: TranscriptAppendDecision,
+    ) -> Self {
+        Self { segment, decision }
+    }
+
+    #[must_use]
+    pub const fn segment(&self) -> &TranscriptSegment {
+        &self.segment
+    }
+
+    #[must_use]
+    pub const fn decision(&self) -> TranscriptAppendDecision {
+        self.decision
+    }
+
+    #[must_use]
+    pub fn into_parts(self) -> (TranscriptSegment, TranscriptAppendDecision) {
+        (self.segment, self.decision)
+    }
 }
 
 /// Evaluation and optional deterministic Bad Case row persisted in one transaction.

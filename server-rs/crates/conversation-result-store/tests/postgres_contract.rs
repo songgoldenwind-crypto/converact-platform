@@ -28,3 +28,34 @@ fn postgres_adapter_keeps_replay_fencing_and_bad_case_in_one_transaction_boundar
         );
     }
 }
+
+#[test]
+fn sequenced_append_serializes_replay_before_allocating_a_new_sequence() {
+    let source = include_str!("../src/postgres.rs");
+
+    for required in [
+        "append_sequenced_final_segment",
+        "ensure_and_lock_transcript_stream_head",
+        "load_source_event_sequence",
+        "FOR UPDATE",
+        "checked_add(1)",
+        "segment_with_sequence",
+        "append_final_segment_row",
+    ] {
+        assert!(
+            source.contains(required),
+            "missing sequence invariant {required}"
+        );
+    }
+
+    let replay_lookup = source
+        .find("load_source_event_sequence")
+        .expect("replay lookup must exist");
+    let allocation = source
+        .find("checked_add(1)")
+        .expect("sequence allocation must exist");
+    assert!(
+        replay_lookup < allocation,
+        "source-event replay must be classified before sequence allocation"
+    );
+}

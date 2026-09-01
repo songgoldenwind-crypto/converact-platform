@@ -3342,6 +3342,46 @@ CREATE TABLE IF NOT EXISTS converact_conversation_transcript_segments (
   UNIQUE (tenant_id, interaction_id, execution_generation, segment_sequence)
 );
 
+CREATE TABLE IF NOT EXISTS converact_conversation_transcript_stream_heads (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  interaction_id TEXT NOT NULL,
+  call_attempt_id TEXT NOT NULL,
+  agent_release_id TEXT NOT NULL,
+  execution_generation INTEGER NOT NULL CHECK (execution_generation > 0),
+  last_sequence INTEGER NOT NULL CHECK (last_sequence >= 0),
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, interaction_id, execution_generation)
+);
+
+CREATE TRIGGER IF NOT EXISTS converact_conversation_transcript_advance_stream_head
+AFTER INSERT ON converact_conversation_transcript_segments
+BEGIN
+  INSERT INTO converact_conversation_transcript_stream_heads (
+    tenant_id, interaction_id, call_attempt_id, agent_release_id,
+    execution_generation, last_sequence, updated_at
+  ) VALUES (
+    NEW.tenant_id, NEW.interaction_id, NEW.call_attempt_id, NEW.agent_release_id,
+    NEW.execution_generation, NEW.segment_sequence, CURRENT_TIMESTAMP
+  )
+  ON CONFLICT (tenant_id, interaction_id, execution_generation) DO UPDATE SET
+    last_sequence = converact_conversation_transcript_stream_heads.last_sequence + 1,
+    updated_at = CURRENT_TIMESTAMP
+  WHERE converact_conversation_transcript_stream_heads.call_attempt_id = NEW.call_attempt_id
+    AND converact_conversation_transcript_stream_heads.agent_release_id = NEW.agent_release_id
+    AND converact_conversation_transcript_stream_heads.last_sequence + 1 = NEW.segment_sequence;
+
+  SELECT CASE
+    WHEN (
+      SELECT last_sequence
+      FROM converact_conversation_transcript_stream_heads
+      WHERE tenant_id = NEW.tenant_id
+        AND interaction_id = NEW.interaction_id
+        AND execution_generation = NEW.execution_generation
+    ) <> NEW.segment_sequence
+    THEN RAISE(ABORT, 'transcript segment sequence is not the next stream sequence')
+  END;
+END;
+
 CREATE TABLE IF NOT EXISTS converact_conversation_snapshots (
   tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   snapshot_id TEXT NOT NULL,

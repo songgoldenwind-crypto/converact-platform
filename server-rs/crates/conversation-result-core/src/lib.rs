@@ -18,6 +18,7 @@ pub use result::{
     ValidatedIntentEvidence,
 };
 pub use transcript::{
-    TranscriptGenerationStatus, TranscriptSegment, TranscriptSegmentInput, TranscriptSnapshot,
+    TranscriptGenerationStatus, TranscriptSegment, TranscriptSegmentDraft,
+    TranscriptSegmentDraftInput, TranscriptSegmentInput, TranscriptSnapshot,
     TranscriptSnapshotInput, TranscriptSnapshotRevision, TranscriptSpeaker,
 };

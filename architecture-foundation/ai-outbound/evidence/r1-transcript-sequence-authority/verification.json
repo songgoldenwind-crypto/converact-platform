@@ -1,0 +1,101 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-09-01",
+  "evidence_class": [
+    "local_contract",
+    "sqlite_development_mirror"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "parent_commit": "133a8ed4fb220d1a20a9bc23a1202579d04a5b4c"
+  },
+  "commands": [
+    {
+      "id": "transcript_draft_contract",
+      "working_directory": "server-rs",
+      "command": "cargo test --locked -p converact-conversation-result-core --test transcript_draft --test result_quality",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 7,
+      "failed": 0
+    },
+    {
+      "id": "transcript_sequence_store_contract",
+      "working_directory": "server-rs",
+      "command": "cargo test --locked -p converact-conversation-result-store --test schema --test postgres_contract",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "id": "transcript_sequence_runtime_boundary",
+      "working_directory": "server-rs",
+      "command": "cargo test --locked -p converact-postgres-store --test conversation_result_store_contract",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "id": "sqlite_schema_and_contiguous_append",
+      "working_directory": ".",
+      "command": "sqlite3 :memory: .read src/schema.sql plus focused sequence 1 and 2 inserts",
+      "exit_code": 0,
+      "result": "passed",
+      "observed_last_sequence": 2
+    },
+    {
+      "id": "sqlite_gap_rejection",
+      "working_directory": ".",
+      "command": "sqlite3 :memory: .read src/schema.sql plus focused sequence 1 and 3 inserts",
+      "exit_code": 19,
+      "result": "expected_rejection",
+      "error": "transcript segment sequence is not the next stream sequence"
+    },
+    {
+      "id": "transcript_sequence_scoped_format",
+      "working_directory": "server-rs",
+      "command": "rustfmt --edition 2024 --check <11 changed Rust files>",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "transcript_sequence_scoped_clippy",
+      "working_directory": "server-rs",
+      "command": "cargo clippy --locked -p converact-conversation-result-core -p converact-conversation-result-store -p converact-postgres-store --lib --tests -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "transcript_sequence_diff_check",
+      "working_directory": ".",
+      "command": "git diff --check",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "not_run": [
+    "physical_postgresql_migration_trigger_transaction_rls_and_concurrency",
+    "active_call_sse_stable_event_identity_gap_and_replay",
+    "real_worker_process_composition",
+    "crash_restart_and_two_node_ingest",
+    "fast_classifier_contextual_llm_emotion_and_four_domain_turn_commit",
+    "real_rustpbx_sip_pstn_media_recording",
+    "accuracy",
+    "performance",
+    "capacity",
+    "long_run",
+    "independent_code_review",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_read": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}

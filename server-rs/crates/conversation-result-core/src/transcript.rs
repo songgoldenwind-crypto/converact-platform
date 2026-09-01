@@ -86,6 +86,127 @@ pub struct TranscriptSegmentInput {
     pub retention_policy_ref: String,
 }
 
+/// Unvalidated final transcript observation before the durable Store allocates its sequence.
+pub struct TranscriptSegmentDraftInput {
+    pub id: TranscriptSegmentId,
+    pub context: EnvelopeContext,
+    pub source_event_id: EventId,
+    pub speaker: TranscriptSpeaker,
+    pub language: String,
+    pub text: String,
+    pub start_offset_ms: u64,
+    pub end_offset_ms: u64,
+    pub observed_at_ms: u64,
+    pub retention_policy_ref: String,
+}
+
+/// Validated final transcript content awaiting one Store-owned sequence allocation.
+/// Debug output intentionally omits text.
+#[derive(Clone, Eq, PartialEq)]
+pub struct TranscriptSegmentDraft {
+    id: TranscriptSegmentId,
+    context: EnvelopeContext,
+    source_event_id: EventId,
+    speaker: TranscriptSpeaker,
+    language: Box<str>,
+    text: Box<str>,
+    start_offset_ms: u64,
+    end_offset_ms: u64,
+    observed_at_ms: u64,
+    retention_policy_ref: Box<str>,
+}
+
+impl TranscriptSegmentDraft {
+    /// Validates final transcript content before opening the sequence allocation transaction.
+    ///
+    /// # Errors
+    ///
+    /// Rejects unbounded text/metadata, inverted offsets or missing observation time.
+    pub fn try_new(input: TranscriptSegmentDraftInput) -> Result<Self, ResultError> {
+        if !transcript_fields_valid(
+            &input.language,
+            &input.text,
+            input.start_offset_ms,
+            input.end_offset_ms,
+            input.observed_at_ms,
+            &input.retention_policy_ref,
+        ) {
+            return Err(ResultError::InvalidTranscriptSegment);
+        }
+        Ok(Self {
+            id: input.id,
+            context: input.context,
+            source_event_id: input.source_event_id,
+            speaker: input.speaker,
+            language: input.language.into(),
+            text: input.text.into(),
+            start_offset_ms: input.start_offset_ms,
+            end_offset_ms: input.end_offset_ms,
+            observed_at_ms: input.observed_at_ms,
+            retention_policy_ref: input.retention_policy_ref.into(),
+        })
+    }
+
+    /// Closes this validated draft with the positive sequence allocated by its durable Store.
+    ///
+    /// # Errors
+    ///
+    /// Rejects zero sequence or an unexpected canonical serialization failure.
+    pub fn segment_with_sequence(&self, sequence: u64) -> Result<TranscriptSegment, ResultError> {
+        TranscriptSegment::try_new(TranscriptSegmentInput {
+            id: self.id.clone(),
+            context: self.context.clone(),
+            source_event_id: self.source_event_id.clone(),
+            sequence,
+            speaker: self.speaker,
+            language: self.language.to_string(),
+            text: self.text.to_string(),
+            start_offset_ms: self.start_offset_ms,
+            end_offset_ms: self.end_offset_ms,
+            observed_at_ms: self.observed_at_ms,
+            retention_policy_ref: self.retention_policy_ref.to_string(),
+        })
+    }
+
+    /// Classifies this draft's generation before any durable sequence is allocated.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a draft claiming a generation newer than the durable owner generation.
+    pub fn generation_status(
+        &self,
+        current: ExecutionGeneration,
+    ) -> Result<TranscriptGenerationStatus, ResultError> {
+        classify_generation(&self.context, current)
+    }
+
+    #[must_use]
+    pub const fn id(&self) -> &TranscriptSegmentId {
+        &self.id
+    }
+
+    #[must_use]
+    pub const fn context(&self) -> &EnvelopeContext {
+        &self.context
+    }
+
+    #[must_use]
+    pub const fn source_event_id(&self) -> &EventId {
+        &self.source_event_id
+    }
+}
+
+impl fmt::Debug for TranscriptSegmentDraft {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("TranscriptSegmentDraft")
+            .field("id", &self.id)
+            .field("speaker", &self.speaker)
+            .field("observed_at_ms", &self.observed_at_ms)
+            .finish_non_exhaustive()
+    }
+}
+
 /// Immutable final transcript segment. Debug output intentionally omits text.
 #[derive(Clone, Eq, PartialEq)]
 pub struct TranscriptSegment {
@@ -111,11 +232,14 @@ impl TranscriptSegment {
     /// Rejects unbounded text/metadata, missing sequence/time, inverted offsets or hash failure.
     pub fn try_new(input: TranscriptSegmentInput) -> Result<Self, ResultError> {
         if input.sequence == 0
-            || !bounded_identifier(&input.language, MAX_LANGUAGE_BYTES)
-            || !bounded_text(&input.text, MAX_TRANSCRIPT_TEXT_BYTES)
-            || input.end_offset_ms < input.start_offset_ms
-            || input.observed_at_ms == 0
-            || !bounded_reference(&input.retention_policy_ref, MAX_RETENTION_REF_BYTES)
+            || !transcript_fields_valid(
+                &input.language,
+                &input.text,
+                input.start_offset_ms,
+                input.end_offset_ms,
+                input.observed_at_ms,
+                &input.retention_policy_ref,
+            )
         {
             return Err(ResultError::InvalidTranscriptSegment);
         }
@@ -163,11 +287,7 @@ impl TranscriptSegment {
         &self,
         current: ExecutionGeneration,
     ) -> Result<TranscriptGenerationStatus, ResultError> {
-        match self.context.execution_generation().cmp(&current) {
-            std::cmp::Ordering::Equal => Ok(TranscriptGenerationStatus::Current),
-            std::cmp::Ordering::Less => Ok(TranscriptGenerationStatus::Historical),
-            std::cmp::Ordering::Greater => Err(ResultError::FutureGeneration),
-        }
+        classify_generation(&self.context, current)
     }
 
     #[must_use]
@@ -228,6 +348,32 @@ impl TranscriptSegment {
     #[must_use]
     pub fn payload_hash(&self) -> &str {
         &self.payload_hash
+    }
+}
+
+fn transcript_fields_valid(
+    language: &str,
+    text: &str,
+    start_offset_ms: u64,
+    end_offset_ms: u64,
+    observed_at_ms: u64,
+    retention_policy_ref: &str,
+) -> bool {
+    bounded_identifier(language, MAX_LANGUAGE_BYTES)
+        && bounded_text(text, MAX_TRANSCRIPT_TEXT_BYTES)
+        && end_offset_ms >= start_offset_ms
+        && observed_at_ms > 0
+        && bounded_reference(retention_policy_ref, MAX_RETENTION_REF_BYTES)
+}
+
+fn classify_generation(
+    context: &EnvelopeContext,
+    current: ExecutionGeneration,
+) -> Result<TranscriptGenerationStatus, ResultError> {
+    match context.execution_generation().cmp(&current) {
+        std::cmp::Ordering::Equal => Ok(TranscriptGenerationStatus::Current),
+        std::cmp::Ordering::Less => Ok(TranscriptGenerationStatus::Historical),
+        std::cmp::Ordering::Greater => Err(ResultError::FutureGeneration),
     }
 }
 

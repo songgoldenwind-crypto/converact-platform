@@ -2,7 +2,7 @@ use std::{error::Error, fmt, sync::Arc};
 
 use converact_conversation_result_core::{
     ConversationResult, Evaluation, TranscriptGenerationStatus, TranscriptSegment,
-    TranscriptSnapshot,
+    TranscriptSegmentDraft, TranscriptSnapshot,
 };
 use converact_conversation_result_store::{
     BadCaseView, ConversationEvaluationView, ConversationResultSqlStore,
@@ -30,6 +30,30 @@ pub enum PostgresProjectionWriteDecision {
 pub enum PostgresTranscriptAppendDecision {
     Appended(TranscriptGenerationStatus),
     Replayed(TranscriptGenerationStatus),
+}
+
+/// Store-sequenced segment returned from one atomic tenant transaction.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PostgresSequencedTranscriptAppend {
+    segment: TranscriptSegment,
+    decision: PostgresTranscriptAppendDecision,
+}
+
+impl PostgresSequencedTranscriptAppend {
+    #[must_use]
+    pub const fn segment(&self) -> &TranscriptSegment {
+        &self.segment
+    }
+
+    #[must_use]
+    pub const fn decision(&self) -> PostgresTranscriptAppendDecision {
+        self.decision
+    }
+
+    #[must_use]
+    pub fn into_parts(self) -> (TranscriptSegment, PostgresTranscriptAppendDecision) {
+        (self.segment, self.decision)
+    }
 }
 
 /// Durable Provider effect-oracle decision before invocation.
@@ -218,7 +242,38 @@ impl PostgresConversationResultStore {
             .map_err(map_transaction_error)
     }
 
-    /// Appends or exactly replays one final transcript segment in a tenant transaction.
+    /// Allocates a stream sequence and appends or replays a final segment atomically.
+    ///
+    /// # Errors
+    ///
+    /// Returns only sanitized tenant, Store or transaction failure categories.
+    pub async fn append_sequenced_final_segment(
+        &self,
+        draft: &TranscriptSegmentDraft,
+        current_generation: ExecutionGeneration,
+    ) -> Result<PostgresSequencedTranscriptAppend, PostgresConversationResultStoreError> {
+        let tenant = tenant(draft.context())?;
+        let draft = draft.clone();
+        let sql = self.sql;
+        self.runtime
+            .with_tenant_transaction(&tenant, move |transaction| {
+                Box::pin(async move {
+                    sql.append_sequenced_final_segment(transaction, &draft, current_generation)
+                        .await
+                })
+            })
+            .await
+            .map(|append| {
+                let (segment, decision) = append.into_parts();
+                PostgresSequencedTranscriptAppend {
+                    segment,
+                    decision: map_append_decision(decision),
+                }
+            })
+            .map_err(map_transaction_error)
+    }
+
+    /// Appends or exactly replays one caller-sequenced final segment in a tenant transaction.
     ///
     /// # Errors
     ///

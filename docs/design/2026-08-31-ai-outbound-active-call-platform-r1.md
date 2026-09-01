@@ -558,12 +558,20 @@ Intent observation、推进状态并关闭 Intent checkpoint。它没有 Tool、
 Media 端口，因此即使确认安全意图也只能产出证据。匹配不使用正则，全文只归一化一次，规则和
 phrase 均有硬上限；这只是有界功能合同，不构成性能或准确率资格。
 
-Active Call SSE 到 durable transcript sequence 的真实接入、租户规则 artifact 解析、Fast
-Classifier、Contextual LLM、跨 Provider 证据融合、阈值/phrase 校准、完整四领域逐轮提交和真实
-意图质量仍为 `not_run`。特别是不能把部分上游 ASR 固定为 `0` 的 `index` 当作 durable turn
-sequence；该 ingest 必须由持久化序列权威单独解决。Intent checkpoint 和有界 durable Store
-adapter 已有本地合同证据，但物理 PostgreSQL 尚未执行。目标实现继续保留 Active Call 的多轮理解，
-并把规则、小模型、上下文 LLM 与人工纠正作为独立可审计证据源。
+截至 2026-09-01，durable transcript sequence 已有独立 Store 权威：经校验的
+`TranscriptSegmentDraft` 不携带 sequence；PostgreSQL adapter 在一个 tenant transaction 内锁定
+`tenant / Interaction / execution generation` stream head，先按稳定 `source_event_id` 判定重放，
+仅对新事件分配 `last_sequence + 1`，再构造并追加不可变 final segment。segment insert trigger 与
+stream-head fence 保证写入成功才推进 head，失败随事务回滚；迁移从旧 segment 最大 sequence 回填，
+保留历史空洞并约束同一 stream 不得混用 Attempt/Release。旧 caller-sequenced 写路径暂时保留用于
+滚动兼容，但也必须经过同一 head 并只能追加下一位置。
+
+Active Call SSE 到上述 Draft 的真实接入、断线 gap/replay 恢复、稳定 source-event identity、租户规则
+artifact 解析、Fast Classifier、Contextual LLM、跨 Provider 证据融合、阈值/phrase 校准、完整四领域
+逐轮提交和真实意图质量仍为 `not_run`。特别是部分上游 ASR 固定为 `0` 的 `index` 不会被当作
+durable turn sequence。Intent checkpoint、sequence authority 和有界 durable Store adapter 已有本地
+合同证据，但物理 PostgreSQL 尚未执行。目标实现继续保留 Active Call 的多轮理解，并把规则、
+小模型、上下文 LLM 与人工纠正作为独立可审计证据源。
 
 ### 9.6 情绪证据与客户压力趋势
 

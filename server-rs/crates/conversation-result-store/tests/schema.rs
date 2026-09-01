@@ -54,3 +54,37 @@ fn migration_freezes_final_transcript_result_evaluation_and_bad_case_authority()
         );
     }
 }
+
+#[test]
+fn transcript_stream_head_migration_freezes_atomic_sequence_authority() {
+    let migration =
+        include_str!("../../../../src/migrations/134_conversation_transcript_stream_heads.sql");
+    let development = include_str!("../../../../src/schema.sql");
+
+    for required in [
+        "converact_conversation_transcript_stream_heads",
+        "PRIMARY KEY (tenant_id, interaction_id, execution_generation)",
+        "last_sequence BIGINT NOT NULL CHECK (last_sequence >= 0)",
+        "MAX(segment_sequence)",
+        "converact_conversation_transcript_stream_head_fence_guard",
+        "NEW.last_sequence <> OLD.last_sequence + 1",
+        "NEW.last_sequence IS DISTINCT FROM stored_sequence",
+        "BEFORE INSERT OR UPDATE OR DELETE",
+        "ENABLE ROW LEVEL SECURITY",
+        "FORCE ROW LEVEL SECURITY",
+        "GRANT SELECT, INSERT, UPDATE",
+    ] {
+        assert!(migration.contains(required), "missing invariant {required}");
+    }
+
+    for required in [
+        "converact_conversation_transcript_stream_heads",
+        "PRIMARY KEY (tenant_id, interaction_id, execution_generation)",
+        "last_sequence INTEGER NOT NULL CHECK (last_sequence >= 0)",
+    ] {
+        assert!(
+            development.contains(required),
+            "missing development invariant {required}"
+        );
+    }
+}

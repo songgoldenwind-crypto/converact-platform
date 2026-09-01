@@ -60,6 +60,27 @@ fn result_projection_adapter_owns_atomic_prepare_and_finalize_transactions() {
 }
 
 #[test]
+fn sequenced_transcript_append_owns_one_tenant_transaction() {
+    let source = include_str!("../src/conversation_result.rs");
+    let method = source
+        .split("pub async fn append_sequenced_final_segment")
+        .nth(1)
+        .and_then(|tail| tail.split("pub async fn append_final_segment").next())
+        .expect("sequenced append method must precede the legacy append method");
+
+    for required in [
+        "with_tenant_transaction",
+        "append_sequenced_final_segment",
+        "map_append_decision",
+    ] {
+        assert!(
+            method.contains(required),
+            "missing atomic boundary {required}"
+        );
+    }
+}
+
+#[test]
 fn conversation_quality_queries_are_tenant_transaction_bound() {
     let source = include_str!("../src/conversation_result.rs");
 

@@ -1,6 +1,7 @@
 use converact_contracts::canonical_sha256;
 use converact_conversation_result_core::{
-    ConversationResult, TranscriptGenerationStatus, TranscriptSegment, TranscriptSnapshot,
+    ConversationResult, TranscriptGenerationStatus, TranscriptSegment, TranscriptSegmentDraft,
+    TranscriptSnapshot,
 };
 use converact_voice_agent_contracts::ExecutionGeneration;
 use serde_json::{Value, json};
@@ -9,7 +10,7 @@ use tokio_postgres::{Row, Transaction};
 use crate::{
     ConversationResultStoreError, EvaluationProjectionWrite, ProjectionCommand,
     ProjectionFinalizeDecision, ProjectionPrepareDecision, ProjectionWriteDecision,
-    TranscriptAppendDecision, canonical_bad_case_payload_hash,
+    SequencedTranscriptAppend, TranscriptAppendDecision, canonical_bad_case_payload_hash,
 };
 
 /// Stateless tenant-scoped `PostgreSQL` adapter for conversation result projections.
@@ -202,12 +203,61 @@ impl ConversationResultSqlStore {
         Ok(ProjectionFinalizeDecision::NotApplied)
     }
 
-    /// Appends one immutable final transcript segment or classifies an exact replay.
+    /// Allocates and appends one immutable final transcript segment in this transaction.
+    ///
+    /// The stream-head row is locked before replay classification. A known source event reuses
+    /// its stored sequence; only a new event receives `last_sequence + 1`. The segment insert
+    /// advances the head through the database trigger, so any insert failure rolls the allocation
+    /// back with the surrounding transaction.
     ///
     /// # Errors
     ///
-    /// Rejects future generations, conflicting idempotency identities, conversion failures,
-    /// database failures or malformed stored rows.
+    /// Rejects future generations, mixed stream authority, malformed stored rows, overflow,
+    /// conflicting source events or database failures.
+    pub async fn append_sequenced_final_segment(
+        &self,
+        transaction: &Transaction<'_>,
+        draft: &TranscriptSegmentDraft,
+        current_generation: ExecutionGeneration,
+    ) -> Result<SequencedTranscriptAppend, ConversationResultStoreError> {
+        let status = draft
+            .generation_status(current_generation)
+            .map_err(|_| ConversationResultStoreError::Conflict)?;
+        let last_sequence = ensure_and_lock_transcript_stream_head(transaction, draft).await?;
+        if let Some(sequence) = load_source_event_sequence(transaction, draft).await? {
+            if sequence > last_sequence {
+                return Err(ConversationResultStoreError::StoredRowInvalid);
+            }
+            let segment = draft
+                .segment_with_sequence(sequence)
+                .map_err(|_| ConversationResultStoreError::InvalidCommand)?;
+            let decision = self
+                .append_final_segment_row(transaction, &segment, status)
+                .await?;
+            return Ok(SequencedTranscriptAppend::new(segment, decision));
+        }
+
+        let sequence = last_sequence
+            .checked_add(1)
+            .ok_or(ConversationResultStoreError::NumericOverflow)?;
+        let segment = draft
+            .segment_with_sequence(sequence)
+            .map_err(|_| ConversationResultStoreError::InvalidCommand)?;
+        let decision = self
+            .append_final_segment_row(transaction, &segment, status)
+            .await?;
+        Ok(SequencedTranscriptAppend::new(segment, decision))
+    }
+
+    /// Appends one caller-sequenced immutable final transcript segment or classifies a replay.
+    ///
+    /// New code should prefer [`Self::append_sequenced_final_segment`]. This compatibility path
+    /// still locks the same stream head and accepts only its exact next sequence.
+    ///
+    /// # Errors
+    ///
+    /// Rejects future generations, sequence gaps, mixed stream authority, conflicting
+    /// idempotency identities, conversion failures, database failures or malformed stored rows.
     pub async fn append_final_segment(
         &self,
         transaction: &Transaction<'_>,
@@ -217,6 +267,36 @@ impl ConversationResultSqlStore {
         let status = segment
             .generation_status(current_generation)
             .map_err(|_| ConversationResultStoreError::Conflict)?;
+        let last_sequence =
+            lock_existing_transcript_stream_head_for_segment(transaction, segment).await?;
+        if let Some(sequence) = load_segment_source_event_sequence(transaction, segment).await? {
+            let last_sequence =
+                last_sequence.ok_or(ConversationResultStoreError::StoredRowInvalid)?;
+            if sequence != segment.sequence() || sequence > last_sequence {
+                return Err(ConversationResultStoreError::Conflict);
+            }
+            return self
+                .append_final_segment_row(transaction, segment, status)
+                .await;
+        }
+        if let Some(last_sequence) = last_sequence {
+            let expected = last_sequence
+                .checked_add(1)
+                .ok_or(ConversationResultStoreError::NumericOverflow)?;
+            if segment.sequence() != expected {
+                return Err(ConversationResultStoreError::Conflict);
+            }
+        }
+        self.append_final_segment_row(transaction, segment, status)
+            .await
+    }
+
+    async fn append_final_segment_row(
+        &self,
+        transaction: &Transaction<'_>,
+        segment: &TranscriptSegment,
+        status: TranscriptGenerationStatus,
+    ) -> Result<TranscriptAppendDecision, ConversationResultStoreError> {
         let context = segment.context();
         let generation = i64_from(context.execution_generation().get())?;
         let sequence = i64_from(segment.sequence())?;
@@ -680,6 +760,168 @@ async fn insert_projection_receipt(
         return Err(ConversationResultStoreError::Conflict);
     }
     Ok(())
+}
+
+async fn ensure_and_lock_transcript_stream_head(
+    transaction: &Transaction<'_>,
+    draft: &TranscriptSegmentDraft,
+) -> Result<u64, ConversationResultStoreError> {
+    ensure_and_lock_transcript_stream_head_for_context(transaction, draft.context()).await
+}
+
+async fn lock_existing_transcript_stream_head_for_segment(
+    transaction: &Transaction<'_>,
+    segment: &TranscriptSegment,
+) -> Result<Option<u64>, ConversationResultStoreError> {
+    let context = segment.context();
+    let generation = i64_from(context.execution_generation().get())?;
+    transaction
+        .query_one(
+            "SELECT pg_advisory_xact_lock(hashtextextended(
+               $1 || chr(31) || $2 || chr(31) || $3::TEXT, 134
+             ))",
+            &[
+                &context.tenant_id(),
+                &context.interaction_id().as_str(),
+                &generation,
+            ],
+        )
+        .await
+        .map_err(|_| ConversationResultStoreError::DatabaseUnavailable)?;
+    let Some(row) = transaction
+        .query_opt(
+            "SELECT call_attempt_id, agent_release_id, last_sequence
+             FROM converact_conversation_transcript_stream_heads
+             WHERE tenant_id = $1 AND interaction_id = $2 AND execution_generation = $3
+             FOR UPDATE",
+            &[
+                &context.tenant_id(),
+                &context.interaction_id().as_str(),
+                &generation,
+            ],
+        )
+        .await
+        .map_err(|_| ConversationResultStoreError::DatabaseUnavailable)?
+    else {
+        let has_stored_segment = transaction
+            .query_one(
+                "SELECT EXISTS (
+                   SELECT 1 FROM converact_conversation_transcript_segments
+                   WHERE tenant_id = $1 AND interaction_id = $2 AND execution_generation = $3
+                 )",
+                &[
+                    &context.tenant_id(),
+                    &context.interaction_id().as_str(),
+                    &generation,
+                ],
+            )
+            .await
+            .map_err(|_| ConversationResultStoreError::DatabaseUnavailable)?
+            .try_get::<_, bool>(0)
+            .map_err(|_| ConversationResultStoreError::StoredRowInvalid)?;
+        return if has_stored_segment {
+            Err(ConversationResultStoreError::StoredRowInvalid)
+        } else {
+            Ok(None)
+        };
+    };
+    if string_at(&row, 0)? != context.call_attempt_id().as_str()
+        || string_at(&row, 1)? != context.agent_release_id().as_str()
+    {
+        return Err(ConversationResultStoreError::Conflict);
+    }
+    u64_from(i64_at(&row, 2)?).map(Some)
+}
+
+async fn ensure_and_lock_transcript_stream_head_for_context(
+    transaction: &Transaction<'_>,
+    context: &converact_voice_agent_contracts::EnvelopeContext,
+) -> Result<u64, ConversationResultStoreError> {
+    let generation = i64_from(context.execution_generation().get())?;
+    transaction
+        .execute(
+            "INSERT INTO converact_conversation_transcript_stream_heads (
+               tenant_id, interaction_id, call_attempt_id, agent_release_id,
+               execution_generation, last_sequence
+             ) VALUES ($1, $2, $3, $4, $5, 0)
+             ON CONFLICT (tenant_id, interaction_id, execution_generation) DO NOTHING",
+            &[
+                &context.tenant_id(),
+                &context.interaction_id().as_str(),
+                &context.call_attempt_id().as_str(),
+                &context.agent_release_id().as_str(),
+                &generation,
+            ],
+        )
+        .await
+        .map_err(|_| ConversationResultStoreError::DatabaseUnavailable)?;
+    let row = transaction
+        .query_opt(
+            "SELECT call_attempt_id, agent_release_id, last_sequence
+             FROM converact_conversation_transcript_stream_heads
+             WHERE tenant_id = $1 AND interaction_id = $2 AND execution_generation = $3
+             FOR UPDATE",
+            &[
+                &context.tenant_id(),
+                &context.interaction_id().as_str(),
+                &generation,
+            ],
+        )
+        .await
+        .map_err(|_| ConversationResultStoreError::DatabaseUnavailable)?
+        .ok_or(ConversationResultStoreError::Conflict)?;
+    if string_at(&row, 0)? != context.call_attempt_id().as_str()
+        || string_at(&row, 1)? != context.agent_release_id().as_str()
+    {
+        return Err(ConversationResultStoreError::Conflict);
+    }
+    u64_from(i64_at(&row, 2)?)
+}
+
+async fn load_source_event_sequence(
+    transaction: &Transaction<'_>,
+    draft: &TranscriptSegmentDraft,
+) -> Result<Option<u64>, ConversationResultStoreError> {
+    load_transcript_source_event_sequence(
+        transaction,
+        draft.context(),
+        draft.source_event_id().as_str(),
+    )
+    .await
+}
+
+async fn load_segment_source_event_sequence(
+    transaction: &Transaction<'_>,
+    segment: &TranscriptSegment,
+) -> Result<Option<u64>, ConversationResultStoreError> {
+    load_transcript_source_event_sequence(
+        transaction,
+        segment.context(),
+        segment.source_event_id().as_str(),
+    )
+    .await
+}
+
+async fn load_transcript_source_event_sequence(
+    transaction: &Transaction<'_>,
+    context: &converact_voice_agent_contracts::EnvelopeContext,
+    source_event_id: &str,
+) -> Result<Option<u64>, ConversationResultStoreError> {
+    transaction
+        .query_opt(
+            "SELECT segment_sequence
+             FROM converact_conversation_transcript_segments
+             WHERE tenant_id = $1 AND interaction_id = $2 AND source_event_id = $3",
+            &[
+                &context.tenant_id(),
+                &context.interaction_id().as_str(),
+                &source_event_id,
+            ],
+        )
+        .await
+        .map_err(|_| ConversationResultStoreError::DatabaseUnavailable)?
+        .map(|row| u64_from(i64_at(&row, 0)?))
+        .transpose()
 }
 
 async fn verify_segment_replay(

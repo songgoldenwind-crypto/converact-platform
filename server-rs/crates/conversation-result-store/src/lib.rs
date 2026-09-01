@@ -9,8 +9,8 @@ mod query;
 pub use model::{
     ConversationResultStoreError, EvaluationProjectionWrite, ProjectionCommand,
     ProjectionCommandInput, ProjectionCommandKind, ProjectionFinalizeDecision,
-    ProjectionPrepareDecision, ProjectionWriteDecision, TranscriptAppendDecision,
-    canonical_bad_case_payload_hash,
+    ProjectionPrepareDecision, ProjectionWriteDecision, SequencedTranscriptAppend,
+    TranscriptAppendDecision, canonical_bad_case_payload_hash,
 };
 pub use postgres::ConversationResultSqlStore;
 pub use query::{
