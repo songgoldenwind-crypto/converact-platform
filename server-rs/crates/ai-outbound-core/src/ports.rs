@@ -1,4 +1,4 @@
-use std::{error::Error, fmt, future::Future};
+use std::{error::Error, fmt, future::Future, sync::Arc};
 
 use converact_voice_agent_contracts::{
     AgentReleaseId, CallAttemptId, CallAttemptState, CallId, CampaignId, ChannelAgentSessionId,
@@ -347,6 +347,15 @@ pub trait CompliancePort {
     fn evaluate(&self, attempt: &CallAttempt) -> Result<ComplianceDecision, PortError>;
 }
 
+impl<T> CompliancePort for Arc<T>
+where
+    T: CompliancePort + ?Sized,
+{
+    fn evaluate(&self, attempt: &CallAttempt) -> Result<ComplianceDecision, PortError> {
+        self.as_ref().evaluate(attempt)
+    }
+}
+
 /// Narrow boundary around the pinned channel-agent runtime.
 pub trait ChannelAgentPort {
     fn reserve(
@@ -378,6 +387,46 @@ pub trait ChannelAgentPort {
     ) -> impl Future<Output = Result<AgentObservation, PortError>> + Send;
 }
 
+impl<T> ChannelAgentPort for Arc<T>
+where
+    T: ChannelAgentPort + ?Sized,
+{
+    fn reserve(
+        &self,
+        request: ReserveAgent,
+    ) -> impl Future<Output = Result<AgentReservation, PortError>> + Send {
+        self.as_ref().reserve(request)
+    }
+
+    fn confirm_attachment(
+        &self,
+        request: AgentLegBinding,
+    ) -> impl Future<Output = Result<(), PortError>> + Send {
+        self.as_ref().confirm_attachment(request)
+    }
+
+    fn play_disclosure(
+        &self,
+        request: PlayDisclosure,
+    ) -> impl Future<Output = Result<(), PortError>> + Send {
+        self.as_ref().play_disclosure(request)
+    }
+
+    fn start_conversation(
+        &self,
+        request: StartConversation,
+    ) -> impl Future<Output = Result<(), PortError>> + Send {
+        self.as_ref().start_conversation(request)
+    }
+
+    fn query(
+        &self,
+        session: &ChannelAgentSessionId,
+    ) -> impl Future<Output = Result<AgentObservation, PortError>> + Send {
+        self.as_ref().query(session)
+    }
+}
+
 /// Narrow boundary around `RustPBX` call control.
 pub trait TelephonyPort {
     fn originate(
@@ -400,6 +449,39 @@ pub trait TelephonyPort {
         &self,
         request: TerminateCall,
     ) -> impl Future<Output = Result<(), PortError>> + Send;
+}
+
+impl<T> TelephonyPort for Arc<T>
+where
+    T: TelephonyPort + ?Sized,
+{
+    fn originate(
+        &self,
+        request: OriginateCall,
+    ) -> impl Future<Output = Result<CallObservation, PortError>> + Send {
+        self.as_ref().originate(request)
+    }
+
+    fn add_agent_leg(
+        &self,
+        request: AgentLegBinding,
+    ) -> impl Future<Output = Result<(), PortError>> + Send {
+        self.as_ref().add_agent_leg(request)
+    }
+
+    fn query(
+        &self,
+        call_id: &CallId,
+    ) -> impl Future<Output = Result<CallObservation, PortError>> + Send {
+        self.as_ref().query(call_id)
+    }
+
+    fn terminate(
+        &self,
+        request: TerminateCall,
+    ) -> impl Future<Output = Result<(), PortError>> + Send {
+        self.as_ref().terminate(request)
+    }
 }
 
 /// Durable Attempt authority used by the orchestrator.

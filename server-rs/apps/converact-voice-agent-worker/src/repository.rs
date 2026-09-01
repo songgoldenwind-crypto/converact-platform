@@ -1,4 +1,4 @@
-use std::future::Future;
+use std::{future::Future, sync::Arc};
 
 use converact_voice_agent_contracts::IdempotencyKey;
 use serde::Serialize;
@@ -89,4 +89,43 @@ pub trait VoiceAgentRepository: Send + Sync + 'static {
         attempt_id: &str,
         idempotency_key: &IdempotencyKey,
     ) -> impl Future<Output = Result<Option<ReconcileReceipt>, RepositoryError>> + Send;
+}
+
+impl<R> VoiceAgentRepository for Arc<R>
+where
+    R: VoiceAgentRepository + ?Sized,
+{
+    fn release(
+        &self,
+        tenant: &AuthenticatedTenant,
+        id: &str,
+    ) -> impl Future<Output = Result<Option<AgentReleaseResource>, RepositoryError>> + Send {
+        self.as_ref().release(tenant, id)
+    }
+
+    fn campaign(
+        &self,
+        tenant: &AuthenticatedTenant,
+        id: &str,
+    ) -> impl Future<Output = Result<Option<CampaignResource>, RepositoryError>> + Send {
+        self.as_ref().campaign(tenant, id)
+    }
+
+    fn attempt(
+        &self,
+        tenant: &AuthenticatedTenant,
+        id: &str,
+    ) -> impl Future<Output = Result<Option<AttemptResource>, RepositoryError>> + Send {
+        self.as_ref().attempt(tenant, id)
+    }
+
+    fn request_reconcile(
+        &self,
+        tenant: &AuthenticatedTenant,
+        attempt_id: &str,
+        idempotency_key: &IdempotencyKey,
+    ) -> impl Future<Output = Result<Option<ReconcileReceipt>, RepositoryError>> + Send {
+        self.as_ref()
+            .request_reconcile(tenant, attempt_id, idempotency_key)
+    }
 }

@@ -133,6 +133,11 @@ impl PostgresLeasedAttemptStore {
         self.lease.attempt_id()
     }
 
+    #[must_use]
+    pub const fn tenant_id(&self) -> &TenantId {
+        self.lease.tenant_id()
+    }
+
     fn accepts(&self, attempt_id: &CallAttemptId) -> Result<(), PortError> {
         if self.lease.attempt_id() == attempt_id {
             Ok(())

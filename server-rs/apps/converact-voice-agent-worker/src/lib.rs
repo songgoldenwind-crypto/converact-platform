@@ -21,6 +21,7 @@ mod campaign_admin_http;
 mod campaign_retry;
 mod channel_agent_session;
 mod claim_supervisor;
+mod claimed_attempt_executor;
 mod contextual_intent_provider;
 mod conversation_finalization;
 mod conversation_projection;
@@ -41,6 +42,7 @@ mod multimodal_emotion_runtime;
 mod platform_auth;
 mod post_call_finalization;
 mod post_call_finalization_postgres;
+mod postgres_claim_source;
 mod postgres_repository;
 mod process;
 mod repository;
@@ -112,6 +114,7 @@ pub use campaign_retry::{
 pub use claim_supervisor::{
     AttemptClaimSource, ClaimBatchProgress, ClaimSupervisor, ClaimedAttemptExecutor,
 };
+pub use claimed_attempt_executor::{ClaimedAttemptContext, VoiceAgentClaimExecutor};
 pub use contextual_intent_provider::{
     ContextualIntentArtifactInput, ContextualIntentCandidateOutput,
     ContextualIntentClassifierOutput, ContextualIntentClassifierPort,
@@ -177,6 +180,9 @@ pub use platform_auth::{FixedWallClock, PlatformTokenAuthenticator, SystemWallCl
 pub use post_call_finalization::{
     ConversationFinalizationWorker, FinalizationBatchProgress, FinalizationProjectionPort,
     FinalizationProjectionProgress, FinalizationQueuePort, FinalizationWorkerError,
+};
+pub use postgres_claim_source::{
+    LeaseTokenDigestSource, PostgresAttemptClaimSource, SystemLeaseTokenDigestSource,
 };
 pub use postgres_repository::PostgresVoiceAgentRepository;
 pub use process::{WorkerServeError, serve_worker_http};

@@ -308,6 +308,16 @@ impl AttemptResource {
     }
 
     #[must_use]
+    pub fn campaign_id(&self) -> &str {
+        &self.campaign_id
+    }
+
+    #[must_use]
+    pub fn release_id(&self) -> &str {
+        &self.release_id
+    }
+
+    #[must_use]
     pub const fn state(&self) -> CallAttemptState {
         self.state
     }
