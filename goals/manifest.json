@@ -26,7 +26,7 @@
     },
     {
       "path": "docs/design/2026-08-31-ai-outbound-active-call-platform-r1.md",
-      "sha256": "b17cd75e838b1f9c2ea37abfbbb391e73b2270aefc749d27669ecce6ddef9835",
+      "sha256": "e456c152cd84a8f375f16faef91652b33c2c90e9c223bf56c2867851d0776165",
       "kind": "design"
     },
     {
@@ -81,7 +81,7 @@
     },
     {
       "path": "docs/plans/2026-08-31-ai-outbound-campaign-authoring-r1.md",
-      "sha256": "6a49e1812509964eb48527a756e0fd2c41b67245b00ecd729043e818064f7010",
+      "sha256": "573b9d6e8044866acf12e02a476ff3a24e40150373bc4ad8928e016943cfc7b2",
       "kind": "plan"
     },
     {

@@ -2,7 +2,10 @@
   "schema_version": "1.0.0",
   "evidence_id": "r1-executable-voice-worker",
   "recorded_at": "2026-09-01",
-  "source_commit": "ddc01eb74ae6c9e63815dd4ed5029caa133b804a",
+  "source_commits": [
+    "ddc01eb74ae6c9e63815dd4ed5029caa133b804a",
+    "8f11033b632751ef02067df1ddf55f15d08286ff"
+  ],
   "checks": [
     {
       "id": "executable_check",
@@ -32,9 +35,38 @@
       "id": "format_and_diff",
       "command": "cargo fmt for exact packages --check; git diff --check exact slice",
       "status": "passed"
+    },
+    {
+      "id": "active_terminal_orchestration_seam",
+      "command": "cargo test --locked -p converact-ai-outbound-core --test orchestrator",
+      "status": "passed",
+      "passed": 12,
+      "failed": 0
+    },
+    {
+      "id": "active_binding_store_contract",
+      "command": "cargo test --locked -p converact-ai-outbound-store --test leased_attempt_contract",
+      "status": "passed",
+      "passed": 5,
+      "failed": 0
+    },
+    {
+      "id": "worker_active_execution_compatibility",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test tracer_bullet; cargo test --locked -p converact-voice-agent-worker claimed_attempt_executes_existing_worker_and_completes_once --lib",
+      "status": "passed",
+      "passed": 6,
+      "failed": 0
+    },
+    {
+      "id": "physical_postgresql_active_binding",
+      "command": "CONVERACT_TEST_DATABASE_URL=<isolated-disposable-postgresql-14.18> cargo test --locked -p converact-postgres-store --test ai_outbound_atomic_completion_postgres started_attempt_persists_call_and_agent_session_in_one_fenced_transition -- --ignored --exact",
+      "status": "passed",
+      "passed": 1,
+      "failed": 0
     }
   ],
   "not_run": [
+    "executable_long_lived_sse_supervision_lease_reclaim_and_restart_resume",
     "real_postgres_active_call_rustpbx_combined_launch",
     "real_sip_pstn_ai_conversation_terminal_completion",
     "remote_postgres_tls_and_internal_http_mtls",
