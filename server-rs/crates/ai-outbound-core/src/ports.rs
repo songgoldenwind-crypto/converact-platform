@@ -1,7 +1,8 @@
 use std::{error::Error, fmt, future::Future};
 
 use converact_voice_agent_contracts::{
-    AgentReleaseId, CallAttemptId, CallId, ChannelAgentSessionId, TenantId,
+    AgentReleaseId, CallAttemptId, CallAttemptState, CallId, CampaignId, ChannelAgentSessionId,
+    TenantId,
 };
 
 use crate::{
@@ -423,5 +424,75 @@ pub trait AttemptStorePort {
     fn persist_observation(
         &self,
         attempt: &CallAttempt,
+    ) -> impl Future<Output = Result<(), PortError>> + Send;
+}
+
+/// Exact terminal binding committed by the lease-scoped Attempt Store.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TerminalAttemptCommit {
+    attempt: CallAttempt,
+    campaign_id: CampaignId,
+    agent_release_id: AgentReleaseId,
+    call_id: CallId,
+    channel_agent_session_id: ChannelAgentSessionId,
+}
+
+impl TerminalAttemptCommit {
+    /// Freezes the identifiers required to atomically settle one completed physical Attempt.
+    ///
+    /// # Errors
+    ///
+    /// Rejects non-terminal or undisclosed aggregates before any Store transaction begins.
+    pub fn try_new(
+        attempt: CallAttempt,
+        campaign_id: CampaignId,
+        agent_release_id: AgentReleaseId,
+        call_id: CallId,
+        channel_agent_session_id: ChannelAgentSessionId,
+    ) -> Result<Self, PortError> {
+        if attempt.state() != CallAttemptState::Completed || !attempt.disclosure_completed() {
+            return Err(PortError::rejected("ai_outbound_terminal_attempt_invalid"));
+        }
+        Ok(Self {
+            attempt,
+            campaign_id,
+            agent_release_id,
+            call_id,
+            channel_agent_session_id,
+        })
+    }
+
+    #[must_use]
+    pub const fn attempt(&self) -> &CallAttempt {
+        &self.attempt
+    }
+
+    #[must_use]
+    pub const fn campaign_id(&self) -> &CampaignId {
+        &self.campaign_id
+    }
+
+    #[must_use]
+    pub const fn agent_release_id(&self) -> &AgentReleaseId {
+        &self.agent_release_id
+    }
+
+    #[must_use]
+    pub const fn call_id(&self) -> &CallId {
+        &self.call_id
+    }
+
+    #[must_use]
+    pub const fn channel_agent_session_id(&self) -> &ChannelAgentSessionId {
+        &self.channel_agent_session_id
+    }
+}
+
+/// Lease-scoped atomic settlement boundary for one physical Attempt.
+pub trait AttemptCompletionPort {
+    /// Persists the terminal Attempt and enqueues exactly one post-call job in one transaction.
+    fn complete_and_enqueue(
+        &self,
+        command: TerminalAttemptCommit,
     ) -> impl Future<Output = Result<(), PortError>> + Send;
 }

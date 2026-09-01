@@ -46,7 +46,7 @@ impl FinalizationSqlStore {
                    execution_generation, retention_policy_ref, payload_hash, state, revision,
                    enqueued_at
                  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', 1,
-                   to_timestamp($9::DOUBLE PRECISION / 1000.0))
+                   to_timestamp($9::BIGINT / 1000.0))
                  ON CONFLICT DO NOTHING RETURNING job_id",
                 &[
                     &context.tenant_id(),
@@ -339,7 +339,7 @@ async fn insert_receipt(
                tenant_id, receipt_id, job_id, call_attempt_id, stage, receipt_digest,
                payload_hash, resolution, observed_revision, observed_at
              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
-               to_timestamp($10::DOUBLE PRECISION / 1000.0))",
+               to_timestamp($10::BIGINT / 1000.0))",
             &[
                 &input.tenant_id,
                 &receipt_id.as_str(),

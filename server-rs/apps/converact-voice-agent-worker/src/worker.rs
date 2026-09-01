@@ -1,10 +1,12 @@
 use std::{error::Error, fmt};
 
 use converact_ai_outbound_core::{
-    AgentReleaseBinding, AttemptStorePort, ChannelAgentPort, CompliancePort, OutboundOrchestrator,
-    TelephonyPort,
+    AgentReleaseBinding, AttemptCompletionPort, AttemptStorePort, ChannelAgentPort, CompliancePort,
+    OutboundOrchestrator, TelephonyPort, TerminalAttemptCommit,
 };
-use converact_voice_agent_contracts::{AgentReleaseId, AgentReleaseState, CampaignState};
+use converact_voice_agent_contracts::{
+    AgentReleaseId, AgentReleaseState, CallId, CampaignId, CampaignState,
+};
 use converact_voice_agent_contracts::{CallAttemptId, TenantId};
 
 use crate::{
@@ -61,7 +63,7 @@ where
     C: CompliancePort,
     A: ChannelAgentPort,
     T: TelephonyPort,
-    S: AttemptStorePort,
+    S: AttemptStorePort + AttemptCompletionPort,
     R: VoiceAgentRepository,
 {
     #[allow(clippy::too_many_arguments)]
@@ -144,11 +146,22 @@ where
             .run_one_attempt(&tenant_id, attempt_id, &release_binding, &session_id)
             .await
             .map_err(|error| WorkerError::new(error.code()))?;
+        let terminal = TerminalAttemptCommit::try_new(
+            attempt.clone(),
+            CampaignId::parse(campaign.id())
+                .map_err(|_| WorkerError::new("voice_agent_campaign_identity_invalid"))?,
+            release_binding.id().clone(),
+            CallId::parse(attempt.id().as_str())
+                .map_err(|_| WorkerError::new("voice_agent_call_identity_invalid"))?,
+            session_id,
+        )
+        .map_err(|error| WorkerError::new(error.code()))?;
+        self.attempt_store
+            .complete_and_enqueue(terminal)
+            .await
+            .map_err(|error| WorkerError::new(error.code()))?;
         let resource =
             AttemptResource::terminal_pending(campaign_id, campaign.release_id(), &attempt);
-        self.repository
-            .complete_attempt_and_enqueue(tenant, resource.clone())
-            .await?;
         Ok(resource)
     }
 

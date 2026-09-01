@@ -12,10 +12,11 @@ use axum::{
 };
 use converact_ai_outbound_core::{
     AgentDraft, AgentLegBinding, AgentObservation, AgentReleaseBinding, AgentReservation,
-    AttemptStorePort, CallAttempt, CallObservation, Campaign, CampaignCommand, ChannelAgentPort,
-    ComplianceDecision, CompliancePort, EffectIntent, OriginateCall, OutboundDialBinding,
-    OutboundDialBindingInput, PlayDisclosure, PortError, ReleaseComponentDigests, ReserveAgent,
-    StartConversation, TelephonyPort, TerminateCall, publish_agent,
+    AttemptCompletionPort, AttemptStorePort, CallAttempt, CallObservation, Campaign,
+    CampaignCommand, ChannelAgentPort, ComplianceDecision, CompliancePort, EffectIntent,
+    OriginateCall, OutboundDialBinding, OutboundDialBindingInput, PlayDisclosure, PortError,
+    ReleaseComponentDigests, ReserveAgent, StartConversation, TelephonyPort, TerminalAttemptCommit,
+    TerminateCall, publish_agent,
 };
 use converact_contracts::health::{
     ConfigurationCheck, ConfigurationStatus, DatabaseCheck, DatabaseStatus, MigrationCheck,
@@ -66,7 +67,10 @@ impl TestWorker {
             FakeCompliance,
             FakeAgent(Arc::clone(&state)),
             FakeTelephony(Arc::clone(&state)),
-            FakeAttemptStore(Arc::clone(&state)),
+            FakeAttemptStore {
+                state: Arc::clone(&state),
+                repository: Arc::clone(&repository.state),
+            },
             repository.clone(),
             config,
             readiness.clone(),
@@ -307,11 +311,14 @@ impl TelephonyPort for FakeTelephony {
 }
 
 #[derive(Clone)]
-struct FakeAttemptStore(Arc<Mutex<ControlledState>>);
+struct FakeAttemptStore {
+    state: Arc<Mutex<ControlledState>>,
+    repository: Arc<Mutex<RepositoryState>>,
+}
 
 impl AttemptStorePort for FakeAttemptStore {
     async fn load(&self, _attempt_id: &CallAttemptId) -> Result<CallAttempt, PortError> {
-        Ok(self.0.lock().unwrap().attempt.clone())
+        Ok(self.state.lock().unwrap().attempt.clone())
     }
 
     async fn load_dial_binding(
@@ -332,12 +339,31 @@ impl AttemptStorePort for FakeAttemptStore {
         attempt: &CallAttempt,
         _intent: EffectIntent,
     ) -> Result<(), PortError> {
-        self.0.lock().unwrap().attempt = attempt.clone();
+        self.state.lock().unwrap().attempt = attempt.clone();
         Ok(())
     }
 
     async fn persist_observation(&self, attempt: &CallAttempt) -> Result<(), PortError> {
-        self.0.lock().unwrap().attempt = attempt.clone();
+        self.state.lock().unwrap().attempt = attempt.clone();
+        Ok(())
+    }
+}
+
+impl AttemptCompletionPort for FakeAttemptStore {
+    async fn complete_and_enqueue(&self, command: TerminalAttemptCommit) -> Result<(), PortError> {
+        let mut repository = self.repository.lock().unwrap();
+        if repository.fail_atomic_completion {
+            return Err(PortError::unavailable("voice_agent_repository_unavailable"));
+        }
+        let attempt = AttemptResource::terminal_pending(
+            command.campaign_id().as_str(),
+            command.agent_release_id().as_str(),
+            command.attempt(),
+        );
+        let key = ("tenant-a".to_owned(), attempt.id().to_owned());
+        repository.attempts.insert(key.clone(), attempt);
+        repository.finalization_jobs.insert(key);
+        self.state.lock().unwrap().attempt = command.attempt().clone();
         Ok(())
     }
 }
@@ -420,21 +446,6 @@ impl VoiceAgentRepository for InMemoryRepository {
             .attempts
             .get(&(tenant.as_str().to_owned(), id.to_owned()))
             .cloned())
-    }
-
-    async fn complete_attempt_and_enqueue(
-        &self,
-        tenant: &AuthenticatedTenant,
-        attempt: AttemptResource,
-    ) -> Result<(), RepositoryError> {
-        let mut state = self.state.lock().unwrap();
-        if state.fail_atomic_completion {
-            return Err(RepositoryError::unavailable());
-        }
-        let key = (tenant.as_str().to_owned(), attempt.id().to_owned());
-        state.attempts.insert(key.clone(), attempt);
-        state.finalization_jobs.insert(key);
-        Ok(())
     }
 
     async fn request_reconcile(

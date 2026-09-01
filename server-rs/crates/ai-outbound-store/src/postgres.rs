@@ -365,6 +365,16 @@ impl AttemptLease {
     pub const fn execution_generation(&self) -> ExecutionGeneration {
         self.execution_generation
     }
+
+    #[must_use]
+    pub fn lease_owner(&self) -> &str {
+        &self.lease_owner
+    }
+
+    #[must_use]
+    pub fn lease_token_hash(&self) -> &str {
+        &self.lease_token_hash
+    }
 }
 
 impl fmt::Debug for AttemptLease {

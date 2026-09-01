@@ -29,10 +29,10 @@ pub use converact_voice_agent_contracts::AttemptCommand;
 pub use orchestrator::{OrchestrationError, OutboundOrchestrator};
 pub use ports::{
     AgentLegBinding, AgentObservation, AgentReleaseBinding, AgentReleaseBindingError,
-    AgentReservation, AttemptStorePort, CallObservation, ChannelAgentPort, CompliancePort,
-    EffectIntent, OriginateCall, OutboundDialBinding, OutboundDialBindingError,
+    AgentReservation, AttemptCompletionPort, AttemptStorePort, CallObservation, ChannelAgentPort,
+    CompliancePort, EffectIntent, OriginateCall, OutboundDialBinding, OutboundDialBindingError,
     OutboundDialBindingInput, PlayDisclosure, PortError, PortFailureKind, ReserveAgent,
-    StartConversation, TelephonyPort, TerminateCall,
+    StartConversation, TelephonyPort, TerminalAttemptCommit, TerminateCall,
 };
 pub use retry::{RetryCandidate, RetryDecision, RetryPlan, RetryPolicy, plan_retry};
 
