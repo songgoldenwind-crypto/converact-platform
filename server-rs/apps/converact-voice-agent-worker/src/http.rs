@@ -5,6 +5,7 @@ use axum::{
     body::Body,
     extract::{Path, State},
     http::{HeaderMap, HeaderValue, Response, StatusCode, header},
+    middleware,
     routing::{get, post},
 };
 use converact_voice_agent_contracts::{AgentReleaseId, CallAttemptId, CampaignId, IdempotencyKey};
@@ -13,6 +14,7 @@ use serde::Serialize;
 use crate::{
     AdmissionReadiness, AuthenticatedTenant, RepositoryErrorKind, ShutdownToken,
     VoiceAgentRepository, WorkerConfig, WorkerResource,
+    platform_auth::{PlatformTokenAuthenticator, WallClock, authenticate_platform_token},
 };
 
 /// Builds authenticated internal inspection routes and dependency-aware health routes.
@@ -22,6 +24,46 @@ pub fn router<R: VoiceAgentRepository>(
     config: WorkerConfig,
     shutdown: ShutdownToken,
 ) -> Router {
+    protected_routes::<R>()
+        .merge(health_routes::<R>())
+        .with_state(HttpState {
+            repository,
+            readiness,
+            config,
+            shutdown,
+        })
+}
+
+/// Builds the process-facing router. Health remains public; every internal route requires one
+/// verified platform bearer and receives tenant scope only from its signed identity.
+pub fn router_with_platform_auth<R, A, C>(
+    repository: Arc<R>,
+    readiness: AdmissionReadiness,
+    config: WorkerConfig,
+    shutdown: ShutdownToken,
+    authenticator: Arc<A>,
+    clock: C,
+) -> Router
+where
+    R: VoiceAgentRepository,
+    A: PlatformTokenAuthenticator,
+    C: WallClock + Clone,
+{
+    protected_routes::<R>()
+        .route_layer(middleware::from_fn_with_state(
+            crate::platform_auth::PlatformAuthState::new(authenticator, clock),
+            authenticate_platform_token::<A, C>,
+        ))
+        .merge(health_routes::<R>())
+        .with_state(HttpState {
+            repository,
+            readiness,
+            config,
+            shutdown,
+        })
+}
+
+fn protected_routes<R: VoiceAgentRepository>() -> Router<HttpState<R>> {
     Router::new()
         .route(
             "/internal/v1/voice-agent/releases/{id}",
@@ -40,14 +82,12 @@ pub fn router<R: VoiceAgentRepository>(
             post(reconcile::<R>),
         )
         .route("/internal/v1/voice-agent/workers", get(workers::<R>))
+}
+
+fn health_routes<R: VoiceAgentRepository>() -> Router<HttpState<R>> {
+    Router::new()
         .route("/livez", get(livez::<R>))
         .route("/readyz", get(readyz::<R>))
-        .with_state(HttpState {
-            repository,
-            readiness,
-            config,
-            shutdown,
-        })
 }
 
 async fn get_release<R: VoiceAgentRepository>(
@@ -203,7 +243,7 @@ fn json_response<T: Serialize>(status: StatusCode, value: &T) -> Response<Body> 
     response
 }
 
-fn error_response(status: StatusCode, code: &'static str) -> Response<Body> {
+pub(crate) fn error_response(status: StatusCode, code: &'static str) -> Response<Body> {
     json_response(status, &ErrorBody { error: code })
 }
 

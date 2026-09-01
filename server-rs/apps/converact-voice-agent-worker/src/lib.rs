@@ -37,6 +37,7 @@ mod lifecycle;
 mod model;
 mod model_provider_pool;
 mod multimodal_emotion_runtime;
+mod platform_auth;
 mod post_call_finalization;
 mod post_call_finalization_postgres;
 mod postgres_repository;
@@ -147,7 +148,7 @@ pub use handoff_runtime::{
     HandoffProgress, HandoffRuntime, HumanActivationCommandIds, HumanDialRequest,
     HumanLegObservation, TelephonyHandoffPort, VoiceHandoffPortError, VoiceHandoffRuntimeError,
 };
-pub use http::router;
+pub use http::{router, router_with_platform_auth};
 pub use intent_confidence_router::{
     IntentConfidenceRouter, IntentConfidenceRouterError, IntentFallbackReason,
     IntentResolutionPath, IntentTurnResolution, IntentTurnRoute, PendingIntentTurn,
@@ -167,6 +168,7 @@ pub use model_provider_pool::{
 pub use multimodal_emotion_runtime::{
     MultimodalEmotionFusionPolicy, MultimodalEmotionTurnRuntime, MultimodalEmotionTurnRuntimeError,
 };
+pub use platform_auth::{FixedWallClock, PlatformTokenAuthenticator, SystemWallClock, WallClock};
 pub use post_call_finalization::{
     ConversationFinalizationWorker, FinalizationBatchProgress, FinalizationProjectionPort,
     FinalizationProjectionProgress, FinalizationQueuePort, FinalizationWorkerError,
