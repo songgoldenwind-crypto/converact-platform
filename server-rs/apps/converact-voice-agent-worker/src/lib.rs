@@ -8,6 +8,8 @@ mod active_call_intent;
 mod active_call_playbook_artifact;
 mod active_call_playbook_resolver;
 mod active_call_reservation;
+mod active_call_transcript;
+mod active_call_transcript_postgres;
 mod campaign_admin;
 mod campaign_admin_http;
 mod campaign_retry;
@@ -47,6 +49,11 @@ pub use active_call_playbook_resolver::{
     ActiveCallPlaybookResolverError,
 };
 pub use active_call_reservation::{ActiveCallReservationAdapter, ActiveCallReservationObservation};
+pub use active_call_transcript::{
+    ActiveCallTranscriptBinding, ActiveCallTranscriptBindingInput,
+    ActiveCallTranscriptDurabilityPort, ActiveCallTranscriptIngestError,
+    append_active_call_final_transcript,
+};
 pub use campaign_admin::{
     AdminMutationResource, CampaignAdminAccess, CampaignAdminError, CampaignAdminPort,
 };

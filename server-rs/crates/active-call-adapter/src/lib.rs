@@ -15,5 +15,6 @@ pub use client::{
 pub use command::{AdapterCommand, encode_command};
 pub use lifecycle::{ActiveCallLifecycleEvent, decode_lifecycle_event};
 pub use mapper::{
-    AdapterContext, AdapterError, DtmfDigit, IntentCandidate, NormalizedEvent, normalize_event,
+    AdapterContext, AdapterError, DtmfDigit, IntentCandidate, NormalizedEvent, TranscriptText,
+    normalize_event,
 };

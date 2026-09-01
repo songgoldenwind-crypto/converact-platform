@@ -55,6 +55,24 @@ impl fmt::Debug for IntentCandidate {
     }
 }
 
+/// One bounded transcript payload available only to an explicit content consumer.
+#[derive(Clone, Eq, PartialEq)]
+pub struct TranscriptText(Box<str>);
+
+impl TranscriptText {
+    /// Returns transcript content without exposing it through ordinary diagnostics.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Debug for TranscriptText {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("TranscriptText([REDACTED])")
+    }
+}
+
 impl AdapterContext {
     /// Creates a context from previously validated authority fields.
     #[must_use]
@@ -82,16 +100,24 @@ pub enum NormalizedEvent {
         track_id: Box<str>,
         timestamp_ms: u64,
         index: u32,
-        text: Box<str>,
+        start_time_ms: Option<u64>,
+        end_time_ms: Option<u64>,
+        text: TranscriptText,
+        is_filler: bool,
         confidence: Option<f32>,
+        refer: Option<bool>,
     },
     TranscriptDelta {
         authority: EnvelopeContext,
         track_id: Box<str>,
         timestamp_ms: u64,
         index: u32,
-        text: Box<str>,
+        start_time_ms: Option<u64>,
+        end_time_ms: Option<u64>,
+        text: TranscriptText,
+        is_filler: bool,
         confidence: Option<f32>,
+        refer: Option<bool>,
     },
     SpeechStarted {
         authority: EnvelopeContext,
@@ -168,7 +194,9 @@ impl NormalizedEvent {
         )
     }
 
-    const fn authority(&self) -> &EnvelopeContext {
+    /// Returns the immutable Converact authority attached by the adapter boundary.
+    #[must_use]
+    pub const fn authority(&self) -> &EnvelopeContext {
         match self {
             Self::MediaReady { authority, .. }
             | Self::TranscriptFinal { authority, .. }
@@ -195,6 +223,7 @@ pub enum AdapterError {
     InvalidIdentifier,
     InvalidTimestamp,
     InvalidTranscript,
+    InvalidTranscriptTiming,
     InvalidConfidence,
     InvalidDtmf,
     InvalidPlaybackTiming,
@@ -216,6 +245,7 @@ impl AdapterError {
             Self::InvalidIdentifier => "active_call_identifier_invalid",
             Self::InvalidTimestamp => "active_call_timestamp_invalid",
             Self::InvalidTranscript => "active_call_transcript_invalid",
+            Self::InvalidTranscriptTiming => "active_call_transcript_timing_invalid",
             Self::InvalidConfidence => "active_call_confidence_invalid",
             Self::InvalidDtmf => "active_call_dtmf_invalid",
             Self::InvalidPlaybackTiming => "active_call_playback_timing_invalid",
@@ -273,6 +303,9 @@ pub fn normalize_event(
     map_event(context, upstream)
 }
 
+// Keep the complete accepted wire enum in one exhaustive dispatcher so a new upstream variant
+// cannot bypass this review boundary by landing in a partial helper.
+#[allow(clippy::too_many_lines)]
 fn map_event(
     context: &AdapterContext,
     event: UpstreamEvent,
@@ -286,8 +319,12 @@ fn map_event(
             track_id,
             timestamp,
             index,
+            start_time,
+            end_time,
             text,
+            is_filler,
             confidence,
+            refer,
         } => map_transcript(
             context,
             TranscriptKind::Final,
@@ -295,16 +332,24 @@ fn map_event(
                 track_id,
                 timestamp,
                 index,
+                start_time,
+                end_time,
                 text,
+                is_filler,
                 confidence,
+                refer,
             },
         ),
         UpstreamEvent::AsrDelta {
             track_id,
             timestamp,
             index,
+            start_time,
+            end_time,
             text,
+            is_filler,
             confidence,
+            refer,
         } => map_transcript(
             context,
             TranscriptKind::Delta,
@@ -312,8 +357,12 @@ fn map_event(
                 track_id,
                 timestamp,
                 index,
+                start_time,
+                end_time,
                 text,
+                is_filler,
                 confidence,
+                refer,
             },
         ),
         UpstreamEvent::Speaking {
@@ -530,8 +579,12 @@ struct TranscriptFields {
     track_id: String,
     timestamp: u64,
     index: u32,
+    start_time: Option<u64>,
+    end_time: Option<u64>,
     text: String,
+    is_filler: Option<bool>,
     confidence: Option<f32>,
+    refer: Option<bool>,
 }
 
 fn map_transcript(
@@ -542,6 +595,8 @@ fn map_transcript(
     let authority = context.authority.clone();
     let track_id = bounded_identifier(fields.track_id)?;
     let timestamp_ms = valid_timestamp(fields.timestamp)?;
+    let (start_time_ms, end_time_ms) =
+        valid_transcript_timing(fields.start_time, fields.end_time, timestamp_ms)?;
     let text = bounded_transcript(fields.text)?;
     let confidence = valid_confidence(fields.confidence)?;
     Ok(match kind {
@@ -550,16 +605,24 @@ fn map_transcript(
             track_id,
             timestamp_ms,
             index: fields.index,
+            start_time_ms,
+            end_time_ms,
             text,
+            is_filler: fields.is_filler.unwrap_or(false),
             confidence,
+            refer: fields.refer,
         },
         TranscriptKind::Delta => NormalizedEvent::TranscriptDelta {
             authority,
             track_id,
             timestamp_ms,
             index: fields.index,
+            start_time_ms,
+            end_time_ms,
             text,
+            is_filler: fields.is_filler.unwrap_or(false),
             confidence,
+            refer: fields.refer,
         },
     })
 }
@@ -586,11 +649,33 @@ fn valid_timestamp(value: u64) -> Result<u64, AdapterError> {
         .ok_or(AdapterError::InvalidTimestamp)
 }
 
-fn bounded_transcript(value: String) -> Result<Box<str>, AdapterError> {
-    if value.is_empty() || value.len() > MAX_TRANSCRIPT_BYTES {
+fn valid_transcript_timing(
+    start_time: Option<u64>,
+    end_time: Option<u64>,
+    timestamp_ms: u64,
+) -> Result<(Option<u64>, Option<u64>), AdapterError> {
+    match (start_time, end_time) {
+        (None, None) => Ok((None, None)),
+        (Some(start), Some(end)) => {
+            let start = valid_timestamp(start)?;
+            let end = valid_timestamp(end)?;
+            if start > end || end > timestamp_ms {
+                return Err(AdapterError::InvalidTranscriptTiming);
+            }
+            Ok((Some(start), Some(end)))
+        }
+        _ => Err(AdapterError::InvalidTranscriptTiming),
+    }
+}
+
+fn bounded_transcript(value: String) -> Result<TranscriptText, AdapterError> {
+    if value.trim().is_empty()
+        || value.len() > MAX_TRANSCRIPT_BYTES
+        || value.chars().any(char::is_control)
+    {
         return Err(AdapterError::InvalidTranscript);
     }
-    Ok(value.into())
+    Ok(TranscriptText(value.into()))
 }
 
 fn valid_confidence(value: Option<f32>) -> Result<Option<f32>, AdapterError> {

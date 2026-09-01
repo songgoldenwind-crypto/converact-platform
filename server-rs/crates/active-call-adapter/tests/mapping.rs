@@ -33,12 +33,29 @@ fn exact_upstream_media_and_hangup_fixtures_are_accepted() {
 fn final_asr_is_durable_but_delta_is_ephemeral() {
     let event =
         normalize_event(&adapter_context(3), include_str!("fixtures/asr-final.json")).unwrap();
-    assert!(matches!(
-        event,
-        NormalizedEvent::TranscriptFinal { index: 1, .. }
-    ));
+    let NormalizedEvent::TranscriptFinal {
+        index,
+        start_time_ms,
+        end_time_ms,
+        text,
+        is_filler,
+        refer,
+        ..
+    } = &event
+    else {
+        panic!("expected final transcript")
+    };
+    assert_eq!(*index, 1);
+    assert_eq!(*start_time_ms, Some(900));
+    assert_eq!(*end_time_ms, Some(1080));
+    assert_eq!(text.as_str(), "你好");
+    assert!(!is_filler);
+    assert_eq!(*refer, Some(false));
     assert!(event.is_durable());
     assert_eq!(event.execution_generation().get(), 3);
+    let debug = format!("{event:?}");
+    assert!(!debug.contains("你好"));
+    assert!(!debug.contains("provider-task-private"));
 
     let delta = normalize_event(
         &adapter_context(3),
@@ -47,6 +64,25 @@ fn final_asr_is_durable_but_delta_is_ephemeral() {
     .unwrap();
     assert!(matches!(delta, NormalizedEvent::TranscriptDelta { .. }));
     assert!(!delta.is_durable());
+}
+
+#[test]
+fn transcript_content_and_partial_timing_fail_closed() {
+    let control = r#"{"event":"asrFinal","trackId":"track-001","timestamp":1100,"index":1,"text":"private\nsecret"}"#;
+    assert_eq!(
+        normalize_event(&adapter_context(3), control)
+            .unwrap_err()
+            .code(),
+        "active_call_transcript_invalid"
+    );
+
+    let partial_timing = r#"{"event":"asrFinal","trackId":"track-001","timestamp":1100,"index":1,"startTime":900,"text":"你好"}"#;
+    assert_eq!(
+        normalize_event(&adapter_context(3), partial_timing)
+            .unwrap_err()
+            .code(),
+        "active_call_transcript_timing_invalid"
+    );
 }
 
 #[test]

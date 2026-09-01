@@ -1,1 +1,1 @@
-{"event":"asrFinal","trackId":"track-001","timestamp":1100,"index":1,"text":"你好","confidence":0.98}
+{"event":"asrFinal","trackId":"track-001","timestamp":1100,"index":1,"startTime":900,"endTime":1080,"text":"你好","isFiller":false,"confidence":0.98,"taskId":"provider-task-private","refer":false}

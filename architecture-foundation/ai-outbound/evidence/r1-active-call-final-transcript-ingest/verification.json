@@ -1,0 +1,87 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-09-01",
+  "evidence_class": [
+    "local_contract"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "parent_commit": "e5ba03695855d33738fe8706b01ee6a7f08a0f9f"
+  },
+  "pinned_active_call": {
+    "version": "0.3.83",
+    "commit": "6224d948cc0941ac48b4a5426477aeaf639c2e98"
+  },
+  "commands": [
+    {
+      "id": "active_call_final_wire_contract",
+      "working_directory": "server-rs",
+      "command": "cargo test --locked -p converact-active-call-adapter --test mapping",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 9,
+      "failed": 0
+    },
+    {
+      "id": "active_call_final_transcript_ingest_contract",
+      "working_directory": "server-rs",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test active_call_transcript",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 5,
+      "failed": 0
+    },
+    {
+      "id": "active_call_final_transcript_scoped_format",
+      "working_directory": ".",
+      "command": "rustfmt --edition 2024 --check <8 changed Rust files>",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "active_call_final_wire_scoped_clippy",
+      "working_directory": "server-rs",
+      "command": "cargo clippy --locked -p converact-active-call-adapter --lib --test mapping -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "active_call_final_transcript_scoped_clippy",
+      "working_directory": "server-rs",
+      "command": "cargo clippy --locked -p converact-voice-agent-worker --lib --test active_call_transcript -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "active_call_final_transcript_diff_check",
+      "working_directory": ".",
+      "command": "git diff --check",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "not_run": [
+    "long_lived_active_call_sse_pump_reconnect_gap_reconciliation_and_replay",
+    "runtime_customer_track_and_call_start_binding_recovery",
+    "physical_postgresql_migration_transaction_rls_concurrency_and_write",
+    "transcript_to_safety_intent_and_four_domain_atomic_turn_commit",
+    "fast_classifier_contextual_llm_cross_provider_arbitration_and_emotion_providers",
+    "real_active_call_rustpbx_sip_pstn_media_recording",
+    "recognition_accuracy",
+    "latency",
+    "performance",
+    "capacity",
+    "long_run",
+    "independent_code_review",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_read": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}
