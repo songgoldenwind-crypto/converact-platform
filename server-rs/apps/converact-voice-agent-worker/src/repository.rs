@@ -8,15 +8,37 @@ use crate::{AgentReleaseResource, AttemptResource, AuthenticatedTenant, Campaign
 /// Sanitized durable repository failure.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RepositoryError {
+    kind: RepositoryErrorKind,
     code: &'static str,
+}
+
+/// Closed repository failure classification for HTTP and retry policy.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RepositoryErrorKind {
+    Unavailable,
+    Conflict,
 }
 
 impl RepositoryError {
     #[must_use]
     pub const fn unavailable() -> Self {
         Self {
+            kind: RepositoryErrorKind::Unavailable,
             code: "voice_agent_repository_unavailable",
         }
+    }
+
+    #[must_use]
+    pub const fn conflict() -> Self {
+        Self {
+            kind: RepositoryErrorKind::Conflict,
+            code: "voice_agent_repository_conflict",
+        }
+    }
+
+    #[must_use]
+    pub const fn kind(self) -> RepositoryErrorKind {
+        self.kind
     }
 
     #[must_use]

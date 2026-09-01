@@ -56,6 +56,17 @@ async fn reconcile_requires_idempotency_and_returns_bounded_receipt() {
         .status(),
         202
     );
+    assert_eq!(
+        app.request(
+            Method::POST,
+            "/internal/v1/voice-agent/attempts/attempt-missing/reconcile",
+            Some("tenant-a"),
+            Some("reconcile-attempt-001"),
+        )
+        .await
+        .status(),
+        409
+    );
 }
 
 #[tokio::test]

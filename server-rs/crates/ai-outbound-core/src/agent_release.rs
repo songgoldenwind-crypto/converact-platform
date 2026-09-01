@@ -2,7 +2,7 @@ use std::{error::Error, fmt};
 
 use converact_contracts::canonical_sha256;
 use converact_voice_agent_contracts::{AgentDefinitionId, AgentReleaseId, AgentReleaseState};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 const MAX_AGENT_NAME_BYTES: usize = 200;
 const MAX_LANGUAGE_BYTES: usize = 35;
@@ -78,7 +78,7 @@ impl AgentDraft {
 }
 
 /// Exact component snapshots included in one immutable Agent Release.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ReleaseComponentDigests {
     pub prompt_revision_hash: String,
     pub conversation_flow_revision_hash: String,

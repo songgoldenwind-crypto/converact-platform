@@ -11,8 +11,8 @@ use converact_voice_agent_contracts::{AgentReleaseId, CallAttemptId, CampaignId,
 use serde::Serialize;
 
 use crate::{
-    AdmissionReadiness, AuthenticatedTenant, ShutdownToken, VoiceAgentRepository, WorkerConfig,
-    WorkerResource,
+    AdmissionReadiness, AuthenticatedTenant, RepositoryErrorKind, ShutdownToken,
+    VoiceAgentRepository, WorkerConfig, WorkerResource,
 };
 
 /// Builds authenticated internal inspection routes and dependency-aware health routes.
@@ -133,6 +133,9 @@ async fn reconcile<R: VoiceAgentRepository>(
     {
         Ok(Some(receipt)) => json_response(StatusCode::ACCEPTED, &receipt),
         Ok(None) => error_response(StatusCode::NOT_FOUND, "resource_not_found"),
+        Err(error) if error.kind() == RepositoryErrorKind::Conflict => {
+            error_response(StatusCode::CONFLICT, "idempotency_conflict")
+        }
         Err(_) => error_response(StatusCode::SERVICE_UNAVAILABLE, "repository_unavailable"),
     }
 }

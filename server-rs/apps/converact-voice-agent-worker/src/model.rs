@@ -72,6 +72,7 @@ pub struct Outcome {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PostCallState {
+    NotScheduled,
     Pending,
     Processing,
     ReconcileRequired,
@@ -93,6 +94,7 @@ impl PostCallState {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
+            Self::NotScheduled => "not_scheduled",
             Self::Pending => "pending",
             Self::Processing => "processing",
             Self::ReconcileRequired => "reconcile_required",
@@ -145,6 +147,22 @@ impl AgentReleaseResource {
         }
     }
 
+    pub(crate) fn from_durable(
+        id: String,
+        definition_id: String,
+        state: AgentReleaseState,
+        content_hash: String,
+        components: ReleaseComponentDigests,
+    ) -> Self {
+        Self {
+            id,
+            definition_id,
+            state,
+            content_hash,
+            components,
+        }
+    }
+
     #[must_use]
     pub fn id(&self) -> &str {
         &self.id
@@ -184,6 +202,20 @@ impl CampaignResource {
             release_id: release_id.to_owned(),
             state: campaign.state(),
             active_attempts: campaign.active_attempts(),
+        }
+    }
+
+    pub(crate) fn from_durable(
+        id: String,
+        release_id: String,
+        state: CampaignState,
+        active_attempts: u32,
+    ) -> Self {
+        Self {
+            id,
+            release_id,
+            state,
+            active_attempts,
         }
     }
 
@@ -240,6 +272,33 @@ impl AttemptResource {
             outcome: None,
             retry_state: None,
             retry_reason_code: None,
+        }
+    }
+
+    pub(crate) fn from_durable(
+        id: String,
+        campaign_id: String,
+        release_id: String,
+        state: CallAttemptState,
+        disclosure_completed: bool,
+        finalization: Option<&FinalizationJobProgress>,
+    ) -> Self {
+        let resource = Self {
+            id,
+            campaign_id,
+            release_id,
+            state,
+            disclosure_completed,
+            post_call_state: PostCallState::NotScheduled,
+            post_call_error_code: None,
+            final_transcript_segments: None,
+            outcome: None,
+            retry_state: None,
+            retry_reason_code: None,
+        };
+        match finalization {
+            Some(progress) => resource.with_finalization_progress(progress),
+            None => resource,
         }
     }
 

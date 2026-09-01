@@ -33,6 +33,7 @@ url.workspace = true
 
 [dev-dependencies]
 rustls.workspace = true
+tokio-postgres.workspace = true
 tower.workspace = true
 
 [lints]

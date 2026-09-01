@@ -455,6 +455,17 @@ impl VoiceAgentRepository for InMemoryRepository {
         idempotency_key: &IdempotencyKey,
     ) -> Result<Option<ReconcileReceipt>, RepositoryError> {
         let mut state = self.state.lock().unwrap();
+        if state
+            .reconciliations
+            .iter()
+            .any(|(stored_tenant, stored_attempt, stored_key)| {
+                stored_tenant == tenant.as_str()
+                    && stored_key == idempotency_key.as_str()
+                    && stored_attempt != attempt_id
+            })
+        {
+            return Err(RepositoryError::conflict());
+        }
         if !state
             .attempts
             .contains_key(&(tenant.as_str().to_owned(), attempt_id.to_owned()))

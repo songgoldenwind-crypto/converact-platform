@@ -39,6 +39,7 @@ mod model_provider_pool;
 mod multimodal_emotion_runtime;
 mod post_call_finalization;
 mod post_call_finalization_postgres;
+mod postgres_repository;
 mod repository;
 mod result_generation;
 mod safety_intent_provider;
@@ -170,7 +171,10 @@ pub use post_call_finalization::{
     ConversationFinalizationWorker, FinalizationBatchProgress, FinalizationProjectionPort,
     FinalizationProjectionProgress, FinalizationQueuePort, FinalizationWorkerError,
 };
-pub use repository::{ReconcileReceipt, RepositoryError, VoiceAgentRepository};
+pub use postgres_repository::PostgresVoiceAgentRepository;
+pub use repository::{
+    ReconcileReceipt, RepositoryError, RepositoryErrorKind, VoiceAgentRepository,
+};
 pub use result_generation::ResultGenerationEvidence;
 pub use safety_intent_provider::{
     SafetyIntentMatchKind, SafetyIntentProvider, SafetyIntentProviderError, SafetyIntentRuleInput,

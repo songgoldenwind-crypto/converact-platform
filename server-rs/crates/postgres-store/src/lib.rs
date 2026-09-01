@@ -17,6 +17,7 @@ mod handoff;
 mod post_call_finalization;
 mod release_artifact;
 mod tool_action;
+mod voice_agent;
 
 pub use active_call_event::{
     PostgresActiveCallEventAppendDecision, PostgresActiveCallEventReconcileReason,
@@ -46,6 +47,10 @@ pub use release_artifact::{
     PostgresActiveCallArtifactStoreConfig, PostgresActiveCallArtifactStoreError,
 };
 pub use tool_action::PostgresToolActionStore;
+pub use voice_agent::{
+    PostgresReconcileRequestDecision, PostgresVoiceAgentStore, PostgresVoiceAgentStoreError,
+    StoredVoiceAgentAttempt, StoredVoiceAgentCampaign, StoredVoiceAgentRelease,
+};
 
 const MAX_CONNECTIONS: usize = 256;
 const MAX_WAITERS: usize = 1_024;

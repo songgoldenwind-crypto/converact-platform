@@ -7,11 +7,12 @@ use converact_ai_outbound_store::{AiOutboundStore, AttemptLease, AttemptLeaseInp
 use converact_kernel_ids::TenantId;
 use converact_post_call_finalization_store::{FinalizationSqlStore, FinalizationStoreConfig};
 use converact_postgres_store::{
-    PostgresLeasedAttemptStore, PostgresRuntime, PostgresRuntimeLimits, PostgresRuntimeSettings,
+    PostgresLeasedAttemptStore, PostgresReconcileRequestDecision, PostgresRuntime,
+    PostgresRuntimeLimits, PostgresRuntimeSettings, PostgresVoiceAgentStore,
 };
 use converact_voice_agent_contracts::{
     AgentReleaseId, AttemptCommand, CallAttemptId, CallId, CampaignId, ChannelAgentSessionId,
-    ExecutionGeneration,
+    ExecutionGeneration, IdempotencyKey,
 };
 use tokio_postgres::NoTls;
 
@@ -60,6 +61,8 @@ async fn terminal_attempt_and_post_call_job_commit_or_roll_back_together() {
     assert_eq!(committed.get::<_, i64>(5), 1);
 
     seed_attempt(&admin, "attempt-002", "lease-b").await;
+    assert_repository_queries(Arc::clone(&runtime)).await;
+
     admin
         .batch_execute("DROP TABLE converact_post_call_finalization_receipts")
         .await
@@ -84,6 +87,79 @@ async fn terminal_attempt_and_post_call_job_commit_or_roll_back_together() {
     assert_eq!(rolled_back.get::<_, &str>(0), "conversing");
     assert_eq!(rolled_back.get::<_, i64>(1), 10);
     assert_eq!(rolled_back.get::<_, i64>(2), 0);
+}
+
+async fn assert_repository_queries(runtime: Arc<PostgresRuntime>) {
+    let queries = PostgresVoiceAgentStore::new(
+        runtime,
+        FinalizationSqlStore::new(FinalizationStoreConfig::new(30_000, 16).unwrap()),
+    );
+    let tenant = TenantId::parse("tenant-a").unwrap();
+    let release = queries
+        .load_release(&tenant, &AgentReleaseId::parse("release-001").unwrap())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(release.definition_id().as_str(), "definition-001");
+    let campaign = queries
+        .load_campaign(&tenant, &CampaignId::parse("campaign-001").unwrap())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(campaign.state().as_str(), "running");
+    let attempt = queries
+        .load_attempt(&tenant, &CallAttemptId::parse("attempt-001").unwrap())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(attempt.state().as_str(), "completed");
+    assert_eq!(attempt.finalization().unwrap().state().as_str(), "pending");
+    let reconcile_key = IdempotencyKey::parse("reconcile-attempt-001").unwrap();
+    assert_eq!(
+        queries
+            .request_reconcile(
+                &tenant,
+                &CallAttemptId::parse("attempt-001").unwrap(),
+                &reconcile_key,
+            )
+            .await
+            .unwrap(),
+        Some(PostgresReconcileRequestDecision::Created)
+    );
+    assert_eq!(
+        queries
+            .request_reconcile(
+                &tenant,
+                &CallAttemptId::parse("attempt-001").unwrap(),
+                &reconcile_key,
+            )
+            .await
+            .unwrap(),
+        Some(PostgresReconcileRequestDecision::Replayed)
+    );
+    assert_eq!(
+        queries
+            .request_reconcile(
+                &tenant,
+                &CallAttemptId::parse("attempt-missing").unwrap(),
+                &IdempotencyKey::parse("reconcile-missing").unwrap(),
+            )
+            .await
+            .unwrap(),
+        None
+    );
+    assert_eq!(
+        queries
+            .request_reconcile(
+                &tenant,
+                &CallAttemptId::parse("attempt-002").unwrap(),
+                &reconcile_key,
+            )
+            .await
+            .unwrap_err()
+            .code(),
+        "voice_agent_reconcile_conflict"
+    );
 }
 
 fn leased_store(
@@ -191,6 +267,7 @@ async fn install_schema(admin: &tokio_postgres::Client) {
         include_str!("../../../../src/migrations/129_post_call_recovery_reason.sql"),
         include_str!("../../../../src/migrations/131_converact_outbound_dial_policy.sql"),
         include_str!("../../../../src/migrations/132_converact_outbound_attempt_recovery.sql"),
+        include_str!("../../../../src/migrations/138_converact_outbound_reconcile_requests.sql"),
     ] {
         admin.batch_execute(migration).await.unwrap();
     }
@@ -200,7 +277,16 @@ async fn install_schema(admin: &tokio_postgres::Client) {
                tenant_id, id, definition_id, state, name, language, content_hash, components
              ) VALUES (
                'tenant-a', 'release-001', 'definition-001', 'published', 'Test', 'zh-CN',
-               repeat('1', 64), '{}'::jsonb
+               repeat('1', 64), jsonb_build_object(
+                 'prompt_revision_hash', repeat('1', 64),
+                 'conversation_flow_revision_hash', repeat('2', 64),
+                 'knowledge_revision_hash', repeat('3', 64),
+                 'tool_schema_hash', repeat('4', 64),
+                 'speech_profile_hash', repeat('5', 64),
+                 'compliance_policy_hash', repeat('6', 64),
+                 'outcome_schema_hash', repeat('7', 64),
+                 'evaluation_rubric_hash', repeat('8', 64)
+               )
              );
              INSERT INTO converact_outbound_dial_policy_revisions (
                tenant_id, id, content_hash, timeout_secs

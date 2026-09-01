@@ -3593,6 +3593,27 @@ CREATE INDEX IF NOT EXISTS idx_converact_post_call_finalization_claim
   ON converact_post_call_finalization_jobs (tenant_id, enqueued_at, job_id)
   WHERE state IN ('pending', 'claimed', 'reconcile_required');
 
+CREATE TABLE IF NOT EXISTS converact_outbound_reconcile_requests (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  idempotency_key TEXT NOT NULL,
+  call_attempt_id TEXT NOT NULL,
+  request_hash TEXT NOT NULL CHECK (
+    length(request_hash) = 64 AND request_hash NOT GLOB '*[^0-9a-f]*'
+  ),
+  state TEXT NOT NULL DEFAULT 'pending' CHECK (
+    state IN ('pending', 'processing', 'completed', 'reconcile_required')
+  ),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, idempotency_key),
+  FOREIGN KEY (tenant_id, call_attempt_id)
+    REFERENCES converact_outbound_call_attempts(tenant_id, id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_converact_outbound_reconcile_pending
+  ON converact_outbound_reconcile_requests (tenant_id, created_at, idempotency_key)
+  WHERE state IN ('pending', 'reconcile_required');
+
 -- ===== Converact durable conversation understanding (SQLite development mirror) =====
 
 CREATE TABLE IF NOT EXISTS converact_conversation_understanding_records (
