@@ -21,7 +21,10 @@ use converact_rustpbx_rwi_adapter::{
 use serde::Deserialize;
 use url::Url;
 
-use crate::{ActiveCallChannelAgentConfig, ClaimLoopConfig, WorkerConfig, WorkerConfigError};
+use crate::{
+    ActiveCallChannelAgentConfig, ActiveCallSessionSupervisorConfig, ClaimLoopConfig, WorkerConfig,
+    WorkerConfigError,
+};
 
 const CONFIG_SCHEMA_VERSION: u8 = 1;
 const MAX_CONFIG_BYTES: usize = 64 * 1_024;
@@ -123,6 +126,7 @@ pub struct ActiveCallRuntimeConfig {
     artifact: PostgresActiveCallArtifactStoreConfig,
     compiler_revision: Box<str>,
     channel_agent: ActiveCallChannelAgentConfig,
+    session_supervisor: ActiveCallSessionSupervisorConfig,
 }
 
 impl ActiveCallRuntimeConfig {
@@ -144,6 +148,11 @@ impl ActiveCallRuntimeConfig {
     #[must_use]
     pub fn channel_agent_config(&self) -> ActiveCallChannelAgentConfig {
         self.channel_agent.clone()
+    }
+
+    #[must_use]
+    pub const fn session_supervisor_config(&self) -> ActiveCallSessionSupervisorConfig {
+        self.session_supervisor
     }
 }
 
@@ -420,6 +429,8 @@ struct ActiveCallDocument {
     compiler_revision: String,
     disclosure: String,
     max_sessions: usize,
+    lease_renew_interval_ms: u64,
+    event_reconnect_delay_ms: u64,
 }
 
 #[derive(Deserialize)]
@@ -487,11 +498,17 @@ fn parse_active_call(
         .map_err(|_| VoiceAgentRuntimeConfigError::InvalidActiveCall)?;
     let channel_agent = ActiveCallChannelAgentConfig::new(&raw.disclosure, raw.max_sessions)
         .map_err(|_| VoiceAgentRuntimeConfigError::InvalidActiveCall)?;
+    let session_supervisor = ActiveCallSessionSupervisorConfig::new(
+        millis(raw.lease_renew_interval_ms),
+        millis(raw.event_reconnect_delay_ms),
+    )
+    .map_err(|_| VoiceAgentRuntimeConfigError::InvalidActiveCall)?;
     Ok(ActiveCallRuntimeConfig {
         client,
         artifact,
         compiler_revision: raw.compiler_revision.into(),
         channel_agent,
+        session_supervisor,
     })
 }
 

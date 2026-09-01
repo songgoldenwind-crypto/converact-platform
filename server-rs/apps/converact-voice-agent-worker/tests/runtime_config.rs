@@ -1,6 +1,8 @@
 use std::{net::SocketAddr, path::Path, time::Duration};
 
-use converact_voice_agent_worker::{VoiceAgentRuntimeConfig, VoiceAgentRuntimeConfigError};
+use converact_voice_agent_worker::{
+    ActiveCallSessionSupervisorConfig, VoiceAgentRuntimeConfig, VoiceAgentRuntimeConfigError,
+};
 
 #[test]
 fn strict_document_builds_only_bounded_non_secret_runtime_values() {
@@ -19,6 +21,14 @@ fn strict_document_builds_only_bounded_non_secret_runtime_values() {
         Duration::from_millis(250)
     );
     assert_eq!(config.shutdown_timeout(), Duration::from_secs(10));
+    assert_eq!(
+        config.active_call().session_supervisor_config(),
+        ActiveCallSessionSupervisorConfig::new(
+            Duration::from_secs(10),
+            Duration::from_millis(250),
+        )
+        .unwrap()
+    );
     assert_eq!(
         config.database_url_environment(),
         "CONVERACT_TEST_DATABASE_URL"
@@ -116,7 +126,9 @@ fn valid_document() -> String {
             "max_response_bytes": 262_144,
             "compiler_revision": "active-call-compiler-r1",
             "disclosure": "您好，本次由AI助理为您服务。",
-            "max_sessions": 10_000
+            "max_sessions": 10_000,
+            "lease_renew_interval_ms": 10_000,
+            "event_reconnect_delay_ms": 250
         },
         "rustpbx": {
             "endpoint": "ws://127.0.0.1:8080/rwi/v1",
