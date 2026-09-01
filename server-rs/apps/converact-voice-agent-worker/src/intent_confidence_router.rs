@@ -13,8 +13,48 @@ use serde_json::json;
 
 use crate::{FastIntentClassifierPort, FastIntentClassifierProvider, SafetyIntentProvider};
 
-const ROUTER_REVISION: &str = "intent-confidence-router-v1";
+const ROUTER_REVISION: &str = "intent-confidence-router-v2";
 const MAX_CONTRIBUTORS: usize = 3;
+
+/// Closed, durable reason that one turn selected its final Intent checkpoint.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IntentResolutionPath {
+    SafetyShortCircuit,
+    FastConfirmed,
+    ContextualSelected,
+    FastFallback,
+}
+
+impl IntentResolutionPath {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::SafetyShortCircuit => "safety_short_circuit",
+            Self::FastConfirmed => "fast_confirmed",
+            Self::ContextualSelected => "contextual_selected",
+            Self::FastFallback => "fast_fallback",
+        }
+    }
+}
+
+/// Closed reason for deliberately closing a pending turn with its Fast evidence.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IntentFallbackReason {
+    ExplicitCaller,
+    ContextualUnavailable,
+    ContextualTimedOut,
+}
+
+impl IntentFallbackReason {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ExplicitCaller => "explicit_caller",
+            Self::ContextualUnavailable => "contextual_classifier_unavailable",
+            Self::ContextualTimedOut => "contextual_classifier_timed_out",
+        }
+    }
+}
 
 /// Stable Router failure without transcript, candidate or Slot content.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -57,6 +97,8 @@ pub struct IntentTurnResolution {
     checkpoint: IntentCheckpoint,
     contributors: Box<[IntentObservation]>,
     policy: IntentDecisionPolicy,
+    path: IntentResolutionPath,
+    fallback_reason: Option<IntentFallbackReason>,
     resolution_hash: Box<str>,
 }
 
@@ -65,7 +107,12 @@ impl IntentTurnResolution {
         checkpoint: IntentCheckpoint,
         mut contributors: Vec<IntentObservation>,
         policy: IntentDecisionPolicy,
+        path: IntentResolutionPath,
+        fallback_reason: Option<IntentFallbackReason>,
     ) -> Result<Self, IntentConfidenceRouterError> {
+        if (path == IntentResolutionPath::FastFallback) != fallback_reason.is_some() {
+            return Err(IntentConfidenceRouterError::ResolutionInvalid);
+        }
         if contributors.is_empty() || contributors.len() > MAX_CONTRIBUTORS {
             return Err(IntentConfidenceRouterError::ResolutionInvalid);
         }
@@ -96,6 +143,8 @@ impl IntentTurnResolution {
             .collect();
         let resolution_hash = canonical_sha256(&json!({
             "router_revision": ROUTER_REVISION,
+            "resolution_path": path.as_str(),
+            "fallback_reason": fallback_reason.map(IntentFallbackReason::as_str),
             "selected_observation_hash": selected.payload_hash(),
             "contributor_hashes": contributor_hashes,
             "policy": {
@@ -111,6 +160,8 @@ impl IntentTurnResolution {
             checkpoint,
             contributors: contributors.into(),
             policy,
+            path,
+            fallback_reason,
             resolution_hash: resolution_hash.into(),
         })
     }
@@ -150,6 +201,16 @@ impl IntentTurnResolution {
         self.policy
     }
 
+    #[must_use]
+    pub const fn path(&self) -> IntentResolutionPath {
+        self.path
+    }
+
+    #[must_use]
+    pub const fn fallback_reason(&self) -> Option<IntentFallbackReason> {
+        self.fallback_reason
+    }
+
     /// Encodes every raw Provider contribution followed by the immutable Router resolution.
     ///
     /// # Errors
@@ -176,9 +237,11 @@ impl IntentTurnResolution {
         }
         let selected = self.checkpoint.observation();
         let payload = json!({
-            "resolution_schema_version": 1,
+            "resolution_schema_version": 2,
             "router_revision": ROUTER_REVISION,
             "resolution_hash": self.resolution_hash,
+            "resolution_path": self.path.as_str(),
+            "fallback_reason": self.fallback_reason.map(IntentFallbackReason::as_str),
             "selected_observation_hash": selected.payload_hash(),
             "selected_source": selected.source(),
             "selected_checkpoint": self.checkpoint.to_value(),
@@ -243,6 +306,8 @@ impl fmt::Debug for IntentTurnResolution {
         formatter
             .debug_struct("IntentTurnResolution")
             .field("selected_source", &self.selected_source())
+            .field("path", &self.path)
+            .field("fallback_reason", &self.fallback_reason)
             .field("contributor_count", &self.contributors.len())
             .field("resolution_hash", &self.resolution_hash)
             .finish_non_exhaustive()
@@ -293,6 +358,8 @@ impl PendingIntentTurn {
             checkpoint,
             vec![self.fast_observation, contextual],
             self.policy,
+            IntentResolutionPath::ContextualSelected,
+            None,
         )
     }
 
@@ -302,13 +369,31 @@ impl PendingIntentTurn {
     ///
     /// Rejects a stale or mismatched original state.
     pub fn fallback(self) -> Result<IntentTurnResolution, IntentConfidenceRouterError> {
+        self.fallback_with_reason(IntentFallbackReason::ExplicitCaller)
+    }
+
+    /// Closes the pending turn and binds the exact fallback cause into durable evidence.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a stale or mismatched original state.
+    pub fn fallback_with_reason(
+        self,
+        reason: IntentFallbackReason,
+    ) -> Result<IntentTurnResolution, IntentConfidenceRouterError> {
         let state = self
             .previous
             .observe(&self.fast_observation, &self.catalog, self.policy)
             .map_err(|_| IntentConfidenceRouterError::StateTransitionInvalid)?;
         let checkpoint = IntentCheckpoint::try_new(self.fast_observation.clone(), state)
             .map_err(|_| IntentConfidenceRouterError::StateTransitionInvalid)?;
-        IntentTurnResolution::try_new(checkpoint, vec![self.fast_observation], self.policy)
+        IntentTurnResolution::try_new(
+            checkpoint,
+            vec![self.fast_observation],
+            self.policy,
+            IntentResolutionPath::FastFallback,
+            Some(reason),
+        )
     }
 }
 
@@ -391,9 +476,15 @@ where
                 .map_err(|_| IntentConfidenceRouterError::StateTransitionInvalid)?;
             let checkpoint = IntentCheckpoint::try_new(observation.clone(), state)
                 .map_err(|_| IntentConfidenceRouterError::StateTransitionInvalid)?;
-            return IntentTurnResolution::try_new(checkpoint, vec![observation], policy)
-                .map(IntentTurnRoute::Resolved)
-                .map(Some);
+            return IntentTurnResolution::try_new(
+                checkpoint,
+                vec![observation],
+                policy,
+                IntentResolutionPath::SafetyShortCircuit,
+                None,
+            )
+            .map(IntentTurnRoute::Resolved)
+            .map(Some);
         }
         let Some(observation) = self
             .fast
@@ -412,9 +503,15 @@ where
         ) {
             let checkpoint = IntentCheckpoint::try_new(observation.clone(), preview)
                 .map_err(|_| IntentConfidenceRouterError::StateTransitionInvalid)?;
-            IntentTurnResolution::try_new(checkpoint, vec![observation], policy)
-                .map(IntentTurnRoute::Resolved)
-                .map(Some)
+            IntentTurnResolution::try_new(
+                checkpoint,
+                vec![observation],
+                policy,
+                IntentResolutionPath::FastConfirmed,
+                None,
+            )
+            .map(IntentTurnRoute::Resolved)
+            .map(Some)
         } else {
             Ok(Some(IntentTurnRoute::ContextualRequired(
                 PendingIntentTurn {

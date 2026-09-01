@@ -25,6 +25,7 @@ mod fast_intent_classifier;
 mod handoff_runtime;
 mod http;
 mod intent_confidence_router;
+mod layered_intent_runtime;
 mod lifecycle;
 mod model;
 mod post_call_finalization;
@@ -101,8 +102,11 @@ pub use handoff_runtime::{
 };
 pub use http::router;
 pub use intent_confidence_router::{
-    IntentConfidenceRouter, IntentConfidenceRouterError, IntentTurnResolution, IntentTurnRoute,
-    PendingIntentTurn,
+    IntentConfidenceRouter, IntentConfidenceRouterError, IntentFallbackReason,
+    IntentResolutionPath, IntentTurnResolution, IntentTurnRoute, PendingIntentTurn,
+};
+pub use layered_intent_runtime::{
+    ContextualFailurePolicy, LayeredIntentRuntime, LayeredIntentRuntimeError,
 };
 pub use lifecycle::{AdmissionReadiness, ShutdownToken, WorkerConfig, WorkerConfigError};
 pub use model::{

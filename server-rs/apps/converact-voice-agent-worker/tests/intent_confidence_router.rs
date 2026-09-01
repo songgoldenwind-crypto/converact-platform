@@ -1,8 +1,8 @@
-use std::collections::BTreeMap;
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
 };
+use std::{collections::BTreeMap, future};
 
 use converact_conversation_result_core::{
     TranscriptSegment, TranscriptSegmentInput, TranscriptSpeaker,
@@ -18,11 +18,15 @@ use converact_voice_agent_contracts::{
     IntentObservationId, InteractionId, TranscriptSegmentId, VOICE_AGENT_SCHEMA_VERSION,
 };
 use converact_voice_agent_worker::{
-    FastIntentCandidateOutput, FastIntentClassifierArtifactInput, FastIntentClassifierOutput,
-    FastIntentClassifierPort, FastIntentClassifierPortError, FastIntentClassifierProvider,
-    FastIntentClassifierRequest, IntentConfidenceRouter, IntentConfidenceRouterError,
-    IntentTurnRoute, SafetyIntentMatchKind, SafetyIntentProvider, SafetyIntentRuleInput,
-    SafetyIntentRuleSetInput,
+    ContextualFailurePolicy, ContextualIntentArtifactInput, ContextualIntentCandidateOutput,
+    ContextualIntentClassifierOutput, ContextualIntentClassifierPort,
+    ContextualIntentClassifierPortError, ContextualIntentClassifierProvider,
+    ContextualIntentClassifierRequest, FastIntentCandidateOutput,
+    FastIntentClassifierArtifactInput, FastIntentClassifierOutput, FastIntentClassifierPort,
+    FastIntentClassifierPortError, FastIntentClassifierProvider, FastIntentClassifierRequest,
+    IntentConfidenceRouter, IntentConfidenceRouterError, IntentFallbackReason,
+    IntentResolutionPath, IntentTurnRoute, LayeredIntentRuntime, LayeredIntentRuntimeError,
+    SafetyIntentMatchKind, SafetyIntentProvider, SafetyIntentRuleInput, SafetyIntentRuleSetInput,
 };
 
 #[tokio::test]
@@ -52,6 +56,8 @@ async fn safety_match_short_circuits_fast_classifier_and_advances_once() {
 
     assert_eq!(calls.load(Ordering::SeqCst), 0);
     assert_eq!(resolution.selected_source(), IntentSource::SafetyRule);
+    assert_eq!(resolution.path(), IntentResolutionPath::SafetyShortCircuit);
+    assert_eq!(resolution.fallback_reason(), None);
     assert_eq!(resolution.contributor_count(), 1);
     assert_eq!(
         resolution.checkpoint().state().status(),
@@ -89,6 +95,7 @@ async fn confirmed_fast_result_closes_without_contextual_route() {
 
     assert_eq!(calls.load(Ordering::SeqCst), 1);
     assert_eq!(resolution.selected_source(), IntentSource::FastClassifier);
+    assert_eq!(resolution.path(), IntentResolutionPath::FastConfirmed);
     assert_eq!(resolution.contributor_count(), 1);
     assert_eq!(
         resolution.checkpoint().state().status(),
@@ -130,6 +137,7 @@ async fn ambiguous_fast_result_waits_and_contextual_result_advances_original_sta
         ))
         .unwrap();
     assert_eq!(resolution.selected_source(), IntentSource::ContextualLlm);
+    assert_eq!(resolution.path(), IntentResolutionPath::ContextualSelected);
     assert_eq!(resolution.contributor_count(), 2);
     assert_eq!(
         resolution.checkpoint().state().status(),
@@ -199,6 +207,11 @@ async fn explicit_fast_fallback_and_contextual_evidence_mismatch_are_fail_closed
     );
     let fallback = fallback_pending.fallback().unwrap();
     assert_eq!(fallback.selected_source(), IntentSource::FastClassifier);
+    assert_eq!(fallback.path(), IntentResolutionPath::FastFallback);
+    assert_eq!(
+        fallback.fallback_reason(),
+        Some(IntentFallbackReason::ExplicitCaller)
+    );
     assert_eq!(
         fallback.checkpoint().state().status(),
         IntentStatus::ClarificationRequired
@@ -226,6 +239,127 @@ async fn explicit_fast_fallback_and_contextual_evidence_mismatch_are_fail_closed
             ))
             .unwrap_err(),
         IntentConfidenceRouterError::ContextualEvidenceMismatch,
+    );
+}
+
+#[tokio::test]
+async fn layered_runtime_resolves_contextual_on_the_same_durable_history() {
+    let catalog = catalog();
+    let fast_calls = Arc::new(AtomicUsize::new(0));
+    let contextual_calls = Arc::new(AtomicUsize::new(0));
+    let safety = safety_provider(&catalog);
+    let fast = fast_provider(
+        &catalog,
+        FakeClassifier::new(
+            &fast_calls,
+            &[("sales.interested", 8_900), ("callback.later", 8_000)],
+        ),
+    );
+    let contextual = contextual_provider(
+        &catalog,
+        FakeContextual::selected(&contextual_calls, "callback.later"),
+    );
+    let runtime = LayeredIntentRuntime::new(
+        &safety,
+        &fast,
+        &contextual,
+        ContextualFailurePolicy::FailClosed,
+    );
+    let history = layered_history("我有点兴趣，不过还是晚点再说");
+
+    let resolution = runtime
+        .resolve(&history, 1, &initial(&catalog), policy())
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(fast_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(contextual_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(resolution.path(), IntentResolutionPath::ContextualSelected);
+    assert_eq!(resolution.selected_source(), IntentSource::ContextualLlm);
+    assert_eq!(
+        resolution.checkpoint().state().primary_intent(),
+        Some("callback.later")
+    );
+    assert_eq!(resolution.contributor_count(), 2);
+}
+
+#[tokio::test]
+async fn layered_runtime_falls_back_only_for_transient_contextual_failure() {
+    let catalog = catalog();
+    let fast_calls = Arc::new(AtomicUsize::new(0));
+    let contextual_calls = Arc::new(AtomicUsize::new(0));
+    let safety = safety_provider(&catalog);
+    let fast = fast_provider(
+        &catalog,
+        FakeClassifier::new(
+            &fast_calls,
+            &[("sales.interested", 8_900), ("callback.later", 8_000)],
+        ),
+    );
+    let contextual = contextual_provider(&catalog, FakeContextual::unavailable(&contextual_calls));
+    let runtime = LayeredIntentRuntime::new(
+        &safety,
+        &fast,
+        &contextual,
+        ContextualFailurePolicy::FallbackFastOnTransient,
+    );
+    let history = layered_history("我再想想");
+
+    let resolution = runtime
+        .resolve(&history, 1, &initial(&catalog), policy())
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(resolution.path(), IntentResolutionPath::FastFallback);
+    assert_eq!(
+        resolution.fallback_reason(),
+        Some(IntentFallbackReason::ContextualUnavailable)
+    );
+    let evidence = resolution
+        .encode_evidence_records("understanding-30-days-v1", 2_592_003_001)
+        .unwrap();
+    let payload = evidence.last().unwrap().payload();
+    assert_eq!(payload["resolution_path"], "fast_fallback");
+    assert_eq!(
+        payload["fallback_reason"],
+        "contextual_classifier_unavailable"
+    );
+
+    let drifted = contextual_provider(
+        &catalog,
+        FakeContextual::drifted(&contextual_calls, "callback.later"),
+    );
+    let fail_closed = LayeredIntentRuntime::new(
+        &safety,
+        &fast,
+        &drifted,
+        ContextualFailurePolicy::FallbackFastOnTransient,
+    );
+    assert_eq!(
+        fail_closed
+            .resolve(&history, 1, &initial(&catalog), policy())
+            .await
+            .unwrap_err(),
+        LayeredIntentRuntimeError::ContextualProvider,
+    );
+
+    let timed_out =
+        contextual_provider_with_deadline(&catalog, FakeContextual::pending(&contextual_calls), 1);
+    let timed_fallback = LayeredIntentRuntime::new(
+        &safety,
+        &fast,
+        &timed_out,
+        ContextualFailurePolicy::FallbackFastOnTransient,
+    )
+    .resolve(&history, 1, &initial(&catalog), policy())
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        timed_fallback.fallback_reason(),
+        Some(IntentFallbackReason::ContextualTimedOut)
     );
 }
 
@@ -272,6 +406,81 @@ impl FastIntentClassifierPort for FakeClassifier {
                     confidence_bps: *score,
                 })
                 .collect(),
+        })
+    }
+}
+
+#[derive(Clone)]
+enum ContextualMode {
+    Selected(String),
+    Unavailable,
+    Drifted(String),
+    Pending,
+}
+
+#[derive(Clone)]
+struct FakeContextual {
+    calls: Arc<AtomicUsize>,
+    mode: Arc<ContextualMode>,
+}
+
+impl FakeContextual {
+    fn selected(calls: &Arc<AtomicUsize>, intent: &str) -> Self {
+        Self {
+            calls: Arc::clone(calls),
+            mode: Arc::new(ContextualMode::Selected(intent.to_owned())),
+        }
+    }
+
+    fn unavailable(calls: &Arc<AtomicUsize>) -> Self {
+        Self {
+            calls: Arc::clone(calls),
+            mode: Arc::new(ContextualMode::Unavailable),
+        }
+    }
+
+    fn drifted(calls: &Arc<AtomicUsize>, intent: &str) -> Self {
+        Self {
+            calls: Arc::clone(calls),
+            mode: Arc::new(ContextualMode::Drifted(intent.to_owned())),
+        }
+    }
+
+    fn pending(calls: &Arc<AtomicUsize>) -> Self {
+        Self {
+            calls: Arc::clone(calls),
+            mode: Arc::new(ContextualMode::Pending),
+        }
+    }
+}
+
+impl ContextualIntentClassifierPort for FakeContextual {
+    async fn classify<'a>(
+        &'a self,
+        request: ContextualIntentClassifierRequest<'a>,
+    ) -> Result<ContextualIntentClassifierOutput, ContextualIntentClassifierPortError> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        let (intent, drifted) = match self.mode.as_ref() {
+            ContextualMode::Selected(intent) => (intent, false),
+            ContextualMode::Drifted(intent) => (intent, true),
+            ContextualMode::Unavailable => {
+                return Err(ContextualIntentClassifierPortError::new(
+                    "fake_contextual_unavailable",
+                ));
+            }
+            ContextualMode::Pending => future::pending().await,
+        };
+        Ok(ContextualIntentClassifierOutput {
+            served_artifact_revision: if drifted {
+                "contextual-intent.drifted".to_owned()
+            } else {
+                request.artifact_revision().to_owned()
+            },
+            candidates: vec![ContextualIntentCandidateOutput {
+                code: intent.clone(),
+                confidence_bps: 9_300,
+            }],
+            slots: BTreeMap::new(),
         })
     }
 }
@@ -347,6 +556,40 @@ fn fast_provider(
     .unwrap()
 }
 
+fn contextual_provider(
+    catalog: &IntentCatalog,
+    port: FakeContextual,
+) -> ContextualIntentClassifierProvider<FakeContextual> {
+    contextual_provider_with_deadline(catalog, port, 100)
+}
+
+fn contextual_provider_with_deadline(
+    catalog: &IntentCatalog,
+    port: FakeContextual,
+    inference_deadline_ms: u64,
+) -> ContextualIntentClassifierProvider<FakeContextual> {
+    ContextualIntentClassifierProvider::try_new(
+        ContextualIntentArtifactInput {
+            agent_release_id: AgentReleaseId::parse("release-001").unwrap(),
+            intent_catalog_revision_id: catalog.id().clone(),
+            model_profile_sha256: "5".repeat(64),
+            prompt_template_sha256: "6".repeat(64),
+            label_map_sha256: "7".repeat(64),
+            output_schema_sha256: "8".repeat(64),
+            calibration_sha256: "9".repeat(64),
+            supported_languages: vec!["zh-CN".to_owned()],
+            max_context_segments: 16,
+            max_context_bytes: 32_768,
+            max_candidates: 5,
+            max_slots: 16,
+            inference_deadline_ms,
+        },
+        catalog,
+        port,
+    )
+    .unwrap()
+}
+
 fn initial(catalog: &IntentCatalog) -> IntentState {
     IntentState::new(context(), catalog.id().clone())
 }
@@ -386,6 +629,34 @@ fn definition(
 
 fn segment(text: &str) -> TranscriptSegment {
     TranscriptSegment::try_new(segment_input(text)).unwrap()
+}
+
+fn layered_history(current_text: &str) -> Vec<TranscriptSegment> {
+    vec![
+        TranscriptSegment::try_new(TranscriptSegmentInput {
+            id: TranscriptSegmentId::parse("segment-ai-prior").unwrap(),
+            source_event_id: EventId::parse("event-ai-prior").unwrap(),
+            sequence: 1,
+            speaker: TranscriptSpeaker::AiAgent,
+            text: "您希望什么时候再联系？".to_owned(),
+            start_offset_ms: 100,
+            end_offset_ms: 900,
+            observed_at_ms: 1_000,
+            ..segment_input("unused")
+        })
+        .unwrap(),
+        TranscriptSegment::try_new(TranscriptSegmentInput {
+            id: TranscriptSegmentId::parse("segment-customer-current").unwrap(),
+            source_event_id: EventId::parse("event-customer-current").unwrap(),
+            sequence: 2,
+            text: current_text.to_owned(),
+            start_offset_ms: 1_100,
+            end_offset_ms: 1_900,
+            observed_at_ms: 2_000,
+            ..segment_input("unused")
+        })
+        .unwrap(),
+    ]
 }
 
 fn segment_input(text: &str) -> TranscriptSegmentInput {
