@@ -19,6 +19,7 @@ use converact_voice_agent_contracts::{
     InteractionId, TranscriptSegmentId, VOICE_AGENT_SCHEMA_VERSION,
 };
 use converact_voice_agent_worker::{
+    ModelProviderPool, ModelProviderPoolConfig, PooledModelProviderPort,
     TextEmotionCandidateOutput, TextEmotionClassifierArtifactInput, TextEmotionClassifierOutput,
     TextEmotionClassifierPort, TextEmotionClassifierPortError, TextEmotionClassifierProvider,
     TextEmotionClassifierProviderError, TextEmotionClassifierRequest, TextEmotionTurnRuntime,
@@ -268,8 +269,18 @@ impl TextEmotionClassifierPort for FakeClassifier {
 fn provider(
     catalog: &EmotionCatalog,
     port: FakeClassifier,
-) -> TextEmotionClassifierProvider<FakeClassifier> {
-    TextEmotionClassifierProvider::try_new(artifact(100), catalog, port).unwrap()
+) -> TextEmotionClassifierProvider<PooledModelProviderPort<FakeClassifier>> {
+    let pool = ModelProviderPool::try_new(
+        vec![port],
+        ModelProviderPoolConfig::try_new(1, 0, 10).unwrap(),
+    )
+    .unwrap();
+    TextEmotionClassifierProvider::try_new(
+        artifact(100),
+        catalog,
+        PooledModelProviderPort::new(Arc::new(pool)),
+    )
+    .unwrap()
 }
 
 fn artifact(deadline_ms: u64) -> TextEmotionClassifierArtifactInput {

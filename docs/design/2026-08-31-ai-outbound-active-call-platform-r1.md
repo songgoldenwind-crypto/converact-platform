@@ -121,7 +121,7 @@ Kamailio / Trunk / PSTN
 | Tool/Action | Rust Proposal/Policy/Approval/Broker/Receipt、持久化 Adapter、Active Call Worker 桥接及通用查询/变更 Adapter 已通过本地受控测试 | 接入真实 Provider | controlled slice passed；real provider/physical PostgreSQL `not_run` |
 | AI/人工协作 | Rust Handoff Core/Store/Worker 的 commit/abort/replay/unknown-query 和具体 Active Call 私有进程端口已通过本地受控/loopback 测试 | 接入真实人席、RustPBX 媒体切换与 Active Call | physical integration/production `not_run` |
 | Transcript/Outcome/QM | Rust final transcript/snapshot/result/evaluation/Bad Case、durable reconcile、权限化查询 API，以及 Active Call intent 候选到精确 Release OutcomeSchema/结果证据的投影已通过本地受控测试 | 接入真实 Speech/模型/UI 并迁移旧 writer | physical integration/writer switch/production `not_run` |
-| 逐轮 Intent/Emotion/Dialogue 状态 | Rust Core、closed checkpoint、四领域原子 Store/tenant adapter、Active Call final transcript、Safety/Fast/Contextual Intent、Text Emotion、完整 turn Processor、PostgreSQL typed history、16 kHz PCM Audio Window、Acoustic Provider、保守多模态融合及可审计降级 Processor 已通过本地精准测试 | 接通真实媒体 tap、Active Call SSE、真实 Fast/LLM/文本/声学模型和完整进程生命周期 | physical PostgreSQL/real media-model integration/restart/two-node/production `not_run` |
+| 逐轮 Intent/Emotion/Dialogue 状态 | Rust Core、closed checkpoint、四领域原子 Store/tenant adapter、Active Call final transcript、Safety/Fast/Contextual Intent、Text Emotion、完整 turn Processor、PostgreSQL typed history、16 kHz PCM Audio Window、Acoustic Provider、保守多模态融合、可审计降级 Processor 与有界模型 Provider pool 已通过本地精准测试 | 接通真实模型 transport/media tap、Active Call SSE 和完整进程生命周期 | physical PostgreSQL/real media-model integration/restart/two-node/production `not_run` |
 | Post-call Finalization | Rust terminal/enqueue 受控原子边界、durable queue、Worker、D7 projection reuse 与进度查询已通过本地精准测试 | 接入物理 PostgreSQL 合并事务和真实终态输入 | physical transaction/real call/production `not_run` |
 | 性能/容量/长稳 | 旧证据不能继承到新链路 | 功能稳定后单独执行 | `not_run` |
 
@@ -596,6 +596,14 @@ Safety/Fast Router，并仅在 pending 时调用 Contextual Provider。每个 re
 Catalog、artifact、输入、served revision、输出 schema 或 observation 漂移始终 fail-closed。该
 Runtime 不拥有 transcript sequence、head、动作或通信状态。它证明了层间组合合同，不等于真实
 Active Call consumer、历史仓库或模型进程已接通。
+
+同日新增的 Rust `ModelProviderPool` 为 Fast/Contextual Intent 和 Text/Acoustic Emotion 的现有 Port
+提供统一有界执行门。固定的 1–64 个 opaque endpoint handle 在 admission 后通过 atomic round-robin
+O(1) 选择；in-flight 与 waiter 容量启动时一次分配，满载立即拒绝，已准入 waiter 受独立 queue
+deadline 约束。取消或 lease drop 自动释放容量，不创建 detached task，也不保存 transcript/PCM。
+`PooledModelProviderPort` 复用原 Provider 的 artifact echo、deadline 与 output validation，而不取得
+Call/Media/Tool/Handoff 权限。该本地合同不代表已经实现 HTTP/gRPC/UDS/native transport、真实模型、
+健康检查、熔断、准确率或生产容量，上述项目仍为 `not_run`。
 
 截至 2026-09-01，durable transcript sequence 已有独立 Store 权威：经校验的
 `TranscriptSegmentDraft` 不携带 sequence；PostgreSQL adapter 在一个 tenant transaction 内锁定
@@ -1190,6 +1198,8 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 - [Multimodal Emotion Fusion R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-multimodal-emotion-fusion/README.md)
 - [Adaptive Emotion Processor R1 计划](../plans/2026-09-01-adaptive-emotion-processor-r1.md)
 - [Adaptive Emotion Processor R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-adaptive-emotion-processor/README.md)
+- [Model Provider Pool R1 计划](../plans/2026-09-01-model-provider-pool-r1.md)
+- [Model Provider Pool R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-model-provider-pool/README.md)
 - [Complete Understanding Turn R1 计划](../plans/2026-09-01-complete-understanding-turn-r1.md)
 - [Complete Understanding Turn R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-complete-understanding-turn/README.md)
 - [Final Transcript Understanding Processor R1 计划](../plans/2026-09-01-final-transcript-understanding-processor-r1.md)
@@ -1267,3 +1277,4 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 | 2026-09-01 | R1 Acoustic Emotion Provider checkpoint | 16 kHz mono PCM Audio Window 与 Release-bound Acoustic Provider 已通过本地合同；只产出引用 exact transcript/audio window 的 raw evidence。真实媒体 tap/模型质量、窗口耐久化、多模态融合和生产仍为 `not_run` |
 | 2026-09-01 | R1 Multimodal Emotion Fusion checkpoint | Text+Acoustic 正权重保守融合、冲突稀释、确定性 top-k、双 raw evidence 与 Emotion 单次推进已通过；真实模型校准、媒体 tap 和生产仍为 `not_run` |
 | 2026-09-01 | R1 Adaptive Emotion Processor checkpoint | exact transcript/audio 绑定、双 raw evidence 原子提交、缺失/unavailable/timeout 可审计文本降级与 require-multimodal 策略已通过；真实媒体 tap、模型/校准、物理 PostgreSQL 和生产仍为 `not_run` |
+| 2026-09-01 | R1 Model Provider Pool checkpoint | 固定 endpoint、O(1) 轮询、有界 in-flight/waiter、立即过载拒绝、queue deadline 和四类理解 Provider 适配已通过；真实 transport/模型/质量、物理进程和生产仍为 `not_run` |

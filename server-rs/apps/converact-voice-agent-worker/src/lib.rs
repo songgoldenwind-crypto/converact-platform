@@ -31,6 +31,7 @@ mod intent_confidence_router;
 mod layered_intent_runtime;
 mod lifecycle;
 mod model;
+mod model_provider_pool;
 mod multimodal_emotion_runtime;
 mod post_call_finalization;
 mod post_call_finalization_postgres;
@@ -139,6 +140,10 @@ pub use lifecycle::{AdmissionReadiness, ShutdownToken, WorkerConfig, WorkerConfi
 pub use model::{
     AgentReleaseResource, AttemptResource, AuthenticatedTenant, CampaignResource, ModelError,
     Outcome, PostCallState, RetryInspectionState, WorkerResource,
+};
+pub use model_provider_pool::{
+    ModelProviderLease, ModelProviderPool, ModelProviderPoolConfig, ModelProviderPoolError,
+    PooledModelProviderPort,
 };
 pub use multimodal_emotion_runtime::{
     MultimodalEmotionFusionPolicy, MultimodalEmotionTurnRuntime, MultimodalEmotionTurnRuntimeError,
