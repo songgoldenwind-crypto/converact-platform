@@ -12,6 +12,7 @@ use deadpool_postgres::{
 mod active_call_event;
 mod ai_outbound;
 mod ai_outbound_compliance;
+mod campaign_admin;
 mod conversation_result;
 mod conversation_understanding;
 mod handoff;
@@ -27,6 +28,7 @@ pub use active_call_event::{
 };
 pub use ai_outbound::{PostgresAiOutboundAttemptStore, PostgresLeasedAttemptStore};
 pub use ai_outbound_compliance::PostgresAiOutboundCompliancePort;
+pub use campaign_admin::{PostgresCampaignAdminError, PostgresCampaignAdminStore};
 pub use conversation_result::{
     PostgresConversationResultStore, PostgresConversationResultStoreError,
     PostgresProjectionFinalizeDecision, PostgresProjectionPrepareDecision,
