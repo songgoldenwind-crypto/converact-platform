@@ -1,12 +1,13 @@
 {
   "schema_version": 1,
   "evidence_id": "ai-outbound-r1-campaign-admin-runtime-20260901",
-  "status": "passed_local_composition",
+  "status": "passed_physical_postgres",
   "source_commits": [
     "6bb53b6731433a67a7c673b1ad0c9d5e82dcf858",
     "a614e5585c49318576fab12dca84f8304959515a",
     "c0b68ace036d7575f04e4d7855db22ee21270334",
-    "8972fcab71358281fe1c9f79290f4a66cea891aa"
+    "8972fcab71358281fe1c9f79290f4a66cea891aa",
+    "c6dd14d0289db1693505d721bee4c3a660eeb719"
   ],
   "toolchain": {
     "rust": "1.94.1",
@@ -40,12 +41,18 @@
     {
       "scope": "scoped_clippy_deny_warnings",
       "status": "passed"
+    },
+    {
+      "scope": "physical_postgresql_14_18_authoring_to_claim",
+      "passed": 1,
+      "failed": 0,
+      "migrations": [124, 130, 131, 132]
     }
   ],
   "not_run": [
-    "physical_postgresql_campaign_admin_transaction",
     "real_platform_issuer_capability_provisioning",
     "operator_ui_or_file_import",
+    "process_launch_with_real_postgresql_active_call_and_rustpbx",
     "real_sip_pstn_campaign_call",
     "remote_server",
     "production",

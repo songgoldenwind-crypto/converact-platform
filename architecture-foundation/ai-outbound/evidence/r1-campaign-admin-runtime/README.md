@@ -2,7 +2,7 @@
 
 > Date: 2026-09-01
 >
-> Status: `passed_local_composition / physical_postgres_not_run`
+> Status: `passed_physical_postgres`
 
 ## Proven scope
 
@@ -33,11 +33,16 @@ Campaign HTTP/auth/adapter/process tests: 15 passed
 Worker adapter unit test: 1 passed
 Executable binary cargo check: passed
 Scoped Clippy with -D warnings: passed
+Physical PostgreSQL 14.18 authoring-to-claim chain: 1 passed
 ```
 
-The checks used inert connection pools, signed local token fixtures, controlled HTTP requests and
-source-level authority assertions. No Docker, remote server, deployed service, broad regression or
-performance command was used.
+The physical check used an isolated disposable local PostgreSQL 14.18 database migrated through
+124, 130, 131 and 132. It proved Agent publication and exact replay, Campaign creation, first
+Contact/Attempt import, schedule, start and bounded physical Attempt claim. Three real numeric
+binding defects were found and corrected under focused test-first cycles before the final exact
+case passed. The remaining checks used inert connection pools, signed local token fixtures,
+controlled HTTP requests and source-level authority assertions. No Docker, remote server, deployed
+service, broad regression or performance command was used.
 
 ## Source checkpoints
 
@@ -45,11 +50,13 @@ performance command was used.
 - `a614e5585c49318576fab12dca84f8304959515a` — verified capability retention;
 - `c0b68ace036d7575f04e4d7855db22ee21270334` — authenticated Admin routes in the executable Worker;
 - `8972fcab71358281fe1c9f79290f4a66cea891aa` — fixed Worker/Admin tenant authority.
+- `c6dd14d0289db1693505d721bee4c3a660eeb719` — PostgreSQL numeric bindings and physical
+  authoring-to-claim proof.
 
 ## Explicitly not proved
 
-- execution against an isolated PostgreSQL database migrated through the current schema;
 - real platform issuer provisioning and rotation of the three new capability claims;
 - a real operator UI/file import invoking these endpoints;
-- a Campaign created through this API being claimed and completed through a real SIP/PSTN call;
+- process launch against real PostgreSQL, Active Call and RustPBX together;
+- a Campaign created through this API being completed through a real SIP/PSTN call;
 - remote server, production, performance, capacity and long-run behavior.

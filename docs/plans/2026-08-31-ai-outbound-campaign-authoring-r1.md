@@ -3,7 +3,7 @@
 > **For agentic workers:** Execute inline with repository TDD rules. Do not use subagents,
 > servers, Docker, broad regression suites or performance tests.
 >
-> **Status:** `executable_campaign_admin_composed / physical_postgres_not_run /
+> **Status:** `physical_postgres_authoring_claim_passed /
 > production_not_run`
 
 **Goal:** Make the approved Rust AI-outbound model callable for immutable Agent publication,
@@ -127,7 +127,7 @@ Approaches considered:
 
 - [x] Record exact commit/toolchain/test counts and update canonical navigation/status/manifest
   hashes.
-- [x] Keep physical PostgreSQL, production auth composition, real Campaign UI/import file, legacy
+- [x] Keep production auth composition, real Campaign UI/import file, legacy
   TypeScript writer shadow/switch, real RustPBX/Active Call call, performance and production
   deployment `not_run`.
 - [x] Commit only clean evidence/status files.
@@ -135,6 +135,8 @@ Approaches considered:
 The executable Rust Worker now composes a concrete `CampaignAdminPort` through the bounded
 tenant-transaction-owning `PostgresRuntime` adapter. Verified token capabilities separately gate
 Agent publication, Campaign management and Contact import, and the port rejects a tenant outside
-the Worker's fixed claim authority before database access. Physical PostgreSQL transaction
-execution, the real UI/import workflow, issuer provisioning for the new capabilities and the real
-call path remain `not_run`; R1 is not production eligible until those have direct evidence.
+the Worker's fixed claim authority before database access. An isolated PostgreSQL 14.18 run proved
+one physical Agent publish/replay, Campaign create, Contact import with first Attempt, schedule,
+start and bounded Worker claim chain. The real UI/import workflow, issuer provisioning and a
+process-level call through real Active Call, RustPBX and SIP/PSTN remain `not_run`; R1 is not
+production eligible until those have direct evidence.
