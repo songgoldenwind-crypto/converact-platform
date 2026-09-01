@@ -48,6 +48,21 @@ impl ToolBinding {
             deadline_after_ms,
         })
     }
+
+    #[must_use]
+    pub const fn revision_id(&self) -> &ToolRevisionId {
+        &self.revision_id
+    }
+
+    #[must_use]
+    pub fn schema_hash(&self) -> &str {
+        &self.schema_hash
+    }
+
+    #[must_use]
+    pub const fn deadline_after_ms(&self) -> u64 {
+        self.deadline_after_ms
+    }
 }
 
 /// Resolves a friendly upstream name only within the exact Agent Release.

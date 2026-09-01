@@ -47,6 +47,7 @@ mod postgres_campaign_admin;
 mod postgres_claim_source;
 mod postgres_repository;
 mod process;
+mod release_tool_authority;
 mod repository;
 mod result_generation;
 mod runtime_bootstrap;
@@ -204,6 +205,7 @@ pub use postgres_claim_source::{
 };
 pub use postgres_repository::PostgresVoiceAgentRepository;
 pub use process::{WorkerServeError, serve_worker_http};
+pub use release_tool_authority::{ReleaseToolAuthority, ReleaseToolManifestPort};
 pub use repository::{
     ReconcileReceipt, RepositoryError, RepositoryErrorKind, VoiceAgentRepository,
 };
