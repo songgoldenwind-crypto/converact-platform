@@ -7,8 +7,9 @@ mod model;
 mod postgres;
 
 pub use codec::{
-    encode_emotion_checkpoint, encode_intent_checkpoint, restore_emotion_checkpoint,
-    restore_intent_checkpoint,
+    encode_customer_state_snapshot, encode_dialogue_recommendation, encode_emotion_checkpoint,
+    encode_intent_checkpoint, restore_customer_state_snapshot, restore_dialogue_recommendation,
+    restore_emotion_checkpoint, restore_intent_checkpoint,
 };
 pub use model::{
     AppendAction, AppendUnderstandingRecord, RecordPresence, UnderstandingDomain,

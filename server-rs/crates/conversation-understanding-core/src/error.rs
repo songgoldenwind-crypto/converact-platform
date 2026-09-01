@@ -29,6 +29,7 @@ pub enum UnderstandingError {
     InvalidDialoguePolicy,
     DialoguePolicyReleaseMismatch,
     StaleDialogueEvaluation,
+    InvalidDialogueRecommendation,
     DialogueRecommendationCanonicalPayloadInvalid,
     CanonicalPayloadInvalid,
 }
@@ -69,6 +70,7 @@ impl UnderstandingError {
             Self::InvalidDialoguePolicy => "conversation_dialogue_policy_invalid",
             Self::DialoguePolicyReleaseMismatch => "conversation_dialogue_policy_release_mismatch",
             Self::StaleDialogueEvaluation => "conversation_dialogue_evaluation_stale",
+            Self::InvalidDialogueRecommendation => "conversation_dialogue_recommendation_invalid",
             Self::DialogueRecommendationCanonicalPayloadInvalid => {
                 "conversation_dialogue_recommendation_canonical_payload_invalid"
             }

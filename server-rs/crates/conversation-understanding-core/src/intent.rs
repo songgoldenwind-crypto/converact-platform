@@ -515,6 +515,23 @@ impl IntentState {
     pub(crate) fn last_observation_hash(&self) -> Option<&str> {
         self.last_observation_hash.as_deref()
     }
+
+    pub(crate) fn canonical_fingerprint(&self) -> Result<Box<str>, UnderstandingError> {
+        canonical_sha256(&json!({
+            "context": self.context,
+            "catalog_revision_id": self.catalog_revision_id,
+            "status": self.status,
+            "primary_intent": self.primary_intent,
+            "confirmed_intent": self.confirmed_intent,
+            "previous_confirmed_intent": self.previous_confirmed_intent,
+            "last_turn_index": self.last_turn_index,
+            "last_observed_at_ms": self.last_observed_at_ms,
+            "revision": self.revision,
+            "last_observation_hash": self.last_observation_hash,
+        }))
+        .map(Into::into)
+        .map_err(|_| UnderstandingError::CanonicalPayloadInvalid)
+    }
 }
 
 impl fmt::Debug for IntentState {

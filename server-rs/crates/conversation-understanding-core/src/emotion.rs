@@ -732,6 +732,26 @@ impl EmotionState {
     pub(crate) fn last_fusion_hash(&self) -> Option<&str> {
         self.last_fusion_hash.as_deref()
     }
+
+    pub(crate) fn canonical_fingerprint(&self) -> Result<Box<str>, UnderstandingError> {
+        canonical_sha256(&json!({
+            "context": self.context,
+            "catalog_revision_id": self.catalog_revision_id,
+            "status": self.status,
+            "primary_emotion": self.primary_emotion,
+            "confirmed_emotion": self.confirmed_emotion,
+            "confirmed_intensity": self.confirmed_intensity,
+            "confirmed_distress_score": self.confirmed_distress_score,
+            "distress_trend": self.distress_trend,
+            "consecutive_distress_turns": self.consecutive_distress_turns,
+            "last_turn_index": self.last_turn_index,
+            "last_observed_at_ms": self.last_observed_at_ms,
+            "revision": self.revision,
+            "last_fusion_hash": self.last_fusion_hash,
+        }))
+        .map(Into::into)
+        .map_err(|_| UnderstandingError::EmotionCanonicalPayloadInvalid)
+    }
 }
 
 impl fmt::Debug for EmotionState {

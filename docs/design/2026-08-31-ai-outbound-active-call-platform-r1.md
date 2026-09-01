@@ -548,8 +548,9 @@ Catalog、每个 Intent 的 Slot allow-list、安全关键标签、最多五个�
 fail-closed，诊断不输出候选与 Slot 内容。即使安全规则确认分类，Core 也只产生 evidence，不产生
 转接、挂机、DNC 写入或高风险 Tool 授权。
 
-实时 Rule/Fast Classifier/Contextual LLM Provider、跨 Provider 证据融合、阈值校准、持久化 Store、
-Active Call 实时接入与真实意图质量仍为 `not_run`。目标实现继续保留 Active Call 的多轮理解，
+实时 Rule/Fast Classifier/Contextual LLM Provider、跨 Provider 证据融合、阈值校准、Worker
+实时接入与真实意图质量仍为 `not_run`。Intent checkpoint 和有界 durable Store adapter 已有本地
+合同证据，但物理 PostgreSQL 尚未执行。目标实现继续保留 Active Call 的多轮理解，
 并把规则、小模型、上下文 LLM 与人工纠正作为独立可审计证据源。
 
 ### 9.6 情绪证据与客户压力趋势
@@ -574,15 +575,17 @@ LLM 写入 `user_sentiment` 变量。固定源码中没有独立声学情绪分�
   `unknown / stable / improving / worsening` distress trend，低置信观察不能覆盖上一个确认状态；
 - 情绪和压力趋势只是 Customer State evidence，不授权挂机、转人工、DNC、Tool 或业务写入。
 
-真实声学/文本模型 Adapter、实际融合算法、校准数据、durable Store、Dialogue Policy 消费、真实
-音频质量和生产均为 `not_run`。原始音频和 transcript 内容不进入该 Core，只持有受控 evidence ID。
+真实声学/文本模型 Adapter、实际融合算法、校准数据、Worker 实时接入、真实音频质量和生产均为
+`not_run`。Emotion checkpoint、durable Store adapter 和 Dialogue Policy 的确定性本地合同已通过；
+物理 PostgreSQL 尚未执行。原始音频和 transcript 内容不进入该 Core，只持有受控 evidence ID。
 
 ### 9.7 Customer State 与 Dialogue Policy
 
 Rust `conversation-understanding-core` 已将同一 tenant/Interaction/Attempt/Call/Release/Agent
 session/execution generation 下的 `IntentState` 与 `EmotionState` 合并为不可变
-`CustomerStateSnapshot`。快照绑定两个 Catalog revision、最后 turn、各自 evidence hash、状态与
-canonical payload hash；跨 generation/authority 或早于来源证据的 snapshot clock 均 fail-closed。
+`CustomerStateSnapshot`。快照绑定两个 Catalog revision、最后 turn、各自 evidence hash、完整来源
+state fingerprint（含 revision/previous state）与 canonical payload hash；跨 generation/authority、
+相同投影但不同来源历史，或早于来源证据的 snapshot clock 均 fail-closed。
 日志只显示状态、计数和是否存在证据，不输出客户意图或情绪标签，也不持有 transcript/audio。
 
 Release-bound `DialoguePolicy` 只把 Customer State 确定性映射为有界建议：继续发现、继续 Workflow、
@@ -591,8 +594,12 @@ Release-bound `DialoguePolicy` 只把 Customer State 确定性映射为有界建
 Handoff Core 的路由、prepare/commit、generation fencing 与 receipt。相同原则适用于 Tool、DNC、
 挂机和任何业务写入：理解与对话策略只产出证据/建议，不能绕过各领域 Authority。
 
-当前 Customer State/Dialogue recommendation 仅有本地内存合同；durable Store、Worker 实时接线、
-Active Call Prompt/Scene 消费、Handoff 提案桥接、策略运营配置和真实通话验证仍为 `not_run`。
+Customer State/Dialogue recommendation 已具有 closed versioned checkpoint 和 durable Store codec：
+Customer State 恢复必须与精确 Intent/Emotion 来源状态重算一致；Dialogue 恢复必须用含 Release、
+revision 和阈值 fingerprint 的精确 Policy 对精确 Customer State 重算，不能信任存储中的
+recommendation kind。Worker 实时接线、物理
+PostgreSQL、Active Call Prompt/Scene 消费、Handoff 提案桥接、策略运营配置和真实通话验证仍为
+`not_run`。
 
 ### 9.8 理解证据耐久化
 
@@ -612,8 +619,11 @@ Attempt/generation/domain 的事务级局部 advisory lock，以及 `load_curren
 observation 可留证但不能成为权威 head。Intent observation+state 与 Emotion fusion+state 现已使用
 closed versioned checkpoint payload；恢复时重算内层 evidence hash，并校验 record kind/ID、完整
 Envelope、catalog、turn 和 clock，因此 latest head 一次读取即可恢复当前 Intent/Emotion 状态，不需
-扫描通话历史。Customer State/Dialogue checkpoint、物理 PostgreSQL 执行、Worker writer switch 和
-生产仍为 `not_run`。
+扫描通话历史。Customer State snapshot 必须从恢复后的精确 Intent/Emotion state 确定性重建；
+Dialogue recommendation 必须由精确 Policy + Customer State 重算。冷恢复是固定依赖图：Intent 与
+Emotion 各读取一个 head/record，再读取 Customer State，最后读取 Dialogue 并解析一个精确 Policy；
+它是常数次 O(1) 定位，不是“一次总读取”。伪造 stored kind、同投影但不同来源历史，以及同输出但
+阈值不同的 Policy 都会被拒绝。物理 PostgreSQL 执行、Worker writer switch 和生产仍为 `not_run`。
 
 ## 10. AI 与人工座席闭环
 
@@ -1087,9 +1097,9 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 | 2026-09-01 | R1 Active Call SIP/start-gate checkpoint | 固定源码覆盖层已把平台 Session ID 绑定到唯一 SIP leg，保留预约 Playbook 权威，并在显式 start 前阻止 Runner 进入业务对话；RustPBX header 注入、真实 SIP/媒体/Provider 和生产仍为 `not_run` |
 | 2026-09-01 | R1 Active Call complete channel-port checkpoint | Rust 完整 `ChannelAgentPort` 已组合精确 Release artifact、稳定 session 预留、附着/media-ready、披露命令、精确 `TrackEnd`、显式 start 与 terminal 查询，并以每 session 串行化保证并发预留重放只产生一次外部 mutation；真实进程、RustPBX header、SIP/媒体/provider、可听披露、录音与生产仍为 `not_run` |
 | 2026-09-01 | R1 RustPBX TelephonyPort checkpoint | Rust 具体端口、immutable dial contract、精确 originate/inspect/Agent-leg/hangup wire 和 unknown-outcome 已通过本地 loopback；ivekit.87 O(1) inspect 精确源码测试通过且已删除进程内 known-call 全局锁；物理 Store/runtime、真实进程/SIP/媒体和生产仍为 `not_run` |
-| 2026-09-01 | R1 Intent Understanding Core checkpoint | Release-bound 层级 Catalog、Slot allow-list、top-k、basis-point confidence、证据来源和 `unknown/provisional/clarification_required/confirmed/changed` Rust 状态机已有本地合同证据；真实分类 Provider、融合、校准、Store、Active Call 实时接入和质量仍为 `not_run` |
-| 2026-09-01 | R1 Emotion Understanding Core checkpoint | Release-bound Catalog、声学/文本证据约束、top-k/confidence/intensity、同 authority/turn 融合与确认后压力趋势 Rust 状态机已有本地合同证据；真实模型/融合算法、校准、Store、Policy 消费、音频与生产仍为 `not_run` |
-| 2026-09-01 | R1 Customer State/Dialogue Policy checkpoint | 同 authority 的 Intent/Emotion 快照、Release-bound Policy、情绪优先澄清与恶化压力人工接管建议已有本地合同证据；建议不具有 Handoff/Tool/电话动作权，Store、Worker/Active Call 接线和生产仍为 `not_run` |
+| 2026-09-01 | R1 Intent Understanding Core checkpoint | Release-bound 层级 Catalog、Slot allow-list、top-k、basis-point confidence、证据来源和 `unknown/provisional/clarification_required/confirmed/changed` Rust 状态机已有本地合同证据；checkpoint/Store adapter 已通过，真实分类 Provider、融合、校准、Worker/Active Call 实时接入和质量仍为 `not_run` |
+| 2026-09-01 | R1 Emotion Understanding Core checkpoint | Release-bound Catalog、声学/文本证据约束、top-k/confidence/intensity、同 authority/turn 融合与确认后压力趋势 Rust 状态机已有本地合同证据；checkpoint/Store adapter 与 Policy 本地消费已通过，真实模型/融合算法、校准、Worker、音频与生产仍为 `not_run` |
+| 2026-09-01 | R1 Customer State/Dialogue Policy checkpoint | 同 authority 的 Intent/Emotion 快照、Release-bound Policy、情绪优先澄清与恶化压力人工接管建议已有本地合同证据；来源状态重建和 Policy 重算 checkpoint 已通过，建议不具有 Handoff/Tool/电话动作权，Worker/Active Call 接线、物理 PostgreSQL 和生产仍为 `not_run` |
 | 2026-09-01 | R1 Understanding Store schema checkpoint | additive immutable record + fenced latest-head schema、复合 evidence FK、Attempt/generation/domain 有界恢复索引及专用保留期清理函数已有本地合同证据；SQL Adapter、物理 PostgreSQL、恢复重放和生产仍为 `not_run` |
 | 2026-09-01 | R1 Understanding Store Adapter checkpoint | bounded canonical record、record-only/atomic head append、三重 optimistic fence、per-scope transaction lock 与 O(1) current recovery Rust Adapter 已通过本地合同；物理 PostgreSQL、Core codec/replay、Worker writer switch 和生产仍为 `not_run` |
-| 2026-09-01 | R1 Understanding state checkpoint | versioned Intent observation+state 与 Emotion fusion+state payload、内外 hash、catalog/authority/record identity 校验及 O(1) restore 已通过本地合同；Customer State/Dialogue codec、Worker writer/recovery、物理 PostgreSQL 和生产仍为 `not_run` |
+| 2026-09-01 | R1 Understanding state checkpoint | versioned Intent、Emotion、Customer State 与 Dialogue payload、来源状态/Policy 重算、内外 hash、authority/record identity 校验及 O(1) restore 已通过本地合同；Worker writer/recovery、物理 PostgreSQL 和生产仍为 `not_run` |
