@@ -45,6 +45,22 @@ fn snapshot_rejects_cross_generation_sources() {
         ),
         Err(UnderstandingError::CustomerStateAuthorityMismatch)
     );
+
+    let other_campaign = EmotionState::new(
+        context_for_campaign(1, "campaign-other"),
+        emotion_catalog().id().clone(),
+    );
+    assert_eq!(
+        CustomerStateSnapshot::try_new(
+            CustomerStateInput {
+                id: CustomerStateSnapshotId::parse("customer-state-campaign-drift").unwrap(),
+                observed_at_ms: 3_000,
+            },
+            &intent,
+            &other_campaign,
+        ),
+        Err(UnderstandingError::CustomerStateAuthorityMismatch)
+    );
 }
 
 #[test]
@@ -359,11 +375,15 @@ fn segment(turn: u32) -> TranscriptSegmentId {
 }
 
 fn context(generation: u64) -> EnvelopeContext {
+    context_for_campaign(generation, "campaign-001")
+}
+
+fn context_for_campaign(generation: u64, campaign_id: &str) -> EnvelopeContext {
     EnvelopeContext::try_new(EnvelopeContextInput {
         schema_version: VOICE_AGENT_SCHEMA_VERSION,
         tenant_id: "tenant-a".to_owned(),
         interaction_id: InteractionId::parse("interaction-001").unwrap(),
-        campaign_id: CampaignId::parse("campaign-001").unwrap(),
+        campaign_id: CampaignId::parse(campaign_id).unwrap(),
         campaign_contact_id: CampaignContactId::parse("contact-001").unwrap(),
         call_attempt_id: CallAttemptId::parse("attempt-001").unwrap(),
         call_id: Some(CallId::parse("call-001").unwrap()),

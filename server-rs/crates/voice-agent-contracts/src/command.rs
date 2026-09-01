@@ -134,6 +134,18 @@ impl EnvelopeContext {
         &self.interaction_id
     }
 
+    /// Returns the Campaign identity captured by the authority envelope.
+    #[must_use]
+    pub const fn campaign_id(&self) -> &CampaignId {
+        &self.campaign_id
+    }
+
+    /// Returns the Campaign Contact identity captured by the authority envelope.
+    #[must_use]
+    pub const fn campaign_contact_id(&self) -> &CampaignContactId {
+        &self.campaign_contact_id
+    }
+
     /// Returns the physical call Attempt authority binding.
     #[must_use]
     pub const fn call_attempt_id(&self) -> &CallAttemptId {
@@ -162,6 +174,12 @@ impl EnvelopeContext {
     #[must_use]
     pub const fn execution_generation(&self) -> ExecutionGeneration {
         self.execution_generation
+    }
+
+    /// Returns the bounded distributed trace identity without interpreting its format.
+    #[must_use]
+    pub fn trace_id(&self) -> &str {
+        &self.trace_id
     }
 }
 

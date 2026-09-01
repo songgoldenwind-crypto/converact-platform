@@ -605,8 +605,12 @@ turn/time/hash 的实际 record。
 
 record 不允许普通 UPDATE/DELETE，head 只能 revision `+1` 且 turn/time 不倒退。到期清理只能调用
 tenant-bound、当前时间上限、每批 1–1000 条的 security-definer retention 函数；运行角色不持有表级
-DELETE。当前证明仅为 PostgreSQL migration 与 SQLite development mirror 的静态 schema 合同；
-SQL Adapter、物理 PostgreSQL 执行、恢复重放和 writer switch 仍为 `not_run`。
+DELETE。Rust SQL Adapter 已实现规范化 object/hash/128 KiB 边界、record-only 与 record+head 两种
+追加、exact replay/conflict 分类、revision+record ID+payload hash 三重围栏、按
+Attempt/generation/domain 的事务级局部 advisory lock，以及 `load_current` 的 O(1) head+record
+恢复查询。完整 EnvelopeContext（含 schema/Campaign/Contact/trace）随 record 保存；raw Emotion
+observation 可留证但不能成为权威 head。物理 PostgreSQL 执行、Core record 编码/恢复重放、Worker
+writer switch 和生产仍为 `not_run`。
 
 ## 10. AI 与人工座席闭环
 
@@ -1044,6 +1048,7 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 - [Emotion Understanding Core R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-emotion-understanding-core/README.md)
 - [Customer State and Dialogue Policy R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-customer-state-dialogue-policy/README.md)
 - [Conversation Understanding Store Schema R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-understanding-store-schema/README.md)
+- [Conversation Understanding Store Adapter R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-understanding-store-adapter/README.md)
 - [Active Call Reservation Overlay R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-reservation-overlay/README.md)
 - [Active Call Reservation Adapter R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-reservation-adapter/README.md)
 - [Agent Release reservation binding evidence](../../architecture-foundation/ai-outbound/evidence/r1-agent-release-reservation-binding/README.md)
@@ -1082,3 +1087,4 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 | 2026-09-01 | R1 Emotion Understanding Core checkpoint | Release-bound Catalog、声学/文本证据约束、top-k/confidence/intensity、同 authority/turn 融合与确认后压力趋势 Rust 状态机已有本地合同证据；真实模型/融合算法、校准、Store、Policy 消费、音频与生产仍为 `not_run` |
 | 2026-09-01 | R1 Customer State/Dialogue Policy checkpoint | 同 authority 的 Intent/Emotion 快照、Release-bound Policy、情绪优先澄清与恶化压力人工接管建议已有本地合同证据；建议不具有 Handoff/Tool/电话动作权，Store、Worker/Active Call 接线和生产仍为 `not_run` |
 | 2026-09-01 | R1 Understanding Store schema checkpoint | additive immutable record + fenced latest-head schema、复合 evidence FK、Attempt/generation/domain 有界恢复索引及专用保留期清理函数已有本地合同证据；SQL Adapter、物理 PostgreSQL、恢复重放和生产仍为 `not_run` |
+| 2026-09-01 | R1 Understanding Store Adapter checkpoint | bounded canonical record、record-only/atomic head append、三重 optimistic fence、per-scope transaction lock 与 O(1) current recovery Rust Adapter 已通过本地合同；物理 PostgreSQL、Core codec/replay、Worker writer switch 和生产仍为 `not_run` |

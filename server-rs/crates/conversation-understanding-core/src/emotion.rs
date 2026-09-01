@@ -764,8 +764,11 @@ fn candidate_inputs_valid(inputs: &[EmotionCandidateInput], catalog: &EmotionCat
 }
 
 fn same_authority(left: &EnvelopeContext, right: &EnvelopeContext) -> bool {
-    left.tenant_id() == right.tenant_id()
+    left.schema_version() == right.schema_version()
+        && left.tenant_id() == right.tenant_id()
         && left.interaction_id() == right.interaction_id()
+        && left.campaign_id() == right.campaign_id()
+        && left.campaign_contact_id() == right.campaign_contact_id()
         && left.call_attempt_id() == right.call_attempt_id()
         && left.call_id() == right.call_id()
         && left.agent_release_id() == right.agent_release_id()

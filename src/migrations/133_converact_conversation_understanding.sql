@@ -10,13 +10,17 @@ CREATE TABLE IF NOT EXISTS converact_conversation_understanding_records (
     'customer_state_snapshot', 'dialogue_recommendation'
   )),
   domain TEXT NOT NULL CHECK (domain IN ('intent', 'emotion', 'customer_state', 'dialogue')),
+  contract_schema_version SMALLINT NOT NULL CHECK (contract_schema_version > 0),
   interaction_id TEXT NOT NULL CHECK (char_length(interaction_id) BETWEEN 1 AND 255),
+  campaign_id TEXT NOT NULL CHECK (char_length(campaign_id) BETWEEN 1 AND 255),
+  campaign_contact_id TEXT NOT NULL CHECK (char_length(campaign_contact_id) BETWEEN 1 AND 255),
   call_attempt_id TEXT NOT NULL CHECK (char_length(call_attempt_id) BETWEEN 1 AND 255),
   call_id TEXT CHECK (call_id IS NULL OR char_length(call_id) BETWEEN 1 AND 255),
   agent_release_id TEXT NOT NULL CHECK (char_length(agent_release_id) BETWEEN 1 AND 255),
   channel_agent_session_id TEXT CHECK (
     channel_agent_session_id IS NULL OR char_length(channel_agent_session_id) BETWEEN 1 AND 255
   ),
+  trace_id TEXT NOT NULL CHECK (char_length(trace_id) BETWEEN 1 AND 255),
   execution_generation BIGINT NOT NULL CHECK (execution_generation > 0),
   turn_index BIGINT NOT NULL CHECK (turn_index >= 0),
   observed_at TIMESTAMPTZ NOT NULL,

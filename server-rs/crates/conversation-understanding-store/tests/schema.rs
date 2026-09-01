@@ -15,6 +15,10 @@ fn migration_freezes_immutable_records_and_fenced_heads() {
         "emotion",
         "customer_state",
         "dialogue",
+        "contract_schema_version SMALLINT NOT NULL CHECK (contract_schema_version > 0)",
+        "campaign_id TEXT NOT NULL",
+        "campaign_contact_id TEXT NOT NULL",
+        "trace_id TEXT NOT NULL",
         "execution_generation BIGINT NOT NULL CHECK (execution_generation > 0)",
         "turn_index BIGINT NOT NULL CHECK (turn_index >= 0)",
         "retention_policy_ref",
@@ -53,7 +57,10 @@ fn migration_has_bounded_recovery_indexes_without_global_scan() {
         "tenant_id, call_attempt_id, execution_generation, domain",
         "octet_length(payload::TEXT) <= 131072",
     ] {
-        assert!(migration.contains(required), "missing recovery invariant {required}");
+        assert!(
+            migration.contains(required),
+            "missing recovery invariant {required}"
+        );
     }
 }
 
@@ -66,11 +73,18 @@ fn development_schema_mirrors_record_and_head_authority() {
         "converact_conversation_understanding_heads",
         "record_kind TEXT NOT NULL CHECK",
         "domain TEXT NOT NULL CHECK",
+        "contract_schema_version INTEGER NOT NULL CHECK (contract_schema_version > 0)",
+        "campaign_id TEXT NOT NULL",
+        "campaign_contact_id TEXT NOT NULL",
+        "trace_id TEXT NOT NULL",
         "execution_generation INTEGER NOT NULL CHECK (execution_generation > 0)",
         "payload TEXT NOT NULL CHECK (json_valid(payload) AND json_type(payload) = 'object')",
         "retention_until TEXT NOT NULL",
         "head_revision INTEGER NOT NULL CHECK (head_revision > 0)",
     ] {
-        assert!(schema.contains(required), "missing development invariant {required}");
+        assert!(
+            schema.contains(required),
+            "missing development invariant {required}"
+        );
     }
 }
