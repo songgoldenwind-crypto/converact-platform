@@ -1,6 +1,9 @@
 mod support;
 
-use converact_ai_outbound_store::{AdvanceAttempt, AiOutboundStore, StoreConfig, StoreError};
+use converact_ai_outbound_store::{
+    AdvanceAttempt, AiOutboundStore, AttemptLease, AttemptLeaseInput, StoreConfig, StoreError,
+};
+use converact_kernel_ids::TenantId;
 use converact_voice_agent_contracts::{CallAttemptId, CallAttemptState, ExecutionGeneration};
 use support::{connect, seed_attempts, tenant, tenant_transaction};
 
@@ -100,6 +103,116 @@ async fn stale_fence_cannot_advance_attempt() {
     stale_transaction.rollback().await.unwrap();
     drop(client);
     connection.await.unwrap().unwrap();
+}
+
+#[ignore = "requires an isolated PostgreSQL database migrated through 132"]
+#[tokio::test]
+async fn active_lease_renewal_extends_only_the_current_fenced_row() {
+    let tenant = tenant("voice-store-renew-active");
+    let (mut client, connection) = connect().await;
+    seed_attempts(&mut client, &tenant).await;
+    let store = AiOutboundStore::new(StoreConfig::new(30_000, 1).unwrap());
+    let token = "a".repeat(64);
+
+    let claim_transaction = tenant_transaction(&mut client, &tenant).await;
+    let claimed = store
+        .claim_planned(&claim_transaction, &tenant, "worker-a", &token, 1)
+        .await
+        .unwrap()
+        .remove(0);
+    claim_transaction.commit().await.unwrap();
+    let activate_transaction = tenant_transaction(&mut client, &tenant).await;
+    activate_transaction
+        .execute(
+            "UPDATE converact_outbound_call_attempts
+             SET state = 'conversing', disclosure_completed = TRUE,
+                 call_id = id, channel_agent_session_id = 'session-renew-active'
+             WHERE tenant_id = $1 AND id = $2",
+            &[&tenant.as_str(), &claimed.id().as_str()],
+        )
+        .await
+        .unwrap();
+    activate_transaction.commit().await.unwrap();
+    let lease = AttemptLease::try_new(AttemptLeaseInput {
+        tenant_id: tenant.clone(),
+        attempt_id: claimed.id().clone(),
+        execution_generation: claimed.execution_generation(),
+        lease_owner: "worker-a".to_owned(),
+        lease_token_hash: token.clone(),
+    })
+    .unwrap();
+
+    let before = lease_snapshot(&client, &tenant, claimed.id()).await;
+    client
+        .query_one("SELECT pg_sleep(0.01)", &[])
+        .await
+        .unwrap();
+    let renew_transaction = tenant_transaction(&mut client, &tenant).await;
+    store
+        .renew_active_lease(&renew_transaction, &lease)
+        .await
+        .unwrap();
+    renew_transaction.commit().await.unwrap();
+
+    let after = lease_snapshot(&client, &tenant, claimed.id()).await;
+    assert_eq!(after.0, before.0);
+    assert!(after.1 > before.1);
+
+    let long_lease_transaction = tenant_transaction(&mut client, &tenant).await;
+    long_lease_transaction
+        .execute(
+            "UPDATE converact_outbound_call_attempts
+             SET lease_expires_at = transaction_timestamp() + interval '5 minutes'
+             WHERE tenant_id = $1 AND id = $2",
+            &[&tenant.as_str(), &claimed.id().as_str()],
+        )
+        .await
+        .unwrap();
+    long_lease_transaction.commit().await.unwrap();
+    let long_before = lease_snapshot(&client, &tenant, claimed.id()).await.1;
+    let nonshrinking_transaction = tenant_transaction(&mut client, &tenant).await;
+    store
+        .renew_active_lease(&nonshrinking_transaction, &lease)
+        .await
+        .unwrap();
+    nonshrinking_transaction.commit().await.unwrap();
+    let long_after = lease_snapshot(&client, &tenant, claimed.id()).await.1;
+    assert!(long_after >= long_before);
+
+    let stale = AttemptLease::try_new(AttemptLeaseInput {
+        tenant_id: tenant.clone(),
+        attempt_id: claimed.id().clone(),
+        execution_generation: claimed.execution_generation(),
+        lease_owner: "worker-b".to_owned(),
+        lease_token_hash: token,
+    })
+    .unwrap();
+    let stale_transaction = tenant_transaction(&mut client, &tenant).await;
+    assert_eq!(
+        store.renew_active_lease(&stale_transaction, &stale).await,
+        Err(StoreError::LeaseStale)
+    );
+    stale_transaction.rollback().await.unwrap();
+    drop(client);
+    connection.await.unwrap().unwrap();
+}
+
+async fn lease_snapshot(
+    client: &tokio_postgres::Client,
+    tenant: &TenantId,
+    attempt_id: &CallAttemptId,
+) -> (i64, i64) {
+    let row = client
+        .query_one(
+            "SELECT revision,
+                    ROUND(EXTRACT(EPOCH FROM lease_expires_at) * 1000000)::BIGINT
+             FROM converact_outbound_call_attempts
+             WHERE tenant_id = $1 AND id = $2",
+            &[&tenant.as_str(), &attempt_id.as_str()],
+        )
+        .await
+        .unwrap();
+    (row.get(0), row.get(1))
 }
 
 #[ignore = "requires an isolated PostgreSQL database migrated through 132"]

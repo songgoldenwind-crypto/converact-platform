@@ -907,6 +907,54 @@ impl AiOutboundStore {
         positive_i64(row.try_get(0).map_err(|_| StoreError::StoredRowInvalid)?)
     }
 
+    /// Extends one current active execution lease using the database clock.
+    ///
+    /// This authority heartbeat does not change the Attempt revision or business state. An
+    /// expired or mismatched lease cannot be revived.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError::LeaseStale`] unless tenant, Attempt, generation, owner, token,
+    /// expiry and active state all still match.
+    pub async fn renew_active_lease(
+        &self,
+        transaction: &Transaction<'_>,
+        lease: &AttemptLease,
+    ) -> Result<(), StoreError> {
+        let generation = i64::try_from(lease.execution_generation.get())
+            .map_err(|_| StoreError::InvalidInput)?;
+        let lease_ms =
+            i64::try_from(self.config.lease_duration_ms).map_err(|_| StoreError::InvalidInput)?;
+        transaction
+            .query_opt(
+                "UPDATE converact_outbound_call_attempts
+                 SET lease_expires_at = GREATEST(
+                       lease_expires_at,
+                       transaction_timestamp() + ($6::bigint * interval '1 millisecond')
+                     )
+                 WHERE tenant_id = $1 AND id = $2
+                   AND execution_generation = $3 AND lease_owner = $4
+                   AND lease_token_hash = $5
+                   AND lease_expires_at > transaction_timestamp()
+                   AND state IN (
+                     'conversing', 'handoff_pending', 'human_active', 'ai_resuming', 'finalizing'
+                   )
+                 RETURNING id",
+                &[
+                    &lease.tenant_id.as_str(),
+                    &lease.attempt_id.as_str(),
+                    &generation,
+                    &lease.lease_owner.as_ref(),
+                    &lease.lease_token_hash.as_ref(),
+                    &lease_ms,
+                ],
+            )
+            .await
+            .map_err(|_| StoreError::DatabaseUnavailable)?
+            .ok_or(StoreError::LeaseStale)
+            .map(|_| ())
+    }
+
     /// Appends an exact effect intent only while revision, generation and lease all match.
     ///
     /// # Errors

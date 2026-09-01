@@ -138,6 +138,24 @@ impl PostgresLeasedAttemptStore {
         self.lease.tenant_id()
     }
 
+    /// Extends this exact active Attempt lease without changing its business revision.
+    ///
+    /// # Errors
+    ///
+    /// Returns a stale-lease rejection for a lost fence and an unknown outcome when commit cannot
+    /// be determined safely.
+    pub async fn renew_active_lease(&self) -> Result<(), PortError> {
+        let tenant = self.lease.tenant_id().clone();
+        let lease = self.lease.clone();
+        let sql = self.sql;
+        self.runtime
+            .with_tenant_transaction(&tenant, move |transaction| {
+                Box::pin(async move { sql.renew_active_lease(transaction, &lease).await })
+            })
+            .await
+            .map_err(map_write_error)
+    }
+
     fn accepts(&self, attempt_id: &CallAttemptId) -> Result<(), PortError> {
         if self.lease.attempt_id() == attempt_id {
             Ok(())

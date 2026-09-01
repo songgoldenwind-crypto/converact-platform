@@ -114,7 +114,8 @@ async fn started_attempt_persists_call_and_agent_session_in_one_fenced_transitio
 
     let row = admin
         .query_one(
-            "SELECT state, revision, disclosure_completed, call_id, channel_agent_session_id
+            "SELECT state, revision, disclosure_completed, call_id, channel_agent_session_id,
+                    ROUND(EXTRACT(EPOCH FROM lease_expires_at) * 1000000)::BIGINT
              FROM converact_outbound_call_attempts
              WHERE tenant_id = 'tenant-a' AND id = 'attempt-active'",
             &[],
@@ -129,6 +130,21 @@ async fn started_attempt_persists_call_and_agent_session_in_one_fenced_transitio
         row.get::<_, Option<&str>>(4),
         Some("session-attempt-active")
     );
+
+    admin.query_one("SELECT pg_sleep(0.01)", &[]).await.unwrap();
+    store.renew_active_lease().await.unwrap();
+    let renewed = admin
+        .query_one(
+            "SELECT revision,
+                    ROUND(EXTRACT(EPOCH FROM lease_expires_at) * 1000000)::BIGINT
+             FROM converact_outbound_call_attempts
+             WHERE tenant_id = 'tenant-a' AND id = 'attempt-active'",
+            &[],
+        )
+        .await
+        .unwrap();
+    assert_eq!(renewed.get::<_, i64>(0), row.get::<_, i64>(1));
+    assert!(renewed.get::<_, i64>(1) > row.get::<_, i64>(5));
 }
 
 async fn assert_compliance(runtime: Arc<PostgresRuntime>, admin: &tokio_postgres::Client) {
@@ -275,7 +291,7 @@ fn leased_store(
     .unwrap();
     PostgresLeasedAttemptStore::new(
         runtime,
-        AiOutboundStore::new(StoreConfig::new(30_000, 16).unwrap()),
+        AiOutboundStore::new(StoreConfig::new(300_000, 16).unwrap()),
         FinalizationSqlStore::new(FinalizationStoreConfig::new(30_000, 16).unwrap()),
         lease,
     )
