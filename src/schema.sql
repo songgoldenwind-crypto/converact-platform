@@ -3783,3 +3783,23 @@ CREATE TABLE IF NOT EXISTS converact_active_call_event_inbox (
     ) ON DELETE RESTRICT,
   CHECK (applied_at IS NULL OR applied_at >= received_at)
 );
+
+-- ===== Converact immutable Agent Release Tool manifests (SQLite development mirror) =====
+
+CREATE TABLE IF NOT EXISTS converact_agent_release_tool_manifests (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  agent_release_id TEXT NOT NULL,
+  tool_set_hash TEXT NOT NULL CHECK (
+    length(tool_set_hash) = 64 AND tool_set_hash NOT GLOB '*[^0-9a-f]*'
+  ),
+  tool_manifest TEXT NOT NULL CHECK (
+    json_valid(tool_manifest)
+    AND json_type(tool_manifest) = 'array'
+    AND json_array_length(tool_manifest) BETWEEN 1 AND 64
+    AND length(CAST(tool_manifest AS BLOB)) <= 65536
+  ),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, agent_release_id),
+  FOREIGN KEY (tenant_id, agent_release_id)
+    REFERENCES converact_agent_releases(tenant_id, id) ON DELETE CASCADE
+);

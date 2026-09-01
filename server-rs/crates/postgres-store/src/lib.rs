@@ -18,6 +18,7 @@ mod conversation_understanding;
 mod handoff;
 mod post_call_finalization;
 mod release_artifact;
+mod release_tool_manifest;
 mod tool_action;
 mod voice_agent;
 
@@ -50,6 +51,10 @@ pub use post_call_finalization::{
 pub use release_artifact::{
     PostgresActiveCallArtifactRecord, PostgresActiveCallArtifactStore,
     PostgresActiveCallArtifactStoreConfig, PostgresActiveCallArtifactStoreError,
+};
+pub use release_tool_manifest::{
+    PostgresReleaseToolManifest, PostgresReleaseToolManifestError, PostgresReleaseToolRegistration,
+    PostgresReleaseToolStore,
 };
 pub use tool_action::PostgresToolActionStore;
 pub use voice_agent::{
