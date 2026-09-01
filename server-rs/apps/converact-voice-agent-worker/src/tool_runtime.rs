@@ -5,8 +5,8 @@ use converact_active_call_adapter::{
 };
 use converact_contracts::canonical_sha256_with_max_bytes;
 use converact_tool_broker_core::{
-    ActionReceipt, ActionResolution, ApprovalPort, BrokerResult, PolicyPort, ToolActionPort,
-    ToolActionStorePort, ToolBroker, ToolCatalogPort, ToolPortError, ToolProposal,
+    ActionReceipt, ActionResolution, ApprovalGrant, ApprovalPort, BrokerResult, PolicyPort,
+    ToolActionPort, ToolActionStorePort, ToolBroker, ToolCatalogPort, ToolPortError, ToolProposal,
     ToolProposalInput, ToolSchemaPort,
 };
 use converact_voice_agent_contracts::{EnvelopeContext, ToolCallId, ToolRevisionId};
@@ -81,6 +81,19 @@ pub trait ToolBrokerPort {
         proposal: ToolProposal,
         now_ms: u64,
     ) -> impl Future<Output = Result<BrokerResult, ToolPortError>> + Send;
+}
+
+/// Closed Approval source: low-risk Tools proceed; high-risk Tools remain unavailable.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct NoToolApprovals;
+
+impl ApprovalPort for NoToolApprovals {
+    async fn exact_grant(
+        &self,
+        _proposal: &ToolProposal,
+    ) -> Result<Option<ApprovalGrant>, ToolPortError> {
+        Ok(None)
+    }
 }
 
 impl<C, S, P, A, D, X> ToolBrokerPort for ToolBroker<C, S, P, A, D, X>
@@ -268,23 +281,23 @@ where
 }
 
 /// Routes one durable Tool proposal through the shared Broker with a process wall clock.
-pub struct ActiveCallToolEventProcessor<'a, B, K, R, C> {
-    runtime: &'a ToolRuntime<B, K, R>,
+pub struct ActiveCallToolEventProcessor<B, K, R, C> {
+    runtime: Arc<ToolRuntime<B, K, R>>,
     clock: C,
 }
 
-impl<'a, B, K, R, C> ActiveCallToolEventProcessor<'a, B, K, R, C> {
+impl<B, K, R, C> ActiveCallToolEventProcessor<B, K, R, C> {
     #[must_use]
-    pub const fn new(runtime: &'a ToolRuntime<B, K, R>, clock: C) -> Self {
+    pub const fn new(runtime: Arc<ToolRuntime<B, K, R>>, clock: C) -> Self {
         Self { runtime, clock }
     }
 }
 
-impl<B, K, R, C> ActiveCallToolProjectionPort for ActiveCallToolEventProcessor<'_, B, K, R, C>
+impl<B, K, R, C> ActiveCallToolProjectionPort for ActiveCallToolEventProcessor<B, K, R, C>
 where
-    B: ToolBindingPort + Sync,
-    K: ToolBrokerPort + Sync,
-    R: ToolResultPort + Sync,
+    B: ToolBindingPort + Send + Sync,
+    K: ToolBrokerPort + Send + Sync,
+    R: ToolResultPort + Send + Sync,
     C: WallClock,
 {
     async fn project_tool_event(

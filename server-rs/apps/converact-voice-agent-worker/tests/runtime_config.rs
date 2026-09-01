@@ -21,6 +21,7 @@ fn strict_document_builds_only_bounded_non_secret_runtime_values() {
         Duration::from_millis(250)
     );
     assert_eq!(config.shutdown_timeout(), Duration::from_secs(10));
+    assert_eq!(config.tool_action_lease_duration_ms(), 30_000);
     assert_eq!(
         config.active_call().session_supervisor_config(),
         ActiveCallSessionSupervisorConfig::new(
@@ -81,6 +82,15 @@ fn document_rejects_unknown_fields_inline_secrets_and_public_plaintext_bind() {
         VoiceAgentRuntimeConfig::from_json(&unsupported_secret_source).unwrap_err(),
         VoiceAgentRuntimeConfigError::InvalidRustPbx
     );
+
+    let invalid_tool_lease = valid_document().replace(
+        "\"tool_action_lease_duration_ms\":30000",
+        "\"tool_action_lease_duration_ms\":0",
+    );
+    assert_eq!(
+        VoiceAgentRuntimeConfig::from_json(&invalid_tool_lease).unwrap_err(),
+        VoiceAgentRuntimeConfigError::InvalidWorker
+    );
 }
 
 fn valid_document() -> String {
@@ -94,7 +104,8 @@ fn valid_document() -> String {
             "worker_count": 8,
             "claim_size": 16,
             "claim_poll_interval_ms": 250,
-            "attempt_lease_duration_ms": 30_000
+            "attempt_lease_duration_ms": 30_000,
+            "tool_action_lease_duration_ms": 30_000
         },
         "database": {
             "url_environment": "CONVERACT_TEST_DATABASE_URL",

@@ -6,7 +6,15 @@ fn executable_composes_durable_long_call_runtime_before_claiming_active_attempts
         "PostgresActiveCallEventStore::new",
         "PostgresConversationResultStore::new",
         "ActiveCallTranscriptIngestProcessor::new",
-        "RejectUnconfiguredActiveCallTools",
+        "PostgresReleaseToolStore::new",
+        "ReleaseToolAuthority::new",
+        "PostgresAgentToolSchema::new",
+        "PostgresToolActionStore::new",
+        "PostgresAgentToolProvider::new",
+        "ToolBroker::new",
+        "ToolRuntime::new",
+        "ActiveCallToolEventProcessor::new",
+        "ActiveCallToolResultPort::new",
         "ActiveCallEventProjectionRouter::new",
         "ActiveCallSessionRuntime::new",
         "VoiceAgentLongCallClaimExecutor::new",
@@ -18,4 +26,5 @@ fn executable_composes_durable_long_call_runtime_before_claiming_active_attempts
         );
     }
     assert!(!MAIN.contains("VoiceAgentClaimExecutor::new"));
+    assert!(!MAIN.contains("RejectUnconfiguredActiveCallTools"));
 }

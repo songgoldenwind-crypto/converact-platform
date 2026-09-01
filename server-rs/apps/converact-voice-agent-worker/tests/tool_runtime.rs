@@ -79,7 +79,8 @@ async fn event_projection_routes_the_current_tool_receipt_back_to_the_active_ses
         },
         Results(Arc::clone(&delivered)),
     );
-    let projection = ActiveCallToolEventProcessor::new(&runtime, FixedWallClock::new(1_300));
+    let projection =
+        ActiveCallToolEventProcessor::new(Arc::new(runtime), FixedWallClock::new(1_300));
     let authority = context();
     let event = normalize_event(
         &AdapterContext::new(authority.clone()),

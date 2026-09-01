@@ -31,6 +31,7 @@ const MAX_CONFIG_BYTES: usize = 64 * 1_024;
 const MAX_IDENTIFIER_BYTES: usize = 255;
 const MAX_POLICY_TEXT_BYTES: usize = 256;
 const MAX_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(300);
+const MAX_TOOL_ACTION_LEASE_MS: u64 = 300_000;
 const JS_MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
 
 /// Stable, value-free runtime configuration failure.
@@ -207,6 +208,7 @@ pub struct VoiceAgentRuntimeConfig {
     worker: WorkerConfig,
     claim_loop: ClaimLoopConfig,
     attempt_store: StoreConfig,
+    tool_action_lease_duration_ms: u64,
     database_url_environment: Box<str>,
     database_transport: DatabaseTransport,
     database: PostgresRuntimeSettings,
@@ -257,6 +259,11 @@ impl VoiceAgentRuntimeConfig {
         let attempt_store =
             StoreConfig::new(raw.worker.attempt_lease_duration_ms, raw.worker.claim_size)
                 .map_err(|_| VoiceAgentRuntimeConfigError::InvalidWorker)?;
+        if raw.worker.tool_action_lease_duration_ms == 0
+            || raw.worker.tool_action_lease_duration_ms > MAX_TOOL_ACTION_LEASE_MS
+        {
+            return Err(VoiceAgentRuntimeConfigError::InvalidWorker);
+        }
         let (database_url_environment, database_transport, database) =
             parse_database(raw.database)?;
         let post_call = FinalizationStoreConfig::new(
@@ -275,6 +282,7 @@ impl VoiceAgentRuntimeConfig {
             worker,
             claim_loop,
             attempt_store,
+            tool_action_lease_duration_ms: raw.worker.tool_action_lease_duration_ms,
             database_url_environment: database_url_environment.into(),
             database_transport,
             database,
@@ -318,6 +326,11 @@ impl VoiceAgentRuntimeConfig {
     #[must_use]
     pub const fn attempt_store_config(&self) -> StoreConfig {
         self.attempt_store
+    }
+
+    #[must_use]
+    pub const fn tool_action_lease_duration_ms(&self) -> u64 {
+        self.tool_action_lease_duration_ms
     }
 
     #[must_use]
@@ -385,6 +398,7 @@ struct WorkerDocument {
     claim_size: u16,
     claim_poll_interval_ms: u64,
     attempt_lease_duration_ms: u64,
+    tool_action_lease_duration_ms: u64,
 }
 
 #[derive(Deserialize)]

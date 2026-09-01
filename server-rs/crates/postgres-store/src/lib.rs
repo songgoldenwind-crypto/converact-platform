@@ -37,6 +37,7 @@ pub use agent_tool_provider::{
 pub use ai_outbound::{PostgresAiOutboundAttemptStore, PostgresLeasedAttemptStore};
 pub use ai_outbound_compliance::PostgresAiOutboundCompliancePort;
 pub use campaign_admin::{PostgresCampaignAdminError, PostgresCampaignAdminStore};
+pub use converact_tool_broker_store::{ToolActionSqlStore, ToolActionStoreConfig};
 pub use conversation_result::{
     PostgresConversationResultStore, PostgresConversationResultStoreError,
     PostgresProjectionFinalizeDecision, PostgresProjectionPrepareDecision,

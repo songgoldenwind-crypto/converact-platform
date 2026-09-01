@@ -10,19 +10,23 @@ use converact_contracts::health::{
 use converact_conversation_result_store::ConversationResultSqlStore;
 use converact_post_call_finalization_store::FinalizationSqlStore;
 use converact_postgres_store::{
-    PostgresActiveCallArtifactStore, PostgresActiveCallEventStore, PostgresAiOutboundAttemptStore,
-    PostgresAiOutboundCompliancePort, PostgresCampaignAdminStore, PostgresConversationResultStore,
-    PostgresRuntime, PostgresVoiceAgentStore,
+    PostgresActiveCallArtifactStore, PostgresActiveCallEventStore, PostgresAgentToolProvider,
+    PostgresAgentToolSchema, PostgresAiOutboundAttemptStore, PostgresAiOutboundCompliancePort,
+    PostgresCampaignAdminStore, PostgresConversationResultStore, PostgresReleaseToolStore,
+    PostgresRuntime, PostgresToolActionStore, PostgresVoiceAgentStore, ToolActionSqlStore,
+    ToolActionStoreConfig,
 };
 use converact_runtime_health::RuntimeHealth;
 use converact_rustpbx_rwi_adapter::{FileRwiSecretResolver, RustPbxRwiClient, RustPbxTelephony};
+use converact_tool_broker_core::ToolBroker;
 use converact_voice_agent_contracts::ChannelAgentSessionId;
 use converact_voice_agent_worker::{
     ActiveCallChannelAgent, ActiveCallEventProjectionRouter, ActiveCallPlaybookResolver,
-    ActiveCallSessionRuntime, ActiveCallTranscriptIngestProcessor, AdmissionReadiness,
-    AuthenticatedTenant, ClaimSupervisor, DatabaseTransport, PostgresAttemptClaimSource,
-    PostgresCampaignAdminPort, PostgresVoiceAgentRepository, RejectUnconfiguredActiveCallTools,
-    ShutdownToken, SystemLeaseTokenDigestSource, SystemWallClock, VoiceAgentLongCallClaimExecutor,
+    ActiveCallSessionRuntime, ActiveCallToolEventProcessor, ActiveCallToolResultPort,
+    ActiveCallTranscriptIngestProcessor, AdmissionReadiness, AuthenticatedTenant, ClaimSupervisor,
+    DatabaseTransport, LeaseTokenDigestSource, NoToolApprovals, PostgresAttemptClaimSource,
+    PostgresCampaignAdminPort, PostgresVoiceAgentRepository, ReleaseToolAuthority, ShutdownToken,
+    SystemLeaseTokenDigestSource, SystemWallClock, ToolRuntime, VoiceAgentLongCallClaimExecutor,
     VoiceAgentRepository, VoiceAgentRuntimeConfig, load_rs256_platform_verifier,
     parse_local_database_config, router_with_campaign_admin_and_platform_auth, serve_worker_http,
 };
@@ -163,9 +167,42 @@ async fn run(config: VoiceAgentRuntimeConfig) -> Result<(), ProcessError> {
         Arc::clone(&event_store),
         transcript_store,
     ));
+    let tool_authority = ReleaseToolAuthority::new(Arc::new(PostgresReleaseToolStore::new(
+        Arc::clone(&database),
+    )));
+    let tool_provider = PostgresAgentToolProvider::new(Arc::clone(&database));
+    let tool_lease_digest = SystemLeaseTokenDigestSource::new()
+        .next_digest()
+        .map_err(|_| ProcessError::WorkerFailed)?;
+    let tool_store_config = ToolActionStoreConfig::try_new(
+        config.instance_id(),
+        tool_lease_digest,
+        config.tool_action_lease_duration_ms(),
+    )
+    .map_err(|_| ProcessError::RuntimeConfigInvalid)?;
+    let tool_broker = ToolBroker::new(
+        tool_authority.clone(),
+        PostgresAgentToolSchema::new(),
+        tool_authority.clone(),
+        NoToolApprovals,
+        PostgresToolActionStore::new(
+            Arc::clone(&database),
+            ToolActionSqlStore::new(tool_store_config),
+        ),
+        tool_provider,
+    );
+    let tool_runtime = Arc::new(ToolRuntime::new(
+        tool_authority,
+        tool_broker,
+        ActiveCallToolResultPort::new(Arc::clone(&active_call_client)),
+    ));
+    let tool_projection = Arc::new(ActiveCallToolEventProcessor::new(
+        tool_runtime,
+        SystemWallClock,
+    ));
     let event_projection = Arc::new(ActiveCallEventProjectionRouter::new(
         transcript_projection,
-        Arc::new(RejectUnconfiguredActiveCallTools),
+        tool_projection,
     ));
     let active_session = Arc::new(ActiveCallSessionRuntime::new(
         Arc::clone(&active_call_client),
