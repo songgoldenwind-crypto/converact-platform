@@ -1,0 +1,61 @@
+{
+  "schema_version": "1.0.0",
+  "evidence_id": "r1-durable-pre-dial-compliance",
+  "recorded_at": "2026-09-01",
+  "source_commit": "f7f96666a6ef28639eed01239d046e27a48fa893",
+  "checks": [
+    {
+      "id": "orchestrator_contracts",
+      "command": "cargo test --locked -p converact-ai-outbound-core --test orchestrator",
+      "status": "passed",
+      "passed": 11,
+      "failed": 0
+    },
+    {
+      "id": "compliance_policy_units",
+      "command": "cargo test --locked -p converact-postgres-store --lib ai_outbound_compliance::tests::",
+      "status": "passed",
+      "passed": 2,
+      "failed": 0
+    },
+    {
+      "id": "claimed_attempt_executor",
+      "command": "cargo test --locked -p converact-voice-agent-worker --lib claimed_attempt_executor::tests::",
+      "status": "passed",
+      "passed": 2,
+      "failed": 0
+    },
+    {
+      "id": "voice_agent_tracer_bullet",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test tracer_bullet",
+      "status": "passed",
+      "passed": 5,
+      "failed": 0
+    },
+    {
+      "id": "isolated_postgres_physical",
+      "command": "CONVERACT_TEST_DATABASE_URL=<isolated-disposable-db> cargo test --locked -p converact-postgres-store --test ai_outbound_atomic_completion_postgres -- --ignored",
+      "status": "passed",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "id": "scoped_clippy",
+      "command": "cargo clippy --locked -p converact-ai-outbound-core -p converact-ai-outbound-store -p converact-postgres-store -p converact-voice-agent-worker --lib --test orchestrator --test ai_outbound_atomic_completion_postgres --test tracer_bullet -- -D warnings",
+      "status": "passed"
+    },
+    {
+      "id": "format_and_diff",
+      "command": "cargo fmt for exact packages --check; git diff --check exact slice",
+      "status": "passed"
+    }
+  ],
+  "not_run": [
+    "external_or_national_do_not_call_registry",
+    "jurisdiction_daily_calling_windows_holidays_destination_local_time",
+    "production_identity_jwks_carrier_and_legal_policy_feeds",
+    "executable_worker_and_continuous_claim_loop",
+    "active_call_rustpbx_sip_pstn_speech_model_recording_handoff",
+    "remote_server_production_performance_capacity_long_run"
+  ]
+}
