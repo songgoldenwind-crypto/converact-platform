@@ -23,13 +23,17 @@
   "overlay": {
     "status": "controlled_local_passed",
     "apply_script": "infra/converact/active-call/apply-overlay.mjs",
-    "apply_script_sha256": "baf592936d41c1a3b67a7a61dd795d7b1dd3e2cd2bb1476de238ae7615d8b9b8",
+    "apply_script_sha256": "2a0d07fb9c8e2e6a6c83a99c66e656ba6e797a153a384729c90e820eb0767d98",
     "readme": "infra/converact/active-call/README.md",
-    "readme_sha256": "25f791b1f1213bdc9aaa89f9b61e1ed994970b39bda2d29f98659710ef959bea",
+    "readme_sha256": "d5fbf731186cc3beea5a90e3acd4283478ee5c7cf5f5c8ad63163ff72e990881",
+    "event_journal_template": "infra/converact/active-call/platform-event-journal.rs",
+    "event_journal_template_sha256": "536d4132a23d91f06ceb679da7083083bdca117f84d82db974359060e423cc33",
     "target_files": [
       "src/app.rs",
       "src/handler/playbook.rs",
       "src/handler/handler.rs",
+      "src/handler/mod.rs",
+      "src/handler/platform_event_journal.rs",
       "src/playbook/runner.rs",
       "src/useragent/playbook_handler.rs"
     ],
@@ -43,20 +47,33 @@
       "control_header_redaction_before_dialogue",
       "reserved_playbook_authority",
       "exact_disclosure_track_end_gate",
-      "explicit_idempotent_conversation_start"
+      "explicit_idempotent_conversation_start",
+      "legacy_event_stream_compatibility",
+      "platform_semantic_event_sequence",
+      "bounded_process_local_event_replay",
+      "last_event_id_resume",
+      "explicit_http_410_coverage_gap"
     ],
     "limitations": [
       "reservation_state_is_process_memory_only",
       "reservation_lifecycle_is_not_crash_durable",
+      "event_journal_is_process_memory_only",
+      "event_journal_replay_is_bounded_to_1024_events_and_4_mib",
+      "event_journal_terminal_retention_is_bounded",
+      "process_restart_requires_durable_worker_reconciliation",
       "track_end_does_not_prove_callee_audibility_or_recording_capture",
       "control_header_transport_authentication_not_implemented",
       "not_found_does_not_authorize_blind_retry"
     ],
     "verification": {
       "exact_source_apply_twice": "passed",
-      "rustfmt": "passed",
+      "transform_tests": {
+        "passed": 4,
+        "failed": 0
+      },
+      "journal_template_rustfmt": "passed",
       "focused_rust_tests": {
-        "passed": 3,
+        "passed": 7,
         "failed": 0
       },
       "clippy_deny_warnings": "failed_pre_existing_upstream_baseline"

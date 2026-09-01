@@ -1,6 +1,7 @@
 # Active Call realtime event parity R1 implementation plan
 
-> **Status:** `controlled_adapter_contract_passed / live_runtime_not_run / production_not_run`
+> **Status:** `controlled_adapter_and_resumable_source_contract_passed / worker_runtime_not_run /
+> production_not_run`
 
 **Goal:** Preserve the pinned Active Call runtime's existing VAD, turn, barge-in, DTMF and call-state
 signals behind the Converact Rust adapter without reimplementing speech algorithms or granting Active
@@ -57,3 +58,13 @@ to silence and later resume Agent output during AI/human ownership changes. Fade
 two seconds. The safe command enum deliberately exposes no hangup, REFER or bridge operation, so
 telephone control stays behind RustPBX. Live command delivery and handoff behavior remain
 `not_run`.
+
+## Follow-on resumable-source checkpoint
+
+The exact-source overlay now offers a separate platform-only semantic event journal when a request
+supplies numeric `Last-Event-ID`. It assigns contiguous SSE IDs, replays retained events, preserves
+the legacy stream when the header is absent, and returns `410 Gone` instead of silently accepting
+evicted, ahead-of-head or recorder-lag coverage. Retention is bounded by count and bytes and remains
+process-local. The matching Rust adapter validates the cursor on every resumed event. Worker cursor
+persistence, reconnect policy, terminal `/list` reconciliation and process-crash handling remain
+`not_run` and are the next implementation checkpoint.

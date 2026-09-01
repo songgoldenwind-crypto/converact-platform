@@ -110,6 +110,7 @@ pub enum ClientFailureKind {
     OutcomeUnknown,
     Rejected,
     InvalidResponse,
+    CoverageGap,
 }
 
 /// Sanitized client failure that never embeds endpoint or response content.
@@ -246,11 +247,38 @@ pub enum ActiveCallEventKind {
     Command,
 }
 
+/// Monotonic cursor assigned by the Converact Active Call event-journal overlay.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct ActiveCallEventCursor(u64);
+
+impl ActiveCallEventCursor {
+    /// Cursor before the first event in one session generation.
+    pub const START: Self = Self(0);
+
+    #[must_use]
+    pub const fn new(value: u64) -> Self {
+        Self(value)
+    }
+
+    #[must_use]
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+}
+
 /// One bounded SSE frame without leaking Reqwest types across the adapter.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ActiveCallEvent {
     pub kind: ActiveCallEventKind,
     pub data: Box<str>,
+    cursor: Option<ActiveCallEventCursor>,
+}
+
+impl ActiveCallEvent {
+    #[must_use]
+    pub const fn cursor(&self) -> Option<ActiveCallEventCursor> {
+        self.cursor
+    }
 }
 
 /// Bounded Active Call private-process client.
@@ -456,8 +484,37 @@ impl ActiveCallClient {
         &self,
         session_id: &ChannelAgentSessionId,
     ) -> Result<ActiveCallEventStream, ClientError> {
+        self.open_events(session_id, None).await
+    }
+
+    /// Opens `/events/{id}` after one already-consumed cursor.
+    ///
+    /// Event frames must carry a contiguous numeric SSE `id`. Command frames are transient and do
+    /// not advance the event cursor. A missing or discontinuous event ID is surfaced as an explicit
+    /// coverage gap instead of being treated as a reconnectable transport failure.
+    ///
+    /// # Errors
+    ///
+    /// Returns sanitized transport/response failures or a coverage gap from the resumed stream.
+    pub async fn events_after(
+        &self,
+        session_id: &ChannelAgentSessionId,
+        cursor: ActiveCallEventCursor,
+    ) -> Result<ActiveCallEventStream, ClientError> {
+        self.open_events(session_id, Some(cursor)).await
+    }
+
+    async fn open_events(
+        &self,
+        session_id: &ChannelAgentSessionId,
+        resume_after: Option<ActiveCallEventCursor>,
+    ) -> Result<ActiveCallEventStream, ClientError> {
         let url = endpoint_url(&self.config.endpoint, "events", Some(session_id))?;
-        let response = tokio::time::timeout(self.config.timeout, self.client.get(url).send())
+        let mut request = self.client.get(url);
+        if let Some(cursor) = resume_after {
+            request = request.header("last-event-id", cursor.get().to_string());
+        }
+        let response = tokio::time::timeout(self.config.timeout, request.send())
             .await
             .map_err(|_| {
                 ClientError::new(ClientFailureKind::Unavailable, "active_call_events_timeout")
@@ -468,6 +525,9 @@ impl ActiveCallClient {
                     "active_call_events_transport_failed",
                 )
             })?;
+        if response.status() == reqwest::StatusCode::GONE {
+            return Err(coverage_gap("active_call_events_replay_unavailable"));
+        }
         if !response.status().is_success() {
             return Err(ClientError::new(
                 ClientFailureKind::Rejected,
@@ -487,6 +547,7 @@ impl ActiveCallClient {
             buffer: Vec::with_capacity(self.config.max_response_bytes.min(8_192)),
             max_event_bytes: self.config.max_response_bytes,
             read_timeout: self.config.timeout,
+            expected_event_cursor: resume_after.map(|cursor| u128::from(cursor.get()) + 1),
         })
     }
 
@@ -676,6 +737,7 @@ pub struct ActiveCallEventStream {
     buffer: Vec<u8>,
     max_event_bytes: usize,
     read_timeout: Duration,
+    expected_event_cursor: Option<u128>,
 }
 
 impl ActiveCallEventStream {
@@ -689,6 +751,17 @@ impl ActiveCallEventStream {
         loop {
             if let Some(frame) = take_sse_frame(&mut self.buffer) {
                 if let Some(event) = parse_sse_frame(&frame, self.max_event_bytes)? {
+                    if event.kind == ActiveCallEventKind::Event
+                        && let Some(expected) = self.expected_event_cursor
+                    {
+                        let actual = event
+                            .cursor
+                            .ok_or_else(|| coverage_gap("active_call_events_cursor_missing"))?;
+                        if u128::from(actual.get()) != expected {
+                            return Err(coverage_gap("active_call_events_cursor_non_contiguous"));
+                        }
+                        self.expected_event_cursor = Some(expected + 1);
+                    }
                     return Ok(Some(event));
                 }
                 continue;
@@ -919,6 +992,7 @@ fn parse_sse_frame(
     let text = std::str::from_utf8(frame)
         .map_err(|_| invalid_response("active_call_events_utf8_invalid"))?;
     let mut event_name = None;
+    let mut cursor = None;
     let mut data = String::new();
     for line in text.lines() {
         let line = line.trim_end_matches('\r');
@@ -927,6 +1001,15 @@ fn parse_sse_frame(
         }
         if let Some(value) = line.strip_prefix("event:") {
             event_name = Some(value.trim());
+        } else if let Some(value) = line.strip_prefix("id:") {
+            if cursor.is_some() {
+                return Err(invalid_response("active_call_events_cursor_invalid"));
+            }
+            let value = value.trim();
+            cursor =
+                Some(ActiveCallEventCursor::new(value.parse().map_err(|_| {
+                    invalid_response("active_call_events_cursor_invalid")
+                })?));
         } else if let Some(value) = line.strip_prefix("data:") {
             if !data.is_empty() {
                 data.push('\n');
@@ -948,6 +1031,7 @@ fn parse_sse_frame(
     Ok(Some(ActiveCallEvent {
         kind,
         data: data.into(),
+        cursor,
     }))
 }
 
@@ -957,6 +1041,10 @@ const fn invalid_configuration(code: &'static str) -> ClientError {
 
 const fn invalid_response(code: &'static str) -> ClientError {
     ClientError::new(ClientFailureKind::InvalidResponse, code)
+}
+
+const fn coverage_gap(code: &'static str) -> ClientError {
+    ClientError::new(ClientFailureKind::CoverageGap, code)
 }
 
 const fn status_unavailable(code: &'static str) -> ClientError {

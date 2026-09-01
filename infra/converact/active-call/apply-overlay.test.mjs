@@ -5,6 +5,10 @@ import test from 'node:test';
 import {
   patchAppState,
   patchCallHandler,
+  patchEventJournalAppState,
+  patchEventJournalCallHandler,
+  patchEventStream,
+  patchHandlerModule,
   patchInvitationHandler,
   patchPlaybookHandler,
   patchPlaybookRunner,
@@ -13,6 +17,10 @@ import {
 
 const sourceRoot = '/Users/songjinfeng/Projects/converact-sources/active-call/src';
 const source = (path) => readFileSync(`${sourceRoot}/${path}`, 'utf8');
+const eventJournal = readFileSync(
+  new URL('./platform-event-journal.rs', import.meta.url),
+  'utf8'
+);
 
 test('platform reservation is bound to the SIP leg and not a static Playbook', () => {
   const patched = patchInvitationHandler(source('useragent/playbook_handler.rs'));
@@ -42,9 +50,28 @@ test('platform reservation has an attached then explicitly started gate', () => 
   assert.match(router, /reservations\/\{session_id\}\/start/);
 });
 
+test('platform event journal provides bounded resumable semantic events', () => {
+  const app = patchEventJournalAppState(patchAppState(source('app.rs')));
+  const call = patchEventStream(
+    patchEventJournalCallHandler(patchCallHandler(source('handler/handler.rs')))
+  );
+  const module = patchHandlerModule(source('handler/mod.rs'));
+
+  assert.match(app, /platform_event_journals/);
+  assert.match(app, /retain_platform_event_journals/);
+  assert.match(call, /attach_platform_event_journal/);
+  assert.match(call, /Last-Event-ID/);
+  assert.match(call, /stream_platform_events/);
+  assert.match(module, /platform_event_journal/);
+  assert.match(eventJournal, /StatusCode::GONE/);
+  assert.match(eventJournal, /PLATFORM_EVENT_CAPACITY/);
+  assert.match(eventJournal, /mark_coverage_gap/);
+});
+
 test('all new transforms are idempotent', () => {
   const transforms = [
     [patchAppState, 'app.rs'],
+    [patchHandlerModule, 'handler/mod.rs'],
     [patchPlaybookHandler, 'handler/playbook.rs'],
     [patchCallHandler, 'handler/handler.rs'],
     [patchInvitationHandler, 'useragent/playbook_handler.rs'],
@@ -56,4 +83,14 @@ test('all new transforms are idempotent', () => {
     const once = transform(source(path));
     assert.equal(transform(once), once, path);
   }
+
+  const appWithGates = patchAppState(source('app.rs'));
+  const appWithJournal = patchEventJournalAppState(appWithGates);
+  assert.equal(patchEventJournalAppState(appWithJournal), appWithJournal);
+
+  const callWithGates = patchCallHandler(source('handler/handler.rs'));
+  const callWithJournal = patchEventJournalCallHandler(callWithGates);
+  assert.equal(patchEventJournalCallHandler(callWithJournal), callWithJournal);
+  const callWithStream = patchEventStream(callWithJournal);
+  assert.equal(patchEventStream(callWithStream), callWithStream);
 });

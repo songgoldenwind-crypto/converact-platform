@@ -1,12 +1,18 @@
 mod support;
 
 use converact_active_call_adapter::{
-    ActiveCallClient, ActiveCallEventKind, ActiveCallSessionState, ClientConfig, ClientFailureKind,
-    InlinePlaybook, PlaybookReservationState,
+    ActiveCallClient, ActiveCallEventCursor, ActiveCallEventKind, ActiveCallSessionState,
+    ClientConfig, ClientFailureKind, InlinePlaybook, PlaybookReservationState,
 };
 use converact_voice_agent_contracts::ChannelAgentSessionId;
 use std::time::Duration;
 use support::{CommandFixture, FakeActiveCall};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpListener,
+    sync::oneshot,
+    task::JoinHandle,
+};
 
 #[tokio::test]
 async fn client_rejects_non_loopback_plaintext_endpoint() {
@@ -66,7 +72,68 @@ async fn status_retries_and_event_frames_remain_typed_and_bounded() {
     let mut events = client.events(&session_id).await.unwrap();
     let event = events.next_event().await.unwrap().unwrap();
     assert_eq!(event.kind, ActiveCallEventKind::Event);
+    assert_eq!(event.cursor(), None);
     assert_eq!(event.data.as_ref(), r#"{"event":"mediaReady"}"#);
+}
+
+#[tokio::test]
+async fn resumed_events_send_last_event_id_and_reject_a_cursor_gap() {
+    let body = concat!(
+        "id: 8\nevent: event\ndata: {\"event\":\"mediaReady\"}\n\n",
+        "id: 10\nevent: event\ndata: {\"event\":\"mediaReady\"}\n\n",
+    );
+    let mut server = RawEventServer::start(body).await;
+    let client = ActiveCallClient::connect(server.config()).unwrap();
+    let session_id = ChannelAgentSessionId::parse("agent-session-001").unwrap();
+
+    let mut events = client
+        .events_after(&session_id, ActiveCallEventCursor::new(7))
+        .await
+        .unwrap();
+    let first = events.next_event().await.unwrap().unwrap();
+    assert_eq!(first.cursor(), Some(ActiveCallEventCursor::new(8)));
+
+    let error = events.next_event().await.unwrap_err();
+    assert_eq!(error.kind(), ClientFailureKind::CoverageGap);
+    assert_eq!(error.code(), "active_call_events_cursor_non_contiguous");
+    assert!(
+        server
+            .request()
+            .await
+            .to_ascii_lowercase()
+            .contains("last-event-id: 7")
+    );
+}
+
+#[tokio::test]
+async fn resumed_events_require_an_event_cursor() {
+    let server = RawEventServer::start("event: event\ndata: {\"event\":\"mediaReady\"}\n\n").await;
+    let client = ActiveCallClient::connect(server.config()).unwrap();
+    let session_id = ChannelAgentSessionId::parse("agent-session-001").unwrap();
+
+    let mut events = client
+        .events_after(&session_id, ActiveCallEventCursor::START)
+        .await
+        .unwrap();
+
+    let error = events.next_event().await.unwrap_err();
+    assert_eq!(error.kind(), ClientFailureKind::CoverageGap);
+    assert_eq!(error.code(), "active_call_events_cursor_missing");
+}
+
+#[tokio::test]
+async fn expired_event_replay_is_an_explicit_coverage_gap() {
+    let server = RawEventServer::start_with_status("410 Gone", "").await;
+    let client = ActiveCallClient::connect(server.config()).unwrap();
+    let session_id = ChannelAgentSessionId::parse("agent-session-001").unwrap();
+
+    let error = client
+        .events_after(&session_id, ActiveCallEventCursor::new(7))
+        .await
+        .unwrap_err();
+
+    assert_eq!(error.kind(), ClientFailureKind::CoverageGap);
+    assert_eq!(error.code(), "active_call_events_replay_unavailable");
 }
 
 #[tokio::test]
@@ -232,6 +299,58 @@ fn inline_playbook_rejects_non_playbook_or_unbounded_content() {
     assert!(InlinePlaybook::try_new("plain prompt").is_err());
     assert!(InlinePlaybook::try_new(format!("---\n{}", "x".repeat(65_537))).is_err());
     assert!(InlinePlaybook::try_new("---\nname: bad\0value").is_err());
+}
+
+struct RawEventServer {
+    endpoint: String,
+    request: Option<oneshot::Receiver<String>>,
+    task: JoinHandle<()>,
+}
+
+impl RawEventServer {
+    async fn start(body: &'static str) -> Self {
+        Self::start_with_status("200 OK", body).await
+    }
+
+    async fn start_with_status(status: &'static str, body: &'static str) -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let (request_tx, request) = oneshot::channel();
+        let task = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request_bytes = vec![0_u8; 4_096];
+            let count = stream.read(&mut request_bytes).await.unwrap();
+            request_bytes.truncate(count);
+            request_tx
+                .send(String::from_utf8(request_bytes).unwrap())
+                .unwrap();
+            let headers = format!(
+                "HTTP/1.1 {status}\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                body.len(),
+            );
+            stream.write_all(headers.as_bytes()).await.unwrap();
+            stream.write_all(body.as_bytes()).await.unwrap();
+        });
+        Self {
+            endpoint: format!("http://{address}"),
+            request: Some(request),
+            task,
+        }
+    }
+
+    fn config(&self) -> ClientConfig {
+        ClientConfig::new(&self.endpoint, 200, 1_024).unwrap()
+    }
+
+    async fn request(&mut self) -> String {
+        self.request.take().unwrap().await.unwrap()
+    }
+}
+
+impl Drop for RawEventServer {
+    fn drop(&mut self) {
+        self.task.abort();
+    }
 }
 
 #[tokio::test]

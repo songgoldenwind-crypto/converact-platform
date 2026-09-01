@@ -20,12 +20,26 @@ explicit disclosure-before-conversation gate:
   `playId` exactly equals the platform session ID;
 - the idempotent `POST /api/playbook/reservations/{session_id}/start` succeeds only after that
   exact disclosure playback terminal event;
+- a platform worker opts into a separate semantic stream by sending numeric `Last-Event-ID` to
+  `GET /events/{session_id}`; every returned `event` frame then carries a contiguous numeric SSE
+  `id` and can be resumed after a transport disconnect;
+- the process-local journal retains at most 1,024 semantic events and 4 MiB per platform session,
+  rejects a semantic event above 64 KiB, and covers only `mediaReady`, `asrFinal`, `interruption`,
+  `hold`, `inactivity`, `functionCall` and terminal `hangup` events;
+- a cursor older than retained coverage, ahead of the journal, or affected by recorder lag returns
+  `410 Gone`; the overlay never silently skips that gap;
+- requests without `Last-Event-ID` retain the original unnumbered event/command stream;
 - the legacy request without `session_id` remains compatible.
 
 It does not give Active Call Campaign, Agent Release, telephony, Call/Leg, billing, external Tool,
 recording or outcome authority. It also does not make the in-memory reservation durable. The
 platform must persist intent before mutation, use a stable session identity, query after an unknown
 outcome, and reconcile process restart plus `not_found` against its own durable reservation intent.
+The semantic event journal is also process memory only: terminal journals become eligible for
+cleanup after a five-minute reconciliation window, while an Active Call process crash loses them.
+A Worker must persist every accepted cursor and event before advancing its durable projection; HTTP `410`, a
+missing journal after restart, or a terminal session without complete coverage requires explicit
+reconciliation and must not be treated as a complete transcript.
 The control header is for the trusted RustPBX-to-Active-Call placement only; it is not a public
 caller assertion and the overlay does not add transport authentication. Converact owns disclosure
 policy, text and command issuance; the overlay only records its local exact-playback terminal event.
@@ -33,7 +47,8 @@ That event does not prove that a callee heard the audio, that recording captured
 content is sufficient. A transient `404` is not proof that no call-side effect exists and must never
 authorize a blind second mutation.
 
-The overlay script checks the exact upstream commit and tree before changing five Rust source files.
+The overlay script checks the exact upstream commit and tree before changing six Rust source files
+and installing one owned Rust module.
 It is idempotent on a previously overlaid checkout and fails closed on partial application or
 anchor drift. The canonical pinned development checkout remains unmodified; apply the overlay only
 to an isolated build tree.

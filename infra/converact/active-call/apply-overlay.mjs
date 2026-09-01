@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -592,6 +592,70 @@ export function patchAppState(source) {
   return patched;
 }
 
+export function patchEventJournalAppState(source) {
+  const field = '    pub(crate) platform_event_journals:';
+  if (source.includes(field)) return source;
+  if (!source.includes('    pub(crate) platform_playbook_gates:')) {
+    throw new Error('Active Call event journal requires the Playbook gate overlay');
+  }
+  let patched = replaceOnce(
+    source,
+    '    pub(crate) platform_playbook_gates: Arc<Mutex<HashMap<String, crate::handler::playbook::PlatformPlaybookGate>>>,\n',
+    '    pub(crate) platform_playbook_gates: Arc<Mutex<HashMap<String, crate::handler::playbook::PlatformPlaybookGate>>>,\n' +
+      '    pub(crate) platform_event_journals: Arc<std::sync::Mutex<crate::handler::platform_event_journal::PlatformEventJournals>>,\n',
+    'platform event journal field'
+  );
+  patched = replaceOnce(
+    patched,
+    '            platform_playbook_gates: Arc::new(Mutex::new(HashMap::new())),\n',
+    '            platform_playbook_gates: Arc::new(Mutex::new(HashMap::new())),\n' +
+      '            platform_event_journals: Arc::new(std::sync::Mutex::new(HashMap::new())),\n',
+    'platform event journal initialization'
+  );
+  patched = replaceOnce(
+    patched,
+    `                        gates.retain(|session_id, gate| {
+                            pending.contains_key(session_id)
+                                || active_calls.contains_key(session_id)
+                                || gate.updated_at.elapsed() < ttl
+                        });
+                        if removed > 0 {
+`,
+    `                        gates.retain(|session_id, gate| {
+                            pending.contains_key(session_id)
+                                || active_calls.contains_key(session_id)
+                                || gate.updated_at.elapsed() < ttl
+                        });
+                        let mut journals = pending_cleanup_state
+                            .platform_event_journals
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner());
+                        crate::handler::platform_event_journal::retain_platform_event_journals(
+                            &mut journals,
+                            ttl,
+                            |session_id| {
+                                pending.contains_key(session_id)
+                                    || active_calls.contains_key(session_id)
+                            },
+                        );
+                        if removed > 0 {
+`,
+    'stale platform event journal cleanup'
+  );
+  return patched;
+}
+
+export function patchHandlerModule(source) {
+  const marker = 'pub(crate) mod platform_event_journal;';
+  if (source.includes(marker)) return source;
+  return replaceOnce(
+    source,
+    'pub mod peer;\n',
+    'pub mod peer;\n' + marker + '\n',
+    'platform event journal module'
+  );
+}
+
 export function patchInvitationHandler(source) {
   const marker = 'const PLATFORM_SESSION_HEADER: &str = "X-Converact-Agent-Session";';
   if (source.includes(marker)) return source;
@@ -868,6 +932,66 @@ export function patchCallHandler(source) {
   return patched;
 }
 
+export function patchEventJournalCallHandler(source) {
+  const marker = 'attach_platform_event_journal(';
+  if (source.includes(marker)) return source;
+  if (!source.includes('PlaybookRunner::new_with_start_gate(')) {
+    throw new Error('Active Call event journal requires the call-handler gate overlay');
+  }
+  return replaceOnce(
+    source,
+    `    }));
+
+    // Load playbook: prefer direct parameter, fall back to pending_playbooks
+`,
+    `    }));
+
+    crate::handler::platform_event_journal::attach_platform_event_journal(
+        &app_state,
+        &session_id,
+        active_call.event_sender.subscribe(),
+    )
+    .await;
+
+    // Load playbook: prefer direct parameter, fall back to pending_playbooks
+`,
+    'platform event journal recorder attachment'
+  );
+}
+
+export function patchEventStream(source) {
+  const marker = 'last_event_cursor(&headers)';
+  if (source.includes(marker)) return source;
+  return replaceOnce(
+    source,
+    `pub(crate) async fn stream_events(
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+) -> Response {
+`,
+    `pub(crate) async fn stream_events(
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+) -> Response {
+    // Last-Event-ID opts platform workers into the bounded semantic replay journal.
+    let resume_cursor = match crate::handler::platform_event_journal::last_event_cursor(&headers) {
+        Ok(cursor) => cursor,
+        Err(status) => return (status, "invalid Last-Event-ID").into_response(),
+    };
+    if let Some(cursor) = resume_cursor {
+        return crate::handler::platform_event_journal::stream_platform_events(
+            state,
+            id,
+            cursor,
+        )
+        .await;
+    }
+`,
+    'platform resumable event stream'
+  );
+}
+
 export function patchPlaybookRunner(source) {
   const marker = 'wait_for_platform_start';
   if (source.includes(marker)) return source;
@@ -992,13 +1116,33 @@ function patchFile(path, transform) {
   if (patched !== source) writeFileSync(path, patched);
 }
 
+function installPlatformEventJournal(root) {
+  const target = join(root, 'src/handler/platform_event_journal.rs');
+  const content = readFileSync(
+    new URL('./platform-event-journal.rs', import.meta.url),
+    'utf8'
+  );
+  if (existsSync(target)) {
+    if (readFileSync(target, 'utf8') !== content) {
+      throw new Error('Active Call platform event journal file conflicts with overlay');
+    }
+    return;
+  }
+  writeFileSync(target, content);
+}
+
 export function applyActiveCallOverlay(sourceRoot) {
   const root = resolve(sourceRoot);
   assertPinnedSource(root);
   patchFile(join(root, 'src/handler/playbook.rs'), patchPlaybookHandler);
   patchFile(join(root, 'src/app.rs'), patchAppState);
+  patchFile(join(root, 'src/app.rs'), patchEventJournalAppState);
   patchFile(join(root, 'src/handler/handler.rs'), patchCallHandler);
+  patchFile(join(root, 'src/handler/handler.rs'), patchEventJournalCallHandler);
+  patchFile(join(root, 'src/handler/handler.rs'), patchEventStream);
   patchFile(join(root, 'src/handler/handler.rs'), patchRouter);
+  patchFile(join(root, 'src/handler/mod.rs'), patchHandlerModule);
+  installPlatformEventJournal(root);
   patchFile(join(root, 'src/useragent/playbook_handler.rs'), patchInvitationHandler);
   patchFile(join(root, 'src/playbook/runner.rs'), patchPlaybookRunner);
   return {
@@ -1008,6 +1152,8 @@ export function applyActiveCallOverlay(sourceRoot) {
       'src/app.rs',
       'src/handler/playbook.rs',
       'src/handler/handler.rs',
+      'src/handler/mod.rs',
+      'src/handler/platform_event_journal.rs',
       'src/playbook/runner.rs',
       'src/useragent/playbook_handler.rs'
     ]

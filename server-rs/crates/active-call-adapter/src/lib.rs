@@ -7,10 +7,10 @@ mod mapper;
 mod upstream;
 
 pub use client::{
-    ActiveCallClient, ActiveCallCommand, ActiveCallEvent, ActiveCallEventKind,
-    ActiveCallEventStream, ActiveCallSessionState, ClientConfig, ClientConfigError, ClientError,
-    ClientFailureKind, CommandAccepted, ConversationStarted, InlinePlaybook,
-    PlaybookReservationState, ReservedPlaybookSession,
+    ActiveCallClient, ActiveCallCommand, ActiveCallEvent, ActiveCallEventCursor,
+    ActiveCallEventKind, ActiveCallEventStream, ActiveCallSessionState, ClientConfig,
+    ClientConfigError, ClientError, ClientFailureKind, CommandAccepted, ConversationStarted,
+    InlinePlaybook, PlaybookReservationState, ReservedPlaybookSession,
 };
 pub use command::{AdapterCommand, encode_command};
 pub use lifecycle::{ActiveCallLifecycleEvent, decode_lifecycle_event};

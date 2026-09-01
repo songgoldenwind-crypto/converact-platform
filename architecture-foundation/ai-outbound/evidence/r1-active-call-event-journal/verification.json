@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0.0",
+  "evidence_id": "r1-active-call-event-journal",
+  "recorded_at": "2026-09-01",
+  "source_commit": "6224d948cc0941ac48b4a5426477aeaf639c2e98",
+  "source_tree": "9521ad341fb992ba6d491eb217983df8cf85d2cf",
+  "checks": [
+    {
+      "id": "overlay_transform_contract",
+      "command": "node --test infra/converact/active-call/apply-overlay.test.mjs",
+      "status": "passed",
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "id": "adapter_cursor_contract",
+      "command": "cargo test --locked -p converact-active-call-adapter --test client",
+      "status": "passed",
+      "passed": 14,
+      "failed": 0
+    },
+    {
+      "id": "exact_source_event_journal_contract",
+      "command": "cargo test --locked --lib platform_event_journal::tests",
+      "status": "passed",
+      "passed": 4,
+      "failed": 0,
+      "filtered_out": 258,
+      "environment": "isolated exact-source overlay clone"
+    },
+    {
+      "id": "exact_source_reservation_compatibility",
+      "command": "cargo test --locked --lib converact_reservation_tests",
+      "status": "passed",
+      "passed": 3,
+      "failed": 0,
+      "filtered_out": 259,
+      "environment": "isolated exact-source overlay clone"
+    },
+    {
+      "id": "event_journal_template_format",
+      "command": "rustfmt --edition 2024 --check infra/converact/active-call/platform-event-journal.rs",
+      "status": "passed"
+    }
+  ],
+  "not_run": [
+    "worker_sse_reconnect_and_cursor_persistence",
+    "active_call_process_crash_reconciliation",
+    "real_sip_pstn_call_and_asr_stream",
+    "production_capacity_latency_and_long_call_retention",
+    "real_model_intent_emotion_quality",
+    "production_eligibility"
+  ]
+}
