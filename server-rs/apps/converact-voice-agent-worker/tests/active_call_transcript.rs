@@ -1,4 +1,7 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{
+    Mutex,
+    atomic::{AtomicUsize, Ordering},
+};
 
 use converact_active_call_adapter::{AdapterContext, NormalizedEvent, normalize_event};
 use converact_conversation_result_core::{TranscriptSegment, TranscriptSegmentDraft};
@@ -9,13 +12,14 @@ use converact_voice_agent_contracts::{
     VOICE_AGENT_SCHEMA_VERSION,
 };
 use converact_voice_agent_worker::{
-    ActiveCallTranscriptBinding, ActiveCallTranscriptBindingInput,
+    ActiveCallEventProcessingError, ActiveCallEventProcessorPort, ActiveCallTranscriptBinding,
+    ActiveCallTranscriptBindingInput, ActiveCallTranscriptBindingPort,
     ActiveCallTranscriptDurabilityPort, ActiveCallTranscriptIngestError,
-    ActiveCallUnderstandingEventOutcome, FinalTranscriptUnderstandingError,
-    FinalTranscriptUnderstandingPort, TranscriptUnderstandingAppendReceipt,
-    TranscriptUnderstandingDisposition, TranscriptUnderstandingHistoryPort,
-    TranscriptUnderstandingSourceError, append_active_call_final_transcript,
-    process_active_call_understanding_event,
+    ActiveCallUnderstandingEventOutcome, ActiveCallUnderstandingEventProcessor,
+    FinalTranscriptUnderstandingError, FinalTranscriptUnderstandingPort,
+    TranscriptUnderstandingAppendReceipt, TranscriptUnderstandingDisposition,
+    TranscriptUnderstandingHistoryPort, TranscriptUnderstandingSourceError,
+    append_active_call_final_transcript, process_active_call_understanding_event,
 };
 
 #[test]
@@ -264,6 +268,48 @@ async fn active_call_final_flows_through_sequence_history_and_understanding_once
 }
 
 #[tokio::test]
+async fn shared_processor_binds_media_then_resolves_the_exact_call_for_each_final() {
+    let authority = context("session-001");
+    let bindings = BindingStore::default();
+    let store = CoordinatorStore::new(TranscriptUnderstandingDisposition::AppendedCurrent);
+    let understanding = Processor::new(TranscriptUnderstandingDisposition::AppendedCurrent, 1);
+    let processor = ActiveCallUnderstandingEventProcessor::new_dynamic(
+        &bindings,
+        &store,
+        &understanding,
+        TranscriptHistoryLimit::new(16).unwrap(),
+    );
+    let media_ready = normalize_event(
+        &AdapterContext::new(authority.clone()),
+        r#"{"event":"mediaReady","trackId":"customer-track","timestamp":1000}"#,
+    )
+    .unwrap();
+
+    processor.process(&authority, &media_ready).await.unwrap();
+    processor
+        .process(
+            &authority,
+            &final_event(
+                &authority,
+                "customer-track",
+                1_500,
+                Some((1_100, 1_450)),
+                0,
+                "恢复后仍属于同一通话",
+                false,
+                None,
+            ),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(bindings.bind_count.load(Ordering::Relaxed), 1);
+    assert_eq!(bindings.load_count.load(Ordering::Relaxed), 1);
+    assert_eq!(store.append_count.load(Ordering::Relaxed), 1);
+    assert_eq!(understanding.calls.load(Ordering::Relaxed), 1);
+}
+
+#[tokio::test]
 async fn replay_and_ignored_events_never_load_history_or_duplicate_model_work() {
     let binding = binding("customer-track", 1_000);
     let replay = CoordinatorStore::new(TranscriptUnderstandingDisposition::ReplayedCurrent);
@@ -362,6 +408,42 @@ struct CoordinatorStore {
     disposition: TranscriptUnderstandingDisposition,
     append_count: AtomicUsize,
     history_count: AtomicUsize,
+}
+
+#[derive(Default)]
+struct BindingStore {
+    binding: Mutex<Option<ActiveCallTranscriptBinding>>,
+    bind_count: AtomicUsize,
+    load_count: AtomicUsize,
+}
+
+impl ActiveCallTranscriptBindingPort for BindingStore {
+    async fn bind_media(
+        &self,
+        context: &EnvelopeContext,
+        customer_track_id: &str,
+        call_started_at_ms: u64,
+    ) -> Result<(), ActiveCallEventProcessingError> {
+        self.bind_count.fetch_add(1, Ordering::Relaxed);
+        let binding = ActiveCallTranscriptBinding::try_new(ActiveCallTranscriptBindingInput {
+            channel_agent_session_id: context.channel_agent_session_id().unwrap().clone(),
+            customer_track_id: customer_track_id.to_owned(),
+            call_started_at_ms,
+            language: "zh-CN".to_owned(),
+            retention_policy_ref: "until-ms-9999999999999".to_owned(),
+        })
+        .map_err(|_| ActiveCallEventProcessingError::new("test_binding_invalid"))?;
+        *self.binding.lock().unwrap() = Some(binding);
+        Ok(())
+    }
+
+    async fn load_binding(
+        &self,
+        _context: &EnvelopeContext,
+    ) -> Result<Option<ActiveCallTranscriptBinding>, ActiveCallEventProcessingError> {
+        self.load_count.fetch_add(1, Ordering::Relaxed);
+        Ok(self.binding.lock().unwrap().clone())
+    }
 }
 
 impl CoordinatorStore {

@@ -7,7 +7,7 @@ use converact_active_call_adapter::{
 };
 use converact_contracts::canonical_sha256;
 use converact_conversation_result_store::TranscriptHistoryLimit;
-use converact_voice_agent_contracts::{EnvelopeContext, ExecutionGeneration};
+use converact_voice_agent_contracts::EnvelopeContext;
 
 use crate::{
     ActiveCallTranscriptBinding, ActiveCallTranscriptDurabilityPort,
@@ -403,36 +403,51 @@ pub trait ActiveCallEventProcessorPort: Sync {
     ) -> impl Future<Output = Result<(), ActiveCallEventProcessingError>> + Send;
 }
 
-/// Adapter that connects the durable SSE consumer to final-transcript understanding.
-pub struct ActiveCallUnderstandingEventProcessor<'a, D, P> {
+/// Durable resolver for one session generation's customer-media and transcript metadata.
+pub trait ActiveCallTranscriptBindingPort: Sync {
+    fn bind_media(
+        &self,
+        context: &EnvelopeContext,
+        customer_track_id: &str,
+        call_started_at_ms: u64,
+    ) -> impl Future<Output = Result<(), ActiveCallEventProcessingError>> + Send;
+
+    fn load_binding(
+        &self,
+        context: &EnvelopeContext,
+    ) -> impl Future<
+        Output = Result<Option<ActiveCallTranscriptBinding>, ActiveCallEventProcessingError>,
+    > + Send;
+}
+
+/// Shared adapter that resolves each durable event's exact call binding before understanding.
+pub struct ActiveCallUnderstandingEventProcessor<'a, B, D, P> {
+    bindings: &'a B,
     store: &'a D,
     processor: &'a P,
-    binding: &'a ActiveCallTranscriptBinding,
-    current_generation: ExecutionGeneration,
     history_limit: TranscriptHistoryLimit,
 }
 
-impl<'a, D, P> ActiveCallUnderstandingEventProcessor<'a, D, P> {
+impl<'a, B, D, P> ActiveCallUnderstandingEventProcessor<'a, B, D, P> {
     #[must_use]
-    pub const fn new(
+    pub const fn new_dynamic(
+        bindings: &'a B,
         store: &'a D,
         processor: &'a P,
-        binding: &'a ActiveCallTranscriptBinding,
-        current_generation: ExecutionGeneration,
         history_limit: TranscriptHistoryLimit,
     ) -> Self {
         Self {
+            bindings,
             store,
             processor,
-            binding,
-            current_generation,
             history_limit,
         }
     }
 }
 
-impl<D, P> ActiveCallEventProcessorPort for ActiveCallUnderstandingEventProcessor<'_, D, P>
+impl<B, D, P> ActiveCallEventProcessorPort for ActiveCallUnderstandingEventProcessor<'_, B, D, P>
 where
+    B: ActiveCallTranscriptBindingPort,
     D: ActiveCallTranscriptDurabilityPort + TranscriptUnderstandingHistoryPort + Sync,
     D::Append: TranscriptUnderstandingAppendReceipt,
     P: FinalTranscriptUnderstandingPort,
@@ -447,12 +462,29 @@ where
                 "active_call_event_processor_authority_invalid",
             ));
         }
+        if let NormalizedEvent::MediaReady {
+            track_id,
+            timestamp_ms,
+            ..
+        } = event
+        {
+            return self
+                .bindings
+                .bind_media(context, track_id, *timestamp_ms)
+                .await;
+        }
+        if !matches!(event, NormalizedEvent::TranscriptFinal { .. }) {
+            return Ok(());
+        }
+        let binding = self.bindings.load_binding(context).await?.ok_or_else(|| {
+            ActiveCallEventProcessingError::new("active_call_transcript_binding_not_available")
+        })?;
         process_active_call_understanding_event(
             self.store,
             self.processor,
-            self.binding,
+            &binding,
             event,
-            self.current_generation,
+            context.execution_generation(),
             self.history_limit,
         )
         .await

@@ -8,8 +8,54 @@ use converact_voice_agent_contracts::EnvelopeContext;
 use crate::{
     ActiveCallDurableEvent, ActiveCallEventAppendDecision, ActiveCallEventInboxError,
     ActiveCallEventInboxPort, ActiveCallEventInboxSnapshot, ActiveCallEventInboxStatus,
-    ActiveCallEventReconcileReason,
+    ActiveCallEventProcessingError, ActiveCallEventReconcileReason, ActiveCallTranscriptBinding,
+    ActiveCallTranscriptBindingInput, ActiveCallTranscriptBindingPort,
 };
+
+impl ActiveCallTranscriptBindingPort for PostgresActiveCallEventStore {
+    async fn bind_media(
+        &self,
+        context: &EnvelopeContext,
+        customer_track_id: &str,
+        call_started_at_ms: u64,
+    ) -> Result<(), ActiveCallEventProcessingError> {
+        PostgresActiveCallEventStore::bind_media(
+            self,
+            context,
+            customer_track_id,
+            call_started_at_ms,
+        )
+        .await
+        .map(|_| ())
+        .map_err(|_| binding_error())
+    }
+
+    async fn load_binding(
+        &self,
+        context: &EnvelopeContext,
+    ) -> Result<Option<ActiveCallTranscriptBinding>, ActiveCallEventProcessingError> {
+        let Some(stored) = self
+            .load_media_binding(context)
+            .await
+            .map_err(|_| binding_error())?
+        else {
+            return Ok(None);
+        };
+        let session_id = context
+            .channel_agent_session_id()
+            .ok_or_else(binding_error)?
+            .clone();
+        ActiveCallTranscriptBinding::try_new(ActiveCallTranscriptBindingInput {
+            channel_agent_session_id: session_id,
+            customer_track_id: stored.customer_track_id().to_owned(),
+            call_started_at_ms: stored.call_started_at_ms(),
+            language: stored.language().to_owned(),
+            retention_policy_ref: stored.retention_policy_ref().to_owned(),
+        })
+        .map(Some)
+        .map_err(|_| binding_error())
+    }
+}
 
 impl ActiveCallEventInboxPort for PostgresActiveCallEventStore {
     async fn load(
@@ -141,4 +187,8 @@ const fn map_reason(
 
 const fn store_error() -> ActiveCallEventInboxError {
     ActiveCallEventInboxError::new("active_call_event_inbox_store_unavailable")
+}
+
+const fn binding_error() -> ActiveCallEventProcessingError {
+    ActiveCallEventProcessingError::new("active_call_transcript_binding_store_unavailable")
 }

@@ -74,7 +74,7 @@ pub use active_call_event_consumer::{
     ActiveCallDurableEvent, ActiveCallEventAppendDecision, ActiveCallEventConsumerError,
     ActiveCallEventConsumerOutcome, ActiveCallEventInboxError, ActiveCallEventInboxPort,
     ActiveCallEventInboxSnapshot, ActiveCallEventInboxStatus, ActiveCallEventProcessingError,
-    ActiveCallEventProcessorPort, ActiveCallEventReconcileReason,
+    ActiveCallEventProcessorPort, ActiveCallEventReconcileReason, ActiveCallTranscriptBindingPort,
     ActiveCallUnderstandingEventProcessor, consume_active_call_events_once,
 };
 pub use active_call_handoff::ActiveCallHandoffPort;
