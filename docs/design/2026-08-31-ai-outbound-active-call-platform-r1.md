@@ -121,7 +121,7 @@ Kamailio / Trunk / PSTN
 | Tool/Action | Rust Proposal/Policy/Approval/Broker/Receipt、持久化 Adapter、Active Call Worker 桥接及通用查询/变更 Adapter 已通过本地受控测试 | 接入真实 Provider | controlled slice passed；real provider/physical PostgreSQL `not_run` |
 | AI/人工协作 | Rust Handoff Core/Store/Worker 的 commit/abort/replay/unknown-query 和具体 Active Call 私有进程端口已通过本地受控/loopback 测试 | 接入真实人席、RustPBX 媒体切换与 Active Call | physical integration/production `not_run` |
 | Transcript/Outcome/QM | Rust final transcript/snapshot/result/evaluation/Bad Case、durable reconcile、权限化查询 API，以及 Active Call intent 候选到精确 Release OutcomeSchema/结果证据的投影已通过本地受控测试 | 接入真实 Speech/模型/UI 并迁移旧 writer | physical integration/writer switch/production `not_run` |
-| 逐轮 Intent/Emotion/Dialogue 状态 | Rust Core、closed checkpoint、四领域原子 Store 合同、Worker 恢复/写入端口与具体 tenant PostgreSQL adapter 已通过本地精准测试 | 接入真实逐轮 Provider 和 Worker 进程组合 | physical PostgreSQL/real provider/restart/two-node/production `not_run` |
+| 逐轮 Intent/Emotion/Dialogue 状态 | Rust Core、closed checkpoint、四领域原子 Store、Worker 恢复/写入端口、tenant PostgreSQL adapter，以及 final customer transcript 到 Safety Rule Intent checkpoint 已通过本地精准测试 | 接入 Active Call durable ingest、Fast Classifier、Contextual LLM、Emotion Provider 和 Worker 进程组合 | physical PostgreSQL/real channel-model integration/restart/two-node/production `not_run` |
 | Post-call Finalization | Rust terminal/enqueue 受控原子边界、durable queue、Worker、D7 projection reuse 与进度查询已通过本地精准测试 | 接入物理 PostgreSQL 合并事务和真实终态输入 | physical transaction/real call/production `not_run` |
 | 性能/容量/长稳 | 旧证据不能继承到新链路 | 功能稳定后单独执行 | `not_run` |
 
@@ -549,9 +549,20 @@ Catalog、每个 Intent 的 Slot allow-list、安全关键标签、最多五个�
 fail-closed，诊断不输出候选与 Slot 内容。即使安全规则确认分类，Core 也只产生 evidence，不产生
 转接、挂机、DNC 写入或高风险 Tool 授权。
 
-实时 Rule/Fast Classifier/Contextual LLM Provider、跨 Provider 证据融合、阈值校准、Worker
-实时接入与真实意图质量仍为 `not_run`。Intent checkpoint 和有界 durable Store adapter 已有本地
-合同证据，但物理 PostgreSQL 尚未执行。目标实现继续保留 Active Call 的多轮理解，
+截至 2026-09-01，首个真实 Rust `SafetyIntentProvider` 已接收经过 Result Core 校验并持有稳定
+segment ID 的 final customer transcript。规则集绑定精确 Agent Release 与 Intent Catalog，只能指向
+标记为 safety-critical 的闭集 Intent；Exact/Phrase 模式、显式唯一 priority、重复归一化 phrase、
+规则/phrase 数量与长度都 fail-closed。Provider revision 由规范化规则全集内容寻址；命中结果使用
+provider revision、transcript payload hash 与 turn 派生稳定 observation ID，再通过同一 Core 生成
+Intent observation、推进状态并关闭 Intent checkpoint。它没有 Tool、DNC、Handoff、Telephony 或
+Media 端口，因此即使确认安全意图也只能产出证据。匹配不使用正则，全文只归一化一次，规则和
+phrase 均有硬上限；这只是有界功能合同，不构成性能或准确率资格。
+
+Active Call SSE 到 durable transcript sequence 的真实接入、租户规则 artifact 解析、Fast
+Classifier、Contextual LLM、跨 Provider 证据融合、阈值/phrase 校准、完整四领域逐轮提交和真实
+意图质量仍为 `not_run`。特别是不能把部分上游 ASR 固定为 `0` 的 `index` 当作 durable turn
+sequence；该 ingest 必须由持久化序列权威单独解决。Intent checkpoint 和有界 durable Store
+adapter 已有本地合同证据，但物理 PostgreSQL 尚未执行。目标实现继续保留 Active Call 的多轮理解，
 并把规则、小模型、上下文 LLM 与人工纠正作为独立可审计证据源。
 
 ### 9.6 情绪证据与客户压力趋势
@@ -1077,6 +1088,7 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 - [Conversation Understanding Store Adapter R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-understanding-store-adapter/README.md)
 - [Conversation Understanding Checkpoints R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-understanding-checkpoints/README.md)
 - [Conversation Understanding Worker R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-understanding-worker/README.md)
+- [Safety Intent Provider R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-safety-intent-provider/README.md)
 - [Active Call Reservation Overlay R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-reservation-overlay/README.md)
 - [Active Call Reservation Adapter R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-reservation-adapter/README.md)
 - [Agent Release reservation binding evidence](../../architecture-foundation/ai-outbound/evidence/r1-agent-release-reservation-binding/README.md)
@@ -1118,3 +1130,4 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 | 2026-09-01 | R1 Understanding Store Adapter checkpoint | bounded canonical record、record-only/atomic head append、三重 optimistic fence、per-scope transaction lock 与 O(1) current recovery Rust Adapter 已通过本地合同；物理 PostgreSQL、Core codec/replay、Worker writer switch 和生产仍为 `not_run` |
 | 2026-09-01 | R1 Understanding state checkpoint | versioned Intent、Emotion、Customer State 与 Dialogue payload、来源状态/Policy 重算、内外 hash、authority/record identity 校验及 O(1) restore 已通过本地合同；Worker writer/recovery、物理 PostgreSQL 和生产仍为 `not_run` |
 | 2026-09-01 | R1 Understanding Worker checkpoint | Worker 单次四领域一致恢复、typed write batch、具体 tenant PostgreSQL adapter 与 commit 前原子 outcome 分类已通过本地精准测试；真实逐轮 Provider/Active Call、物理 PostgreSQL、重启/双节点和生产仍为 `not_run` |
+| 2026-09-01 | R1 Safety Intent Provider checkpoint | Release/Catalog-bound 有界 Rust Safety Rule Provider 已把 final customer transcript 转为稳定 Intent observation/state checkpoint，且无任何业务动作端口；Active Call durable ingest、真实租户规则、Fast/LLM/融合、物理 PostgreSQL、质量和生产仍为 `not_run` |

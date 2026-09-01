@@ -33,6 +33,7 @@ Converact Agent Runtime / Converact Resolve`。本文导航的是已经迁入仓
 | 20 | [Active Call Intent Candidate Parity R1](../plans/2026-08-31-active-call-intent-candidate-r1.md) | 保留 Playbook 已识别的 `intent` 为有界、脱敏的终态候选，不复制分类器，也不绕过 Release OutcomeSchema | `controlled_adapter_contract_passed / schema_projection_not_run / live_runtime_not_run / production_not_run` |
 | 21 | [Active Call Intent → Outcome Projection R1](../plans/2026-08-31-active-call-intent-outcome-projection-r1.md) | 将已识别候选绑定到精确 Agent Release/OutcomeSchema、durable result 输入和最终结果核对 | `controlled_contract_passed / physical_integrations_not_run / production_not_run` |
 | 22 | [AI 外呼与 Voice Agent 平台 R1：Understanding Worker](./2026-08-31-ai-outbound-active-call-platform-r1.md#98-理解证据耐久化) | Intent/Emotion/Customer State/Dialogue 的单次一致恢复、四领域原子提交和 tenant PostgreSQL adapter | `controlled_worker_store_contract_passed / physical_postgresql_and_real_provider_not_run / production_not_run` |
+| 23 | [AI 外呼与 Voice Agent 平台 R1：Safety Intent Provider](./2026-08-31-ai-outbound-active-call-platform-r1.md#95-意图识别) | final customer transcript 到 Release/Catalog-bound safety Intent checkpoint 的确定性 Layer-0 Provider | `controlled_rust_provider_passed / active_call_durable_ingest_and_real_configuration_not_run / production_not_run` |
 
 权威冲突时按领域裁决，而不是简单“新文件覆盖所有旧文件”：
 
@@ -131,3 +132,4 @@ flowchart TD
 | 2026-08-31 | Active Call Handoff Adapter R1 checkpoint | `ChannelAgentHandoffPort` 已接入私有 Active Call client，并以 session 存在性和人工 generation 后的旧播放清理完成 loopback 合同；RustPBX 媒体切换和真实通话仍为 `not_run` |
 | 2026-08-31 | Active Call intent candidate R1 checkpoint | `hangup.extra.intent` 已进入有界脱敏 Rust 候选，其他上游 `extra` 全部丢弃；候选到 Release OutcomeSchema 的正式投影与真实意图质量仍为 `not_run` |
 | 2026-09-01 | Conversation Understanding Worker R1 checkpoint | Worker 窄端口、单 SQL 四领域恢复、fixed-order 原子 append 与 tenant PostgreSQL adapter 已通过本地精准测试；真实 Provider/Active Call、物理 PostgreSQL、重启/双节点和生产仍为 `not_run` |
+| 2026-09-01 | Safety Intent Provider R1 checkpoint | 有界 Release/Catalog-bound Rust Safety Rule Provider 已从 final customer transcript 生成稳定 Intent checkpoint，且类型上无业务动作权；真实 Active Call ingest、租户规则、分类模型、融合、质量和生产仍为 `not_run` |

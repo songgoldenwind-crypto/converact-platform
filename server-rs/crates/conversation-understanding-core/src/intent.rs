@@ -295,6 +295,26 @@ impl IntentObservation {
     }
 
     #[must_use]
+    pub const fn id(&self) -> &IntentObservationId {
+        &self.id
+    }
+
+    #[must_use]
+    pub const fn source(&self) -> IntentSource {
+        self.source
+    }
+
+    #[must_use]
+    pub fn provider_revision(&self) -> &str {
+        &self.provider_revision
+    }
+
+    #[must_use]
+    pub fn evidence_segment_ids(&self) -> &[TranscriptSegmentId] {
+        &self.evidence_segment_ids
+    }
+
+    #[must_use]
     pub fn primary(&self) -> Option<&IntentCandidate> {
         self.candidates.first()
     }

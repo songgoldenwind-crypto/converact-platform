@@ -1,0 +1,76 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-09-01",
+  "evidence_class": [
+    "local_contract"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "parent_commit": "434ecd2138fa88abb8b02adc033f9ec1ee927255"
+  },
+  "commands": [
+    {
+      "id": "safety_intent_provider_contract",
+      "working_directory": "server-rs",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test safety_intent_provider",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "id": "intent_state_contract",
+      "working_directory": "server-rs",
+      "command": "cargo test --locked -p converact-conversation-understanding-core --test intent_state",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 5,
+      "failed": 0
+    },
+    {
+      "id": "safety_intent_scoped_format",
+      "working_directory": "server-rs",
+      "command": "rustfmt --edition 2024 --check <4 changed Rust files>",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "safety_intent_scoped_clippy",
+      "working_directory": "server-rs",
+      "command": "cargo clippy --locked -p converact-conversation-understanding-core -p converact-voice-agent-worker --lib --test safety_intent_provider -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "safety_intent_diff_check",
+      "working_directory": ".",
+      "command": "git diff --check",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "not_run": [
+    "active_call_sse_ingestion_gap_recovery_and_durable_sequence",
+    "physical_transcript_store_or_postgresql_transaction",
+    "real_tenant_rule_artifact_and_phrase_calibration",
+    "fast_classifier_contextual_llm_and_cross_provider_fusion",
+    "emotion_provider_and_complete_four_domain_turn_commit",
+    "dnc_handoff_tool_workflow_or_prompt_scene_action_wiring",
+    "real_active_call_rustpbx_sip_pstn_media_recording",
+    "accuracy_and_recall",
+    "performance",
+    "capacity",
+    "long_run",
+    "independent_code_review",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_read": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}

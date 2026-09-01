@@ -26,6 +26,7 @@ mod post_call_finalization;
 mod post_call_finalization_postgres;
 mod repository;
 mod result_generation;
+mod safety_intent_provider;
 mod tool_runtime;
 mod understanding_postgres;
 mod understanding_runtime;
@@ -88,6 +89,10 @@ pub use post_call_finalization::{
 };
 pub use repository::{ReconcileReceipt, RepositoryError, VoiceAgentRepository};
 pub use result_generation::ResultGenerationEvidence;
+pub use safety_intent_provider::{
+    SafetyIntentMatchKind, SafetyIntentProvider, SafetyIntentProviderError, SafetyIntentRuleInput,
+    SafetyIntentRuleSetInput,
+};
 pub use tool_runtime::{
     ToolBinding, ToolBindingPort, ToolBrokerPort, ToolEventOutcome, ToolResultPort, ToolRuntime,
     ToolRuntimeError,
