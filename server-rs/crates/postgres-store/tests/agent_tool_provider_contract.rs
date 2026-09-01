@@ -38,6 +38,7 @@ fn follow_up_task_identity_is_stable_and_tenant_separated() {
 fn provider_uses_exact_tenant_queries_and_preserves_unknown_commit_outcomes() {
     for required in [
         "PostgresAgentToolProvider",
+        "impl ToolActionPort for PostgresAgentToolProvider",
         "with_tenant_transaction",
         "converact_outbound_campaign_contacts",
         "contact.tenant_id = $1",

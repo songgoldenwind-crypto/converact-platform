@@ -1,12 +1,49 @@
 use std::{error::Error, fmt, sync::Arc};
 
-use converact_contracts::sha256_bytes;
+use converact_contracts::{canonical_sha256_with_max_bytes, sha256_bytes};
 use converact_kernel_ids::TenantId;
+use converact_tool_broker_core::{
+    ActionFailureCode, ActionObservation, AuthorizedToolAction, ToolActionOutput, ToolActionPort,
+    ToolDefinition, ToolEffectClass, ToolPortError, ToolProposal, ToolSchemaPort,
+};
 use converact_voice_agent_contracts::ToolCallId;
+use serde::Deserialize;
+use serde_json::{Value, json};
 
 use crate::{PostgresRuntime, TransactionError};
 
 const MAX_REASON_BYTES: usize = 1_024;
+const MAX_SCHEMA_BYTES: usize = 16_384;
+const CUSTOMER_LOOKUP: &str = "customer.lookup";
+const CREATE_FOLLOW_UP: &str = "task.create_follow_up";
+const CUSTOMER_LOOKUP_SCHEMA: &str = r#"{
+  "additionalProperties": false,
+  "properties": {
+    "customer_id": {
+      "maxLength": 255,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,254}$",
+      "type": "string"
+    }
+  },
+  "required": ["customer_id"],
+  "type": "object"
+}"#;
+const CREATE_FOLLOW_UP_SCHEMA: &str = r#"{
+  "additionalProperties": false,
+  "properties": {
+    "customer_id": {
+      "maxLength": 255,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,254}$",
+      "type": "string"
+    },
+    "due_at_ms": {"minimum": 1, "type": "integer"},
+    "reason": {"maxLength": 1024, "minLength": 1, "type": "string"}
+  },
+  "required": ["customer_id", "reason", "due_at_ms"],
+  "type": "object"
+}"#;
 const CUSTOMER_LOOKUP_SQL: &str = "
 SELECT contact.external_contact_id, contact.state
 FROM public.converact_outbound_campaign_contacts AS contact
@@ -82,14 +119,131 @@ impl fmt::Display for PostgresAgentToolProviderError {
 impl Error for PostgresAgentToolProviderError {}
 
 /// Tenant-transaction-owned Store for the first code-registered Agent Tools.
+#[derive(Clone)]
 pub struct PostgresAgentToolProvider {
     runtime: Arc<PostgresRuntime>,
+}
+
+/// Pre-execution schemas paired with [`PostgresAgentToolProvider`].
+#[derive(Clone, Copy, Debug, Default)]
+pub struct PostgresAgentToolSchema;
+
+impl PostgresAgentToolSchema {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self
+    }
+
+    /// Returns the canonical digest for one deployment-registered Tool schema.
+    #[must_use]
+    pub fn schema_hash(self, action_capability: &str) -> Option<String> {
+        let (_, schema) = registered_schema(action_capability)?;
+        canonical_sha256_with_max_bytes(&schema, MAX_SCHEMA_BYTES).ok()
+    }
+}
+
+impl ToolSchemaPort for PostgresAgentToolSchema {
+    async fn validate(
+        &self,
+        definition: &ToolDefinition,
+        proposal: &ToolProposal,
+    ) -> Result<(), ToolPortError> {
+        let (effect, schema) =
+            registered_schema(definition.action_capability()).ok_or_else(schema_rejected)?;
+        let schema_hash = canonical_sha256_with_max_bytes(&schema, MAX_SCHEMA_BYTES)
+            .map_err(|_| schema_rejected())?;
+        if definition.effect_class() != effect
+            || definition.schema_hash() != schema_hash
+            || proposal.tool_schema_hash() != schema_hash
+            || definition.revision_id() != proposal.tool_revision_id()
+            || definition.agent_release_id() != proposal.context().agent_release_id()
+        {
+            return Err(schema_rejected());
+        }
+        match definition.action_capability() {
+            CUSTOMER_LOOKUP => parse_customer_arguments(proposal).map(|_| ()),
+            CREATE_FOLLOW_UP => parse_follow_up_arguments(proposal).map(|_| ()),
+            _ => Err(schema_rejected()),
+        }
+    }
+}
+
+impl ToolActionPort for PostgresAgentToolProvider {
+    async fn execute(
+        &self,
+        action: &AuthorizedToolAction,
+    ) -> Result<ActionObservation, ToolPortError> {
+        match action.definition().action_capability() {
+            CUSTOMER_LOOKUP if action.definition().effect_class() == ToolEffectClass::Query => {
+                self.execute_customer_lookup(action).await
+            }
+            CREATE_FOLLOW_UP if action.definition().effect_class() == ToolEffectClass::Mutation => {
+                let arguments = parse_follow_up_arguments(action.proposal())?;
+                let tenant = parse_action_tenant(action)?;
+                self.create_follow_up(
+                    &tenant,
+                    action.proposal().tool_call_id(),
+                    &arguments.customer_id,
+                    &arguments.reason,
+                    arguments.due_at_ms,
+                )
+                .await
+                .map_err(|_| provider_unavailable())
+                .and_then(map_follow_up_result)
+            }
+            _ => Err(ToolPortError::new("agent_tool_capability_rejected")),
+        }
+    }
+
+    async fn query(
+        &self,
+        action: &AuthorizedToolAction,
+    ) -> Result<ActionObservation, ToolPortError> {
+        match action.definition().action_capability() {
+            CUSTOMER_LOOKUP if action.definition().effect_class() == ToolEffectClass::Query => {
+                self.execute_customer_lookup(action).await
+            }
+            CREATE_FOLLOW_UP if action.definition().effect_class() == ToolEffectClass::Mutation => {
+                let tenant = parse_action_tenant(action)?;
+                self.query_follow_up(&tenant, action.proposal().tool_call_id())
+                    .await
+                    .map_err(|_| provider_unavailable())
+                    .and_then(map_follow_up_result)
+            }
+            _ => Err(ToolPortError::new("agent_tool_capability_rejected")),
+        }
+    }
 }
 
 impl PostgresAgentToolProvider {
     #[must_use]
     pub const fn new(runtime: Arc<PostgresRuntime>) -> Self {
         Self { runtime }
+    }
+
+    async fn execute_customer_lookup(
+        &self,
+        action: &AuthorizedToolAction,
+    ) -> Result<ActionObservation, ToolPortError> {
+        let arguments = parse_customer_arguments(action.proposal())?;
+        let tenant = parse_action_tenant(action)?;
+        let customer = self
+            .lookup_customer(&tenant, &arguments.customer_id)
+            .await
+            .map_err(|_| provider_unavailable())?;
+        let value = match customer {
+            Some(customer) => json!({
+                "found": true,
+                "customer_id": customer.customer_id(),
+                "status": customer.status(),
+                "segment": null,
+                "preferred_language": null,
+            }),
+            None => json!({"found": false}),
+        };
+        ToolActionOutput::try_new(value)
+            .map(ActionObservation::Applied)
+            .map_err(|_| ToolPortError::new("agent_tool_result_invalid"))
     }
 
     /// Resolves one known outbound customer without returning telephone or other PII.
@@ -270,6 +424,86 @@ fn bounded_reason(value: &str) -> bool {
         && value.len() <= MAX_REASON_BYTES
         && value.trim().len() == value.len()
         && !value.chars().any(char::is_control)
+}
+
+fn registered_schema(action_capability: &str) -> Option<(ToolEffectClass, Value)> {
+    let (effect, source) = match action_capability {
+        CUSTOMER_LOOKUP => (ToolEffectClass::Query, CUSTOMER_LOOKUP_SCHEMA),
+        CREATE_FOLLOW_UP => (ToolEffectClass::Mutation, CREATE_FOLLOW_UP_SCHEMA),
+        _ => return None,
+    };
+    serde_json::from_str(source)
+        .ok()
+        .map(|schema| (effect, schema))
+}
+
+fn parse_customer_arguments(
+    proposal: &ToolProposal,
+) -> Result<CustomerLookupArguments, ToolPortError> {
+    let arguments: CustomerLookupArguments =
+        serde_json::from_value(proposal.arguments().clone()).map_err(|_| schema_rejected())?;
+    if TenantId::parse(&arguments.customer_id).is_err() {
+        return Err(schema_rejected());
+    }
+    Ok(arguments)
+}
+
+fn parse_follow_up_arguments(proposal: &ToolProposal) -> Result<FollowUpArguments, ToolPortError> {
+    let arguments: FollowUpArguments =
+        serde_json::from_value(proposal.arguments().clone()).map_err(|_| schema_rejected())?;
+    if TenantId::parse(&arguments.customer_id).is_err()
+        || !bounded_reason(&arguments.reason)
+        || arguments.due_at_ms <= proposal.requested_at_ms()
+        || i64::try_from(arguments.due_at_ms).is_err()
+    {
+        return Err(schema_rejected());
+    }
+    Ok(arguments)
+}
+
+fn parse_action_tenant(action: &AuthorizedToolAction) -> Result<TenantId, ToolPortError> {
+    TenantId::parse(action.proposal().context().tenant_id())
+        .map_err(|_| ToolPortError::new("agent_tool_tenant_invalid"))
+}
+
+fn map_follow_up_result(
+    result: PostgresAgentFollowUpResult,
+) -> Result<ActionObservation, ToolPortError> {
+    match result {
+        PostgresAgentFollowUpResult::Created(task_id) => {
+            ToolActionOutput::try_new(json!({"task_id": task_id.as_str()}))
+                .map(ActionObservation::Applied)
+                .map_err(|_| ToolPortError::new("agent_tool_result_invalid"))
+        }
+        PostgresAgentFollowUpResult::NotFound => {
+            ActionFailureCode::try_new("follow_up_task_not_found")
+                .map(ActionObservation::NotApplied)
+                .map_err(|_| ToolPortError::new("agent_tool_result_invalid"))
+        }
+        PostgresAgentFollowUpResult::OutcomeUnknown => Ok(ActionObservation::OutcomeUnknown),
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CustomerLookupArguments {
+    customer_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FollowUpArguments {
+    customer_id: String,
+    reason: String,
+    due_at_ms: u64,
+}
+
+const fn schema_rejected() -> ToolPortError {
+    ToolPortError::new("agent_tool_schema_rejected")
+}
+
+const fn provider_unavailable() -> ToolPortError {
+    ToolPortError::new("agent_tool_provider_unavailable")
 }
 
 #[allow(clippy::needless_pass_by_value)]

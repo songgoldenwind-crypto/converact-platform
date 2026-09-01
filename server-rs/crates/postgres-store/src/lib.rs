@@ -31,7 +31,8 @@ pub use active_call_event::{
 };
 pub use agent_tool_provider::{
     PostgresAgentCustomer, PostgresAgentFollowUpResult, PostgresAgentFollowUpTaskId,
-    PostgresAgentToolProvider, PostgresAgentToolProviderError, derive_agent_follow_up_task_id,
+    PostgresAgentToolProvider, PostgresAgentToolProviderError, PostgresAgentToolSchema,
+    derive_agent_follow_up_task_id,
 };
 pub use ai_outbound::{PostgresAiOutboundAttemptStore, PostgresLeasedAttemptStore};
 pub use ai_outbound_compliance::PostgresAiOutboundCompliancePort;
