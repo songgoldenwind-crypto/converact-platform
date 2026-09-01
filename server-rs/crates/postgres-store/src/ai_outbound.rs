@@ -6,7 +6,7 @@ use converact_ai_outbound_core::{
 };
 use converact_ai_outbound_store::{
     AdvanceActiveAttempt, AdvanceAttempt, AiOutboundStore, AppendEffectIntent, AttemptLease,
-    AttemptLeaseInput, StoreError,
+    AttemptLeaseInput, ClaimedAttempt, StoreError,
 };
 use converact_contracts::canonical_sha256;
 use converact_kernel_ids::TenantId;
@@ -78,6 +78,54 @@ impl PostgresAiOutboundAttemptStore {
             .await
             .map_err(map_write_error)?;
 
+        self.leased_attempts(tenant_id, &owner, &token_hash, claimed)
+    }
+
+    /// Claims expired active sessions before new dial work and returns exact lease adapters.
+    ///
+    /// # Errors
+    ///
+    /// Rejects malformed authority and preserves unknown transaction outcomes for reconciliation.
+    pub async fn claim_ready(
+        &self,
+        tenant_id: &TenantId,
+        lease_owner: &str,
+        lease_token_hash: &str,
+        requested_limit: u16,
+    ) -> Result<Vec<PostgresLeasedAttemptStore>, PortError> {
+        let tenant = tenant_id.clone();
+        let owner = lease_owner.to_owned();
+        let token_hash = lease_token_hash.to_owned();
+        let transaction_tenant = tenant.clone();
+        let transaction_owner = owner.clone();
+        let transaction_token_hash = token_hash.clone();
+        let sql = self.sql;
+        let claimed = self
+            .runtime
+            .with_tenant_transaction(&transaction_tenant, move |transaction| {
+                Box::pin(async move {
+                    sql.claim_ready(
+                        transaction,
+                        &tenant,
+                        &transaction_owner,
+                        &transaction_token_hash,
+                        requested_limit,
+                    )
+                    .await
+                })
+            })
+            .await
+            .map_err(map_write_error)?;
+        self.leased_attempts(tenant_id, &owner, &token_hash, claimed)
+    }
+
+    fn leased_attempts(
+        &self,
+        tenant_id: &TenantId,
+        owner: &str,
+        token_hash: &str,
+        claimed: Vec<ClaimedAttempt>,
+    ) -> Result<Vec<PostgresLeasedAttemptStore>, PortError> {
         claimed
             .into_iter()
             .map(|attempt| {
@@ -85,8 +133,8 @@ impl PostgresAiOutboundAttemptStore {
                     tenant_id: tenant_id.clone(),
                     attempt_id: attempt.id().clone(),
                     execution_generation: attempt.execution_generation(),
-                    lease_owner: owner.clone(),
-                    lease_token_hash: token_hash.clone(),
+                    lease_owner: owner.to_owned(),
+                    lease_token_hash: token_hash.to_owned(),
                 })
                 .map_err(map_store_error)?;
                 Ok(PostgresLeasedAttemptStore::new(

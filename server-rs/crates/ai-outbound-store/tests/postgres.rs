@@ -284,6 +284,81 @@ async fn active_context_is_recovered_only_through_the_current_lease() {
     connection.await.unwrap().unwrap();
 }
 
+#[ignore = "requires an isolated PostgreSQL database migrated through 139"]
+#[tokio::test]
+async fn expired_active_attempt_is_reclaimed_before_new_dial_work_without_redial_state() {
+    let tenant = tenant("voice-store-reclaim-active");
+    let (mut client, connection) = connect().await;
+    seed_attempts(&mut client, &tenant).await;
+    let store = AiOutboundStore::new(StoreConfig::new(30_000, 1).unwrap());
+
+    let first_claim = tenant_transaction(&mut client, &tenant).await;
+    let active = store
+        .claim_ready(&first_claim, &tenant, "worker-a", &"a".repeat(64), 1)
+        .await
+        .unwrap()
+        .remove(0);
+    first_claim.commit().await.unwrap();
+    let activate = tenant_transaction(&mut client, &tenant).await;
+    activate
+        .execute(
+            "UPDATE converact_outbound_call_attempts
+             SET state = 'conversing', disclosure_completed = TRUE,
+                 revision = 10,
+                 call_id = 'call-reclaim-active',
+                 channel_agent_session_id = 'session-reclaim-active',
+                 lease_expires_at = transaction_timestamp() - interval '1 second'
+             WHERE tenant_id = $1 AND id = $2",
+            &[&tenant.as_str(), &active.id().as_str()],
+        )
+        .await
+        .unwrap();
+    activate.commit().await.unwrap();
+
+    let recovery_claim = tenant_transaction(&mut client, &tenant).await;
+    let recovered = store
+        .claim_ready(&recovery_claim, &tenant, "worker-b", &"b".repeat(64), 1)
+        .await
+        .unwrap()
+        .remove(0);
+    recovery_claim.commit().await.unwrap();
+
+    assert_eq!(recovered.id(), active.id());
+    assert_eq!(
+        recovered.execution_generation(),
+        active.execution_generation()
+    );
+    assert_eq!(recovered.revision(), 11);
+    let recovered_lease = AttemptLease::try_new(AttemptLeaseInput {
+        tenant_id: tenant.clone(),
+        attempt_id: recovered.id().clone(),
+        execution_generation: recovered.execution_generation(),
+        lease_owner: "worker-b".to_owned(),
+        lease_token_hash: "b".repeat(64),
+    })
+    .unwrap();
+    let inspect = tenant_transaction(&mut client, &tenant).await;
+    let aggregate = store
+        .load_leased_attempt(&inspect, &recovered_lease)
+        .await
+        .unwrap();
+    let context = store
+        .load_active_envelope_context(&inspect, &recovered_lease)
+        .await
+        .unwrap();
+    inspect.rollback().await.unwrap();
+    assert_eq!(aggregate.state(), CallAttemptState::Conversing);
+    assert!(aggregate.disclosure_completed());
+    assert_eq!(context.call_id().unwrap().as_str(), "call-reclaim-active");
+    assert_eq!(
+        context.channel_agent_session_id().unwrap().as_str(),
+        "session-reclaim-active"
+    );
+
+    drop(client);
+    connection.await.unwrap().unwrap();
+}
+
 async fn lease_snapshot(
     client: &tokio_postgres::Client,
     tenant: &TenantId,

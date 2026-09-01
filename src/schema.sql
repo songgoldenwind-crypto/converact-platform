@@ -3125,6 +3125,12 @@ CREATE INDEX IF NOT EXISTS idx_converact_outbound_attempt_claim
   ON converact_outbound_call_attempts (tenant_id, scheduled_for, id)
   WHERE state = 'planned';
 
+CREATE INDEX IF NOT EXISTS idx_converact_outbound_attempt_active_recovery
+  ON converact_outbound_call_attempts (tenant_id, lease_expires_at, id)
+  WHERE state IN (
+    'conversing', 'handoff_pending', 'human_active', 'ai_resuming', 'finalizing'
+  );
+
 CREATE INDEX IF NOT EXISTS idx_converact_outbound_attempt_events_order
   ON converact_outbound_attempt_events (
     tenant_id, call_attempt_id, execution_generation, occurred_at, event_id

@@ -149,3 +149,23 @@ fn development_schema_persists_attempt_disclosure_fact() {
 
     assert!(attempts.contains("disclosure_completed INTEGER NOT NULL DEFAULT 0"));
 }
+
+#[test]
+fn active_recovery_migration_adds_a_bounded_expired_lease_index() {
+    let sql = include_str!("../../../../src/migrations/139_converact_outbound_active_recovery.sql");
+    for required in [
+        "idx_converact_outbound_attempt_active_recovery",
+        "tenant_id, lease_expires_at, id",
+        "WHERE state IN",
+        "'conversing'",
+        "'handoff_pending'",
+        "'human_active'",
+        "'ai_resuming'",
+        "'finalizing'",
+    ] {
+        assert!(
+            sql.contains(required),
+            "missing active recovery index {required}"
+        );
+    }
+}

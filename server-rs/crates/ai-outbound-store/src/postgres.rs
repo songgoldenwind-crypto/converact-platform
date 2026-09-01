@@ -65,6 +65,48 @@ WHERE attempt.tenant_id = candidates.tenant_id
 RETURNING attempt.id, attempt.revision, attempt.execution_generation
 ";
 
+const CLAIM_READY_SQL: &str = "
+WITH candidates AS (
+  SELECT tenant_id, id
+  FROM converact_outbound_call_attempts
+  WHERE tenant_id = $1
+    AND (
+      (state = 'planned' AND scheduled_for <= transaction_timestamp()) OR
+      (state = 'claimed' AND lease_expires_at <= transaction_timestamp()) OR
+      (
+        state IN (
+          'conversing', 'handoff_pending', 'human_active', 'ai_resuming', 'finalizing'
+        )
+        AND lease_expires_at <= transaction_timestamp()
+      )
+    )
+  ORDER BY
+    CASE WHEN state IN (
+      'conversing', 'handoff_pending', 'human_active', 'ai_resuming', 'finalizing'
+    ) THEN 0 ELSE 1 END,
+    CASE WHEN state IN (
+      'conversing', 'handoff_pending', 'human_active', 'ai_resuming', 'finalizing'
+    ) THEN lease_expires_at ELSE scheduled_for END,
+    id
+  FOR UPDATE SKIP LOCKED
+  LIMIT $2
+)
+UPDATE converact_outbound_call_attempts AS attempt
+SET state = CASE
+      WHEN attempt.state IN ('planned', 'claimed') THEN 'claimed'
+      ELSE attempt.state
+    END,
+    lease_owner = $3,
+    lease_token_hash = $4,
+    lease_expires_at = transaction_timestamp() + ($5::bigint * interval '1 millisecond'),
+    revision = attempt.revision + 1,
+    updated_at = transaction_timestamp()
+FROM candidates
+WHERE attempt.tenant_id = candidates.tenant_id
+  AND attempt.id = candidates.id
+RETURNING attempt.id, attempt.revision, attempt.execution_generation
+";
+
 const PLAN_RETRY_SQL: &str = "
 WITH predecessor AS MATERIALIZED (
   SELECT attempt.campaign_id,
@@ -829,6 +871,49 @@ impl AiOutboundStore {
         let rows = transaction
             .query(
                 CLAIM_SQL,
+                &[
+                    &tenant_id.as_str(),
+                    &limit,
+                    &lease_owner,
+                    &lease_token_hash,
+                    &lease_ms,
+                ],
+            )
+            .await
+            .map_err(|_| StoreError::DatabaseUnavailable)?;
+        rows.iter().map(parse_claimed_attempt).collect()
+    }
+
+    /// Claims expired active sessions before new dial work while preserving active business state.
+    ///
+    /// Reclaimed active Attempts receive a new owner/token fence and revision but keep their Call,
+    /// Agent Session and execution generation. The caller must resume observation and must never
+    /// replay pre-call mutations for an active result.
+    ///
+    /// # Errors
+    ///
+    /// Rejects malformed lease authority, oversized batches, database failures and invalid rows.
+    pub async fn claim_ready(
+        &self,
+        transaction: &Transaction<'_>,
+        tenant_id: &TenantId,
+        lease_owner: &str,
+        lease_token_hash: &str,
+        requested_limit: u16,
+    ) -> Result<Vec<ClaimedAttempt>, StoreError> {
+        if !valid_identifier(lease_owner)
+            || !is_lowercase_sha256(lease_token_hash)
+            || requested_limit == 0
+            || requested_limit > self.config.max_claim_batch
+        {
+            return Err(StoreError::InvalidInput);
+        }
+        let limit = i64::from(requested_limit);
+        let lease_ms =
+            i64::try_from(self.config.lease_duration_ms).map_err(|_| StoreError::InvalidInput)?;
+        let rows = transaction
+            .query(
+                CLAIM_READY_SQL,
                 &[
                     &tenant_id.as_str(),
                     &limit,
