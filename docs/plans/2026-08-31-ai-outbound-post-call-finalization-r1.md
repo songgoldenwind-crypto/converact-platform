@@ -208,3 +208,18 @@ checksum tests also passed. Runnable binary composition, authenticated productio
 bounded claim loop, reconciliation settlement, real communication inputs, deployment and
 performance remain `not_run`. See
 [PostgreSQL Worker repository evidence](../../architecture-foundation/ai-outbound/evidence/r1-postgres-worker-repository/README.md).
+
+## 10. Worker process foundation checkpoint
+
+Commits `b5f5d5554caded71e73e7ca1da656305fe6199ca`,
+`66328a20fca190b7dd686b7790fc0809ec9f6814` and
+`1a8fc23c4ae250b247bdfbe10c7cb2fbb4edbcc3` add the process-facing foundation without claiming a
+complete executable. Signed platform identity now supplies tenant scope to protected internal
+routes, viewer identities cannot request reconciliation, and health routes remain public. A real
+ephemeral local listener proved the bounded serve/drain lifecycle.
+
+The fixed-concurrency claim supervisor rejects admission failures and oversized source batches
+before execution, then drains each accepted batch with at most the configured number of tasks.
+The PostgreSQL claim source, concrete claimed-Attempt executor, production RS256/JWKS refresh,
+route-specific capabilities and executable `main` remain `not_run`. See
+[Worker process foundation evidence](../../architecture-foundation/ai-outbound/evidence/r1-worker-process-foundation/README.md).

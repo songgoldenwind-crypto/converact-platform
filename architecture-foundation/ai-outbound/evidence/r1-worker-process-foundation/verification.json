@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0.0",
+  "evidence_id": "r1-worker-process-foundation",
+  "recorded_at": "2026-09-01",
+  "source_commit": "1a8fc23c4ae250b247bdfbe10c7cb2fbb4edbcc3",
+  "checks": [
+    {
+      "id": "claim_supervisor",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test claim_supervisor",
+      "status": "passed",
+      "passed": 2,
+      "failed": 0
+    },
+    {
+      "id": "platform_auth",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test platform_auth",
+      "status": "passed",
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "id": "http_resources",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test http",
+      "status": "passed",
+      "passed": 5,
+      "failed": 0
+    },
+    {
+      "id": "local_socket_process_lifecycle",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test process",
+      "status": "passed",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "id": "scoped_clippy",
+      "command": "cargo clippy --locked -p converact-voice-agent-worker --lib --test claim_supervisor --test process --test platform_auth --test http -- -D warnings",
+      "status": "passed"
+    },
+    {
+      "id": "format_and_diff",
+      "command": "cargo fmt -p converact-voice-agent-worker -- --check; git diff --check exact slice",
+      "status": "passed"
+    }
+  ],
+  "not_run": [
+    "executable_main_and_runtime_config",
+    "postgres_claim_source_and_concrete_claim_executor",
+    "production_rs256_jwks_refresh_and_route_capabilities",
+    "reconcile_request_claim_settlement_and_crash_recovery",
+    "active_call_rustpbx_sip_pstn_speech_model_recording_handoff",
+    "server_production_performance_capacity_long_run"
+  ]
+}
