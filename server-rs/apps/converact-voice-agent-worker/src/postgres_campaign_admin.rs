@@ -13,16 +13,21 @@ use crate::{AdminMutationResource, AuthenticatedTenant, CampaignAdminError, Camp
 /// Application adapter from the Campaign Admin HTTP contract to tenant-scoped `PostgreSQL` writes.
 pub struct PostgresCampaignAdminPort {
     store: PostgresCampaignAdminStore,
+    tenant_id: TenantId,
 }
 
 impl PostgresCampaignAdminPort {
     #[must_use]
-    pub const fn new(store: PostgresCampaignAdminStore) -> Self {
-        Self { store }
+    pub const fn new(store: PostgresCampaignAdminStore, tenant_id: TenantId) -> Self {
+        Self { store, tenant_id }
     }
 
-    fn tenant(tenant: &AuthenticatedTenant) -> Result<TenantId, CampaignAdminError> {
-        TenantId::parse(tenant.as_str()).map_err(|_| CampaignAdminError::invalid())
+    fn tenant(&self, tenant: &AuthenticatedTenant) -> Result<TenantId, CampaignAdminError> {
+        let tenant = TenantId::parse(tenant.as_str()).map_err(|_| CampaignAdminError::invalid())?;
+        if tenant != self.tenant_id {
+            return Err(CampaignAdminError::not_allowed());
+        }
+        Ok(tenant)
     }
 }
 
@@ -33,7 +38,7 @@ impl CampaignAdminPort for PostgresCampaignAdminPort {
         release: &AgentRelease,
         idempotency_key: &IdempotencyKey,
     ) -> Result<AdminMutationResource, CampaignAdminError> {
-        let tenant = Self::tenant(tenant)?;
+        let tenant = self.tenant(tenant)?;
         self.store
             .publish_agent(&tenant, release, idempotency_key)
             .await
@@ -47,7 +52,7 @@ impl CampaignAdminPort for PostgresCampaignAdminPort {
         campaign: &CreateCampaign,
         idempotency_key: &IdempotencyKey,
     ) -> Result<AdminMutationResource, CampaignAdminError> {
-        let tenant = Self::tenant(tenant)?;
+        let tenant = self.tenant(tenant)?;
         self.store
             .create_campaign(&tenant, campaign, idempotency_key)
             .await
@@ -60,7 +65,7 @@ impl CampaignAdminPort for PostgresCampaignAdminPort {
         tenant: &AuthenticatedTenant,
         command: &ImportContacts,
     ) -> Result<AdminMutationResource, CampaignAdminError> {
-        let tenant = Self::tenant(tenant)?;
+        let tenant = self.tenant(tenant)?;
         self.store
             .import_contacts(&tenant, command)
             .await
@@ -73,7 +78,7 @@ impl CampaignAdminPort for PostgresCampaignAdminPort {
         tenant: &AuthenticatedTenant,
         command: &CampaignTransition,
     ) -> Result<AdminMutationResource, CampaignAdminError> {
-        let tenant = Self::tenant(tenant)?;
+        let tenant = self.tenant(tenant)?;
         self.store
             .transition_campaign(&tenant, command)
             .await

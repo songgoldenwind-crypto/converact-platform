@@ -102,6 +102,7 @@ async fn run(config: VoiceAgentRuntimeConfig) -> Result<(), ProcessError> {
     let attempt_sql = AiOutboundStore::new(config.attempt_store_config());
     let campaign_admin = Arc::new(PostgresCampaignAdminPort::new(
         PostgresCampaignAdminStore::new(Arc::clone(&database), attempt_sql),
+        config.tenant_id().clone(),
     ));
     let claim_store =
         PostgresAiOutboundAttemptStore::new(Arc::clone(&database), attempt_sql, finalization_sql);
