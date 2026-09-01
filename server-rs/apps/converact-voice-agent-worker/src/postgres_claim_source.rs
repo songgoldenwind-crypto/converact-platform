@@ -93,7 +93,7 @@ where
     async fn claim(&self, limit: u16) -> Result<Vec<Self::Claim>, WorkerError> {
         let digest = self.digest_source.next_digest()?;
         self.store
-            .claim_planned(&self.tenant_id, &self.lease_owner, &digest, limit)
+            .claim_ready(&self.tenant_id, &self.lease_owner, &digest, limit)
             .await
             .map_err(|error| WorkerError::new(error.code()))
     }

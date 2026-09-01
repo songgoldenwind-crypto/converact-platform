@@ -7,22 +7,24 @@ use converact_contracts::health::{
     MigrationStatus, NotificationProviderCheck, NotificationProviderStatus, PlacementSnapshotCheck,
     PlacementSnapshotStatus, ReadinessChecks, RuntimeHeartbeatCheck, RuntimeHeartbeatStatus,
 };
+use converact_conversation_result_store::ConversationResultSqlStore;
 use converact_post_call_finalization_store::FinalizationSqlStore;
 use converact_postgres_store::{
-    PostgresActiveCallArtifactStore, PostgresAiOutboundAttemptStore,
-    PostgresAiOutboundCompliancePort, PostgresCampaignAdminStore, PostgresRuntime,
-    PostgresVoiceAgentStore,
+    PostgresActiveCallArtifactStore, PostgresActiveCallEventStore, PostgresAiOutboundAttemptStore,
+    PostgresAiOutboundCompliancePort, PostgresCampaignAdminStore, PostgresConversationResultStore,
+    PostgresRuntime, PostgresVoiceAgentStore,
 };
 use converact_runtime_health::RuntimeHealth;
 use converact_rustpbx_rwi_adapter::{FileRwiSecretResolver, RustPbxRwiClient, RustPbxTelephony};
 use converact_voice_agent_contracts::ChannelAgentSessionId;
 use converact_voice_agent_worker::{
-    ActiveCallChannelAgent, ActiveCallPlaybookResolver, AdmissionReadiness, AuthenticatedTenant,
-    ClaimSupervisor, DatabaseTransport, PostgresAttemptClaimSource, PostgresCampaignAdminPort,
-    PostgresVoiceAgentRepository, ShutdownToken, SystemLeaseTokenDigestSource, SystemWallClock,
-    VoiceAgentClaimExecutor, VoiceAgentRepository, VoiceAgentRuntimeConfig,
-    load_rs256_platform_verifier, parse_local_database_config,
-    router_with_campaign_admin_and_platform_auth, serve_worker_http,
+    ActiveCallChannelAgent, ActiveCallEventProjectionRouter, ActiveCallPlaybookResolver,
+    ActiveCallSessionRuntime, ActiveCallTranscriptIngestProcessor, AdmissionReadiness,
+    AuthenticatedTenant, ClaimSupervisor, DatabaseTransport, PostgresAttemptClaimSource,
+    PostgresCampaignAdminPort, PostgresVoiceAgentRepository, RejectUnconfiguredActiveCallTools,
+    ShutdownToken, SystemLeaseTokenDigestSource, SystemWallClock, VoiceAgentLongCallClaimExecutor,
+    VoiceAgentRepository, VoiceAgentRuntimeConfig, load_rs256_platform_verifier,
+    parse_local_database_config, router_with_campaign_admin_and_platform_auth, serve_worker_http,
 };
 use tokio::{net::TcpListener, time::sleep};
 use tokio_postgres::NoTls;
@@ -152,11 +154,32 @@ async fn run(config: VoiceAgentRuntimeConfig) -> Result<(), ProcessError> {
     let health = RuntimeHealth::new();
     let readiness = AdmissionReadiness::new(health.clone());
     let shutdown = ShutdownToken::default();
-    let executor = Arc::new(VoiceAgentClaimExecutor::new(
+    let event_store = Arc::new(PostgresActiveCallEventStore::new(Arc::clone(&database)));
+    let transcript_store = Arc::new(PostgresConversationResultStore::new(
+        Arc::clone(&database),
+        ConversationResultSqlStore::new(),
+    ));
+    let transcript_projection = Arc::new(ActiveCallTranscriptIngestProcessor::new(
+        Arc::clone(&event_store),
+        transcript_store,
+    ));
+    let event_projection = Arc::new(ActiveCallEventProjectionRouter::new(
+        transcript_projection,
+        Arc::new(RejectUnconfiguredActiveCallTools),
+    ));
+    let active_session = Arc::new(ActiveCallSessionRuntime::new(
+        Arc::clone(&active_call_client),
+        event_store,
+        event_projection,
+        config.active_call().session_supervisor_config(),
+        shutdown.clone(),
+    ));
+    let executor = Arc::new(VoiceAgentLongCallClaimExecutor::new(
         compliance,
         channel_agent,
         telephony,
         Arc::clone(&repository),
+        active_session,
         config.worker_config(),
         readiness.clone(),
         shutdown.clone(),

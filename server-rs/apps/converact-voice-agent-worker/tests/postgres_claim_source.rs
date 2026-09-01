@@ -11,6 +11,8 @@ use converact_voice_agent_worker::{
 };
 use tokio_postgres::NoTls;
 
+const SOURCE: &str = include_str!("../src/postgres_claim_source.rs");
+
 #[test]
 fn postgres_claim_source_is_inert_shareable_and_redacted() {
     fn assert_send_sync<T: Send + Sync>() {}
@@ -54,6 +56,12 @@ fn claim_source_rejects_invalid_owner_and_system_digests_are_unique_sha256_shape
         );
     }
     assert_ne!(first, second);
+}
+
+#[test]
+fn production_source_claims_new_and_expired_active_attempts() {
+    assert!(SOURCE.contains(".claim_ready("));
+    assert!(!SOURCE.contains(".claim_planned("));
 }
 
 fn attempt_store() -> PostgresAiOutboundAttemptStore {
