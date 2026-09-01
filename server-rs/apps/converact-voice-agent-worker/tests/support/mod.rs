@@ -25,13 +25,15 @@ use converact_contracts::health::{
 };
 use converact_runtime_health::RuntimeHealth;
 use converact_voice_agent_contracts::{
-    AgentDefinitionId, AgentReleaseId, CallAttemptId, CallAttemptState, CallId, CampaignId,
-    ChannelAgentSessionId, IdempotencyKey, TenantId,
+    AgentDefinitionId, AgentReleaseId, CallAttemptId, CallAttemptState, CallId, CampaignContactId,
+    CampaignId, ChannelAgentSessionId, EnvelopeContext, EnvelopeContextInput, ExecutionGeneration,
+    IdempotencyKey, InteractionId, TenantId, VOICE_AGENT_SCHEMA_VERSION,
 };
 use converact_voice_agent_worker::{
-    AdmissionReadiness, AgentReleaseResource, AttemptResource, AuthenticatedTenant,
-    CampaignResource, ReconcileReceipt, RepositoryError, ShutdownToken, VoiceAgentRepository,
-    VoiceAgentWorker, WorkerConfig, WorkerError, router,
+    ActiveAttemptContextPort, ActiveAttemptLeasePort, ActiveCallSessionPort,
+    ActiveCallSessionSupervisorOutcome, AdmissionReadiness, AgentReleaseResource, AttemptResource,
+    AuthenticatedTenant, CampaignResource, ReconcileReceipt, RepositoryError, ShutdownToken,
+    VoiceAgentRepository, VoiceAgentWorker, WorkerConfig, WorkerError, router,
 };
 use tower::ServiceExt;
 
@@ -130,6 +132,28 @@ impl TestWorker {
             .await
     }
 
+    pub async fn run_one_contact_with_session(
+        &self,
+        campaign_id: &str,
+    ) -> Result<AttemptResource, WorkerError> {
+        let tenant = AuthenticatedTenant::try_from_verified_tenant_id("tenant-a").unwrap();
+        let attempt_id = CallAttemptId::parse("attempt-001").unwrap();
+        self.state.lock().unwrap().attempt = CallAttempt::new(attempt_id.clone())
+            .apply(converact_ai_outbound_core::AttemptCommand::Claim)
+            .unwrap();
+        self.worker
+            .run_attempt_with_active_session(
+                &tenant,
+                campaign_id,
+                &attempt_id,
+                &ControlledActiveSession {
+                    state: Arc::clone(&self.state),
+                    repository: Arc::clone(&self.repository.state),
+                },
+            )
+            .await
+    }
+
     pub async fn seed_completed_attempt(&self) {
         let release = self.publish_fixture_agent();
         let campaign = self.create_fixture_campaign(release.id());
@@ -200,6 +224,10 @@ impl TestWorker {
             .len()
     }
 
+    pub fn active_session_count(&self) -> usize {
+        self.state.lock().unwrap().active_session_count
+    }
+
     pub fn orchestrator_attempt_state(&self) -> CallAttemptState {
         self.state.lock().unwrap().attempt.state()
     }
@@ -227,6 +255,8 @@ struct ControlledState {
     agent_query_count: usize,
     reserved_agent_release: Option<AgentReleaseBinding>,
     reserved_agent_session_id: Option<ChannelAgentSessionId>,
+    active_execution: Option<ActiveAttemptExecution>,
+    active_session_count: usize,
 }
 
 impl ControlledState {
@@ -239,6 +269,8 @@ impl ControlledState {
             agent_query_count: 0,
             reserved_agent_release: None,
             reserved_agent_session_id: None,
+            active_execution: None,
+            active_session_count: 0,
         }
     }
 }
@@ -357,8 +389,58 @@ impl AttemptStorePort for FakeAttemptStore {
         &self,
         active: &ActiveAttemptExecution,
     ) -> Result<(), PortError> {
-        self.state.lock().unwrap().attempt = active.attempt().clone();
+        let mut state = self.state.lock().unwrap();
+        state.attempt = active.attempt().clone();
+        state.active_execution = Some(active.clone());
         Ok(())
+    }
+}
+
+impl ActiveAttemptContextPort for FakeAttemptStore {
+    async fn load_active_envelope_context(&self) -> Result<EnvelopeContext, WorkerError> {
+        let state = self.state.lock().unwrap();
+        let active = state
+            .active_execution
+            .as_ref()
+            .ok_or_else(|| WorkerError::new("test_active_execution_missing"))?;
+        EnvelopeContext::try_new(EnvelopeContextInput {
+            schema_version: VOICE_AGENT_SCHEMA_VERSION,
+            tenant_id: "tenant-a".to_owned(),
+            interaction_id: InteractionId::parse("interaction-001").unwrap(),
+            campaign_id: CampaignId::parse("campaign-001").unwrap(),
+            campaign_contact_id: CampaignContactId::parse("contact-001").unwrap(),
+            call_attempt_id: active.attempt().id().clone(),
+            call_id: Some(active.call_id().clone()),
+            agent_release_id: AgentReleaseId::parse("agent-sales-assistant-r1").unwrap(),
+            channel_agent_session_id: Some(active.channel_agent_session_id().clone()),
+            execution_generation: ExecutionGeneration::new(1).unwrap(),
+            trace_id: "trace-active-001".to_owned(),
+        })
+        .map_err(|_| WorkerError::new("test_active_context_invalid"))
+    }
+}
+
+impl ActiveAttemptLeasePort for FakeAttemptStore {
+    async fn renew_active_lease(&self) -> Result<(), WorkerError> {
+        Ok(())
+    }
+}
+
+struct ControlledActiveSession {
+    state: Arc<Mutex<ControlledState>>,
+    repository: Arc<Mutex<RepositoryState>>,
+}
+
+impl ActiveCallSessionPort<FakeAttemptStore> for ControlledActiveSession {
+    async fn supervise_active_call(
+        &self,
+        context: &EnvelopeContext,
+        _lease: &FakeAttemptStore,
+    ) -> Result<ActiveCallSessionSupervisorOutcome, WorkerError> {
+        assert_eq!(context.call_attempt_id().as_str(), "attempt-001");
+        assert!(self.repository.lock().unwrap().finalization_jobs.is_empty());
+        self.state.lock().unwrap().active_session_count += 1;
+        Ok(ActiveCallSessionSupervisorOutcome::Completed)
     }
 }
 

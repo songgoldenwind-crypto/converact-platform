@@ -90,7 +90,8 @@ pub use active_call_playbook_resolver::{
 };
 pub use active_call_reservation::{ActiveCallReservationAdapter, ActiveCallReservationObservation};
 pub use active_call_session_supervisor::{
-    ActiveAttemptLeasePort, ActiveCallEventCycle, ActiveCallEventCyclePort,
+    ActiveAttemptContextPort, ActiveAttemptLeasePort, ActiveCallEventCycle,
+    ActiveCallEventCyclePort, ActiveCallSessionPort, ActiveCallSessionRuntime,
     ActiveCallSessionSupervisor, ActiveCallSessionSupervisorConfig,
     ActiveCallSessionSupervisorConfigError, ActiveCallSessionSupervisorOutcome,
 };

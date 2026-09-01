@@ -1,7 +1,8 @@
-use std::{future::Future, time::Duration};
+use std::{future::Future, sync::Arc, time::Duration};
 
 use converact_active_call_adapter::{ActiveCallClient, AdapterContext};
 use converact_postgres_store::PostgresLeasedAttemptStore;
+use converact_voice_agent_contracts::EnvelopeContext;
 use tokio::time::sleep;
 
 use crate::{
@@ -51,8 +52,8 @@ impl<'a, D, P> ActiveCallEventCycle<'a, D, P> {
 
 impl<D, P> ActiveCallEventCyclePort for ActiveCallEventCycle<'_, D, P>
 where
-    D: ActiveCallEventInboxPort + Sync,
-    P: ActiveCallEventProcessorPort + Sync,
+    D: ActiveCallEventInboxPort + Send + Sync,
+    P: ActiveCallEventProcessorPort + Send + Sync,
 {
     async fn consume_once(
         &self,
@@ -73,9 +74,24 @@ pub trait ActiveAttemptLeasePort: Sync {
     fn renew_active_lease(&self) -> impl Future<Output = Result<(), WorkerError>> + Send;
 }
 
+/// Recovers the complete persisted authority for one already-active Attempt.
+pub trait ActiveAttemptContextPort: Sync {
+    fn load_active_envelope_context(
+        &self,
+    ) -> impl Future<Output = Result<EnvelopeContext, WorkerError>> + Send;
+}
+
 impl ActiveAttemptLeasePort for PostgresLeasedAttemptStore {
     async fn renew_active_lease(&self) -> Result<(), WorkerError> {
         PostgresLeasedAttemptStore::renew_active_lease(self)
+            .await
+            .map_err(|error| WorkerError::new(error.code()))
+    }
+}
+
+impl ActiveAttemptContextPort for PostgresLeasedAttemptStore {
+    async fn load_active_envelope_context(&self) -> Result<EnvelopeContext, WorkerError> {
+        PostgresLeasedAttemptStore::load_active_envelope_context(self)
             .await
             .map_err(|error| WorkerError::new(error.code()))
     }
@@ -131,6 +147,68 @@ pub enum ActiveCallSessionSupervisorOutcome {
     ReconcileRequired {
         reason: ActiveCallEventReconcileReason,
     },
+}
+
+/// Complete long-call supervision boundary used by the outbound Worker.
+pub trait ActiveCallSessionPort<L>: Sync {
+    fn supervise_active_call(
+        &self,
+        context: &EnvelopeContext,
+        lease: &L,
+    ) -> impl Future<Output = Result<ActiveCallSessionSupervisorOutcome, WorkerError>> + Send;
+}
+
+/// Owned composition of the durable event cycle and lease-heartbeat supervisor.
+pub struct ActiveCallSessionRuntime<D, P> {
+    client: Arc<ActiveCallClient>,
+    inbox: Arc<D>,
+    processor: Arc<P>,
+    config: ActiveCallSessionSupervisorConfig,
+    shutdown: ShutdownToken,
+}
+
+impl<D, P> ActiveCallSessionRuntime<D, P> {
+    #[must_use]
+    pub const fn new(
+        client: Arc<ActiveCallClient>,
+        inbox: Arc<D>,
+        processor: Arc<P>,
+        config: ActiveCallSessionSupervisorConfig,
+        shutdown: ShutdownToken,
+    ) -> Self {
+        Self {
+            client,
+            inbox,
+            processor,
+            config,
+            shutdown,
+        }
+    }
+}
+
+impl<L, D, P> ActiveCallSessionPort<L> for ActiveCallSessionRuntime<D, P>
+where
+    L: ActiveAttemptLeasePort,
+    D: ActiveCallEventInboxPort + Send + Sync,
+    P: ActiveCallEventProcessorPort + Send + Sync,
+{
+    async fn supervise_active_call(
+        &self,
+        context: &EnvelopeContext,
+        lease: &L,
+    ) -> Result<ActiveCallSessionSupervisorOutcome, WorkerError> {
+        let adapter_context = AdapterContext::new(context.clone());
+        let cycle = ActiveCallEventCycle::new(
+            &self.client,
+            self.inbox.as_ref(),
+            self.processor.as_ref(),
+            &adapter_context,
+            &self.shutdown,
+        );
+        ActiveCallSessionSupervisor::new(&cycle, lease, self.config, &self.shutdown)
+            .run()
+            .await
+    }
 }
 
 /// Owns exactly one Active Call event future and one lease heartbeat at a time.

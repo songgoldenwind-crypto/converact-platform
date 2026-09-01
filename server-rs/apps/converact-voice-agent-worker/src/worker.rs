@@ -5,13 +5,15 @@ use converact_ai_outbound_core::{
     OutboundOrchestrator, TelephonyPort, TerminalAttemptCommit,
 };
 use converact_voice_agent_contracts::{
-    AgentReleaseId, AgentReleaseState, CallId, CampaignId, CampaignState,
+    AgentReleaseId, AgentReleaseState, CampaignId, CampaignState,
 };
 use converact_voice_agent_contracts::{CallAttemptId, TenantId};
 
 use crate::{
-    AdmissionReadiness, AttemptResource, AuthenticatedTenant, RepositoryError, ShutdownToken,
-    VoiceAgentRepository, WorkerConfig, channel_agent_session::derive_initial_session_id,
+    ActiveAttemptContextPort, ActiveAttemptLeasePort, ActiveCallSessionPort,
+    ActiveCallSessionSupervisorOutcome, AdmissionReadiness, AttemptResource, AuthenticatedTenant,
+    RepositoryError, ShutdownToken, VoiceAgentRepository, WorkerConfig,
+    channel_agent_session::derive_initial_session_id,
 };
 
 /// Stable worker failure safe for logs and retry policy.
@@ -102,6 +104,97 @@ where
         campaign_id: &str,
         attempt_id: &CallAttemptId,
     ) -> Result<AttemptResource, WorkerError> {
+        let binding = self
+            .load_execution_binding(tenant, campaign_id, attempt_id)
+            .await?;
+        let orchestrator = OutboundOrchestrator::new(
+            &self.compliance,
+            &self.agent,
+            &self.telephony,
+            &self.attempt_store,
+        );
+        let active = orchestrator
+            .start_one_attempt(
+                &binding.tenant_id,
+                attempt_id,
+                &binding.release,
+                &binding.session_id,
+            )
+            .await
+            .map_err(|error| WorkerError::new(error.code()))?;
+        let attempt = orchestrator
+            .finalize_active_attempt(active.clone())
+            .await
+            .map_err(|error| WorkerError::new(error.code()))?;
+        self.commit_terminal(&binding, &active, attempt).await
+    }
+
+    /// Starts one call, supervises its durable Active Call event stream, and only then commits the
+    /// terminal Attempt and post-call job.
+    ///
+    /// # Errors
+    ///
+    /// Returns stable admission, orchestration, authority, supervision or atomic-store failures.
+    pub async fn run_attempt_with_active_session<E>(
+        &self,
+        tenant: &AuthenticatedTenant,
+        campaign_id: &str,
+        attempt_id: &CallAttemptId,
+        session: &E,
+    ) -> Result<AttemptResource, WorkerError>
+    where
+        S: ActiveAttemptContextPort + ActiveAttemptLeasePort,
+        E: ActiveCallSessionPort<S>,
+    {
+        let binding = self
+            .load_execution_binding(tenant, campaign_id, attempt_id)
+            .await?;
+        let orchestrator = OutboundOrchestrator::new(
+            &self.compliance,
+            &self.agent,
+            &self.telephony,
+            &self.attempt_store,
+        );
+        let active = orchestrator
+            .start_one_attempt(
+                &binding.tenant_id,
+                attempt_id,
+                &binding.release,
+                &binding.session_id,
+            )
+            .await
+            .map_err(|error| WorkerError::new(error.code()))?;
+        let context = self.attempt_store.load_active_envelope_context().await?;
+        if !binding.matches_active_context(&context, &active) {
+            return Err(WorkerError::new("voice_agent_active_context_mismatch"));
+        }
+        match session
+            .supervise_active_call(&context, &self.attempt_store)
+            .await?
+        {
+            ActiveCallSessionSupervisorOutcome::Completed => {}
+            ActiveCallSessionSupervisorOutcome::Draining => {
+                return Err(WorkerError::new("voice_agent_worker_draining"));
+            }
+            ActiveCallSessionSupervisorOutcome::ReconcileRequired { .. } => {
+                return Err(WorkerError::new(
+                    "voice_agent_active_call_reconcile_required",
+                ));
+            }
+        }
+        let attempt = orchestrator
+            .finalize_active_attempt(active.clone())
+            .await
+            .map_err(|error| WorkerError::new(error.code()))?;
+        self.commit_terminal(&binding, &active, attempt).await
+    }
+
+    async fn load_execution_binding(
+        &self,
+        tenant: &AuthenticatedTenant,
+        campaign_id: &str,
+        attempt_id: &CallAttemptId,
+    ) -> Result<AttemptExecutionBinding, WorkerError> {
         if self.shutdown.is_cancelled() {
             return Err(WorkerError::new("voice_agent_worker_draining"));
         }
@@ -132,36 +225,41 @@ where
             release.components().clone(),
         )
         .map_err(|_| WorkerError::new("voice_agent_release_identity_invalid"))?;
-
-        let orchestrator = OutboundOrchestrator::new(
-            &self.compliance,
-            &self.agent,
-            &self.telephony,
-            &self.attempt_store,
-        );
         let session_id = derive_initial_session_id(tenant, attempt_id, &release_binding)?;
         let tenant_id = TenantId::parse(tenant.as_str())
             .map_err(|_| WorkerError::new("voice_agent_tenant_invalid"))?;
-        let attempt = orchestrator
-            .run_one_attempt(&tenant_id, attempt_id, &release_binding, &session_id)
-            .await
-            .map_err(|error| WorkerError::new(error.code()))?;
+        Ok(AttemptExecutionBinding {
+            tenant_id,
+            campaign_id: CampaignId::parse(campaign.id())
+                .map_err(|_| WorkerError::new("voice_agent_campaign_identity_invalid"))?,
+            release: release_binding,
+            session_id,
+        })
+    }
+
+    async fn commit_terminal(
+        &self,
+        binding: &AttemptExecutionBinding,
+        active: &converact_ai_outbound_core::ActiveAttemptExecution,
+        attempt: converact_ai_outbound_core::CallAttempt,
+    ) -> Result<AttemptResource, WorkerError> {
         let terminal = TerminalAttemptCommit::try_new(
             attempt.clone(),
-            CampaignId::parse(campaign.id())
-                .map_err(|_| WorkerError::new("voice_agent_campaign_identity_invalid"))?,
-            release_binding.id().clone(),
-            CallId::parse(attempt.id().as_str())
-                .map_err(|_| WorkerError::new("voice_agent_call_identity_invalid"))?,
-            session_id,
+            binding.campaign_id.clone(),
+            binding.release.id().clone(),
+            active.call_id().clone(),
+            active.channel_agent_session_id().clone(),
         )
         .map_err(|error| WorkerError::new(error.code()))?;
         self.attempt_store
             .complete_and_enqueue(terminal)
             .await
             .map_err(|error| WorkerError::new(error.code()))?;
-        let resource =
-            AttemptResource::terminal_pending(campaign_id, campaign.release_id(), &attempt);
+        let resource = AttemptResource::terminal_pending(
+            binding.campaign_id.as_str(),
+            binding.release.id().as_str(),
+            &attempt,
+        );
         Ok(resource)
     }
 
@@ -178,5 +276,28 @@ where
     #[must_use]
     pub const fn shutdown_token(&self) -> &ShutdownToken {
         &self.shutdown
+    }
+}
+
+struct AttemptExecutionBinding {
+    tenant_id: TenantId,
+    campaign_id: CampaignId,
+    release: AgentReleaseBinding,
+    session_id: converact_voice_agent_contracts::ChannelAgentSessionId,
+}
+
+impl AttemptExecutionBinding {
+    fn matches_active_context(
+        &self,
+        context: &converact_voice_agent_contracts::EnvelopeContext,
+        active: &converact_ai_outbound_core::ActiveAttemptExecution,
+    ) -> bool {
+        context.tenant_id() == self.tenant_id.as_str()
+            && context.campaign_id() == &self.campaign_id
+            && context.call_attempt_id() == active.attempt().id()
+            && context.call_id() == Some(active.call_id())
+            && context.agent_release_id() == self.release.id()
+            && context.channel_agent_session_id() == Some(active.channel_agent_session_id())
+            && &self.session_id == active.channel_agent_session_id()
     }
 }
