@@ -577,6 +577,7 @@ dependencies = [
  "converact-ai-outbound-core",
  "converact-voice-agent-contracts",
  "futures-util",
+ "rustix",
  "serde",
  "serde_json",
  "tokio",

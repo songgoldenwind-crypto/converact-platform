@@ -20,7 +20,7 @@ use tokio_tungstenite::{
     },
 };
 use url::{Host, Url};
-use zeroize::Zeroizing;
+use zeroize::{Zeroize, Zeroizing};
 
 use crate::{OriginateRequest, RwiCommand, RwiError, encode_command};
 
@@ -95,6 +95,10 @@ impl SecretRef {
         }
         Ok(Self(value.into()))
     }
+
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 impl fmt::Debug for SecretRef {
@@ -113,9 +117,10 @@ impl SecretValue {
     ///
     /// Rejects empty, oversized or header-breaking values.
     pub fn new(value: impl Into<String>) -> Result<Self, ClientError> {
-        let value = value.into();
+        let mut value = value.into();
         if value.is_empty() || value.len() > MAX_SECRET_BYTES || value.chars().any(char::is_control)
         {
+            value.zeroize();
             return Err(ClientError::SecretUnavailable);
         }
         Ok(Self(Zeroizing::new(value)))

@@ -10,6 +10,7 @@ publish.workspace = true
 converact-ai-outbound-core = { path = "../ai-outbound-core" }
 converact-voice-agent-contracts = { path = "../voice-agent-contracts" }
 futures-util.workspace = true
+rustix.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
