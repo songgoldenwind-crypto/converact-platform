@@ -51,6 +51,16 @@ pub struct EmotionTurnResolution {
 }
 
 impl EmotionTurnResolution {
+    pub(crate) fn from_checkpoint(
+        checkpoint: EmotionCheckpoint,
+        contributors: Vec<EmotionObservation>,
+    ) -> Self {
+        Self {
+            checkpoint,
+            contributors: contributors.into(),
+        }
+    }
+
     #[must_use]
     pub const fn checkpoint(&self) -> &EmotionCheckpoint {
         &self.checkpoint
@@ -177,10 +187,10 @@ impl<'a> TextEmotionTurnRuntime<'a> {
             .map_err(|_| TextEmotionTurnRuntimeError::StateTransitionInvalid)?;
         let checkpoint = EmotionCheckpoint::try_new(fusion, state)
             .map_err(|_| TextEmotionTurnRuntimeError::StateTransitionInvalid)?;
-        Ok(EmotionTurnResolution {
+        Ok(EmotionTurnResolution::from_checkpoint(
             checkpoint,
-            contributors: vec![observation].into(),
-        })
+            vec![observation],
+        ))
     }
 }
 
