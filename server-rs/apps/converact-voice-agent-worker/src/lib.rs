@@ -41,6 +41,7 @@ mod post_call_finalization_postgres;
 mod repository;
 mod result_generation;
 mod safety_intent_provider;
+mod structured_model_http_transport;
 mod text_emotion_classifier;
 mod text_emotion_runtime;
 mod tool_runtime;
@@ -173,6 +174,9 @@ pub use result_generation::ResultGenerationEvidence;
 pub use safety_intent_provider::{
     SafetyIntentMatchKind, SafetyIntentProvider, SafetyIntentProviderError, SafetyIntentRuleInput,
     SafetyIntentRuleSetInput,
+};
+pub use structured_model_http_transport::{
+    ModelInferenceHttpConfig, ModelInferenceHttpConfigError, ModelInferenceHttpTransport,
 };
 pub use text_emotion_classifier::{
     TextEmotionCandidateOutput, TextEmotionClassifierArtifactInput, TextEmotionClassifierOutput,

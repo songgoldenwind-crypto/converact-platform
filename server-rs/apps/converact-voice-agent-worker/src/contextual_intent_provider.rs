@@ -172,17 +172,34 @@ impl fmt::Debug for ContextualIntentClassifierOutput {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ContextualIntentClassifierPortError {
     code: &'static str,
+    contract_invalid: bool,
 }
 
 impl ContextualIntentClassifierPortError {
     #[must_use]
     pub const fn new(code: &'static str) -> Self {
-        Self { code }
+        Self {
+            code,
+            contract_invalid: false,
+        }
+    }
+
+    /// Creates a non-transient request/response contract failure.
+    #[must_use]
+    pub const fn contract_invalid(code: &'static str) -> Self {
+        Self {
+            code,
+            contract_invalid: true,
+        }
     }
 
     #[must_use]
     pub const fn code(self) -> &'static str {
         self.code
+    }
+
+    const fn is_contract_invalid(self) -> bool {
+        self.contract_invalid
     }
 }
 
@@ -436,7 +453,13 @@ where
         )
         .await
         .map_err(|_| ContextualIntentClassifierProviderError::ClassifierTimedOut)?
-        .map_err(|_| ContextualIntentClassifierProviderError::ClassifierUnavailable)?;
+        .map_err(|error| {
+            if error.is_contract_invalid() {
+                ContextualIntentClassifierProviderError::ClassifierOutputInvalid
+            } else {
+                ContextualIntentClassifierProviderError::ClassifierUnavailable
+            }
+        })?;
         if output.served_artifact_revision != self.artifact.revision.as_ref() {
             return Err(ContextualIntentClassifierProviderError::ArtifactDrift);
         }

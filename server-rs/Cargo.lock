@@ -668,10 +668,13 @@ dependencies = [
  "converact-tenant-auth",
  "converact-tool-broker-core",
  "converact-voice-agent-contracts",
+ "reqwest",
+ "rustls",
  "serde",
  "serde_json",
  "tokio",
  "tower",
+ "url",
 ]
 
 [[package]]

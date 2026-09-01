@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0.0",
+  "evidence_id": "r1-structured-model-http-transport",
+  "recorded_at": "2026-09-01",
+  "source_parent_commit": "4cc6abf4ef5cedbb6fea7f0b2eb89ca08888f806",
+  "checks": [
+    {
+      "id": "structured_model_http_transport_contract",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test structured_model_http_transport",
+      "status": "passed",
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "id": "affected_provider_and_router_contracts",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test fast_intent_classifier; cargo test --locked -p converact-voice-agent-worker --test contextual_intent_provider; cargo test --locked -p converact-voice-agent-worker --test text_emotion_classifier; cargo test --locked -p converact-voice-agent-worker --test intent_confidence_router",
+      "status": "passed",
+      "passed": 19,
+      "failed": 0
+    },
+    {
+      "id": "structured_model_http_transport_scoped_clippy",
+      "command": "cargo clippy --locked -p converact-voice-agent-worker --lib --test structured_model_http_transport --test fast_intent_classifier --test contextual_intent_provider --test text_emotion_classifier --test intent_confidence_router -- -D warnings",
+      "status": "passed"
+    },
+    {
+      "id": "structured_model_http_transport_scoped_format",
+      "command": "rustfmt --edition 2024 --check structured model transport source/export/test files",
+      "status": "passed"
+    },
+    {
+      "id": "structured_model_http_transport_diff_check",
+      "command": "git diff --check -- structured model transport slice",
+      "status": "passed"
+    }
+  ],
+  "not_run": [
+    "real_hugging_face_onnx_candle_or_llm_model_and_quality",
+    "production_mtls_credentials_endpoint_health_and_failover",
+    "acoustic_pcm_transport_and_rustpbx_media_tap",
+    "release_artifact_repository_and_runnable_worker_composition_root",
+    "active_call_sip_pstn_audio_production_performance_and_capacity"
+  ]
+}
