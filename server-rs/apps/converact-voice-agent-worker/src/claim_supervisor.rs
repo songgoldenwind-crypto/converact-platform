@@ -1,8 +1,8 @@
 use std::{collections::VecDeque, future::Future, sync::Arc};
 
-use tokio::task::JoinSet;
+use tokio::{task::JoinSet, time::sleep};
 
-use crate::{AdmissionReadiness, ShutdownToken, WorkerConfig, WorkerError};
+use crate::{AdmissionReadiness, ClaimLoopConfig, ShutdownToken, WorkerConfig, WorkerError};
 
 /// Source of one database-fenced, bounded claim batch.
 pub trait AttemptClaimSource: Send + Sync + 'static {
@@ -41,6 +41,12 @@ impl ClaimBatchProgress {
     #[must_use]
     pub const fn failed(self) -> usize {
         self.failed
+    }
+
+    fn record(&mut self, cycle: Self) {
+        self.claimed = self.claimed.saturating_add(cycle.claimed);
+        self.completed = self.completed.saturating_add(cycle.completed);
+        self.failed = self.failed.saturating_add(cycle.failed);
     }
 }
 
@@ -118,6 +124,53 @@ where
             completed,
             failed,
         })
+    }
+
+    /// Continuously drains bounded batches, waiting only when no work is available or admission is
+    /// closed. Cancellation never abandons a batch whose leases are already owned.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first durable claim-source or invariant failure. Temporary admission closure is
+    /// polled at the configured bounded interval and is not treated as a process failure.
+    pub async fn run_until_shutdown(
+        &self,
+        loop_config: ClaimLoopConfig,
+    ) -> Result<ClaimBatchProgress, WorkerError> {
+        let mut total = ClaimBatchProgress {
+            claimed: 0,
+            completed: 0,
+            failed: 0,
+        };
+        loop {
+            if self.shutdown.is_cancelled() {
+                return Ok(total);
+            }
+            if !self.readiness.accepts_new_work() {
+                self.wait_or_shutdown(loop_config).await;
+                continue;
+            }
+            let progress = match self.run_once().await {
+                Ok(progress) => progress,
+                Err(error) if error.code() == "voice_agent_worker_draining" => return Ok(total),
+                Err(error) if error.code() == "voice_agent_admission_unavailable" => {
+                    self.wait_or_shutdown(loop_config).await;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+            total.record(progress);
+            if progress.claimed == 0 {
+                self.wait_or_shutdown(loop_config).await;
+            }
+        }
+    }
+
+    async fn wait_or_shutdown(&self, loop_config: ClaimLoopConfig) {
+        tokio::select! {
+            () = self.shutdown.cancelled() => {}
+            () = sleep(loop_config.poll_interval()) => {}
+        }
     }
 }
 

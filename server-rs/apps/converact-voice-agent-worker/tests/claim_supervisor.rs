@@ -13,8 +13,8 @@ use converact_contracts::health::{
 };
 use converact_runtime_health::RuntimeHealth;
 use converact_voice_agent_worker::{
-    AdmissionReadiness, AttemptClaimSource, ClaimSupervisor, ClaimedAttemptExecutor, ShutdownToken,
-    WorkerConfig, WorkerError,
+    AdmissionReadiness, AttemptClaimSource, ClaimLoopConfig, ClaimSupervisor,
+    ClaimedAttemptExecutor, ShutdownToken, WorkerConfig, WorkerError,
 };
 
 #[tokio::test]
@@ -67,6 +67,42 @@ async fn admission_and_oversized_source_batches_fail_closed_before_execution() {
         "voice_agent_claim_batch_oversized"
     );
     assert_eq!(executor.completed.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn continuous_loop_drains_owned_work_then_wakes_promptly_on_shutdown() {
+    let source = FixedClaims::new(vec![1, 2]);
+    let observed_source = source.clone();
+    let executor = Arc::new(ConcurrencyProbe::default());
+    let shutdown = ShutdownToken::default();
+    let cancel = shutdown.clone();
+    let supervisor = ClaimSupervisor::new(
+        source,
+        Arc::clone(&executor),
+        WorkerConfig::new(2, 2).unwrap(),
+        ready(),
+        shutdown,
+    );
+    let process = tokio::spawn(async move {
+        supervisor
+            .run_until_shutdown(ClaimLoopConfig::new(Duration::from_secs(30)).unwrap())
+            .await
+    });
+
+    while observed_source.claim_calls() < 2 {
+        tokio::task::yield_now().await;
+    }
+    cancel.cancel();
+    let progress = tokio::time::timeout(Duration::from_millis(100), process)
+        .await
+        .expect("shutdown must wake the idle claim loop")
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(progress.claimed(), 2);
+    assert_eq!(progress.completed(), 2);
+    assert_eq!(progress.failed(), 0);
+    assert_eq!(executor.completed.load(Ordering::SeqCst), 2);
 }
 
 #[derive(Clone)]

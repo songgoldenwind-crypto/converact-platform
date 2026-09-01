@@ -1,19 +1,26 @@
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
 };
 
 use converact_contracts::health::ReadinessStatus;
 use converact_runtime_health::RuntimeHealth;
+use tokio::sync::watch;
 
 const MAX_WORKERS: u16 = 256;
 const MAX_CLAIM_SIZE: u16 = 1_024;
+const MIN_CLAIM_POLL_INTERVAL: Duration = Duration::from_millis(1);
+const MAX_CLAIM_POLL_INTERVAL: Duration = Duration::from_secs(60);
 
 /// Invalid bounded worker lifecycle configuration.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WorkerConfigError {
     InvalidWorkerCount,
     InvalidClaimSize,
+    InvalidClaimPollInterval,
 }
 
 impl std::fmt::Display for WorkerConfigError {
@@ -21,7 +28,31 @@ impl std::fmt::Display for WorkerConfigError {
         formatter.write_str(match self {
             Self::InvalidWorkerCount => "voice_agent_worker_count_invalid",
             Self::InvalidClaimSize => "voice_agent_claim_size_invalid",
+            Self::InvalidClaimPollInterval => "voice_agent_claim_poll_interval_invalid",
         })
+    }
+}
+
+/// Fixed delay used only when the durable queue has no immediately available work.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ClaimLoopConfig {
+    poll_interval: Duration,
+}
+
+impl ClaimLoopConfig {
+    /// # Errors
+    ///
+    /// Rejects intervals that could busy-spin or make shutdown/configuration changes unresponsive.
+    pub fn new(poll_interval: Duration) -> Result<Self, WorkerConfigError> {
+        if poll_interval < MIN_CLAIM_POLL_INTERVAL || poll_interval > MAX_CLAIM_POLL_INTERVAL {
+            return Err(WorkerConfigError::InvalidClaimPollInterval);
+        }
+        Ok(Self { poll_interval })
+    }
+
+    #[must_use]
+    pub const fn poll_interval(self) -> Duration {
+        self.poll_interval
     }
 }
 
@@ -65,17 +96,41 @@ impl WorkerConfig {
 }
 
 /// One-way process shutdown signal shared by claim loops and HTTP inspection.
-#[derive(Clone, Debug, Default)]
-pub struct ShutdownToken(Arc<AtomicBool>);
+#[derive(Clone)]
+pub struct ShutdownToken(Arc<watch::Sender<bool>>);
+
+impl Default for ShutdownToken {
+    fn default() -> Self {
+        let (sender, _) = watch::channel(false);
+        Self(Arc::new(sender))
+    }
+}
 
 impl ShutdownToken {
     pub fn cancel(&self) {
-        self.0.store(true, Ordering::Release);
+        self.0.send_replace(true);
     }
 
     #[must_use]
     pub fn is_cancelled(&self) -> bool {
-        self.0.load(Ordering::Acquire)
+        *self.0.borrow()
+    }
+
+    pub async fn cancelled(&self) {
+        let mut receiver = self.0.subscribe();
+        if *receiver.borrow_and_update() {
+            return;
+        }
+        let _ = receiver.wait_for(|cancelled| *cancelled).await;
+    }
+}
+
+impl std::fmt::Debug for ShutdownToken {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ShutdownToken")
+            .field("cancelled", &self.is_cancelled())
+            .finish()
     }
 }
 

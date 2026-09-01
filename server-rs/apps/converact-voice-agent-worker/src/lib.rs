@@ -164,7 +164,9 @@ pub use intent_confidence_router::{
 pub use layered_intent_runtime::{
     ContextualFailurePolicy, LayeredIntentRuntime, LayeredIntentRuntimeError,
 };
-pub use lifecycle::{AdmissionReadiness, ShutdownToken, WorkerConfig, WorkerConfigError};
+pub use lifecycle::{
+    AdmissionReadiness, ClaimLoopConfig, ShutdownToken, WorkerConfig, WorkerConfigError,
+};
 pub use model::{
     AgentReleaseResource, AttemptResource, AuthenticatedTenant, CampaignResource, ModelError,
     Outcome, PostCallState, RetryInspectionState, WorkerResource,
