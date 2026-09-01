@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0.0",
+  "evidence_id": "r1-active-call-release-artifact-store",
+  "recorded_at": "2026-09-01",
+  "source_parent_commit": "8c84b5ddd8f12d655b63085aa6be859515dffaa5",
+  "checks": [
+    {
+      "id": "release_artifact_store_contract",
+      "command": "cargo test --locked -p converact-postgres-store --test active_call_release_artifact_contract",
+      "status": "passed",
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "id": "worker_postgres_artifact_source_contract",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test postgres_active_call_artifact_source",
+      "status": "passed",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "id": "affected_release_and_resolver_contracts",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test active_call_playbook_resolver; cargo test --locked -p converact-ai-outbound-core --test agent_release",
+      "status": "passed",
+      "passed": 6,
+      "failed": 0
+    },
+    {
+      "id": "focused_postgres_14_18_schema_lifecycle",
+      "command": "apply migrations 124 and 137 in disposable local PostgreSQL; insert/retire/read exact Release artifact; reject Release and artifact mutation",
+      "status": "passed"
+    },
+    {
+      "id": "release_artifact_scoped_clippy",
+      "command": "cargo clippy --locked for affected converact-postgres-store and converact-voice-agent-worker targets with -D warnings",
+      "status": "passed"
+    },
+    {
+      "id": "release_artifact_scoped_format_and_diff",
+      "command": "rustfmt --edition 2024 --check affected Rust files; git diff --check for the exact slice",
+      "status": "passed"
+    }
+  ],
+  "not_run": [
+    "artifact_authoring_upload_authorization",
+    "deterministic_eight_component_playbook_compiler",
+    "physical_rust_store_query_through_production_pool_and_rls_role",
+    "runnable_worker_restart_and_multi_node_composition",
+    "active_call_rustpbx_sip_pstn_media_model_production_and_capacity"
+  ]
+}

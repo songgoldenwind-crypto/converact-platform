@@ -15,6 +15,7 @@ mod conversation_result;
 mod conversation_understanding;
 mod handoff;
 mod post_call_finalization;
+mod release_artifact;
 mod tool_action;
 
 pub use active_call_event::{
@@ -39,6 +40,10 @@ pub use handoff::{
 pub use post_call_finalization::{
     PostgresEnqueueFinalizationDecision, PostgresPostCallFinalizationStore,
     PostgresPostCallFinalizationStoreError,
+};
+pub use release_artifact::{
+    PostgresActiveCallArtifactRecord, PostgresActiveCallArtifactStore,
+    PostgresActiveCallArtifactStoreConfig, PostgresActiveCallArtifactStoreError,
 };
 pub use tool_action::PostgresToolActionStore;
 

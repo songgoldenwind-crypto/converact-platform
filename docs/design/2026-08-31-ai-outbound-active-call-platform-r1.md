@@ -1164,6 +1164,12 @@ unknown mutation 的 reconcile 仍把原始观察交给后续策略。物理 dia
 并隐藏 Prompt 内容。但该边界不冒充源组件到 Playbook 的确定性编译证明。固定源码 overlay 和
 完整 `ChannelAgentPort` 的本地组合已经完成；RustPBX 尚未真实注入控制头，真实 SIP-leg、媒体、
 provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run`。
+同日新增 PostgreSQL Release runtime-artifact Store：表按 tenant、精确 Agent Release 与 compiler
+revision 唯一定位，RLS 隔离且内容 append-only；迁移同时冻结已发布 Release 的身份、内容 hash、八
+组件摘要和其他发布字段，只允许 `published -> retired`。Rust Store 在同一 tenant transaction 内
+联结权威 Release，重建并核对完整 `AgentReleaseBinding` 后才向现有 Playbook resolver 返回最多
+64 KiB 的编译产物。迁移、插入、退休、读取和不可变 guard 已在一次性 PostgreSQL 14.18 中验证；
+artifact 上传/授权、八组件确定性 compiler、生产连接池上的 Rust 查询和进程组合仍为 `not_run`。
 物理 PostgreSQL、真实 RustPBX/Active Call/Speech、SIP/PSTN/媒体、真实 Tool/审批/模型供应商、
 生产路由授权、Dashboard、旧 writer 迁移、性能、容量和生产部署均保持 `not_run`，后续必须按
 独立 Evidence Gate 逐项推进。
@@ -1263,6 +1269,7 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 | 2026-09-01 | R1 Active Call SIP/start-gate checkpoint | 固定源码覆盖层已把平台 Session ID 绑定到唯一 SIP leg，保留预约 Playbook 权威，并在显式 start 前阻止 Runner 进入业务对话；RustPBX header 注入、真实 SIP/媒体/Provider 和生产仍为 `not_run` |
 | 2026-09-01 | R1 Active Call complete channel-port checkpoint | Rust 完整 `ChannelAgentPort` 已组合精确 Release artifact、稳定 session 预留、附着/media-ready、披露命令、精确 `TrackEnd`、显式 start 与 terminal 查询，并以每 session 串行化保证并发预留重放只产生一次外部 mutation；真实进程、RustPBX header、SIP/媒体/provider、可听披露、录音与生产仍为 `not_run` |
 | 2026-09-01 | R1 RustPBX TelephonyPort checkpoint | Rust 具体端口、immutable dial contract、精确 originate/inspect/Agent-leg/hangup wire 和 unknown-outcome 已通过本地 loopback；ivekit.87 O(1) inspect 精确源码测试通过且已删除进程内 known-call 全局锁；物理 Store/runtime、真实进程/SIP/媒体和生产仍为 `not_run` |
+| 2026-09-01 | R1 Active Call Release artifact Store checkpoint | tenant/Release/compiler 唯一、RLS、append-only artifact 与 Release 冻结迁移已通过本地 PostgreSQL 14.18；Rust Store 已接入既有 resolver port，artifact 上传/compiler、物理 Rust 查询、进程组合和生产仍为 `not_run` |
 | 2026-09-01 | R1 Intent Understanding Core checkpoint | Release-bound 层级 Catalog、Slot allow-list、top-k、basis-point confidence、证据来源和 `unknown/provisional/clarification_required/confirmed/changed` Rust 状态机已有本地合同证据；checkpoint/Store adapter 已通过，真实分类 Provider、融合、校准、Worker/Active Call 实时接入和质量仍为 `not_run` |
 | 2026-09-01 | R1 Emotion Understanding Core checkpoint | Release-bound Catalog、声学/文本证据约束、top-k/confidence/intensity、同 authority/turn 融合与确认后压力趋势 Rust 状态机已有本地合同证据；checkpoint/Store adapter 与 Policy 本地消费已通过，真实模型/融合算法、校准、Worker、音频与生产仍为 `not_run` |
 | 2026-09-01 | R1 Customer State/Dialogue Policy checkpoint | 同 authority 的 Intent/Emotion 快照、Release-bound Policy、情绪优先澄清与恶化压力人工接管建议已有本地合同证据；来源状态重建和 Policy 重算 checkpoint 已通过，建议不具有 Handoff/Tool/电话动作权，Worker/Active Call 接线、物理 PostgreSQL 和生产仍为 `not_run` |

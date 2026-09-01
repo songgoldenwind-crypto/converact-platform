@@ -2924,6 +2924,37 @@ CREATE TABLE IF NOT EXISTS converact_agent_releases (
   PRIMARY KEY (tenant_id, id)
 );
 
+CREATE TABLE IF NOT EXISTS converact_agent_release_runtime_artifacts (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  agent_release_id TEXT NOT NULL,
+  compiler_revision TEXT NOT NULL CHECK (
+    length(compiler_revision) BETWEEN 1 AND 128
+  ),
+  artifact_hash TEXT NOT NULL CHECK (
+    length(artifact_hash) = 64 AND artifact_hash NOT GLOB '*[^0-9a-f]*'
+  ),
+  playbook_content TEXT NOT NULL CHECK (
+    length(CAST(playbook_content AS BLOB)) BETWEEN 1 AND 65536
+  ),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, agent_release_id, compiler_revision),
+  FOREIGN KEY (tenant_id, agent_release_id)
+    REFERENCES converact_agent_releases(tenant_id, id) ON DELETE CASCADE
+);
+
+CREATE TRIGGER IF NOT EXISTS converact_agent_release_artifacts_update_immutable
+BEFORE UPDATE ON converact_agent_release_runtime_artifacts
+BEGIN
+  SELECT RAISE(ABORT, 'Agent Release runtime artifact is immutable');
+END;
+
+CREATE TRIGGER IF NOT EXISTS converact_agent_release_artifacts_delete_immutable
+BEFORE DELETE ON converact_agent_release_runtime_artifacts
+WHEN EXISTS (SELECT 1 FROM tenants WHERE id = OLD.tenant_id)
+BEGIN
+  SELECT RAISE(ABORT, 'Agent Release runtime artifact is immutable');
+END;
+
 CREATE TABLE IF NOT EXISTS converact_outbound_dial_policy_revisions (
   tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   id TEXT NOT NULL,

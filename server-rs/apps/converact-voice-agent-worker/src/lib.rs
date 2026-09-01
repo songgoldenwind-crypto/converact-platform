@@ -9,6 +9,7 @@ mod active_call_event_postgres;
 mod active_call_handoff;
 mod active_call_intent;
 mod active_call_playbook_artifact;
+mod active_call_playbook_postgres;
 mod active_call_playbook_resolver;
 mod active_call_reservation;
 mod active_call_transcript;
