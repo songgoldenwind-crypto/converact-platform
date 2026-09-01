@@ -192,3 +192,19 @@ Campaign and Attempt inspection/reconciliation adapters, the bounded claim loop,
 HTTP composition, real Active Call/RustPBX/Speech input, process restart, server deployment and
 production remain `not_run`. See
 [atomic Attempt finalization evidence](../../architecture-foundation/ai-outbound/evidence/r1-atomic-attempt-finalization/README.md).
+
+## 9. Concrete PostgreSQL Worker repository checkpoint
+
+Commit `36d98adb2d5322014fd5a5088a6730928cacfb0e` closes the in-memory inspection gap. The Rust
+Worker now adapts tenant-scoped PostgreSQL Agent Release, Campaign, Attempt and post-call progress
+queries into its bounded HTTP resources. Agent Release component digests are revalidated on every
+load, and a completed Attempt without its authoritative finalization job is rejected as an invalid
+stored projection.
+
+Migration 138 adds content-free, tenant-scoped reconciliation requests with exact idempotency
+replay and conflict behavior. A disposable local PostgreSQL 14.18 test exercised all four reads and
+writes alongside the atomic terminal-settlement cases; focused local contracts and migration
+checksum tests also passed. Runnable binary composition, authenticated production middleware, the
+bounded claim loop, reconciliation settlement, real communication inputs, deployment and
+performance remain `not_run`. See
+[PostgreSQL Worker repository evidence](../../architecture-foundation/ai-outbound/evidence/r1-postgres-worker-repository/README.md).

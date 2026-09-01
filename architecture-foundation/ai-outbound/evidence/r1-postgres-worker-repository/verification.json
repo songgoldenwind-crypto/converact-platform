@@ -1,0 +1,67 @@
+{
+  "schema_version": "1.0.0",
+  "evidence_id": "r1-postgres-worker-repository",
+  "recorded_at": "2026-09-01",
+  "source_commit": "36d98adb2d5322014fd5a5088a6730928cacfb0e",
+  "checks": [
+    {
+      "id": "agent_release_contracts",
+      "command": "cargo test --locked -p converact-ai-outbound-core --test agent_release",
+      "status": "passed",
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "id": "postgres_worker_repository_contracts",
+      "command": "cargo test --locked -p converact-postgres-store --test voice_agent_repository_contract",
+      "status": "passed",
+      "passed": 2,
+      "failed": 0
+    },
+    {
+      "id": "worker_postgres_adapter_contract",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test postgres_repository",
+      "status": "passed",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "id": "worker_http_contracts",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test http",
+      "status": "passed",
+      "passed": 5,
+      "failed": 0
+    },
+    {
+      "id": "physical_postgresql_14_18_repository_and_atomic_completion",
+      "command": "cargo test --locked -p converact-postgres-store --test ai_outbound_atomic_completion_postgres -- --ignored --exact terminal_attempt_and_post_call_job_commit_or_roll_back_together",
+      "status": "passed",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "id": "migration_checksum",
+      "command": "node --import tsx --test ../test/postgres-migrations-checksum.test.ts",
+      "status": "passed",
+      "passed": 10,
+      "failed": 0
+    },
+    {
+      "id": "scoped_clippy",
+      "command": "cargo clippy --locked -p converact-ai-outbound-core -p converact-postgres-store -p converact-voice-agent-worker --lib --tests -- -D warnings",
+      "status": "passed"
+    },
+    {
+      "id": "format_diff_and_sqlite_schema",
+      "command": "cargo fmt --all -- --check; git diff --check; sqlite3 :memory: < ../src/schema.sql",
+      "status": "passed"
+    }
+  ],
+  "not_run": [
+    "runnable_authenticated_worker_process_and_claim_loop",
+    "reconcile_request_claim_settlement_and_crash_recovery",
+    "production_rls_role_and_rolling_deployment",
+    "active_call_rustpbx_sip_pstn_speech_model_recording_handoff",
+    "server_production_performance_capacity_long_run"
+  ]
+}
