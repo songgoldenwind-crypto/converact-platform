@@ -12,7 +12,8 @@ use converact_voice_agent_contracts::{
     InteractionId, ToolCallId, ToolRevisionId, VOICE_AGENT_SCHEMA_VERSION,
 };
 use converact_voice_agent_worker::{
-    ToolBinding, ToolBindingPort, ToolBrokerPort, ToolEventOutcome, ToolResultPort, ToolRuntime,
+    ActiveCallToolEventProcessor, ActiveCallToolProjectionPort, FixedWallClock, ToolBinding,
+    ToolBindingPort, ToolBrokerPort, ToolEventOutcome, ToolResultPort, ToolRuntime,
 };
 use serde_json::json;
 
@@ -59,6 +60,34 @@ async fn normalized_proposal_enters_broker_and_only_consumable_result_returns_to
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     );
     assert_eq!(proposals[0].arguments(), &json!({"customer_id": "c-1"}));
+    assert_eq!(delivered.lock().unwrap().as_slice(), ["consumable-receipt"]);
+}
+
+#[tokio::test]
+async fn event_projection_routes_the_current_tool_receipt_back_to_the_active_session() {
+    let receipts = Arc::new(Mutex::new(vec![receipt(3, "consumable-receipt")]));
+    let delivered = Arc::new(Mutex::new(Vec::new()));
+    let runtime = ToolRuntime::new(
+        Binding,
+        Broker {
+            receipts,
+            calls: Arc::new(Mutex::new(Vec::new())),
+        },
+        Results(Arc::clone(&delivered)),
+    );
+    let projection = ActiveCallToolEventProcessor::new(&runtime, FixedWallClock::new(1_300));
+    let authority = context();
+    let event = normalize_event(
+        &AdapterContext::new(authority.clone()),
+        r#"{"event":"functionCall","trackId":"track-001","callId":"tool-call-001","name":"lookup_customer","arguments":"{\"customer_id\":\"c-1\"}","timestamp":1200}"#,
+    )
+    .unwrap();
+
+    projection
+        .project_tool_event(&authority, &event)
+        .await
+        .unwrap();
+
     assert_eq!(delivered.lock().unwrap().as_slice(), ["consumable-receipt"]);
 }
 

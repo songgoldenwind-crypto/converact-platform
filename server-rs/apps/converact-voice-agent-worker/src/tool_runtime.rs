@@ -8,6 +8,8 @@ use converact_tool_broker_core::{
 };
 use converact_voice_agent_contracts::{EnvelopeContext, ToolCallId, ToolRevisionId};
 
+use crate::{ActiveCallEventProcessingError, ActiveCallToolProjectionPort, WallClock};
+
 const MAX_ARGUMENT_BYTES: usize = 65_536;
 const MAX_TOOL_DEADLINE_MS: u64 = 120_000;
 
@@ -198,6 +200,51 @@ where
                 Ok(ToolEventOutcome::Delivered)
             }
         }
+    }
+}
+
+/// Routes one durable Tool proposal through the shared Broker with a process wall clock.
+pub struct ActiveCallToolEventProcessor<'a, B, K, R, C> {
+    runtime: &'a ToolRuntime<B, K, R>,
+    clock: C,
+}
+
+impl<'a, B, K, R, C> ActiveCallToolEventProcessor<'a, B, K, R, C> {
+    #[must_use]
+    pub const fn new(runtime: &'a ToolRuntime<B, K, R>, clock: C) -> Self {
+        Self { runtime, clock }
+    }
+}
+
+impl<B, K, R, C> ActiveCallToolProjectionPort for ActiveCallToolEventProcessor<'_, B, K, R, C>
+where
+    B: ToolBindingPort + Sync,
+    K: ToolBrokerPort + Sync,
+    R: ToolResultPort + Sync,
+    C: WallClock,
+{
+    async fn project_tool_event(
+        &self,
+        context: &EnvelopeContext,
+        event: &NormalizedEvent,
+    ) -> Result<(), ActiveCallEventProcessingError> {
+        if context != event.authority() || !matches!(event, NormalizedEvent::ToolProposed { .. }) {
+            return Err(ActiveCallEventProcessingError::new(
+                "active_call_tool_projection_event_invalid",
+            ));
+        }
+        let now_ms = self
+            .clock
+            .now_epoch_ms()
+            .and_then(|value| u64::try_from(value).ok())
+            .ok_or_else(|| {
+                ActiveCallEventProcessingError::new("active_call_tool_projection_clock_invalid")
+            })?;
+        self.runtime
+            .handle(event.clone(), now_ms)
+            .await
+            .map(|_| ())
+            .map_err(|_| ActiveCallEventProcessingError::new("active_call_tool_projection_failed"))
     }
 }
 
