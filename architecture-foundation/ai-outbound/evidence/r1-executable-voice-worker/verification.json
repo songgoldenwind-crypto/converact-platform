@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0.0",
+  "evidence_id": "r1-executable-voice-worker",
+  "recorded_at": "2026-09-01",
+  "source_commit": "ddc01eb74ae6c9e63815dd4ed5029caa133b804a",
+  "checks": [
+    {
+      "id": "executable_check",
+      "command": "cargo check --locked -p converact-voice-agent-worker --bin converact-voice-agent-worker",
+      "status": "passed"
+    },
+    {
+      "id": "worker_focused_contracts",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test runtime_bootstrap --test runtime_config --test lifecycle --test claim_supervisor --test process --test tracer_bullet",
+      "status": "passed",
+      "passed": 17,
+      "failed": 0
+    },
+    {
+      "id": "rustpbx_client_and_secret_contracts",
+      "command": "cargo test --locked -p converact-rustpbx-rwi-adapter --test client --test secret_resolver",
+      "status": "passed",
+      "passed": 6,
+      "failed": 0
+    },
+    {
+      "id": "scoped_clippy",
+      "command": "cargo clippy --locked -p converact-rustpbx-rwi-adapter -p converact-voice-agent-worker --lib --bin converact-voice-agent-worker --test client --test secret_resolver --test runtime_bootstrap --test runtime_config --test lifecycle --test claim_supervisor --test process --test tracer_bullet -- -D warnings",
+      "status": "passed"
+    },
+    {
+      "id": "format_and_diff",
+      "command": "cargo fmt for exact packages --check; git diff --check exact slice",
+      "status": "passed"
+    }
+  ],
+  "not_run": [
+    "real_postgres_active_call_rustpbx_combined_launch",
+    "real_sip_pstn_ai_conversation_terminal_completion",
+    "remote_postgres_tls_and_internal_http_mtls",
+    "jwks_refresh_and_in_process_rustpbx_reconnect",
+    "campaign_recording_finalization_quality_human_handoff_end_to_end",
+    "remote_server_production_performance_capacity_long_run"
+  ]
+}
