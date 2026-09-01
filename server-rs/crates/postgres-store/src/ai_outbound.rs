@@ -156,6 +156,23 @@ impl PostgresLeasedAttemptStore {
             .map_err(map_write_error)
     }
 
+    /// Loads the complete persisted Active Call authority behind this exact lease fence.
+    ///
+    /// # Errors
+    ///
+    /// Rejects stale authority, incomplete active bindings and unavailable durable storage.
+    pub async fn load_active_envelope_context(&self) -> Result<EnvelopeContext, PortError> {
+        let tenant = self.lease.tenant_id().clone();
+        let lease = self.lease.clone();
+        let sql = self.sql;
+        self.runtime
+            .with_tenant_transaction(&tenant, move |transaction| {
+                Box::pin(async move { sql.load_active_envelope_context(transaction, &lease).await })
+            })
+            .await
+            .map_err(map_read_error)
+    }
+
     fn accepts(&self, attempt_id: &CallAttemptId) -> Result<(), PortError> {
         if self.lease.attempt_id() == attempt_id {
             Ok(())

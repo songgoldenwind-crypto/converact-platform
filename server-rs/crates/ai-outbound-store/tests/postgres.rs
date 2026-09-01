@@ -197,6 +197,93 @@ async fn active_lease_renewal_extends_only_the_current_fenced_row() {
     connection.await.unwrap().unwrap();
 }
 
+#[ignore = "requires an isolated PostgreSQL database migrated through 136"]
+#[tokio::test]
+async fn active_context_is_recovered_only_through_the_current_lease() {
+    let tenant = tenant("voice-store-active-context");
+    let (mut client, connection) = connect().await;
+    seed_attempts(&mut client, &tenant).await;
+    let store = AiOutboundStore::new(StoreConfig::new(30_000, 1).unwrap());
+    let token = "a".repeat(64);
+
+    let claim_transaction = tenant_transaction(&mut client, &tenant).await;
+    let claimed = store
+        .claim_planned(&claim_transaction, &tenant, "worker-a", &token, 1)
+        .await
+        .unwrap()
+        .remove(0);
+    claim_transaction.commit().await.unwrap();
+    let activate_transaction = tenant_transaction(&mut client, &tenant).await;
+    activate_transaction
+        .execute(
+            "UPDATE converact_outbound_call_attempts
+             SET state = 'conversing', disclosure_completed = TRUE,
+                 call_id = 'call-active-context',
+                 channel_agent_session_id = 'session-active-context'
+             WHERE tenant_id = $1 AND id = $2",
+            &[&tenant.as_str(), &claimed.id().as_str()],
+        )
+        .await
+        .unwrap();
+    activate_transaction.commit().await.unwrap();
+    let lease = AttemptLease::try_new(AttemptLeaseInput {
+        tenant_id: tenant.clone(),
+        attempt_id: claimed.id().clone(),
+        execution_generation: claimed.execution_generation(),
+        lease_owner: "worker-a".to_owned(),
+        lease_token_hash: token.clone(),
+    })
+    .unwrap();
+
+    let load_transaction = tenant_transaction(&mut client, &tenant).await;
+    let first = store
+        .load_active_envelope_context(&load_transaction, &lease)
+        .await
+        .unwrap();
+    let second = store
+        .load_active_envelope_context(&load_transaction, &lease)
+        .await
+        .unwrap();
+    load_transaction.rollback().await.unwrap();
+
+    assert_eq!(first, second);
+    assert_eq!(first.tenant_id(), tenant.as_str());
+    assert_eq!(first.interaction_id().as_str(), "interaction-001");
+    assert_eq!(first.campaign_id().as_str(), "campaign-001");
+    assert_eq!(first.campaign_contact_id().as_str(), "contact-001");
+    assert_eq!(first.call_attempt_id(), claimed.id());
+    assert_eq!(
+        first.call_id().map(|id| id.as_str()),
+        Some("call-active-context")
+    );
+    assert_eq!(first.agent_release_id().as_str(), "release-001");
+    assert_eq!(
+        first.channel_agent_session_id().map(|id| id.as_str()),
+        Some("session-active-context")
+    );
+    assert_eq!(first.execution_generation(), claimed.execution_generation());
+    assert!(first.trace_id().starts_with("active-call-"));
+
+    let stale = AttemptLease::try_new(AttemptLeaseInput {
+        tenant_id: tenant.clone(),
+        attempt_id: claimed.id().clone(),
+        execution_generation: claimed.execution_generation(),
+        lease_owner: "worker-b".to_owned(),
+        lease_token_hash: token,
+    })
+    .unwrap();
+    let stale_transaction = tenant_transaction(&mut client, &tenant).await;
+    assert_eq!(
+        store
+            .load_active_envelope_context(&stale_transaction, &stale)
+            .await,
+        Err(StoreError::LeaseStale)
+    );
+    stale_transaction.rollback().await.unwrap();
+    drop(client);
+    connection.await.unwrap().unwrap();
+}
+
 async fn lease_snapshot(
     client: &tokio_postgres::Client,
     tenant: &TenantId,

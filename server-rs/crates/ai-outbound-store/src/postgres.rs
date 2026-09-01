@@ -7,8 +7,9 @@ use converact_ai_outbound_core::{
 use converact_contracts::canonical_sha256;
 use converact_kernel_ids::TenantId;
 use converact_voice_agent_contracts::{
-    CallAttemptId, CallAttemptState, CallId, ChannelAgentSessionId, EventId, ExecutionGeneration,
-    IdempotencyKey,
+    AgentReleaseId, CallAttemptId, CallAttemptState, CallId, CampaignContactId, CampaignId,
+    ChannelAgentSessionId, EnvelopeContext, EnvelopeContextInput, EventId, ExecutionGeneration,
+    IdempotencyKey, InteractionId, VOICE_AGENT_SCHEMA_VERSION,
 };
 use serde_json::Value;
 use tokio_postgres::{Row, Transaction};
@@ -726,6 +727,48 @@ impl AiOutboundStore {
         .map_err(|_| StoreError::StoredRowInvalid)
     }
 
+    /// Recovers the complete Active Call authority only while the exact active lease is current.
+    ///
+    /// The trace identity is derived from immutable execution authority, so reconnect and process
+    /// restart recover the same context without storing mutable in-memory state.
+    ///
+    /// # Errors
+    ///
+    /// Returns a stale-lease rejection for lost authority and rejects incomplete or malformed
+    /// active rows without opening an event stream.
+    pub async fn load_active_envelope_context(
+        &self,
+        transaction: &Transaction<'_>,
+        lease: &AttemptLease,
+    ) -> Result<EnvelopeContext, StoreError> {
+        let generation = i64::try_from(lease.execution_generation.get())
+            .map_err(|_| StoreError::InvalidInput)?;
+        let row = transaction
+            .query_opt(
+                "SELECT campaign_id, campaign_contact_id, interaction_id, agent_release_id,
+                        call_id, channel_agent_session_id
+                 FROM converact_outbound_call_attempts
+                 WHERE tenant_id = $1 AND id = $2
+                   AND execution_generation = $3 AND lease_owner = $4
+                   AND lease_token_hash = $5
+                   AND lease_expires_at > transaction_timestamp()
+                   AND state IN (
+                     'conversing', 'handoff_pending', 'human_active', 'ai_resuming', 'finalizing'
+                   )",
+                &[
+                    &lease.tenant_id.as_str(),
+                    &lease.attempt_id.as_str(),
+                    &generation,
+                    &lease.lease_owner.as_ref(),
+                    &lease.lease_token_hash.as_ref(),
+                ],
+            )
+            .await
+            .map_err(|_| StoreError::DatabaseUnavailable)?
+            .ok_or(StoreError::LeaseStale)?;
+        parse_active_envelope_context(&row, lease)
+    }
+
     /// Loads the immutable dial snapshot only while the exact lease remains current.
     ///
     /// # Errors
@@ -1178,6 +1221,63 @@ impl AiOutboundStore {
             None => Err(StoreError::RetryNotAllowed),
         }
     }
+}
+
+fn parse_active_envelope_context(
+    row: &Row,
+    lease: &AttemptLease,
+) -> Result<EnvelopeContext, StoreError> {
+    let campaign_id = parse_required_id(row, 0, |value| CampaignId::parse(value))?;
+    let campaign_contact_id = parse_required_id(row, 1, |value| CampaignContactId::parse(value))?;
+    let interaction_id = parse_required_id(row, 2, |value| InteractionId::parse(value))?;
+    let agent_release_id = parse_required_id(row, 3, |value| AgentReleaseId::parse(value))?;
+    let call_id = parse_optional_required_id(row, 4, |value| CallId::parse(value))?;
+    let channel_agent_session_id =
+        parse_optional_required_id(row, 5, |value| ChannelAgentSessionId::parse(value))?;
+    let trace_hash = canonical_sha256(&serde_json::json!({
+        "tenant_id": lease.tenant_id.as_str(),
+        "call_attempt_id": lease.attempt_id.as_str(),
+        "execution_generation": lease.execution_generation.get(),
+        "call_id": call_id.as_str(),
+        "channel_agent_session_id": channel_agent_session_id.as_str(),
+    }))
+    .map_err(|_| StoreError::StoredRowInvalid)?;
+    EnvelopeContext::try_new(EnvelopeContextInput {
+        schema_version: VOICE_AGENT_SCHEMA_VERSION,
+        tenant_id: lease.tenant_id.as_str().to_owned(),
+        interaction_id,
+        campaign_id,
+        campaign_contact_id,
+        call_attempt_id: lease.attempt_id.clone(),
+        call_id: Some(call_id),
+        agent_release_id,
+        channel_agent_session_id: Some(channel_agent_session_id),
+        execution_generation: lease.execution_generation,
+        trace_id: format!("active-call-{trace_hash}"),
+    })
+    .map_err(|_| StoreError::StoredRowInvalid)
+}
+
+fn parse_required_id<T, E>(
+    row: &Row,
+    index: usize,
+    parse: impl FnOnce(&str) -> Result<T, E>,
+) -> Result<T, StoreError> {
+    let value: &str = row
+        .try_get(index)
+        .map_err(|_| StoreError::StoredRowInvalid)?;
+    parse(value).map_err(|_| StoreError::StoredRowInvalid)
+}
+
+fn parse_optional_required_id<T, E>(
+    row: &Row,
+    index: usize,
+    parse: impl FnOnce(&str) -> Result<T, E>,
+) -> Result<T, StoreError> {
+    let value: Option<&str> = row
+        .try_get(index)
+        .map_err(|_| StoreError::StoredRowInvalid)?;
+    parse(value.ok_or(StoreError::StoredRowInvalid)?).map_err(|_| StoreError::StoredRowInvalid)
 }
 
 fn classify_retry_replay(
