@@ -3,7 +3,10 @@ use std::{
     error::Error,
     fmt,
     net::{Ipv4Addr, Ipv6Addr},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
 };
 
@@ -252,6 +255,7 @@ pub struct RustPbxRwiClient {
     config: ClientConfig,
     writer: tokio::sync::Mutex<SocketWriter>,
     pending: PendingActions,
+    connected: Arc<AtomicBool>,
     reader: JoinHandle<()>,
 }
 
@@ -293,17 +297,27 @@ impl RustPbxRwiClient {
             config.max_pending_actions.min(64),
         )));
         let reader_pending = Arc::clone(&pending);
+        let connected = Arc::new(AtomicBool::new(true));
+        let reader_connected = Arc::clone(&connected);
         let heartbeat = Duration::from_millis(config.heartbeat_timeout_ms);
         let max_message_bytes = config.max_message_bytes;
         let reader = tokio::spawn(async move {
             reader_loop(reader, reader_pending, heartbeat, max_message_bytes).await;
+            reader_connected.store(false, Ordering::Release);
         });
         Ok(Self {
             config,
             writer: tokio::sync::Mutex::new(writer),
             pending,
+            connected,
             reader,
         })
+    }
+
+    /// Returns the reader-owned connection readiness without network I/O.
+    #[must_use]
+    pub fn is_connected(&self) -> bool {
+        self.connected.load(Ordering::Acquire)
     }
 
     /// Sends one originate action and waits only for its matching receipt.
@@ -387,6 +401,7 @@ impl fmt::Debug for RustPbxRwiClient {
 
 impl Drop for RustPbxRwiClient {
     fn drop(&mut self) {
+        self.connected.store(false, Ordering::Release);
         self.reader.abort();
         drain_pending(&self.pending, "provider_unavailable");
     }

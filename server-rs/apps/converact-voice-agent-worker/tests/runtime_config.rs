@@ -62,6 +62,15 @@ fn document_rejects_unknown_fields_inline_secrets_and_public_plaintext_bind() {
         VoiceAgentRuntimeConfig::from_json(&inline_database).unwrap_err(),
         VoiceAgentRuntimeConfigError::InvalidDatabase
     );
+
+    let unsupported_secret_source = valid_document().replace(
+        "file:///run/converact/rustpbx-rwi-token",
+        "env://CONVERACT_RUSTPBX_RWI_TOKEN",
+    );
+    assert_eq!(
+        VoiceAgentRuntimeConfig::from_json(&unsupported_secret_source).unwrap_err(),
+        VoiceAgentRuntimeConfigError::InvalidRustPbx
+    );
 }
 
 fn valid_document() -> String {
@@ -111,7 +120,7 @@ fn valid_document() -> String {
         },
         "rustpbx": {
             "endpoint": "ws://127.0.0.1:8080/rwi/v1",
-            "token_ref": "env://CONVERACT_RUSTPBX_RWI_TOKEN",
+            "token_ref": "file:///run/converact/rustpbx-rwi-token",
             "internal_service": false,
             "command_timeout_ms": 10_000,
             "agent_target": "sip:active-call@127.0.0.1:5060",

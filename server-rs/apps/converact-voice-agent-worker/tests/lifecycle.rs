@@ -51,4 +51,9 @@ fn admission_starts_fail_closed() {
 
     assert!(!readiness.accepts_new_work());
     assert!(readiness.failure_codes().contains(&"platform_not_ready"));
+    assert!(
+        readiness
+            .failure_codes()
+            .contains(&"telephony_control_not_ready")
+    );
 }

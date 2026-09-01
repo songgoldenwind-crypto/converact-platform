@@ -47,6 +47,7 @@ mod postgres_repository;
 mod process;
 mod repository;
 mod result_generation;
+mod runtime_bootstrap;
 mod runtime_config;
 mod safety_intent_provider;
 mod structured_model_http_transport;
@@ -193,6 +194,9 @@ pub use repository::{
     ReconcileReceipt, RepositoryError, RepositoryErrorKind, VoiceAgentRepository,
 };
 pub use result_generation::ResultGenerationEvidence;
+pub use runtime_bootstrap::{
+    VoiceAgentStartupError, load_rs256_platform_verifier, parse_local_database_config,
+};
 pub use runtime_config::{
     ActiveCallRuntimeConfig, DatabaseTransport, PlatformAuthRuntimeConfig, RustPbxRuntimeConfig,
     VoiceAgentRuntimeConfig, VoiceAgentRuntimeConfigError,

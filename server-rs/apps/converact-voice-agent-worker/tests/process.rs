@@ -32,3 +32,25 @@ async fn process_serves_then_marks_draining_and_stops_on_signal() {
     process.await.unwrap().unwrap();
     assert!(observed_shutdown.is_cancelled());
 }
+
+#[tokio::test]
+async fn dependency_failure_can_stop_http_through_shared_shutdown() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let shutdown = ShutdownToken::default();
+    let cancel = shutdown.clone();
+    let process = tokio::spawn(serve_worker_http(
+        listener,
+        Router::new().route("/livez", get(|| async { "alive" })),
+        shutdown,
+        std::future::pending(),
+        Duration::from_secs(1),
+    ));
+
+    cancel.cancel();
+    tokio::time::timeout(Duration::from_millis(100), process)
+        .await
+        .expect("shared shutdown must stop HTTP")
+        .unwrap()
+        .unwrap();
+}

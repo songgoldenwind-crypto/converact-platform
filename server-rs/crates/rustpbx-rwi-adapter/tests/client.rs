@@ -26,12 +26,28 @@ async fn endpoint_policy_rejects_credentials_wrong_path_and_public_plaintext() {
 async fn matching_action_receipt_completes_the_command() {
     let server = FakeRwiServer::success().await;
     let client = RustPbxRwiClient::connect(server.config()).await.unwrap();
+    assert!(client.is_connected());
     let outcome = client
         .originate(FakeRwiServer::originate_request())
         .await
         .unwrap();
 
     assert!(matches!(outcome, CommandOutcome::Succeeded { .. }));
+}
+
+#[tokio::test]
+async fn reader_exit_closes_readiness_without_waiting_for_a_command() {
+    let server = FakeRwiServer::success().await;
+    let client = RustPbxRwiClient::connect(server.config()).await.unwrap();
+    drop(server);
+
+    tokio::time::timeout(std::time::Duration::from_millis(100), async {
+        while client.is_connected() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("reader exit must close readiness");
 }
 
 #[tokio::test]

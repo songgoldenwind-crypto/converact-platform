@@ -30,14 +30,15 @@ converact-voice-agent-contracts = { path = "../../crates/voice-agent-contracts" 
 hex.workspace = true
 reqwest.workspace = true
 ring.workspace = true
+rustix.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
+tokio-postgres.workspace = true
 url.workspace = true
 
 [dev-dependencies]
 rustls.workspace = true
-tokio-postgres.workspace = true
 tower.workspace = true
 
 [lints]

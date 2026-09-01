@@ -58,6 +58,7 @@ where
         })
         .into_future();
     tokio::pin!(server);
+    let external_shutdown = shutdown.clone();
 
     tokio::select! {
         result = &mut server => {
@@ -67,6 +68,7 @@ where
         () = signal => {
             shutdown.cancel();
         }
+        () = external_shutdown.cancelled() => {}
     }
     let _ = drain_tx.send(());
     match timeout(drain_timeout, &mut server).await {

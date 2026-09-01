@@ -458,6 +458,7 @@ mod tests {
         let readiness = AdmissionReadiness::new(health);
         readiness.set_durable_store(true);
         readiness.set_agent_reservation(true);
+        readiness.set_telephony_control(true);
         readiness
     }
 }

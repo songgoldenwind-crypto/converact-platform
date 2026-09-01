@@ -19,6 +19,7 @@ use converact_rustpbx_rwi_adapter::{
     RwiSecretResolver, SecretRef, SecretValue,
 };
 use serde::Deserialize;
+use url::Url;
 
 use crate::{ActiveCallChannelAgentConfig, ClaimLoopConfig, WorkerConfig, WorkerConfigError};
 
@@ -497,6 +498,19 @@ fn parse_active_call(
 fn parse_rustpbx(
     raw: RustPbxDocument,
 ) -> Result<RustPbxRuntimeConfig, VoiceAgentRuntimeConfigError> {
+    let token_url =
+        Url::parse(&raw.token_ref).map_err(|_| VoiceAgentRuntimeConfigError::InvalidRustPbx)?;
+    let token_path = token_url
+        .to_file_path()
+        .map_err(|()| VoiceAgentRuntimeConfigError::InvalidRustPbx)?;
+    if token_url.scheme() != "file"
+        || token_url.host().is_some()
+        || token_url.query().is_some()
+        || token_url.fragment().is_some()
+        || !valid_absolute_file(&token_path)
+    {
+        return Err(VoiceAgentRuntimeConfigError::InvalidRustPbx);
+    }
     let token_ref = SecretRef::parse(&raw.token_ref)
         .map_err(|_| VoiceAgentRuntimeConfigError::InvalidRustPbx)?;
     let client = RustPbxClientConfig::new(

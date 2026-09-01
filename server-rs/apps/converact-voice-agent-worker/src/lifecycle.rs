@@ -140,6 +140,7 @@ pub struct AdmissionReadiness {
     platform: RuntimeHealth,
     durable_store: Arc<AtomicBool>,
     agent_reservation: Arc<AtomicBool>,
+    telephony_control: Arc<AtomicBool>,
 }
 
 impl AdmissionReadiness {
@@ -149,6 +150,7 @@ impl AdmissionReadiness {
             platform,
             durable_store: Arc::new(AtomicBool::new(false)),
             agent_reservation: Arc::new(AtomicBool::new(false)),
+            telephony_control: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -160,16 +162,21 @@ impl AdmissionReadiness {
         self.agent_reservation.store(accepting, Ordering::Release);
     }
 
+    pub fn set_telephony_control(&self, accepting: bool) {
+        self.telephony_control.store(accepting, Ordering::Release);
+    }
+
     #[must_use]
     pub fn accepts_new_work(&self) -> bool {
         self.platform.snapshot().status == ReadinessStatus::Ready
             && self.durable_store.load(Ordering::Acquire)
             && self.agent_reservation.load(Ordering::Acquire)
+            && self.telephony_control.load(Ordering::Acquire)
     }
 
     #[must_use]
     pub fn failure_codes(&self) -> Vec<&'static str> {
-        let mut failures = Vec::with_capacity(3);
+        let mut failures = Vec::with_capacity(4);
         if self.platform.snapshot().status != ReadinessStatus::Ready {
             failures.push("platform_not_ready");
         }
@@ -178,6 +185,9 @@ impl AdmissionReadiness {
         }
         if !self.agent_reservation.load(Ordering::Acquire) {
             failures.push("agent_reservation_not_ready");
+        }
+        if !self.telephony_control.load(Ordering::Acquire) {
+            failures.push("telephony_control_not_ready");
         }
         failures
     }
