@@ -20,7 +20,7 @@ fn agreeing_text_and_acoustic_evidence_close_one_confirmed_turn() {
     let runtime = MultimodalEmotionTurnRuntime::new(
         &catalog,
         EmotionDecisionPolicy::try_new(5_500, 8_000).unwrap(),
-        policy,
+        &policy,
     );
     let text = observation(
         EmotionSource::TextClassifier,
@@ -70,10 +70,11 @@ fn agreeing_text_and_acoustic_evidence_close_one_confirmed_turn() {
 #[test]
 fn modality_disagreement_is_diluted_instead_of_becoming_a_false_confirmation() {
     let catalog = catalog();
+    let fusion_policy = MultimodalEmotionFusionPolicy::try_new(6_000, 4_000, 1_000, 5).unwrap();
     let runtime = MultimodalEmotionTurnRuntime::new(
         &catalog,
         EmotionDecisionPolicy::try_new(4_000, 8_000).unwrap(),
-        MultimodalEmotionFusionPolicy::try_new(6_000, 4_000, 1_000, 5).unwrap(),
+        &fusion_policy,
     );
     let resolution = runtime
         .resolve(
@@ -114,10 +115,11 @@ fn source_turn_and_policy_drift_fail_closed() {
     );
 
     let catalog = catalog();
+    let fusion_policy = MultimodalEmotionFusionPolicy::try_new(6_000, 4_000, 1_000, 5).unwrap();
     let runtime = MultimodalEmotionTurnRuntime::new(
         &catalog,
         EmotionDecisionPolicy::try_new(5_500, 8_000).unwrap(),
-        MultimodalEmotionFusionPolicy::try_new(6_000, 4_000, 1_000, 5).unwrap(),
+        &fusion_policy,
     );
     let previous = EmotionState::new(context(), catalog.id().clone());
     assert_eq!(
@@ -143,6 +145,28 @@ fn source_turn_and_policy_drift_fail_closed() {
         MultimodalEmotionTurnRuntimeError::EvidenceMismatch
     );
     assert_eq!(previous.status(), EmotionStatus::Unknown);
+
+    let text = observation(
+        EmotionSource::TextClassifier,
+        1,
+        "customer.neutral",
+        9_000,
+        0,
+    );
+    let mut acoustic_input = observation_input(
+        EmotionSource::AcousticModel,
+        1,
+        "customer.neutral",
+        9_000,
+        0,
+    );
+    acoustic_input.transcript_segment_ids =
+        vec![TranscriptSegmentId::parse("segment-different").unwrap()];
+    let acoustic = EmotionObservation::try_new(acoustic_input, &catalog).unwrap();
+    assert_eq!(
+        runtime.resolve(text, acoustic, &previous).unwrap_err(),
+        MultimodalEmotionTurnRuntimeError::EvidenceMismatch
+    );
 }
 
 fn observation(
@@ -153,31 +177,41 @@ fn observation(
     intensity: u8,
 ) -> EmotionObservation {
     EmotionObservation::try_new(
-        EmotionObservationInput {
-            id: EmotionObservationId::parse(format!("emotion-{source:?}-{turn}")).unwrap(),
-            context: context(),
-            catalog_revision_id: EmotionCatalogRevisionId::parse("emotion-catalog-001").unwrap(),
-            source,
-            provider_revision: format!("provider-{source:?}-v1"),
-            candidates: vec![EmotionCandidateInput {
-                code: code.to_owned(),
-                confidence_bps,
-                intensity,
-            }],
-            transcript_segment_ids: vec![
-                TranscriptSegmentId::parse(format!("segment-{turn}")).unwrap(),
-            ],
-            audio_evidence_window_ids: if source == EmotionSource::AcousticModel {
-                vec![AudioEvidenceWindowId::parse(format!("audio-window-{turn}")).unwrap()]
-            } else {
-                Vec::new()
-            },
-            turn_index: turn,
-            observed_at_ms: 1_000 + u64::from(turn),
-        },
+        observation_input(source, turn, code, confidence_bps, intensity),
         &catalog(),
     )
     .unwrap()
+}
+
+fn observation_input(
+    source: EmotionSource,
+    turn: u32,
+    code: &str,
+    confidence_bps: u16,
+    intensity: u8,
+) -> EmotionObservationInput {
+    EmotionObservationInput {
+        id: EmotionObservationId::parse(format!("emotion-{source:?}-{turn}")).unwrap(),
+        context: context(),
+        catalog_revision_id: EmotionCatalogRevisionId::parse("emotion-catalog-001").unwrap(),
+        source,
+        provider_revision: format!("provider-{source:?}-v1"),
+        candidates: vec![EmotionCandidateInput {
+            code: code.to_owned(),
+            confidence_bps,
+            intensity,
+        }],
+        transcript_segment_ids: vec![
+            TranscriptSegmentId::parse(format!("segment-{turn}")).unwrap(),
+        ],
+        audio_evidence_window_ids: if source == EmotionSource::AcousticModel {
+            vec![AudioEvidenceWindowId::parse(format!("audio-window-{turn}")).unwrap()]
+        } else {
+            Vec::new()
+        },
+        turn_index: turn,
+        observed_at_ms: 1_000 + u64::from(turn),
+    }
 }
 
 fn catalog() -> EmotionCatalog {

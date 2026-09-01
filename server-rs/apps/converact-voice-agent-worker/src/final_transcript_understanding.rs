@@ -7,9 +7,12 @@ use converact_conversation_understanding_core::{
 };
 
 use crate::{
+    AcousticEmotionClassifierPort, AcousticEmotionClassifierProvider, AcousticEmotionFailurePolicy,
+    AdaptiveEmotionTurnRuntime, AdaptiveEmotionTurnRuntimeError, AudioEvidenceWindow,
     CompleteUnderstandingTurnInput, ContextualFailurePolicy, ContextualIntentClassifierPort,
-    ContextualIntentClassifierProvider, FastIntentClassifierPort, FastIntentClassifierProvider,
-    LayeredIntentRuntime, PreparedUnderstandingTurn, RecoveredUnderstanding, SafetyIntentProvider,
+    ContextualIntentClassifierProvider, EmotionTurnResolution, FastIntentClassifierPort,
+    FastIntentClassifierProvider, LayeredIntentRuntime, MultimodalEmotionFusionPolicy,
+    PreparedUnderstandingTurn, RecoveredUnderstanding, SafetyIntentProvider,
     TextEmotionClassifierPort, TextEmotionClassifierProvider, TextEmotionTurnRuntime,
     UnderstandingAppendDecision, UnderstandingDurabilityPort, UnderstandingRecoveryInputs,
     UnderstandingRuntime,
@@ -40,6 +43,15 @@ pub struct FinalTranscriptUnderstandingInput<'a, D, F, C, E> {
     pub dialogue_policy: &'a DialoguePolicy,
     pub retention_policy_ref: &'a str,
     pub retention_until_ms: u64,
+}
+
+/// Adds exact normalized audio evidence and release policy to one final-transcript turn.
+pub struct MultimodalFinalTranscriptUnderstandingInput<'a, D, F, C, T, A> {
+    pub base: FinalTranscriptUnderstandingInput<'a, D, F, C, T>,
+    pub acoustic_emotion: &'a AcousticEmotionClassifierProvider<A>,
+    pub audio_evidence_window: Option<&'a AudioEvidenceWindow>,
+    pub fusion_policy: MultimodalEmotionFusionPolicy,
+    pub acoustic_failure_policy: AcousticEmotionFailurePolicy,
 }
 
 /// One complete prepared turn and its exact atomic persistence classification.
@@ -148,6 +160,136 @@ where
     C: ContextualIntentClassifierPort,
     E: TextEmotionClassifierPort,
 {
+    let emotion = TextOnlyFinalEmotionResolver {
+        provider: input.text_emotion,
+        catalog: input.emotion_catalog,
+        policy: input.emotion_policy,
+    };
+    process_with_emotion(&input, &emotion).await
+}
+
+/// Processes one final transcript with exact text/acoustic evidence and conservative fallback.
+///
+/// Replay and historical dispositions return before Store recovery or either model invocation.
+/// Acoustic serving faults can never perform or authorize a telephony action.
+///
+/// # Errors
+///
+/// Rejects transcript, recovery, model, evidence, state or persistence drift.
+pub async fn process_final_transcript_understanding_multimodal<D, F, C, T, A>(
+    input: MultimodalFinalTranscriptUnderstandingInput<'_, D, F, C, T, A>,
+) -> Result<FinalTranscriptUnderstandingOutcome, FinalTranscriptUnderstandingError>
+where
+    D: UnderstandingDurabilityPort,
+    F: FastIntentClassifierPort,
+    C: ContextualIntentClassifierPort,
+    T: TextEmotionClassifierPort,
+    A: AcousticEmotionClassifierPort,
+{
+    let emotion = BoundAdaptiveEmotionResolver {
+        runtime: AdaptiveEmotionTurnRuntime::new(
+            input.base.text_emotion,
+            input.acoustic_emotion,
+            input.base.emotion_catalog,
+            input.base.emotion_policy,
+            input.fusion_policy,
+            input.acoustic_failure_policy,
+        ),
+        window: input.audio_evidence_window,
+    };
+    process_with_emotion(&input.base, &emotion).await
+}
+
+trait FinalEmotionResolver {
+    async fn resolve(
+        &self,
+        current: &TranscriptSegment,
+        turn_index: u32,
+        previous: &EmotionState,
+    ) -> Result<EmotionTurnResolution, FinalTranscriptUnderstandingError>;
+}
+
+struct TextOnlyFinalEmotionResolver<'a, E> {
+    provider: &'a TextEmotionClassifierProvider<E>,
+    catalog: &'a EmotionCatalog,
+    policy: EmotionDecisionPolicy,
+}
+
+impl<E> FinalEmotionResolver for TextOnlyFinalEmotionResolver<'_, E>
+where
+    E: TextEmotionClassifierPort,
+{
+    async fn resolve(
+        &self,
+        current: &TranscriptSegment,
+        turn_index: u32,
+        previous: &EmotionState,
+    ) -> Result<EmotionTurnResolution, FinalTranscriptUnderstandingError> {
+        let observation = self
+            .provider
+            .observe(current, turn_index)
+            .await
+            .map_err(|_| FinalTranscriptUnderstandingError::EmotionProviderFailed)?
+            .ok_or(FinalTranscriptUnderstandingError::TranscriptInvalid)?;
+        TextEmotionTurnRuntime::new(self.catalog, self.policy)
+            .resolve(observation, previous)
+            .map_err(|_| FinalTranscriptUnderstandingError::EmotionResolutionFailed)
+    }
+}
+
+struct BoundAdaptiveEmotionResolver<'a, T, A> {
+    runtime: AdaptiveEmotionTurnRuntime<'a, T, A>,
+    window: Option<&'a AudioEvidenceWindow>,
+}
+
+impl<T, A> FinalEmotionResolver for BoundAdaptiveEmotionResolver<'_, T, A>
+where
+    T: TextEmotionClassifierPort,
+    A: AcousticEmotionClassifierPort,
+{
+    async fn resolve(
+        &self,
+        current: &TranscriptSegment,
+        turn_index: u32,
+        previous: &EmotionState,
+    ) -> Result<EmotionTurnResolution, FinalTranscriptUnderstandingError> {
+        self.runtime
+            .resolve(current, self.window, turn_index, previous)
+            .await
+            .map_err(map_adaptive_emotion_error)
+    }
+}
+
+const fn map_adaptive_emotion_error(
+    error: AdaptiveEmotionTurnRuntimeError,
+) -> FinalTranscriptUnderstandingError {
+    match error {
+        AdaptiveEmotionTurnRuntimeError::TranscriptInvalid => {
+            FinalTranscriptUnderstandingError::TranscriptInvalid
+        }
+        AdaptiveEmotionTurnRuntimeError::TextProviderFailed
+        | AdaptiveEmotionTurnRuntimeError::AcousticProviderFailed => {
+            FinalTranscriptUnderstandingError::EmotionProviderFailed
+        }
+        AdaptiveEmotionTurnRuntimeError::EvidenceMismatch
+        | AdaptiveEmotionTurnRuntimeError::AcousticEvidenceRequired
+        | AdaptiveEmotionTurnRuntimeError::ResolutionFailed => {
+            FinalTranscriptUnderstandingError::EmotionResolutionFailed
+        }
+    }
+}
+
+async fn process_with_emotion<D, F, C, E, R>(
+    input: &FinalTranscriptUnderstandingInput<'_, D, F, C, E>,
+    emotion: &R,
+) -> Result<FinalTranscriptUnderstandingOutcome, FinalTranscriptUnderstandingError>
+where
+    D: UnderstandingDurabilityPort,
+    F: FastIntentClassifierPort,
+    C: ContextualIntentClassifierPort,
+    E: TextEmotionClassifierPort,
+    R: FinalEmotionResolver,
+{
     match input.disposition {
         TranscriptUnderstandingDisposition::ReplayedCurrent => {
             return Ok(FinalTranscriptUnderstandingOutcome::SkippedReplay);
@@ -206,16 +348,9 @@ where
     .await
     .map_err(|_| FinalTranscriptUnderstandingError::IntentFailed)?
     .ok_or(FinalTranscriptUnderstandingError::TranscriptInvalid)?;
-    let emotion_observation = input
-        .text_emotion
-        .observe(current, turn_index)
-        .await
-        .map_err(|_| FinalTranscriptUnderstandingError::EmotionProviderFailed)?
-        .ok_or(FinalTranscriptUnderstandingError::TranscriptInvalid)?;
-    let emotion_resolution =
-        TextEmotionTurnRuntime::new(input.emotion_catalog, input.emotion_policy)
-            .resolve(emotion_observation, &previous_emotion)
-            .map_err(|_| FinalTranscriptUnderstandingError::EmotionResolutionFailed)?;
+    let emotion_resolution = emotion
+        .resolve(current, turn_index, &previous_emotion)
+        .await?;
     let prepared = recovered
         .prepare_complete_turn(CompleteUnderstandingTurnInput {
             intent_resolution: &intent_resolution,

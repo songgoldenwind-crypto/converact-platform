@@ -11,6 +11,7 @@ mod active_call_playbook_resolver;
 mod active_call_reservation;
 mod active_call_transcript;
 mod active_call_transcript_postgres;
+mod adaptive_emotion_runtime;
 mod campaign_admin;
 mod campaign_admin_http;
 mod campaign_retry;
@@ -75,6 +76,9 @@ pub use active_call_transcript_postgres::{
     TranscriptUnderstandingSourceError, map_postgres_transcript_understanding_disposition,
     prepare_postgres_transcript_understanding_source,
 };
+pub use adaptive_emotion_runtime::{
+    AcousticEmotionFailurePolicy, AdaptiveEmotionTurnRuntime, AdaptiveEmotionTurnRuntimeError,
+};
 pub use campaign_admin::{
     AdminMutationResource, CampaignAdminAccess, CampaignAdminError, CampaignAdminPort,
 };
@@ -113,8 +117,9 @@ pub use fast_intent_classifier::{
 };
 pub use final_transcript_understanding::{
     FinalTranscriptUnderstandingError, FinalTranscriptUnderstandingInput,
-    FinalTranscriptUnderstandingOutcome, PersistedUnderstandingTurn,
-    TranscriptUnderstandingDisposition, process_final_transcript_understanding,
+    FinalTranscriptUnderstandingOutcome, MultimodalFinalTranscriptUnderstandingInput,
+    PersistedUnderstandingTurn, TranscriptUnderstandingDisposition,
+    process_final_transcript_understanding, process_final_transcript_understanding_multimodal,
 };
 pub use handoff_runtime::{
     AiResumeCommandIds, AiResumeRequest, ChannelAgentHandoffPort, DurableCreateDecision,

@@ -115,7 +115,7 @@ impl fmt::Debug for MultimodalEmotionFusionPolicy {
 pub struct MultimodalEmotionTurnRuntime<'a> {
     catalog: &'a EmotionCatalog,
     decision_policy: EmotionDecisionPolicy,
-    fusion_policy: MultimodalEmotionFusionPolicy,
+    fusion_policy: &'a MultimodalEmotionFusionPolicy,
 }
 
 impl<'a> MultimodalEmotionTurnRuntime<'a> {
@@ -123,7 +123,7 @@ impl<'a> MultimodalEmotionTurnRuntime<'a> {
     pub const fn new(
         catalog: &'a EmotionCatalog,
         decision_policy: EmotionDecisionPolicy,
-        fusion_policy: MultimodalEmotionFusionPolicy,
+        fusion_policy: &'a MultimodalEmotionFusionPolicy,
     ) -> Self {
         Self {
             catalog,
@@ -147,7 +147,7 @@ impl<'a> MultimodalEmotionTurnRuntime<'a> {
         previous: &EmotionState,
     ) -> Result<EmotionTurnResolution, MultimodalEmotionTurnRuntimeError> {
         validate_evidence(&text, &acoustic, self.catalog)?;
-        let candidates = fuse_candidates(&text, &acoustic, &self.fusion_policy)?;
+        let candidates = fuse_candidates(&text, &acoustic, self.fusion_policy)?;
         let observed_at_ms = text.observed_at_ms().max(acoustic.observed_at_ms());
         let digest = canonical_sha256(&json!({
             "domain": FUSION_DOMAIN,
@@ -206,6 +206,7 @@ fn validate_evidence(
         || acoustic.audio_evidence_window_ids().is_empty()
         || text.transcript_segment_ids().is_empty()
         || acoustic.transcript_segment_ids().is_empty()
+        || text.transcript_segment_ids() != acoustic.transcript_segment_ids()
         || text.catalog_revision_id() != catalog.id()
         || acoustic.catalog_revision_id() != catalog.id()
         || text.turn_index() != acoustic.turn_index()

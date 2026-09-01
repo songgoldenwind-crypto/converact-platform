@@ -77,6 +77,10 @@ async fn final_customer_transcript_becomes_release_bound_text_emotion_evidence()
         resolution.checkpoint().state().confirmed_intensity(),
         Some(3)
     );
+    assert_eq!(
+        resolution.checkpoint().to_value()["fusion"]["fusion_revision"],
+        "text-only-emotion-fusion-v1"
+    );
     let evidence = resolution
         .encode_evidence_records("understanding-30-days-v1", 2_592_003_001)
         .unwrap();

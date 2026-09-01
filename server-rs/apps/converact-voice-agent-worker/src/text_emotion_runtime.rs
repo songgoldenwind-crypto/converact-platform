@@ -11,8 +11,32 @@ use converact_conversation_understanding_store::{
 use converact_voice_agent_contracts::EmotionFusionId;
 use serde_json::json;
 
-const FUSION_REVISION: &str = "text-only-emotion-fusion-v1";
 const FUSION_DOMAIN: &str = "converact_text_only_emotion_fusion_v1";
+
+/// Auditable reason that one turn used only text emotion evidence.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum TextEmotionFusionPath {
+    ConfiguredTextOnly,
+    AcousticEvidenceMissingFallback,
+    AcousticUnavailableFallback,
+    AcousticTimedOutFallback,
+}
+
+impl TextEmotionFusionPath {
+    #[must_use]
+    const fn fusion_revision(self) -> &'static str {
+        match self {
+            Self::ConfiguredTextOnly => "text-only-emotion-fusion-v1",
+            Self::AcousticEvidenceMissingFallback => {
+                "text-only-emotion.acoustic-evidence-missing-fallback-v1"
+            }
+            Self::AcousticUnavailableFallback => {
+                "text-only-emotion.acoustic-unavailable-fallback-v1"
+            }
+            Self::AcousticTimedOutFallback => "text-only-emotion.acoustic-timeout-fallback-v1",
+        }
+    }
+}
 
 /// Stable text-emotion turn failure without transcript or label content.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -147,14 +171,33 @@ impl<'a> TextEmotionTurnRuntime<'a> {
         observation: EmotionObservation,
         previous: &EmotionState,
     ) -> Result<EmotionTurnResolution, TextEmotionTurnRuntimeError> {
+        self.resolve_with_path(
+            observation,
+            previous,
+            TextEmotionFusionPath::ConfiguredTextOnly,
+        )
+    }
+
+    /// Advances state with a stable revision that records why acoustic evidence was not used.
+    ///
+    /// # Errors
+    ///
+    /// Rejects non-text evidence, catalog/authority drift or stale state.
+    pub(crate) fn resolve_with_path(
+        &self,
+        observation: EmotionObservation,
+        previous: &EmotionState,
+        path: TextEmotionFusionPath,
+    ) -> Result<EmotionTurnResolution, TextEmotionTurnRuntimeError> {
         if observation.source() != EmotionSource::TextClassifier
             || observation.catalog_revision_id() != self.catalog.id()
         {
             return Err(TextEmotionTurnRuntimeError::EvidenceMismatch);
         }
+        let fusion_revision = path.fusion_revision();
         let digest = canonical_sha256(&json!({
             "domain": FUSION_DOMAIN,
-            "fusion_revision": FUSION_REVISION,
+            "fusion_revision": fusion_revision,
             "observation_hash": observation.payload_hash(),
             "turn_index": observation.turn_index(),
         }))
@@ -165,7 +208,7 @@ impl<'a> TextEmotionTurnRuntime<'a> {
                     .map_err(|_| TextEmotionTurnRuntimeError::FusionInvalid)?,
                 context: observation.context().clone(),
                 catalog_revision_id: observation.catalog_revision_id().clone(),
-                fusion_revision: FUSION_REVISION.to_owned(),
+                fusion_revision: fusion_revision.to_owned(),
                 candidates: observation
                     .candidates()
                     .iter()
@@ -199,7 +242,6 @@ impl fmt::Debug for TextEmotionTurnRuntime<'_> {
         formatter
             .debug_struct("TextEmotionTurnRuntime")
             .field("catalog_revision_id", self.catalog.id())
-            .field("fusion_revision", &FUSION_REVISION)
             .finish_non_exhaustive()
     }
 }

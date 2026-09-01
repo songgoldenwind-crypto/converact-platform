@@ -1,5 +1,6 @@
 use std::{
     collections::BTreeMap,
+    future,
     sync::atomic::{AtomicUsize, Ordering},
 };
 
@@ -27,6 +28,11 @@ use converact_voice_agent_contracts::{
     IntentObservationId, InteractionId, TranscriptSegmentId, VOICE_AGENT_SCHEMA_VERSION,
 };
 use converact_voice_agent_worker::{
+    AcousticEmotionCandidateOutput, AcousticEmotionClassifierArtifactInput,
+    AcousticEmotionClassifierOutput, AcousticEmotionClassifierPort,
+    AcousticEmotionClassifierPortError, AcousticEmotionClassifierProvider,
+    AcousticEmotionClassifierRequest, AcousticEmotionFailurePolicy, AdaptiveEmotionTurnRuntime,
+    AdaptiveEmotionTurnRuntimeError, AudioEvidenceWindow, AudioEvidenceWindowInput,
     CompleteUnderstandingTurnInput, ContextualIntentArtifactInput,
     ContextualIntentClassifierOutput, ContextualIntentClassifierPort,
     ContextualIntentClassifierPortError, ContextualIntentClassifierProvider,
@@ -34,13 +40,14 @@ use converact_voice_agent_worker::{
     FastIntentClassifierOutput, FastIntentClassifierPort, FastIntentClassifierPortError,
     FastIntentClassifierProvider, FastIntentClassifierRequest, FinalTranscriptUnderstandingInput,
     FinalTranscriptUnderstandingOutcome, IntentConfidenceRouter, IntentTurnRoute,
+    MultimodalEmotionFusionPolicy, MultimodalFinalTranscriptUnderstandingInput,
     SafetyIntentMatchKind, SafetyIntentProvider, SafetyIntentRuleInput, SafetyIntentRuleSetInput,
     TextEmotionCandidateOutput, TextEmotionClassifierArtifactInput, TextEmotionClassifierOutput,
     TextEmotionClassifierPort, TextEmotionClassifierPortError, TextEmotionClassifierProvider,
     TextEmotionClassifierRequest, TextEmotionTurnRuntime, TranscriptUnderstandingDisposition,
     UnderstandingAppendDecision, UnderstandingDurabilityPort, UnderstandingPortError,
     UnderstandingRecoveryInputs, UnderstandingRuntime, UnderstandingTurnWriteInput,
-    process_final_transcript_understanding,
+    process_final_transcript_understanding, process_final_transcript_understanding_multimodal,
 };
 
 struct FakeDurability {
@@ -370,6 +377,202 @@ async fn appended_final_transcript_runs_complete_understanding_while_replay_skip
     assert_eq!(durability.loads.load(Ordering::Relaxed), 1);
     assert_eq!(durability.appends.load(Ordering::Relaxed), 1);
     assert_eq!(text_calls.load(Ordering::Relaxed), 1);
+}
+
+#[tokio::test]
+async fn adaptive_emotion_uses_multimodal_evidence_and_audits_safe_fallbacks() {
+    let fixture = fixture();
+    let segment = final_customer_segment("这个问题怎么还没解决");
+    let text_calls = AtomicUsize::new(0);
+    let acoustic_calls = AtomicUsize::new(0);
+    let text = text_emotion_provider(&fixture.emotion_catalog, &text_calls);
+    let acoustic = acoustic_emotion_provider(
+        &fixture.emotion_catalog,
+        &acoustic_calls,
+        AcousticMode::Output,
+    );
+    let runtime = AdaptiveEmotionTurnRuntime::new(
+        &text,
+        &acoustic,
+        &fixture.emotion_catalog,
+        EmotionDecisionPolicy::try_new(5_500, 8_000).unwrap(),
+        MultimodalEmotionFusionPolicy::try_new(6_000, 4_000, 1_000, 5).unwrap(),
+        AcousticEmotionFailurePolicy::FallbackTextOnMissingOrTransient,
+    );
+    let previous = EmotionState::new(context(), fixture.emotion_catalog.id().clone());
+
+    let missing = runtime.resolve(&segment, None, 1, &previous).await.unwrap();
+    assert_eq!(missing.contributor_count(), 1);
+    assert_eq!(
+        missing.checkpoint().to_value()["fusion"]["fusion_revision"],
+        "text-only-emotion.acoustic-evidence-missing-fallback-v1"
+    );
+    assert_eq!(acoustic_calls.load(Ordering::Relaxed), 0);
+
+    let window = audio_evidence_window(&segment);
+    let multimodal = runtime
+        .resolve(&segment, Some(&window), 1, &previous)
+        .await
+        .unwrap();
+    assert_eq!(multimodal.contributor_count(), 2);
+    assert_eq!(acoustic_calls.load(Ordering::Relaxed), 1);
+}
+
+#[tokio::test]
+async fn adaptive_emotion_audits_transient_fallbacks_and_enforces_required_mode() {
+    let fixture = fixture();
+    let segment = final_customer_segment("这个问题怎么还没解决");
+    let window = audio_evidence_window(&segment);
+    let previous = EmotionState::new(context(), fixture.emotion_catalog.id().clone());
+    let text_calls = AtomicUsize::new(0);
+    let acoustic_calls = AtomicUsize::new(0);
+    let text = text_emotion_provider(&fixture.emotion_catalog, &text_calls);
+    let unavailable = acoustic_emotion_provider(
+        &fixture.emotion_catalog,
+        &acoustic_calls,
+        AcousticMode::Unavailable,
+    );
+    let fallback_runtime = AdaptiveEmotionTurnRuntime::new(
+        &text,
+        &unavailable,
+        &fixture.emotion_catalog,
+        EmotionDecisionPolicy::try_new(5_500, 8_000).unwrap(),
+        MultimodalEmotionFusionPolicy::try_new(6_000, 4_000, 1_000, 5).unwrap(),
+        AcousticEmotionFailurePolicy::FallbackTextOnMissingOrTransient,
+    );
+    let fallback = fallback_runtime
+        .resolve(&segment, Some(&window), 1, &previous)
+        .await
+        .unwrap();
+    assert_eq!(fallback.contributor_count(), 1);
+    assert_eq!(
+        fallback.checkpoint().to_value()["fusion"]["fusion_revision"],
+        "text-only-emotion.acoustic-unavailable-fallback-v1"
+    );
+
+    let timeout = acoustic_emotion_provider(
+        &fixture.emotion_catalog,
+        &acoustic_calls,
+        AcousticMode::Pending,
+    );
+    let timeout_runtime = AdaptiveEmotionTurnRuntime::new(
+        &text,
+        &timeout,
+        &fixture.emotion_catalog,
+        EmotionDecisionPolicy::try_new(5_500, 8_000).unwrap(),
+        MultimodalEmotionFusionPolicy::try_new(6_000, 4_000, 1_000, 5).unwrap(),
+        AcousticEmotionFailurePolicy::FallbackTextOnMissingOrTransient,
+    );
+    let timed_out = timeout_runtime
+        .resolve(&segment, Some(&window), 1, &previous)
+        .await
+        .unwrap();
+    assert_eq!(
+        timed_out.checkpoint().to_value()["fusion"]["fusion_revision"],
+        "text-only-emotion.acoustic-timeout-fallback-v1"
+    );
+
+    let acoustic = acoustic_emotion_provider(
+        &fixture.emotion_catalog,
+        &acoustic_calls,
+        AcousticMode::Output,
+    );
+    let required_runtime = AdaptiveEmotionTurnRuntime::new(
+        &text,
+        &acoustic,
+        &fixture.emotion_catalog,
+        EmotionDecisionPolicy::try_new(5_500, 8_000).unwrap(),
+        MultimodalEmotionFusionPolicy::try_new(6_000, 4_000, 1_000, 5).unwrap(),
+        AcousticEmotionFailurePolicy::RequireMultimodal,
+    );
+    let text_calls_before_required = text_calls.load(Ordering::Relaxed);
+    assert_eq!(
+        required_runtime
+            .resolve(&segment, None, 1, &previous)
+            .await
+            .unwrap_err(),
+        AdaptiveEmotionTurnRuntimeError::AcousticEvidenceRequired
+    );
+    assert_eq!(
+        text_calls.load(Ordering::Relaxed),
+        text_calls_before_required
+    );
+}
+
+#[tokio::test]
+async fn final_transcript_processor_atomically_persists_multimodal_emotion_evidence() {
+    let fixture = fixture();
+    let durability = FakeDurability {
+        heads: Vec::new(),
+        loads: AtomicUsize::new(0),
+        appends: AtomicUsize::new(0),
+    };
+    let safety = safety_provider(&fixture.intent_catalog);
+    let fast = never_fast_provider(&fixture.intent_catalog);
+    let contextual = never_contextual_provider(&fixture.intent_catalog);
+    let text_calls = AtomicUsize::new(0);
+    let acoustic_calls = AtomicUsize::new(0);
+    let text = text_emotion_provider(&fixture.emotion_catalog, &text_calls);
+    let acoustic = acoustic_emotion_provider(
+        &fixture.emotion_catalog,
+        &acoustic_calls,
+        AcousticMode::Output,
+    );
+    let history = vec![final_customer_segment("别再给我打电话了")];
+    let window = audio_evidence_window(&history[0]);
+
+    let outcome = process_final_transcript_understanding_multimodal(
+        MultimodalFinalTranscriptUnderstandingInput {
+            base: FinalTranscriptUnderstandingInput {
+                disposition: TranscriptUnderstandingDisposition::AppendedCurrent,
+                history: &history,
+                durability: &durability,
+                safety: &safety,
+                fast: &fast,
+                contextual: &contextual,
+                text_emotion: &text,
+                intent_catalog: &fixture.intent_catalog,
+                emotion_catalog: &fixture.emotion_catalog,
+                intent_policy: IntentDecisionPolicy::try_new(5_500, 8_000, 1_500, 9_500).unwrap(),
+                emotion_policy: EmotionDecisionPolicy::try_new(5_500, 8_000).unwrap(),
+                contextual_failure_policy:
+                    converact_voice_agent_worker::ContextualFailurePolicy::FailClosed,
+                dialogue_policy: &fixture.dialogue_policy,
+                retention_policy_ref: "understanding-30-days-v1",
+                retention_until_ms: 2_592_003_000,
+            },
+            acoustic_emotion: &acoustic,
+            audio_evidence_window: Some(&window),
+            fusion_policy: MultimodalEmotionFusionPolicy::try_new(6_000, 4_000, 1_000, 5).unwrap(),
+            acoustic_failure_policy: AcousticEmotionFailurePolicy::FallbackTextOnMissingOrTransient,
+        },
+    )
+    .await
+    .unwrap();
+
+    let FinalTranscriptUnderstandingOutcome::Persisted(processed) = outcome else {
+        panic!("current final transcript must persist");
+    };
+    let batch = processed.prepared().batch();
+    let emotion_evidence_count = batch
+        .evidence_commands()
+        .iter()
+        .filter(|command| {
+            command.record().kind()
+                == converact_conversation_understanding_store::UnderstandingRecordKind::EmotionObservation
+        })
+        .count();
+    assert_eq!(emotion_evidence_count, 2);
+    assert_eq!(
+        batch.commands()[1].record().payload()["fusion"]["contributor_hashes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(durability.appends.load(Ordering::Relaxed), 1);
+    assert_eq!(text_calls.load(Ordering::Relaxed), 1);
+    assert_eq!(acoustic_calls.load(Ordering::Relaxed), 1);
 }
 
 #[tokio::test]
@@ -763,6 +966,69 @@ fn text_emotion_provider<'a>(
     .unwrap()
 }
 
+#[derive(Clone, Copy)]
+enum AcousticMode {
+    Output,
+    Unavailable,
+    Pending,
+}
+
+struct FixedAcousticEmotion<'a> {
+    calls: &'a AtomicUsize,
+    mode: AcousticMode,
+}
+
+impl AcousticEmotionClassifierPort for FixedAcousticEmotion<'_> {
+    async fn classify<'a>(
+        &'a self,
+        request: AcousticEmotionClassifierRequest<'a>,
+    ) -> Result<AcousticEmotionClassifierOutput, AcousticEmotionClassifierPortError> {
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        match self.mode {
+            AcousticMode::Output => Ok(AcousticEmotionClassifierOutput {
+                served_artifact_revision: request.artifact_revision().to_owned(),
+                candidates: vec![AcousticEmotionCandidateOutput {
+                    code: "customer.angry".to_owned(),
+                    confidence_bps: 8_500,
+                    intensity: 4,
+                }],
+            }),
+            AcousticMode::Unavailable => Err(AcousticEmotionClassifierPortError::new(
+                "fixture_acoustic_unavailable",
+            )),
+            AcousticMode::Pending => future::pending().await,
+        }
+    }
+}
+
+fn acoustic_emotion_provider<'a>(
+    catalog: &EmotionCatalog,
+    calls: &'a AtomicUsize,
+    mode: AcousticMode,
+) -> AcousticEmotionClassifierProvider<FixedAcousticEmotion<'a>> {
+    AcousticEmotionClassifierProvider::try_new(
+        AcousticEmotionClassifierArtifactInput {
+            agent_release_id: AgentReleaseId::parse("release-001").unwrap(),
+            emotion_catalog_revision_id: catalog.id().clone(),
+            model_sha256: "1".repeat(64),
+            feature_extractor_sha256: "2".repeat(64),
+            label_map_sha256: "3".repeat(64),
+            calibration_sha256: "4".repeat(64),
+            sample_rate_hz: 16_000,
+            max_window_ms: 15_000,
+            max_candidates: 5,
+            inference_deadline_ms: if matches!(mode, AcousticMode::Pending) {
+                1
+            } else {
+                100
+            },
+        },
+        catalog,
+        FixedAcousticEmotion { calls, mode },
+    )
+    .unwrap()
+}
+
 fn final_customer_segment(text: &str) -> TranscriptSegment {
     TranscriptSegment::try_new(TranscriptSegmentInput {
         id: TranscriptSegmentId::parse("segment-customer-final").unwrap(),
@@ -776,6 +1042,17 @@ fn final_customer_segment(text: &str) -> TranscriptSegment {
         end_offset_ms: 2_000,
         observed_at_ms: 3_000,
         retention_policy_ref: "retention-standard-v1".to_owned(),
+    })
+    .unwrap()
+}
+
+fn audio_evidence_window(segment: &TranscriptSegment) -> AudioEvidenceWindow {
+    AudioEvidenceWindow::try_new(AudioEvidenceWindowInput {
+        segment,
+        customer_track_id: "customer-track".to_owned(),
+        start_offset_ms: 1_000,
+        end_offset_ms: 2_000,
+        pcm_s16_mono_16khz: vec![0; 16_000],
     })
     .unwrap()
 }

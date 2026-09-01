@@ -121,7 +121,7 @@ Kamailio / Trunk / PSTN
 | Tool/Action | Rust Proposal/Policy/Approval/Broker/Receipt、持久化 Adapter、Active Call Worker 桥接及通用查询/变更 Adapter 已通过本地受控测试 | 接入真实 Provider | controlled slice passed；real provider/physical PostgreSQL `not_run` |
 | AI/人工协作 | Rust Handoff Core/Store/Worker 的 commit/abort/replay/unknown-query 和具体 Active Call 私有进程端口已通过本地受控/loopback 测试 | 接入真实人席、RustPBX 媒体切换与 Active Call | physical integration/production `not_run` |
 | Transcript/Outcome/QM | Rust final transcript/snapshot/result/evaluation/Bad Case、durable reconcile、权限化查询 API，以及 Active Call intent 候选到精确 Release OutcomeSchema/结果证据的投影已通过本地受控测试 | 接入真实 Speech/模型/UI 并迁移旧 writer | physical integration/writer switch/production `not_run` |
-| 逐轮 Intent/Emotion/Dialogue 状态 | Rust Core、closed checkpoint、四领域原子 Store/tenant adapter、Active Call final transcript、Safety/Fast/Contextual Intent、Text Emotion、完整 turn Processor、PostgreSQL typed history、16 kHz PCM Audio Window、Acoustic Provider 与保守多模态融合合同已通过本地精准测试 | 接通真实媒体 tap、Active Call SSE、真实 Fast/LLM/文本/声学模型、融合 fallback/Processor 和完整进程生命周期 | physical PostgreSQL/real media-model integration/restart/two-node/production `not_run` |
+| 逐轮 Intent/Emotion/Dialogue 状态 | Rust Core、closed checkpoint、四领域原子 Store/tenant adapter、Active Call final transcript、Safety/Fast/Contextual Intent、Text Emotion、完整 turn Processor、PostgreSQL typed history、16 kHz PCM Audio Window、Acoustic Provider、保守多模态融合及可审计降级 Processor 已通过本地精准测试 | 接通真实媒体 tap、Active Call SSE、真实 Fast/LLM/文本/声学模型和完整进程生命周期 | physical PostgreSQL/real media-model integration/restart/two-node/production `not_run` |
 | Post-call Finalization | Rust terminal/enqueue 受控原子边界、durable queue、Worker、D7 projection reuse 与进度查询已通过本地精准测试 | 接入物理 PostgreSQL 合并事务和真实终态输入 | physical transaction/real call/production `not_run` |
 | 性能/容量/长稳 | 旧证据不能继承到新链路 | 功能稳定后单独执行 | `not_run` |
 
@@ -643,12 +643,12 @@ calibration、支持语言、输入/top-k 上限与 deadline；端口只接收 r
 引用一个 durable segment 且没有 audio evidence。漂移、超时、未知标签、非法 confidence/intensity
 均 fail-closed，诊断不输出文本或标签。测试替身不代表真实模型，也不构成情绪质量证据。
 
-同日新增的 `TextEmotionTurnRuntime` 将该 observation 不改分数地包成显式
-`text-only-emotion-fusion-v1`，再通过共享 Emotion State 关闭 checkpoint。fusion ID 绑定 raw
-observation hash、策略 revision 与 turn；结果保留 raw contributor 并可编码为 record-only
-`emotion_observation`。这使文本情绪具有完整状态语义，但不声称已实现声学或跨模态融合。
+同日新增的 `TextEmotionTurnRuntime` 将该 observation 不改分数地包成显式 text-only fusion，再通过
+共享 Emotion State 关闭 checkpoint。fusion ID 绑定 raw observation hash、路径 revision 与 turn；
+结果保留 raw contributor 并可编码为 record-only `emotion_observation`。配置为纯文本、缺少声学窗口、
+声学服务不可用和声学超时分别使用稳定 revision，审计端不会把降级结果误认成正常多模态结果。
 
-真实声学/文本模型运行时、实际融合算法、校准数据、Worker 实时接入、真实音频质量和生产均为
+真实声学/文本模型运行时、校准数据、Worker 实时接入、真实音频质量和生产均为
 `not_run`。Emotion checkpoint、durable Store adapter 和 Dialogue Policy 的确定性本地合同已通过；
 物理 PostgreSQL 尚未执行。原始音频和 transcript 内容不进入该 Core，只持有受控 evidence ID。
 
@@ -657,13 +657,19 @@ observation hash、策略 revision 与 turn；结果保留 raw contributor 并�
 校验长度，并把 customer track、segment hash、PCM SHA-256、时间窗口以及 Release/Catalog/model/
 feature extractor/label map/calibration 固化进内容寻址身份。Provider 只生成同时引用 transcript 与
 audio-window 的 raw `AcousticModel` observation，不直接更新 Emotion head，也不拥有通话或业务动作权。
-真实媒体 tap/重采样、音频窗口耐久化、真实声学模型质量和多模态 Processor 接线仍为 `not_run`。
+真实媒体 tap/重采样、音频窗口耐久化和真实声学模型质量仍为 `not_run`。
 
 `MultimodalEmotionTurnRuntime` 随后实现显式、可版本化的 text+acoustic 保守融合。两个正权重必须
 合计 10,000 bps；对某标签缺失的一侧按零贡献，因此模态冲突会稀释置信度，而不是把任一噪声结果
 抬升为 confirmed。候选按确定性 confidence/intensity/code 排序并保留两份 raw evidence，再只推进一次
-Emotion State。当前完成的是本地算法合同；真实模型校准、缺失声学 fallback、完整 Processor 接线仍为
-`not_run`。
+Emotion State；两个 observation 还必须引用同一 exact transcript segment。
+
+`AdaptiveEmotionTurnRuntime` 与 multimodal final-transcript Processor 已把上述合同接入完整逐轮链路。
+Release 可选择 `RequireMultimodal`，或仅在窗口缺失、声学服务 unavailable/timeout 时降级到文本；
+artifact/output/Catalog/authority/evidence 漂移绝不降级。最终使用的 raw evidence、fusion revision、
+Intent/Emotion/Customer State/Dialogue 在同一 fenced batch 中提交。理解链路没有 Telephony、Media、
+Tool 或 Handoff 动作端口，因此情绪模型失败不能直接挂机、转接或改变媒体。真实模型校准、媒体 tap、
+物理 PostgreSQL、进程组合和生产仍为 `not_run`。
 
 ### 9.7 Customer State 与 Dialogue Policy
 
@@ -688,15 +694,17 @@ adapter 已通过本地合同；真实逐轮 Provider/Active Call 事件接入�
 Active Call Prompt/Scene 消费、Handoff 提案桥接、策略运营配置和真实通话验证仍为 `not_run`。
 
 截至 2026-09-01，`prepare_complete_turn` 已把同 authority/turn 的 Intent resolution 与 text-only
-Emotion resolution 确定性组合：先以两个 selected states 派生 content-addressed Customer State，再
+或 multimodal Emotion resolution 确定性组合：先以两个 selected states 派生 content-addressed
+Customer State，再
 以精确 Dialogue Policy revision 派生 recommendation，最后冻结原始 Intent contributors、Intent
 resolution、原始 Emotion contributors 和四个 heads 的单批次。相同输入产生完全相同的 ID/载荷；
 错误顺序、跨 turn/authority、重复 identity 和 evidence/head 冲突均在 SQL 前拒绝。该结果仍只是
 本地合同，不证明真实事件消费者、模型或物理事务已经运行。
 
 同日完成的 `process_final_transcript_understanding` 已把上述模块组合为一个 provider-neutral Rust
-Processor：只对 `appended_current` 的 final customer window 做一致恢复、分层 Intent、text-only
-Emotion、完整 turn 派生和一次耐久 append；`replayed_current` 与 `historical` 在任何 Store read 或
+Processor：只对 `appended_current` 的 final customer window 做一致恢复、分层 Intent、按 Release
+选择 text-only 或 adaptive multimodal Emotion、完整 turn 派生和一次耐久 append；
+`replayed_current` 与 `historical` 在任何 Store read 或
 模型调用前返回，避免重复成本和非确定模型造成重放漂移。后续 PostgreSQL source slice 已把四种 append
 receipt 映射为三种处理语义，并加入按 tenant/Interaction/Attempt/Release/generation/current sequence
 限定的 1–32 段 typed history 查询；每段 canonical hash 和 exact-current anchor 都会重验。物理
@@ -1180,6 +1188,8 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 - [Acoustic Emotion Provider R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-acoustic-emotion-provider/README.md)
 - [Multimodal Emotion Fusion R1 计划](../plans/2026-09-01-multimodal-emotion-fusion-r1.md)
 - [Multimodal Emotion Fusion R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-multimodal-emotion-fusion/README.md)
+- [Adaptive Emotion Processor R1 计划](../plans/2026-09-01-adaptive-emotion-processor-r1.md)
+- [Adaptive Emotion Processor R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-adaptive-emotion-processor/README.md)
 - [Complete Understanding Turn R1 计划](../plans/2026-09-01-complete-understanding-turn-r1.md)
 - [Complete Understanding Turn R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-complete-understanding-turn/README.md)
 - [Final Transcript Understanding Processor R1 计划](../plans/2026-09-01-final-transcript-understanding-processor-r1.md)
@@ -1251,8 +1261,9 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 | 2026-09-01 | R1 layered Intent Runtime checkpoint | Store 顺序窗口已在无状态 Runtime 中按 Safety → Fast → Contextual 组合，resolution path 与 transient fallback reason 可持久审计，非 transient 漂移 fail-closed；真实 Active Call consumer、历史仓库、模型、完整四领域 turn 和生产仍为 `not_run` |
 | 2026-09-01 | R1 Text Emotion Classifier Provider checkpoint | Release/Catalog/model/tokenizer/label-map/calibration-bound Rust Provider 已把 final customer transcript 转成 text-only Emotion observation；真实模型、声学证据、融合、完整 Worker turn、质量和生产仍为 `not_run` |
 | 2026-09-01 | R1 text-only Emotion Turn Runtime checkpoint | raw Emotion observation wire、显式 text-only fusion、单次 Emotion state 推进/checkpoint 与 record-only contributor 已通过；声学窗口、Acoustic Provider、多模态融合、四领域事务组合和生产仍为 `not_run` |
-| 2026-09-01 | R1 complete Understanding Turn checkpoint | 同 turn Intent/Emotion resolution 已确定性派生 Customer State/Dialogue，并把 raw Intent/Emotion evidence 与四 heads 冻结为可重放单批次；物理 PostgreSQL、真实事件/模型进程、声学/多模态和生产仍为 `not_run` |
-| 2026-09-01 | R1 Final Transcript Understanding Processor checkpoint | 新 current final 已组合一致恢复、分层 Intent、text Emotion、complete turn 与一次 append；replay/history 在 Store/model 前跳过。PostgreSQL receipt/history、真实 Active Call/模型、声学/多模态和生产仍为 `not_run` |
-| 2026-09-01 | R1 Transcript Understanding Source checkpoint | PostgreSQL receipt 已闭合映射；仅 appended-current 查询 1–32 段 typed history，逐段重验 hash/authority/order/exact anchor。物理 PostgreSQL、真实 Active Call/模型、声学/多模态和生产仍为 `not_run` |
+| 2026-09-01 | R1 complete Understanding Turn checkpoint | 同 turn Intent/Emotion resolution 已确定性派生 Customer State/Dialogue，并把 raw Intent/Emotion evidence 与四 heads 冻结为可重放单批次；物理 PostgreSQL、真实事件/模型进程和生产仍为 `not_run` |
+| 2026-09-01 | R1 Final Transcript Understanding Processor checkpoint | 新 current final 已组合一致恢复、分层 Intent、text Emotion、complete turn 与一次 append；replay/history 在 Store/model 前跳过。后续 adaptive checkpoint 扩展声学路径；物理 PostgreSQL、真实 Active Call/模型和生产仍为 `not_run` |
+| 2026-09-01 | R1 Transcript Understanding Source checkpoint | PostgreSQL receipt 已闭合映射；仅 appended-current 查询 1–32 段 typed history，逐段重验 hash/authority/order/exact anchor。物理 PostgreSQL、真实 Active Call/模型和生产仍为 `not_run` |
 | 2026-09-01 | R1 Acoustic Emotion Provider checkpoint | 16 kHz mono PCM Audio Window 与 Release-bound Acoustic Provider 已通过本地合同；只产出引用 exact transcript/audio window 的 raw evidence。真实媒体 tap/模型质量、窗口耐久化、多模态融合和生产仍为 `not_run` |
-| 2026-09-01 | R1 Multimodal Emotion Fusion checkpoint | Text+Acoustic 正权重保守融合、冲突稀释、确定性 top-k、双 raw evidence 与 Emotion 单次推进已通过；Processor/fallback、真实模型校准、媒体 tap 和生产仍为 `not_run` |
+| 2026-09-01 | R1 Multimodal Emotion Fusion checkpoint | Text+Acoustic 正权重保守融合、冲突稀释、确定性 top-k、双 raw evidence 与 Emotion 单次推进已通过；真实模型校准、媒体 tap 和生产仍为 `not_run` |
+| 2026-09-01 | R1 Adaptive Emotion Processor checkpoint | exact transcript/audio 绑定、双 raw evidence 原子提交、缺失/unavailable/timeout 可审计文本降级与 require-multimodal 策略已通过；真实媒体 tap、模型/校准、物理 PostgreSQL 和生产仍为 `not_run` |
