@@ -1,0 +1,90 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-09-01",
+  "evidence_class": [
+    "local_contract",
+    "controlled_test_double"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "commit": "bbbd6a3b6c98c1356d56029175c12dcf61aca7b6",
+    "tree": "8b3381ba5e9d2f0131d57426d8a9a6dd57e891f0"
+  },
+  "environment": {
+    "os": "Darwin 25.2.0 arm64",
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)"
+  },
+  "commands": [
+    {
+      "id": "postgres_tool_authority_contracts",
+      "working_directory": "server-rs",
+      "command": "cargo test --locked -p converact-postgres-store --test release_tool_manifest_contract --test campaign_admin_store_contract --test registered_agent_tool_schema",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 9,
+      "failed": 0
+    },
+    {
+      "id": "physical_postgres_target_compile",
+      "working_directory": "server-rs",
+      "command": "cargo test --locked -p converact-postgres-store --test campaign_admin_postgres --no-run",
+      "exit_code": 0,
+      "result": "compiled_not_run"
+    },
+    {
+      "id": "worker_tool_runtime_contracts",
+      "working_directory": "server-rs",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test campaign_admin_http --test postgres_campaign_admin --test platform_auth --test long_call_main_composition --test tool_runtime",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 17,
+      "failed": 0
+    },
+    {
+      "id": "worker_binary_check",
+      "working_directory": "server-rs",
+      "command": "cargo check --locked -p converact-voice-agent-worker --bin converact-voice-agent-worker",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "postgres_scoped_clippy",
+      "working_directory": "server-rs",
+      "command": "cargo clippy --locked -p converact-postgres-store --lib --test release_tool_manifest_contract --test campaign_admin_store_contract --test registered_agent_tool_schema --test campaign_admin_postgres -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "worker_scoped_clippy",
+      "working_directory": "server-rs",
+      "command": "cargo clippy --locked -p converact-voice-agent-worker --lib --bin converact-voice-agent-worker --test campaign_admin_http --test postgres_campaign_admin --test platform_auth --test long_call_main_composition --test tool_runtime -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "not_run": [
+    "physical_postgresql_execution",
+    "real_active_call_process_and_wire_exchange",
+    "real_rustpbx_sip_pstn_rtp_srtp_media",
+    "real_external_crm_task_provider",
+    "real_asr_model_tts_providers",
+    "deployed_runtime",
+    "browser_flow",
+    "performance",
+    "capacity",
+    "long_run",
+    "fault_campaign",
+    "independent_code_review",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_read": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}
