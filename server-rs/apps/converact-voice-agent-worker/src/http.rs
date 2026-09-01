@@ -12,8 +12,8 @@ use converact_voice_agent_contracts::{AgentReleaseId, CallAttemptId, CampaignId,
 use serde::Serialize;
 
 use crate::{
-    AdmissionReadiness, AuthenticatedTenant, RepositoryErrorKind, ShutdownToken,
-    VoiceAgentRepository, WorkerConfig, WorkerResource,
+    AdmissionReadiness, AuthenticatedTenant, CampaignAdminPort, RepositoryErrorKind, ShutdownToken,
+    VoiceAgentRepository, WorkerConfig, WorkerResource, campaign_admin_router,
     platform_auth::{PlatformTokenAuthenticator, WallClock, authenticate_platform_token},
 };
 
@@ -61,6 +61,40 @@ where
             config,
             shutdown,
         })
+}
+
+/// Builds the process-facing router with the durable Campaign authoring boundary included.
+/// Health remains public; inspection and mutation routes share one authentication pass.
+pub fn router_with_campaign_admin_and_platform_auth<R, P, A, C>(
+    repository: Arc<R>,
+    campaign_admin: Arc<P>,
+    readiness: AdmissionReadiness,
+    config: WorkerConfig,
+    shutdown: ShutdownToken,
+    authenticator: Arc<A>,
+    clock: C,
+) -> Router
+where
+    R: VoiceAgentRepository,
+    P: CampaignAdminPort,
+    A: PlatformTokenAuthenticator,
+    C: WallClock + Clone,
+{
+    let state = HttpState {
+        repository,
+        readiness,
+        config,
+        shutdown,
+    };
+    let protected: Router = protected_routes::<R>()
+        .with_state(state.clone())
+        .merge(campaign_admin_router(campaign_admin))
+        .route_layer(middleware::from_fn_with_state(
+            crate::platform_auth::PlatformAuthState::new(authenticator, clock),
+            authenticate_platform_token::<A, C>,
+        ));
+    let health: Router = health_routes::<R>().with_state(state);
+    protected.merge(health)
 }
 
 fn protected_routes<R: VoiceAgentRepository>() -> Router<HttpState<R>> {

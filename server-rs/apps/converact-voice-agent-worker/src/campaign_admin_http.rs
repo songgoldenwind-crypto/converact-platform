@@ -322,7 +322,9 @@ fn admin_error_response(error: CampaignAdminError) -> Response<Body> {
             StatusCode::CONFLICT
         }
         CampaignAdminErrorKind::Stale => StatusCode::PRECONDITION_FAILED,
-        CampaignAdminErrorKind::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
+        CampaignAdminErrorKind::Unavailable | CampaignAdminErrorKind::OutcomeUnknown => {
+            StatusCode::SERVICE_UNAVAILABLE
+        }
     };
     error_response(status, error.code())
 }

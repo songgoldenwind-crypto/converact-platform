@@ -42,6 +42,7 @@ mod multimodal_emotion_runtime;
 mod platform_auth;
 mod post_call_finalization;
 mod post_call_finalization_postgres;
+mod postgres_campaign_admin;
 mod postgres_claim_source;
 mod postgres_repository;
 mod process;
@@ -158,7 +159,7 @@ pub use handoff_runtime::{
     HandoffProgress, HandoffRuntime, HumanActivationCommandIds, HumanDialRequest,
     HumanLegObservation, TelephonyHandoffPort, VoiceHandoffPortError, VoiceHandoffRuntimeError,
 };
-pub use http::{router, router_with_platform_auth};
+pub use http::{router, router_with_campaign_admin_and_platform_auth, router_with_platform_auth};
 pub use intent_confidence_router::{
     IntentConfidenceRouter, IntentConfidenceRouterError, IntentFallbackReason,
     IntentResolutionPath, IntentTurnResolution, IntentTurnRoute, PendingIntentTurn,
@@ -185,6 +186,7 @@ pub use post_call_finalization::{
     ConversationFinalizationWorker, FinalizationBatchProgress, FinalizationProjectionPort,
     FinalizationProjectionProgress, FinalizationQueuePort, FinalizationWorkerError,
 };
+pub use postgres_campaign_admin::PostgresCampaignAdminPort;
 pub use postgres_claim_source::{
     LeaseTokenDigestSource, PostgresAttemptClaimSource, SystemLeaseTokenDigestSource,
 };

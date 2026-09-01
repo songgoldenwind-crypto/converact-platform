@@ -1,23 +1,31 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    future::Future,
+    sync::{Arc, Mutex},
+};
 
 use axum::{
     Router,
     body::Body,
     http::{Method, Request, StatusCode},
 };
+use converact_ai_outbound_core::{
+    AgentRelease, CampaignTransition, CreateCampaign, ImportContacts,
+};
 use converact_runtime_health::RuntimeHealth;
 use converact_tenant_auth::Hs256PlatformTokenVerifier;
 use converact_voice_agent_contracts::IdempotencyKey;
 use converact_voice_agent_worker::{
-    AdmissionReadiness, AgentReleaseResource, AttemptResource, AuthenticatedTenant,
-    CampaignResource, FixedWallClock, ReconcileReceipt, RepositoryError, ShutdownToken,
-    VoiceAgentRepository, WorkerConfig, router_with_platform_auth,
+    AdminMutationResource, AdmissionReadiness, AgentReleaseResource, AttemptResource,
+    AuthenticatedTenant, CampaignAdminError, CampaignAdminPort, CampaignResource, FixedWallClock,
+    ReconcileReceipt, RepositoryError, ShutdownToken, VoiceAgentRepository, WorkerConfig,
+    router_with_campaign_admin_and_platform_auth, router_with_platform_auth,
 };
-use serde_json::Value;
+use serde_json::{Value, json};
 use tower::ServiceExt;
 
 const FIXTURE: &str = include_str!("../../../tests/fixtures/platform-hs256-v1.json");
 const VIEWER_TOKEN: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImlkZW50aXR5LWtleS12NyJ9.eyJzdWIiOiJ1c2VyLTEiLCJ0aWQiOiJ0ZW5hbnQtMSIsInRlbmFudF9pZCI6InRlbmFudC0xIiwiaWRlbnRpdHlfaWQiOiJ1c2VyLTEiLCJpZGVudGl0eV9raW5kIjoiaHVtYW4iLCJzZXNzaW9uX2lkIjoic2Vzc2lvbi0xIiwidG9rZW5faWQiOiJ0b2tlbi0xIiwiaXNzIjoiaHR0cHM6Ly9pZGVudGl0eS5leGFtcGxlLnRlc3QiLCJpc3N1ZXIiOiJodHRwczovL2lkZW50aXR5LmV4YW1wbGUudGVzdCIsImF1ZCI6WyJjb252ZXJhY3QtY29yZSJdLCJhdWRpZW5jZSI6WyJjb252ZXJhY3QtY29yZSJdLCJrZXlfaWQiOiJpZGVudGl0eS1rZXktdjciLCJyb2xlIjoidmlld2VyIiwiaWF0IjowLCJuYmYiOjAsImV4cCI6NDEwMjQ0NDgwMCwiaXNzdWVkX2F0IjoiMTk3MC0wMS0wMVQwMDowMDowMC4wMDBaIiwibm90X2JlZm9yZSI6IjE5NzAtMDEtMDFUMDA6MDA6MDAuMDAwWiIsImV4cGlyZXNfYXQiOiIyMTAwLTAxLTAxVDAwOjAwOjAwLjAwMFoiLCJwb2xpY3lfdmVyc2lvbiI6MTIsInJldm9jYXRpb25fZXBvY2giOjQsImNhcGFiaWxpdGllcyI6WyJwbGF0Zm9ybS5hcGkiXSwicHVycG9zZSI6WyJwcm9kdWN0X29wZXJhdGlvbiJdLCJjcmVkZW50aWFsX3N0cmVuZ3RoIjoic2lnbmVkX3Rva2VuIn0.INBahMWiVa6QEslUyTalAegmj4_CajP9Uq30g7nN7nU";
+const CAMPAIGN_ADMIN_TOKEN: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImlkZW50aXR5LWtleS12NyJ9.eyJzdWIiOiJ1c2VyLTEiLCJ0aWQiOiJ0ZW5hbnQtMSIsInRlbmFudF9pZCI6InRlbmFudC0xIiwiaWRlbnRpdHlfaWQiOiJ1c2VyLTEiLCJpZGVudGl0eV9raW5kIjoiaHVtYW4iLCJzZXNzaW9uX2lkIjoic2Vzc2lvbi0xIiwidG9rZW5faWQiOiJ0b2tlbi0xIiwiaXNzIjoiaHR0cHM6Ly9pZGVudGl0eS5leGFtcGxlLnRlc3QiLCJpc3N1ZXIiOiJodHRwczovL2lkZW50aXR5LmV4YW1wbGUudGVzdCIsImF1ZCI6WyJjb252ZXJhY3QtY29yZSJdLCJhdWRpZW5jZSI6WyJjb252ZXJhY3QtY29yZSJdLCJrZXlfaWQiOiJpZGVudGl0eS1rZXktdjciLCJyb2xlIjoib3BlcmF0b3IiLCJpYXQiOjAsIm5iZiI6MCwiZXhwIjo0MTAyNDQ0ODAwLCJpc3N1ZWRfYXQiOiIxOTcwLTAxLTAxVDAwOjAwOjAwLjAwMFoiLCJub3RfYmVmb3JlIjoiMTk3MC0wMS0wMVQwMDowMDowMC4wMDBaIiwiZXhwaXJlc19hdCI6IjIxMDAtMDEtMDFUMDA6MDA6MDAuMDAwWiIsInBvbGljeV92ZXJzaW9uIjoxMiwicmV2b2NhdGlvbl9lcG9jaCI6NCwiY2FwYWJpbGl0aWVzIjpbInBsYXRmb3JtLmFwaSIsInZvaWNlX2FnZW50LmFnZW50LnB1Ymxpc2giLCJ2b2ljZV9hZ2VudC5jYW1wYWlnbi5tYW5hZ2UiLCJ2b2ljZV9hZ2VudC5jb250YWN0cy5pbXBvcnQiXSwicHVycG9zZSI6WyJwcm9kdWN0X29wZXJhdGlvbiJdLCJjcmVkZW50aWFsX3N0cmVuZ3RoIjoic2lnbmVkX3Rva2VuIn0.eArKIhPGSiaEsmPT8_OtoSHOazGwZISd1n5MaGIUiRw";
 
 #[tokio::test]
 async fn protected_routes_require_one_valid_bearer_and_inject_its_tenant() {
@@ -102,6 +110,27 @@ async fn viewer_identity_can_inspect_but_cannot_request_reconciliation() {
     );
 }
 
+#[tokio::test]
+async fn campaign_admin_routes_require_the_exact_signed_capability() {
+    let fixture: Value = serde_json::from_str(FIXTURE).unwrap();
+    let admin = Arc::new(ProbeAdmin::default());
+    let app = authenticated_admin_app(Arc::clone(&admin), &fixture);
+    let ordinary = format!("Bearer {}", fixture["frozen_valid_token"].as_str().unwrap());
+
+    assert_eq!(
+        publish_request(&app, &ordinary).await.status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(admin.calls(), 0);
+
+    let privileged = format!("Bearer {CAMPAIGN_ADMIN_TOKEN}");
+    assert_eq!(
+        publish_request(&app, &privileged).await.status(),
+        StatusCode::CREATED
+    );
+    assert_eq!(admin.calls(), 1);
+}
+
 fn authenticated_app(repository: Arc<ProbeRepository>, fixture: &Value) -> Router {
     let policy = &fixture["policy"];
     let verifier = Hs256PlatformTokenVerifier::new(
@@ -121,6 +150,60 @@ fn authenticated_app(repository: Arc<ProbeRepository>, fixture: &Value) -> Route
         Arc::new(verifier),
         FixedWallClock::new(policy["wall_now_epoch_ms"].as_i64().unwrap()),
     )
+}
+
+fn authenticated_admin_app(admin: Arc<ProbeAdmin>, fixture: &Value) -> Router {
+    let policy = &fixture["policy"];
+    let verifier = Hs256PlatformTokenVerifier::new(
+        fixture["test_key_utf8"].as_str().unwrap(),
+        policy["expected_issuer"].as_str().unwrap(),
+        policy["expected_audience"].as_str().unwrap(),
+        policy["expected_key_id"].as_str().unwrap(),
+        policy["current_policy_version"].as_u64().unwrap(),
+        policy["current_revocation_epoch"].as_u64().unwrap(),
+    )
+    .unwrap();
+    router_with_campaign_admin_and_platform_auth(
+        Arc::new(ProbeRepository::default()),
+        admin,
+        AdmissionReadiness::new(RuntimeHealth::new()),
+        WorkerConfig::new(2, 8).unwrap(),
+        ShutdownToken::default(),
+        Arc::new(verifier),
+        FixedWallClock::new(policy["wall_now_epoch_ms"].as_i64().unwrap()),
+    )
+}
+
+async fn publish_request(app: &Router, authorization: &str) -> axum::response::Response {
+    let body = json!({
+        "definition_id":"agent-001",
+        "release_id":"release-001",
+        "name":"General service agent",
+        "language":"zh-CN",
+        "components":{
+            "prompt_revision_hash":"1".repeat(64),
+            "conversation_flow_revision_hash":"2".repeat(64),
+            "knowledge_revision_hash":"3".repeat(64),
+            "tool_schema_hash":"4".repeat(64),
+            "speech_profile_hash":"5".repeat(64),
+            "compliance_policy_hash":"6".repeat(64),
+            "outcome_schema_hash":"7".repeat(64),
+            "evaluation_rubric_hash":"8".repeat(64)
+        }
+    });
+    app.clone()
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/internal/v1/voice-agent/admin/releases")
+                .header("authorization", authorization)
+                .header("idempotency-key", "publish-release-001")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
 }
 
 async fn request(
@@ -150,6 +233,54 @@ async fn request_with_method(
 #[derive(Default)]
 struct ProbeRepository {
     tenants: Mutex<Vec<String>>,
+}
+
+#[derive(Default)]
+struct ProbeAdmin {
+    calls: Mutex<usize>,
+}
+
+impl ProbeAdmin {
+    fn calls(&self) -> usize {
+        *self.calls.lock().unwrap()
+    }
+}
+
+impl CampaignAdminPort for ProbeAdmin {
+    async fn publish_agent(
+        &self,
+        _tenant: &AuthenticatedTenant,
+        release: &AgentRelease,
+        _idempotency_key: &IdempotencyKey,
+    ) -> Result<AdminMutationResource, CampaignAdminError> {
+        *self.calls.lock().unwrap() += 1;
+        AdminMutationResource::try_new(release.id().as_str(), "published", 1, 0, false)
+    }
+
+    fn create_campaign(
+        &self,
+        _tenant: &AuthenticatedTenant,
+        _campaign: &CreateCampaign,
+        _idempotency_key: &IdempotencyKey,
+    ) -> impl Future<Output = Result<AdminMutationResource, CampaignAdminError>> + Send {
+        std::future::ready(Err(CampaignAdminError::unavailable()))
+    }
+
+    fn import_contacts(
+        &self,
+        _tenant: &AuthenticatedTenant,
+        _command: &ImportContacts,
+    ) -> impl Future<Output = Result<AdminMutationResource, CampaignAdminError>> + Send {
+        std::future::ready(Err(CampaignAdminError::unavailable()))
+    }
+
+    fn transition_campaign(
+        &self,
+        _tenant: &AuthenticatedTenant,
+        _command: &CampaignTransition,
+    ) -> impl Future<Output = Result<AdminMutationResource, CampaignAdminError>> + Send {
+        std::future::ready(Err(CampaignAdminError::unavailable()))
+    }
 }
 
 impl VoiceAgentRepository for ProbeRepository {

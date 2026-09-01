@@ -14,7 +14,7 @@ use converact_tenant_auth::{
     Rs256PlatformTokenVerifier,
 };
 
-use crate::{AuthenticatedTenant, http::error_response};
+use crate::{AuthenticatedTenant, CampaignAdminAccess, http::error_response};
 
 /// Closed authentication boundary accepted by the process-facing HTTP router.
 pub trait PlatformTokenAuthenticator: Send + Sync + 'static {
@@ -130,9 +130,10 @@ where
     {
         return error_response(StatusCode::FORBIDDEN, "authorization_denied");
     }
-    request
-        .extensions_mut()
-        .insert(AuthenticatedTenant::from_platform_identity(&identity));
+    let tenant = AuthenticatedTenant::from_platform_identity(&identity);
+    let campaign_admin_access = CampaignAdminAccess::from_platform_identity(&identity);
+    request.extensions_mut().insert(tenant);
+    request.extensions_mut().insert(campaign_admin_access);
     next.run(request).await
 }
 

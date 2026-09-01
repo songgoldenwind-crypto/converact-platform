@@ -10,17 +10,19 @@ use converact_contracts::health::{
 use converact_post_call_finalization_store::FinalizationSqlStore;
 use converact_postgres_store::{
     PostgresActiveCallArtifactStore, PostgresAiOutboundAttemptStore,
-    PostgresAiOutboundCompliancePort, PostgresRuntime, PostgresVoiceAgentStore,
+    PostgresAiOutboundCompliancePort, PostgresCampaignAdminStore, PostgresRuntime,
+    PostgresVoiceAgentStore,
 };
 use converact_runtime_health::RuntimeHealth;
 use converact_rustpbx_rwi_adapter::{FileRwiSecretResolver, RustPbxRwiClient, RustPbxTelephony};
 use converact_voice_agent_contracts::ChannelAgentSessionId;
 use converact_voice_agent_worker::{
     ActiveCallChannelAgent, ActiveCallPlaybookResolver, AdmissionReadiness, AuthenticatedTenant,
-    ClaimSupervisor, DatabaseTransport, PostgresAttemptClaimSource, PostgresVoiceAgentRepository,
-    ShutdownToken, SystemLeaseTokenDigestSource, SystemWallClock, VoiceAgentClaimExecutor,
-    VoiceAgentRepository, VoiceAgentRuntimeConfig, load_rs256_platform_verifier,
-    parse_local_database_config, router_with_platform_auth, serve_worker_http,
+    ClaimSupervisor, DatabaseTransport, PostgresAttemptClaimSource, PostgresCampaignAdminPort,
+    PostgresVoiceAgentRepository, ShutdownToken, SystemLeaseTokenDigestSource, SystemWallClock,
+    VoiceAgentClaimExecutor, VoiceAgentRepository, VoiceAgentRuntimeConfig,
+    load_rs256_platform_verifier, parse_local_database_config,
+    router_with_campaign_admin_and_platform_auth, serve_worker_http,
 };
 use tokio::{net::TcpListener, time::sleep};
 use tokio_postgres::NoTls;
@@ -98,6 +100,9 @@ async fn run(config: VoiceAgentRuntimeConfig) -> Result<(), ProcessError> {
     );
     let finalization_sql = FinalizationSqlStore::new(config.post_call_config());
     let attempt_sql = AiOutboundStore::new(config.attempt_store_config());
+    let campaign_admin = Arc::new(PostgresCampaignAdminPort::new(
+        PostgresCampaignAdminStore::new(Arc::clone(&database), attempt_sql),
+    ));
     let claim_store =
         PostgresAiOutboundAttemptStore::new(Arc::clone(&database), attempt_sql, finalization_sql);
     let source = PostgresAttemptClaimSource::try_new(
@@ -162,8 +167,9 @@ async fn run(config: VoiceAgentRuntimeConfig) -> Result<(), ProcessError> {
         readiness.clone(),
         shutdown.clone(),
     );
-    let app = router_with_platform_auth(
+    let app = router_with_campaign_admin_and_platform_auth(
         Arc::clone(&repository),
+        campaign_admin,
         readiness.clone(),
         config.worker_config(),
         shutdown.clone(),

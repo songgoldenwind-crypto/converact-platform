@@ -3,6 +3,7 @@ use std::{error::Error, fmt, future::Future};
 use converact_ai_outbound_core::{
     AgentRelease, CampaignTransition, CreateCampaign, ImportContacts,
 };
+use converact_tenant_auth::AuthenticatedPlatformIdentity;
 use converact_voice_agent_contracts::IdempotencyKey;
 use serde::Serialize;
 
@@ -11,6 +12,9 @@ use crate::AuthenticatedTenant;
 const MAX_IDENTIFIER_BYTES: usize = 255;
 const MAX_STATE_BYTES: usize = 64;
 const MAX_CONTACTS: u16 = 500;
+const PUBLISH_AGENT_CAPABILITY: &str = "voice_agent.agent.publish";
+const MANAGE_CAMPAIGN_CAPABILITY: &str = "voice_agent.campaign.manage";
+const IMPORT_CONTACTS_CAPABILITY: &str = "voice_agent.contacts.import";
 
 /// Explicit authoring capabilities injected only after tenant authorization.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -44,6 +48,14 @@ impl CampaignAdminAccess {
     pub const fn can_import_contacts(self) -> bool {
         self.import_contacts
     }
+
+    pub(crate) fn from_platform_identity(identity: &AuthenticatedPlatformIdentity) -> Self {
+        Self::new(
+            identity.has_capability(PUBLISH_AGENT_CAPABILITY),
+            identity.has_capability(MANAGE_CAMPAIGN_CAPABILITY),
+            identity.has_capability(IMPORT_CONTACTS_CAPABILITY),
+        )
+    }
 }
 
 /// Sanitized Campaign authoring failure.
@@ -60,6 +72,7 @@ pub(crate) enum CampaignAdminErrorKind {
     Stale,
     NotAllowed,
     Unavailable,
+    OutcomeUnknown,
 }
 
 impl CampaignAdminError {
@@ -106,6 +119,13 @@ impl CampaignAdminError {
     }
 
     #[must_use]
+    pub const fn outcome_unknown() -> Self {
+        Self {
+            kind: CampaignAdminErrorKind::OutcomeUnknown,
+        }
+    }
+
+    #[must_use]
     pub const fn code(self) -> &'static str {
         match self.kind {
             CampaignAdminErrorKind::Invalid => "ai_outbound_admin_input_invalid",
@@ -114,6 +134,7 @@ impl CampaignAdminError {
             CampaignAdminErrorKind::Stale => "ai_outbound_admin_stale",
             CampaignAdminErrorKind::NotAllowed => "ai_outbound_admin_not_allowed",
             CampaignAdminErrorKind::Unavailable => "ai_outbound_admin_unavailable",
+            CampaignAdminErrorKind::OutcomeUnknown => "ai_outbound_admin_outcome_unknown",
         }
     }
 

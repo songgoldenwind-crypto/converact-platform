@@ -54,3 +54,19 @@ async fn dependency_failure_can_stop_http_through_shared_shutdown() {
         .unwrap()
         .unwrap();
 }
+
+#[test]
+fn executable_process_composes_campaign_admin_with_the_claim_store() {
+    let source = include_str!("../src/main.rs");
+
+    for required in [
+        "PostgresCampaignAdminStore::new",
+        "PostgresCampaignAdminPort::new",
+        "router_with_campaign_admin_and_platform_auth",
+    ] {
+        assert!(
+            source.contains(required),
+            "missing executable Campaign Admin composition {required}"
+        );
+    }
+}
