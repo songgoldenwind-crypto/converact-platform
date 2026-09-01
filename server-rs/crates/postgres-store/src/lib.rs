@@ -10,6 +10,7 @@ use deadpool_postgres::{
 };
 
 mod active_call_event;
+mod agent_tool_provider;
 mod ai_outbound;
 mod ai_outbound_compliance;
 mod campaign_admin;
@@ -27,6 +28,10 @@ pub use active_call_event::{
     PostgresActiveCallEventSnapshot, PostgresActiveCallEventStatus, PostgresActiveCallEventStore,
     PostgresActiveCallEventStoreError, PostgresActiveCallMediaBindDecision,
     PostgresActiveCallMediaBinding, PostgresStoredActiveCallEvent,
+};
+pub use agent_tool_provider::{
+    PostgresAgentCustomer, PostgresAgentFollowUpResult, PostgresAgentFollowUpTaskId,
+    PostgresAgentToolProvider, PostgresAgentToolProviderError, derive_agent_follow_up_task_id,
 };
 pub use ai_outbound::{PostgresAiOutboundAttemptStore, PostgresLeasedAttemptStore};
 pub use ai_outbound_compliance::PostgresAiOutboundCompliancePort;

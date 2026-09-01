@@ -3803,3 +3803,29 @@ CREATE TABLE IF NOT EXISTS converact_agent_release_tool_manifests (
   FOREIGN KEY (tenant_id, agent_release_id)
     REFERENCES converact_agent_releases(tenant_id, id) ON DELETE CASCADE
 );
+
+-- ===== Converact Agent follow-up Tasks (SQLite development mirror) =====
+
+CREATE TABLE IF NOT EXISTS converact_agent_follow_up_tasks (
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  id TEXT NOT NULL CHECK (
+    length(id) = 80 AND id GLOB 'agent-follow-up-[0-9a-f]*'
+  ),
+  tool_call_id TEXT NOT NULL,
+  customer_id TEXT NOT NULL CHECK (length(customer_id) BETWEEN 1 AND 255),
+  reason TEXT NOT NULL CHECK (
+    length(reason) BETWEEN 1 AND 1024 AND reason = trim(reason)
+  ),
+  due_at TEXT NOT NULL,
+  state TEXT NOT NULL DEFAULT 'open' CHECK (state IN ('open', 'done', 'cancelled')),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tenant_id, id),
+  UNIQUE (tenant_id, tool_call_id),
+  FOREIGN KEY (tenant_id, tool_call_id)
+    REFERENCES converact_tool_actions(tenant_id, tool_call_id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_converact_agent_follow_up_tasks_open_due
+  ON converact_agent_follow_up_tasks (tenant_id, due_at, id)
+  WHERE state = 'open';
