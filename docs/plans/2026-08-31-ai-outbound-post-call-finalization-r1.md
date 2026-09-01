@@ -1,6 +1,6 @@
 # AI Outbound durable post-call finalization R1
 
-> Status: `controlled_rust_slices_passed / physical_atomic_transaction_not_run / production_not_run`
+> Status: `physical_atomic_transaction_passed / runnable_composition_not_run / production_not_run`
 >
 > Date: 2026-08-31
 >
@@ -174,3 +174,21 @@ physical PostgreSQL transaction. A concrete PostgreSQL `VoiceAgentRepository`, i
 execution, real authorization/router wiring and real call evidence remain `not_run`. Exact local
 commands and evidence limits are recorded in
 [R1 Post-call Finalization evidence](../../architecture-foundation/ai-outbound/evidence/r1-post-call-finalization/README.md).
+
+## 8. Lease-scoped atomic completion checkpoint
+
+Commit `5d463bc5d0106a05c5564e4818b63d3068349dc5` closes the physical transaction gap without
+granting the inspection repository mutation authority. `VoiceAgentWorker` now sends one validated
+`TerminalAttemptCommit` to the exact lease-scoped `AttemptCompletionPort`. Its PostgreSQL adapter
+updates the previously persisted `conversing` Attempt, binds the Call and channel-agent session,
+clears the lease, inserts or exactly replays the deterministic post-call job and appends the
+enqueue receipt inside one tenant transaction. Commit/rollback ambiguity remains
+`outcome_unknown`; a stale fence cannot publish a terminal state.
+
+A disposable local PostgreSQL 14.18 test proved successful commit, exact replay and rollback of
+both the Attempt update and job insert when receipt persistence fails. The test also exposed and
+fixed the post-call Store's integer-millisecond SQL parameter type mismatch. Concrete release,
+Campaign and Attempt inspection/reconciliation adapters, the bounded claim loop, authenticated
+HTTP composition, real Active Call/RustPBX/Speech input, process restart, server deployment and
+production remain `not_run`. See
+[atomic Attempt finalization evidence](../../architecture-foundation/ai-outbound/evidence/r1-atomic-attempt-finalization/README.md).
