@@ -54,7 +54,7 @@ UPDATE converact_outbound_call_attempts AS attempt
 SET state = 'claimed',
     lease_owner = $3,
     lease_token_hash = $4,
-    lease_expires_at = transaction_timestamp() + ($5 * interval '1 millisecond'),
+    lease_expires_at = transaction_timestamp() + ($5::bigint * interval '1 millisecond'),
     revision = attempt.revision + 1,
     updated_at = transaction_timestamp()
 FROM candidates
@@ -116,7 +116,7 @@ WITH predecessor AS MATERIALIZED (
          predecessor.dial_policy_revision, predecessor.dial_policy_content_hash,
          predecessor.dial_destination, predecessor.dial_caller_id,
          predecessor.dial_timeout_secs, predecessor.dial_trunk,
-         to_timestamp($7::double precision / 1000.0)
+         to_timestamp($7::bigint / 1000.0)
   FROM predecessor
   ON CONFLICT DO NOTHING
   RETURNING tenant_id, campaign_contact_id, attempt_number, id
@@ -124,7 +124,7 @@ WITH predecessor AS MATERIALIZED (
 UPDATE converact_outbound_campaign_contacts AS contact
 SET attempt_count = GREATEST(contact.attempt_count, inserted.attempt_number),
     state = 'queued',
-    scheduled_for = to_timestamp($7::double precision / 1000.0),
+    scheduled_for = to_timestamp($7::bigint / 1000.0),
     updated_at = transaction_timestamp()
 FROM inserted
 WHERE contact.tenant_id = inserted.tenant_id
@@ -898,8 +898,8 @@ impl AiOutboundStore {
                    payload, occurred_at, received_at
                  ) VALUES (
                    $1, $2, $3, $4, $5, 1, $6, $7, $8,
-                   to_timestamp($9::double precision / 1000.0),
-                   to_timestamp($10::double precision / 1000.0)
+                   to_timestamp($9::bigint / 1000.0),
+                   to_timestamp($10::bigint / 1000.0)
                  ) ON CONFLICT DO NOTHING
                  RETURNING event_id",
                 &[

@@ -74,6 +74,13 @@ fn leased_store_sql_fences_reads_transitions_and_effect_intents() {
     }
 }
 
+#[test]
+fn claim_lease_milliseconds_keep_their_i64_postgres_parameter_type() {
+    let source = include_str!("../src/postgres.rs");
+
+    assert!(source.contains("$5::bigint * interval '1 millisecond'"));
+}
+
 fn lease() -> AttemptLease {
     AttemptLease::try_new(AttemptLeaseInput {
         tenant_id: TenantId::parse("tenant-a").unwrap(),

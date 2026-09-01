@@ -538,7 +538,8 @@ impl AiOutboundStore {
             .map_err(|_| StoreError::InvalidInput)?;
         let next_campaign_revision =
             i64::try_from(command.next_campaign_revision).map_err(|_| StoreError::InvalidInput)?;
-        let active_attempts = i64::from(command.expected_active_attempts);
+        let active_attempts = i32::try_from(command.expected_active_attempts)
+            .map_err(|_| StoreError::InvalidInput)?;
         let row = transaction
             .query_opt(
                 "UPDATE converact_outbound_campaigns
@@ -788,8 +789,8 @@ async fn insert_contact_and_attempt(
                recording_mode, retention_until, state, scheduled_for, attempt_count
              ) VALUES (
                $1, $2, $3, $4, $5, $6, $7,
-               to_timestamp($8::double precision / 1000.0), 'queued',
-               to_timestamp($9::double precision / 1000.0), 1
+               to_timestamp($8::bigint / 1000.0), 'queued',
+               to_timestamp($9::bigint / 1000.0), 1
              ) ON CONFLICT DO NOTHING RETURNING id",
             &[
                 &command.tenant_id.as_str(),
@@ -819,8 +820,8 @@ async fn insert_contact_and_attempt(
                dial_caller_id, dial_timeout_secs, dial_trunk, scheduled_for
              ) VALUES (
                $1, $2, $3, $4, 1, NULL, $5, $6, 1, 'planned', $7, $8, $9,
-               to_timestamp($10::double precision / 1000.0), $11, $12, $13, $14, $15, $16,
-               to_timestamp($17::double precision / 1000.0)
+               to_timestamp($10::bigint / 1000.0), $11, $12, $13, $14, $15, $16,
+               to_timestamp($17::bigint / 1000.0)
              ) ON CONFLICT DO NOTHING RETURNING id",
             &[
                 &command.tenant_id.as_str(),

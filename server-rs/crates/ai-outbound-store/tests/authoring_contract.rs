@@ -76,6 +76,25 @@ fn postgres_authoring_path_preserves_single_authority_and_atomic_import() {
 }
 
 #[test]
+fn millisecond_inputs_keep_their_i64_postgres_parameter_type() {
+    let source = include_str!("../src/authoring.rs");
+
+    assert!(source.contains("to_timestamp($8::bigint / 1000.0)"));
+    assert!(source.contains("to_timestamp($9::bigint / 1000.0)"));
+    assert!(source.contains("to_timestamp($10::bigint / 1000.0)"));
+    assert!(source.contains("to_timestamp($17::bigint / 1000.0)"));
+    assert!(!source.contains("::double precision / 1000.0"));
+}
+
+#[test]
+fn campaign_counter_keeps_its_i32_postgres_parameter_type() {
+    let source = include_str!("../src/authoring.rs");
+
+    assert!(source.contains("i32::try_from(command.expected_active_attempts)"));
+    assert!(!source.contains("i64::from(command.expected_active_attempts)"));
+}
+
+#[test]
 fn development_schema_carries_the_same_admin_receipt_contract() {
     let sql = include_str!("../../../../src/schema.sql");
     for required in [

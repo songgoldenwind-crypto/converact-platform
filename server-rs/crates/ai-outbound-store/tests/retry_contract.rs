@@ -109,3 +109,13 @@ fn dial_binding_loads_only_from_the_attempt_snapshot_and_fails_closed() {
         );
     }
 }
+
+#[test]
+fn retry_and_event_milliseconds_keep_their_i64_postgres_parameter_type() {
+    let source = include_str!("../src/postgres.rs");
+
+    assert!(source.contains("to_timestamp($7::bigint / 1000.0)"));
+    assert!(source.contains("to_timestamp($9::bigint / 1000.0)"));
+    assert!(source.contains("to_timestamp($10::bigint / 1000.0)"));
+    assert!(!source.contains("::double precision / 1000.0"));
+}
