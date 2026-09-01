@@ -11,11 +11,11 @@ use crate::{
     AdaptiveEmotionTurnRuntime, AdaptiveEmotionTurnRuntimeError, AudioEvidenceWindow,
     CompleteUnderstandingTurnInput, ContextualFailurePolicy, ContextualIntentClassifierPort,
     ContextualIntentClassifierProvider, EmotionTurnResolution, FastIntentClassifierPort,
-    FastIntentClassifierProvider, LayeredIntentRuntime, MultimodalEmotionFusionPolicy,
-    PreparedUnderstandingTurn, RecoveredUnderstanding, SafetyIntentProvider,
-    TextEmotionClassifierPort, TextEmotionClassifierProvider, TextEmotionTurnRuntime,
-    UnderstandingAppendDecision, UnderstandingDurabilityPort, UnderstandingRecoveryInputs,
-    UnderstandingRuntime,
+    FastIntentClassifierProvider, FinalTranscriptUnderstandingPort, LayeredIntentRuntime,
+    MultimodalEmotionFusionPolicy, PreparedUnderstandingTurn, RecoveredUnderstanding,
+    SafetyIntentProvider, TextEmotionClassifierPort, TextEmotionClassifierProvider,
+    TextEmotionTurnRuntime, UnderstandingAppendDecision, UnderstandingDurabilityPort,
+    UnderstandingRecoveryInputs, UnderstandingRuntime,
 };
 
 /// Durable transcript classification supplied by the append boundary before any model invocation.
@@ -52,6 +52,87 @@ pub struct MultimodalFinalTranscriptUnderstandingInput<'a, D, F, C, T, A> {
     pub audio_evidence_window: Option<&'a AudioEvidenceWindow>,
     pub fusion_policy: MultimodalEmotionFusionPolicy,
     pub acoustic_failure_policy: AcousticEmotionFailurePolicy,
+}
+
+/// Immutable dependencies for the text-emotion final-turn processor used by event coordinators.
+pub struct TextFinalTranscriptUnderstandingProcessorInput<'a, D, F, C, E> {
+    pub durability: &'a D,
+    pub safety: &'a SafetyIntentProvider,
+    pub fast: &'a FastIntentClassifierProvider<F>,
+    pub contextual: &'a ContextualIntentClassifierProvider<C>,
+    pub text_emotion: &'a TextEmotionClassifierProvider<E>,
+    pub intent_catalog: &'a IntentCatalog,
+    pub emotion_catalog: &'a EmotionCatalog,
+    pub intent_policy: IntentDecisionPolicy,
+    pub emotion_policy: EmotionDecisionPolicy,
+    pub contextual_failure_policy: ContextualFailurePolicy,
+    pub dialogue_policy: &'a DialoguePolicy,
+    pub retention_policy_ref: &'a str,
+    pub retention_until_ms: u64,
+}
+
+/// Concrete processor adapter from event-coordinator inputs to the complete text-emotion turn.
+pub struct TextFinalTranscriptUnderstandingProcessor<'a, D, F, C, E> {
+    input: TextFinalTranscriptUnderstandingProcessorInput<'a, D, F, C, E>,
+}
+
+impl<'a, D, F, C, E> TextFinalTranscriptUnderstandingProcessor<'a, D, F, C, E> {
+    #[must_use]
+    pub const fn new(
+        input: TextFinalTranscriptUnderstandingProcessorInput<'a, D, F, C, E>,
+    ) -> Self {
+        Self { input }
+    }
+}
+
+impl<D, F, C, E> fmt::Debug for TextFinalTranscriptUnderstandingProcessor<'_, D, F, C, E> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("TextFinalTranscriptUnderstandingProcessor")
+            .field("intent_catalog_revision_id", self.input.intent_catalog.id())
+            .field(
+                "emotion_catalog_revision_id",
+                self.input.emotion_catalog.id(),
+            )
+            .field("has_retention_policy", &true)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<D, F, C, E> FinalTranscriptUnderstandingPort
+    for TextFinalTranscriptUnderstandingProcessor<'_, D, F, C, E>
+where
+    D: UnderstandingDurabilityPort,
+    F: FastIntentClassifierPort,
+    C: ContextualIntentClassifierPort,
+    E: TextEmotionClassifierPort,
+{
+    type Outcome = FinalTranscriptUnderstandingOutcome;
+
+    async fn process(
+        &self,
+        disposition: TranscriptUnderstandingDisposition,
+        history: &[TranscriptSegment],
+    ) -> Result<Self::Outcome, FinalTranscriptUnderstandingError> {
+        process_final_transcript_understanding(FinalTranscriptUnderstandingInput {
+            disposition,
+            history,
+            durability: self.input.durability,
+            safety: self.input.safety,
+            fast: self.input.fast,
+            contextual: self.input.contextual,
+            text_emotion: self.input.text_emotion,
+            intent_catalog: self.input.intent_catalog,
+            emotion_catalog: self.input.emotion_catalog,
+            intent_policy: self.input.intent_policy,
+            emotion_policy: self.input.emotion_policy,
+            contextual_failure_policy: self.input.contextual_failure_policy,
+            dialogue_policy: self.input.dialogue_policy,
+            retention_policy_ref: self.input.retention_policy_ref,
+            retention_until_ms: self.input.retention_until_ms,
+        })
+        .await
+    }
 }
 
 /// One complete prepared turn and its exact atomic persistence classification.

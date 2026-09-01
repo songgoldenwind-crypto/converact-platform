@@ -108,6 +108,23 @@ where
     H: TranscriptUnderstandingHistoryPort + Sync,
 {
     let disposition = map_postgres_transcript_understanding_disposition(decision);
+    prepare_transcript_understanding_source(history, current, disposition, limit).await
+}
+
+/// Loads exact bounded history for a pre-classified append receipt.
+///
+/// # Errors
+///
+/// Returns a redacted history failure only for a newly appended current segment.
+pub async fn prepare_transcript_understanding_source<H>(
+    history: &H,
+    current: &TranscriptSegment,
+    disposition: TranscriptUnderstandingDisposition,
+    limit: TranscriptHistoryLimit,
+) -> Result<PostgresTranscriptUnderstandingSource, TranscriptUnderstandingSourceError>
+where
+    H: TranscriptUnderstandingHistoryPort + Sync,
+{
     let window = match disposition {
         TranscriptUnderstandingDisposition::AppendedCurrent => Some(
             history

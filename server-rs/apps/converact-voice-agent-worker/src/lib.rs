@@ -11,6 +11,7 @@ mod active_call_playbook_resolver;
 mod active_call_reservation;
 mod active_call_transcript;
 mod active_call_transcript_postgres;
+mod active_call_understanding;
 mod adaptive_emotion_runtime;
 mod campaign_admin;
 mod campaign_admin_http;
@@ -75,7 +76,12 @@ pub use active_call_transcript::{
 pub use active_call_transcript_postgres::{
     PostgresTranscriptUnderstandingSource, TranscriptUnderstandingHistoryPort,
     TranscriptUnderstandingSourceError, map_postgres_transcript_understanding_disposition,
-    prepare_postgres_transcript_understanding_source,
+    prepare_postgres_transcript_understanding_source, prepare_transcript_understanding_source,
+};
+pub use active_call_understanding::{
+    ActiveCallUnderstandingEventError, ActiveCallUnderstandingEventOutcome,
+    FinalTranscriptUnderstandingPort, TranscriptUnderstandingAppendReceipt,
+    process_active_call_understanding_event,
 };
 pub use adaptive_emotion_runtime::{
     AcousticEmotionFailurePolicy, AdaptiveEmotionTurnRuntime, AdaptiveEmotionTurnRuntimeError,
@@ -119,7 +125,8 @@ pub use fast_intent_classifier::{
 pub use final_transcript_understanding::{
     FinalTranscriptUnderstandingError, FinalTranscriptUnderstandingInput,
     FinalTranscriptUnderstandingOutcome, MultimodalFinalTranscriptUnderstandingInput,
-    PersistedUnderstandingTurn, TranscriptUnderstandingDisposition,
+    PersistedUnderstandingTurn, TextFinalTranscriptUnderstandingProcessor,
+    TextFinalTranscriptUnderstandingProcessorInput, TranscriptUnderstandingDisposition,
     process_final_transcript_understanding, process_final_transcript_understanding_multimodal,
 };
 pub use handoff_runtime::{

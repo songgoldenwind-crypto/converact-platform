@@ -39,15 +39,16 @@ use converact_voice_agent_worker::{
     ContextualIntentClassifierRequest, FastIntentClassifierArtifactInput,
     FastIntentClassifierOutput, FastIntentClassifierPort, FastIntentClassifierPortError,
     FastIntentClassifierProvider, FastIntentClassifierRequest, FinalTranscriptUnderstandingInput,
-    FinalTranscriptUnderstandingOutcome, IntentConfidenceRouter, IntentTurnRoute,
-    MultimodalEmotionFusionPolicy, MultimodalFinalTranscriptUnderstandingInput,
+    FinalTranscriptUnderstandingOutcome, FinalTranscriptUnderstandingPort, IntentConfidenceRouter,
+    IntentTurnRoute, MultimodalEmotionFusionPolicy, MultimodalFinalTranscriptUnderstandingInput,
     SafetyIntentMatchKind, SafetyIntentProvider, SafetyIntentRuleInput, SafetyIntentRuleSetInput,
     TextEmotionCandidateOutput, TextEmotionClassifierArtifactInput, TextEmotionClassifierOutput,
     TextEmotionClassifierPort, TextEmotionClassifierPortError, TextEmotionClassifierProvider,
-    TextEmotionClassifierRequest, TextEmotionTurnRuntime, TranscriptUnderstandingDisposition,
-    UnderstandingAppendDecision, UnderstandingDurabilityPort, UnderstandingPortError,
-    UnderstandingRecoveryInputs, UnderstandingRuntime, UnderstandingTurnWriteInput,
-    process_final_transcript_understanding, process_final_transcript_understanding_multimodal,
+    TextEmotionClassifierRequest, TextEmotionTurnRuntime,
+    TextFinalTranscriptUnderstandingProcessor, TextFinalTranscriptUnderstandingProcessorInput,
+    TranscriptUnderstandingDisposition, UnderstandingAppendDecision, UnderstandingDurabilityPort,
+    UnderstandingPortError, UnderstandingRecoveryInputs, UnderstandingRuntime,
+    UnderstandingTurnWriteInput, process_final_transcript_understanding_multimodal,
 };
 
 struct FakeDurability {
@@ -296,26 +297,31 @@ async fn appended_final_transcript_runs_complete_understanding_while_replay_skip
     let text_emotion = text_emotion_provider(&fixture.emotion_catalog, &text_calls);
     let history = vec![final_customer_segment("别再给我打电话了")];
 
-    let outcome = process_final_transcript_understanding(FinalTranscriptUnderstandingInput {
-        disposition: TranscriptUnderstandingDisposition::AppendedCurrent,
-        history: &history,
-        durability: &durability,
-        safety: &safety,
-        fast: &fast,
-        contextual: &contextual,
-        text_emotion: &text_emotion,
-        intent_catalog: &fixture.intent_catalog,
-        emotion_catalog: &fixture.emotion_catalog,
-        intent_policy: IntentDecisionPolicy::try_new(5_500, 8_000, 1_500, 9_500).unwrap(),
-        emotion_policy: EmotionDecisionPolicy::try_new(5_500, 8_000).unwrap(),
-        contextual_failure_policy:
-            converact_voice_agent_worker::ContextualFailurePolicy::FailClosed,
-        dialogue_policy: &fixture.dialogue_policy,
-        retention_policy_ref: "understanding-30-days-v1",
-        retention_until_ms: 2_592_003_000,
-    })
-    .await
-    .unwrap();
+    let processor = TextFinalTranscriptUnderstandingProcessor::new(
+        TextFinalTranscriptUnderstandingProcessorInput {
+            durability: &durability,
+            safety: &safety,
+            fast: &fast,
+            contextual: &contextual,
+            text_emotion: &text_emotion,
+            intent_catalog: &fixture.intent_catalog,
+            emotion_catalog: &fixture.emotion_catalog,
+            intent_policy: IntentDecisionPolicy::try_new(5_500, 8_000, 1_500, 9_500).unwrap(),
+            emotion_policy: EmotionDecisionPolicy::try_new(5_500, 8_000).unwrap(),
+            contextual_failure_policy:
+                converact_voice_agent_worker::ContextualFailurePolicy::FailClosed,
+            dialogue_policy: &fixture.dialogue_policy,
+            retention_policy_ref: "understanding-30-days-v1",
+            retention_until_ms: 2_592_003_000,
+        },
+    );
+    let outcome = processor
+        .process(
+            TranscriptUnderstandingDisposition::AppendedCurrent,
+            &history,
+        )
+        .await
+        .unwrap();
     let FinalTranscriptUnderstandingOutcome::Persisted(processed) = outcome else {
         panic!("new current final transcript must persist one turn");
     };
@@ -325,51 +331,22 @@ async fn appended_final_transcript_runs_complete_understanding_while_replay_skip
     assert_eq!(durability.appends.load(Ordering::Relaxed), 1);
     assert_eq!(text_calls.load(Ordering::Relaxed), 1);
 
-    let replay = process_final_transcript_understanding(FinalTranscriptUnderstandingInput {
-        disposition: TranscriptUnderstandingDisposition::ReplayedCurrent,
-        history: &history,
-        durability: &durability,
-        safety: &safety,
-        fast: &fast,
-        contextual: &contextual,
-        text_emotion: &text_emotion,
-        intent_catalog: &fixture.intent_catalog,
-        emotion_catalog: &fixture.emotion_catalog,
-        intent_policy: IntentDecisionPolicy::try_new(5_500, 8_000, 1_500, 9_500).unwrap(),
-        emotion_policy: EmotionDecisionPolicy::try_new(5_500, 8_000).unwrap(),
-        contextual_failure_policy:
-            converact_voice_agent_worker::ContextualFailurePolicy::FailClosed,
-        dialogue_policy: &fixture.dialogue_policy,
-        retention_policy_ref: "understanding-30-days-v1",
-        retention_until_ms: 2_592_003_000,
-    })
-    .await
-    .unwrap();
+    let replay = processor
+        .process(
+            TranscriptUnderstandingDisposition::ReplayedCurrent,
+            &history,
+        )
+        .await
+        .unwrap();
     assert_eq!(replay, FinalTranscriptUnderstandingOutcome::SkippedReplay);
     assert_eq!(durability.loads.load(Ordering::Relaxed), 1);
     assert_eq!(durability.appends.load(Ordering::Relaxed), 1);
     assert_eq!(text_calls.load(Ordering::Relaxed), 1);
 
-    let historical = process_final_transcript_understanding(FinalTranscriptUnderstandingInput {
-        disposition: TranscriptUnderstandingDisposition::Historical,
-        history: &history,
-        durability: &durability,
-        safety: &safety,
-        fast: &fast,
-        contextual: &contextual,
-        text_emotion: &text_emotion,
-        intent_catalog: &fixture.intent_catalog,
-        emotion_catalog: &fixture.emotion_catalog,
-        intent_policy: IntentDecisionPolicy::try_new(5_500, 8_000, 1_500, 9_500).unwrap(),
-        emotion_policy: EmotionDecisionPolicy::try_new(5_500, 8_000).unwrap(),
-        contextual_failure_policy:
-            converact_voice_agent_worker::ContextualFailurePolicy::FailClosed,
-        dialogue_policy: &fixture.dialogue_policy,
-        retention_policy_ref: "understanding-30-days-v1",
-        retention_until_ms: 2_592_003_000,
-    })
-    .await
-    .unwrap();
+    let historical = processor
+        .process(TranscriptUnderstandingDisposition::Historical, &history)
+        .await
+        .unwrap();
     assert_eq!(
         historical,
         FinalTranscriptUnderstandingOutcome::SkippedHistorical

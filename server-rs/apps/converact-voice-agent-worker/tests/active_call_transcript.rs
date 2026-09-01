@@ -2,6 +2,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use converact_active_call_adapter::{AdapterContext, NormalizedEvent, normalize_event};
 use converact_conversation_result_core::{TranscriptSegment, TranscriptSegmentDraft};
+use converact_conversation_result_store::{TranscriptHistoryLimit, TranscriptHistoryWindow};
 use converact_voice_agent_contracts::{
     AgentReleaseId, CallAttemptId, CallId, CampaignContactId, CampaignId, ChannelAgentSessionId,
     EnvelopeContext, EnvelopeContextInput, ExecutionGeneration, InteractionId,
@@ -10,7 +11,11 @@ use converact_voice_agent_contracts::{
 use converact_voice_agent_worker::{
     ActiveCallTranscriptBinding, ActiveCallTranscriptBindingInput,
     ActiveCallTranscriptDurabilityPort, ActiveCallTranscriptIngestError,
-    append_active_call_final_transcript,
+    ActiveCallUnderstandingEventOutcome, FinalTranscriptUnderstandingError,
+    FinalTranscriptUnderstandingPort, TranscriptUnderstandingAppendReceipt,
+    TranscriptUnderstandingDisposition, TranscriptUnderstandingHistoryPort,
+    TranscriptUnderstandingSourceError, append_active_call_final_transcript,
+    process_active_call_understanding_event,
 };
 
 #[test]
@@ -222,6 +227,101 @@ async fn eligible_final_reaches_the_sequence_store_once_and_ignored_audio_does_n
     assert_eq!(store.append_count.load(Ordering::Relaxed), 1);
 }
 
+#[tokio::test]
+async fn active_call_final_flows_through_sequence_history_and_understanding_once() {
+    let binding = binding("customer-track", 1_000);
+    let event = final_event(
+        &context("session-001"),
+        "customer-track",
+        1_500,
+        Some((1_100, 1_450)),
+        0,
+        "别再给我打电话了",
+        false,
+        None,
+    );
+    let store = CoordinatorStore::new(TranscriptUnderstandingDisposition::AppendedCurrent);
+    let processor = Processor::new(TranscriptUnderstandingDisposition::AppendedCurrent, 1);
+
+    let outcome = process_active_call_understanding_event(
+        &store,
+        &processor,
+        &binding,
+        &event,
+        ExecutionGeneration::new(7).unwrap(),
+        TranscriptHistoryLimit::new(16).unwrap(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        outcome,
+        ActiveCallUnderstandingEventOutcome::Processed("processed")
+    );
+    assert_eq!(store.append_count.load(Ordering::Relaxed), 1);
+    assert_eq!(store.history_count.load(Ordering::Relaxed), 1);
+    assert_eq!(processor.calls.load(Ordering::Relaxed), 1);
+}
+
+#[tokio::test]
+async fn replay_and_ignored_events_never_load_history_or_duplicate_model_work() {
+    let binding = binding("customer-track", 1_000);
+    let replay = CoordinatorStore::new(TranscriptUnderstandingDisposition::ReplayedCurrent);
+    let processor = Processor::new(TranscriptUnderstandingDisposition::ReplayedCurrent, 0);
+    let customer = final_event(
+        &context("session-001"),
+        "customer-track",
+        1_500,
+        None,
+        0,
+        "重放客户转写",
+        false,
+        None,
+    );
+    let replayed = process_active_call_understanding_event(
+        &replay,
+        &processor,
+        &binding,
+        &customer,
+        ExecutionGeneration::new(7).unwrap(),
+        TranscriptHistoryLimit::new(16).unwrap(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        replayed,
+        ActiveCallUnderstandingEventOutcome::Processed("processed")
+    );
+    assert_eq!(replay.history_count.load(Ordering::Relaxed), 0);
+    assert_eq!(processor.calls.load(Ordering::Relaxed), 1);
+
+    let ignored = final_event(
+        &context("session-001"),
+        "agent-track",
+        1_600,
+        None,
+        0,
+        "AI output",
+        false,
+        None,
+    );
+    assert_eq!(
+        process_active_call_understanding_event(
+            &replay,
+            &processor,
+            &binding,
+            &ignored,
+            ExecutionGeneration::new(7).unwrap(),
+            TranscriptHistoryLimit::new(16).unwrap(),
+        )
+        .await
+        .unwrap(),
+        ActiveCallUnderstandingEventOutcome::Ignored
+    );
+    assert_eq!(replay.append_count.load(Ordering::Relaxed), 1);
+    assert_eq!(processor.calls.load(Ordering::Relaxed), 1);
+}
+
 #[derive(Default)]
 struct Store {
     append_count: AtomicUsize,
@@ -240,6 +340,100 @@ impl ActiveCallTranscriptDurabilityPort for Store {
         draft
             .segment_with_sequence(77)
             .map_err(|_| ActiveCallTranscriptIngestError::StoreUnavailable)
+    }
+}
+
+struct Receipt {
+    segment: TranscriptSegment,
+    disposition: TranscriptUnderstandingDisposition,
+}
+
+impl TranscriptUnderstandingAppendReceipt for Receipt {
+    fn segment(&self) -> &TranscriptSegment {
+        &self.segment
+    }
+
+    fn disposition(&self) -> TranscriptUnderstandingDisposition {
+        self.disposition
+    }
+}
+
+struct CoordinatorStore {
+    disposition: TranscriptUnderstandingDisposition,
+    append_count: AtomicUsize,
+    history_count: AtomicUsize,
+}
+
+impl CoordinatorStore {
+    const fn new(disposition: TranscriptUnderstandingDisposition) -> Self {
+        Self {
+            disposition,
+            append_count: AtomicUsize::new(0),
+            history_count: AtomicUsize::new(0),
+        }
+    }
+}
+
+impl ActiveCallTranscriptDurabilityPort for CoordinatorStore {
+    type Append = Receipt;
+
+    async fn append_sequenced_final_segment(
+        &self,
+        draft: &TranscriptSegmentDraft,
+        current_generation: ExecutionGeneration,
+    ) -> Result<Self::Append, ActiveCallTranscriptIngestError> {
+        assert_eq!(current_generation.get(), 7);
+        self.append_count.fetch_add(1, Ordering::Relaxed);
+        Ok(Receipt {
+            segment: draft.segment_with_sequence(1).unwrap(),
+            disposition: self.disposition,
+        })
+    }
+}
+
+impl TranscriptUnderstandingHistoryPort for CoordinatorStore {
+    async fn load_recent_transcript_window(
+        &self,
+        current: &TranscriptSegment,
+        limit: TranscriptHistoryLimit,
+    ) -> Result<TranscriptHistoryWindow, TranscriptUnderstandingSourceError> {
+        self.history_count.fetch_add(1, Ordering::Relaxed);
+        TranscriptHistoryWindow::try_new(current, vec![current.clone()], limit)
+            .map_err(|_| TranscriptUnderstandingSourceError::HistoryUnavailable)
+    }
+}
+
+struct Processor {
+    calls: AtomicUsize,
+    expected_disposition: TranscriptUnderstandingDisposition,
+    expected_history_len: usize,
+}
+
+impl Processor {
+    const fn new(
+        expected_disposition: TranscriptUnderstandingDisposition,
+        expected_history_len: usize,
+    ) -> Self {
+        Self {
+            calls: AtomicUsize::new(0),
+            expected_disposition,
+            expected_history_len,
+        }
+    }
+}
+
+impl FinalTranscriptUnderstandingPort for Processor {
+    type Outcome = &'static str;
+
+    async fn process(
+        &self,
+        disposition: TranscriptUnderstandingDisposition,
+        history: &[TranscriptSegment],
+    ) -> Result<Self::Outcome, FinalTranscriptUnderstandingError> {
+        assert_eq!(disposition, self.expected_disposition);
+        assert_eq!(history.len(), self.expected_history_len);
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        Ok("processed")
     }
 }
 
