@@ -6,10 +6,10 @@ use std::{
 };
 
 use converact_ai_outbound_core::{
-    AgentDraft, AgentLegBinding, AgentObservation, AgentReleaseBinding, AgentReservation,
-    AttemptCommand, AttemptStorePort, CallAttempt, CallObservation, Campaign, CampaignCommand,
-    ChannelAgentPort, ComplianceDecision, ComplianceInput, CompliancePort, ConsentBasis,
-    EffectIntent, EvidenceStatus, GateStatus, OrchestrationError, OriginateCall,
+    ActiveAttemptExecution, AgentDraft, AgentLegBinding, AgentObservation, AgentReleaseBinding,
+    AgentReservation, AttemptCommand, AttemptStorePort, CallAttempt, CallObservation, Campaign,
+    CampaignCommand, ChannelAgentPort, ComplianceDecision, ComplianceInput, CompliancePort,
+    ConsentBasis, EffectIntent, EvidenceStatus, GateStatus, OrchestrationError, OriginateCall,
     OutboundDialBinding, OutboundDialBindingInput, OutboundOrchestrator, PlayDisclosure, PortError,
     ReleaseComponentDigests, ReserveAgent, StartConversation, TelephonyPort, TerminateCall,
 };
@@ -174,6 +174,8 @@ impl Harness {
             reserved_tenant_id: None,
             originated_agent_session_id: None,
             added_agent_session_id: None,
+            persisted_call_id: None,
+            persisted_agent_session_id: None,
         }));
         Self {
             compliance: FakeCompliance(state.clone()),
@@ -194,6 +196,25 @@ impl Harness {
                 &requested_agent_session_id(),
             )
             .await
+    }
+
+    pub async fn start_one_attempt(
+        &self,
+    ) -> Result<(CallAttempt, CallId, ChannelAgentSessionId), OrchestrationError> {
+        let active = self
+            .orchestrator()
+            .start_one_attempt(
+                &TenantId::parse("tenant-001").unwrap(),
+                &self.attempt_id,
+                &agent_release_binding(),
+                &requested_agent_session_id(),
+            )
+            .await?;
+        Ok((
+            active.attempt().clone(),
+            active.call_id().clone(),
+            active.channel_agent_session_id().clone(),
+        ))
     }
 
     pub async fn reconcile(&self) -> Result<CallObservation, OrchestrationError> {
@@ -240,6 +261,14 @@ impl Harness {
         self.state.lock().unwrap().added_agent_session_id.clone()
     }
 
+    pub fn persisted_active_binding(&self) -> Option<(CallId, ChannelAgentSessionId)> {
+        let state = self.state.lock().unwrap();
+        Some((
+            state.persisted_call_id.clone()?,
+            state.persisted_agent_session_id.clone()?,
+        ))
+    }
+
     fn orchestrator(
         &self,
     ) -> OutboundOrchestrator<'_, FakeCompliance, FakeAgent, FakeTelephony, FakeStore> {
@@ -261,6 +290,8 @@ struct HarnessState {
     reserved_tenant_id: Option<TenantId>,
     originated_agent_session_id: Option<ChannelAgentSessionId>,
     added_agent_session_id: Option<ChannelAgentSessionId>,
+    persisted_call_id: Option<CallId>,
+    persisted_agent_session_id: Option<ChannelAgentSessionId>,
 }
 
 #[derive(Clone, Copy)]
@@ -454,6 +485,17 @@ impl AttemptStorePort for FakeStore {
             state.record("outcome.finalize");
         }
         state.attempt = attempt.clone();
+        ready(Ok(()))
+    }
+
+    fn persist_active_execution(
+        &self,
+        active: &ActiveAttemptExecution,
+    ) -> impl Future<Output = Result<(), PortError>> + Send {
+        let mut state = self.0.lock().unwrap();
+        state.attempt = active.attempt().clone();
+        state.persisted_call_id = Some(active.call_id().clone());
+        state.persisted_agent_session_id = Some(active.channel_agent_session_id().clone());
         ready(Ok(()))
     }
 }

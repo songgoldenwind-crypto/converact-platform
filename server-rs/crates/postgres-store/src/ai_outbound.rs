@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
 use converact_ai_outbound_core::{
-    AttemptCompletionPort, AttemptStorePort, CallAttempt, EffectIntent, OutboundDialBinding,
-    PortError, TerminalAttemptCommit,
+    ActiveAttemptExecution, AttemptCompletionPort, AttemptStorePort, CallAttempt, EffectIntent,
+    OutboundDialBinding, PortError, TerminalAttemptCommit,
 };
 use converact_ai_outbound_store::{
-    AdvanceAttempt, AiOutboundStore, AppendEffectIntent, AttemptLease, AttemptLeaseInput,
-    StoreError,
+    AdvanceActiveAttempt, AdvanceAttempt, AiOutboundStore, AppendEffectIntent, AttemptLease,
+    AttemptLeaseInput, StoreError,
 };
 use converact_contracts::canonical_sha256;
 use converact_kernel_ids::TenantId;
@@ -207,6 +207,26 @@ impl AttemptStorePort for PostgresLeasedAttemptStore {
             .with_tenant_transaction(&tenant, move |transaction| {
                 Box::pin(async move {
                     sql.advance_with_lease(transaction, &command)
+                        .await
+                        .map(|_| ())
+                })
+            })
+            .await
+            .map_err(map_write_error)
+    }
+
+    async fn persist_active_execution(
+        &self,
+        active: &ActiveAttemptExecution,
+    ) -> Result<(), PortError> {
+        let command = AdvanceActiveAttempt::try_from_execution(&self.lease, active)
+            .map_err(map_store_error)?;
+        let tenant = self.lease.tenant_id().clone();
+        let sql = self.sql;
+        self.runtime
+            .with_tenant_transaction(&tenant, move |transaction| {
+                Box::pin(async move {
+                    sql.advance_active_with_lease(transaction, &command)
                         .await
                         .map(|_| ())
                 })

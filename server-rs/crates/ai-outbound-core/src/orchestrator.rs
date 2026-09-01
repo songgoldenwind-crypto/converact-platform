@@ -5,10 +5,10 @@ use converact_voice_agent_contracts::{
 };
 
 use crate::{
-    AgentLegBinding, AgentObservation, AgentReleaseBinding, AttemptStorePort, CallAttempt,
-    CallObservation, ChannelAgentPort, ComplianceDecision, CompliancePort, DomainError,
-    EffectIntent, OriginateCall, OutboundDialBinding, PlayDisclosure, PortError, PortFailureKind,
-    ReserveAgent, StartConversation, TelephonyPort,
+    ActiveAttemptExecution, AgentLegBinding, AgentObservation, AgentReleaseBinding,
+    AttemptStorePort, CallAttempt, CallObservation, ChannelAgentPort, ComplianceDecision,
+    CompliancePort, DomainError, EffectIntent, OriginateCall, OutboundDialBinding, PlayDisclosure,
+    PortError, PortFailureKind, ReserveAgent, StartConversation, TelephonyPort,
 };
 
 /// Stable orchestration failure safe to persist and expose to workers.
@@ -87,12 +87,51 @@ where
         release: &AgentReleaseBinding,
         session_id: &ChannelAgentSessionId,
     ) -> Result<CallAttempt, OrchestrationError> {
+        let active = self
+            .start_one_attempt(tenant_id, attempt_id, release, session_id)
+            .await?;
+        self.finalize_active_attempt(active).await
+    }
+
+    /// Advances one claimed Attempt only through successful conversation start.
+    ///
+    /// The returned binding is safe to hand to a durable event consumer. It deliberately does
+    /// not query for call termination, because real conversations are asynchronous and may remain
+    /// active for minutes or hours.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same stable pre-conversation failures as [`Self::run_one_attempt`].
+    pub async fn start_one_attempt(
+        &self,
+        tenant_id: &TenantId,
+        attempt_id: &CallAttemptId,
+        release: &AgentReleaseBinding,
+        session_id: &ChannelAgentSessionId,
+    ) -> Result<ActiveAttemptExecution, OrchestrationError> {
         let (attempt, dial) = self
             .prepare_attempt(tenant_id, attempt_id, release, session_id)
             .await?;
         let (attempt, call_id) = self.originate_and_attach(attempt, session_id, dial).await?;
         let attempt = self.disclose_and_start(attempt, session_id).await?;
-        self.finalize_when_terminal(attempt, &call_id).await
+        let active = ActiveAttemptExecution::try_new(attempt, call_id, session_id.clone())?;
+        self.store.persist_active_execution(&active).await?;
+        Ok(active)
+    }
+
+    /// Converts one already-started execution into a terminal aggregate after `RustPBX` confirms
+    /// that the exact Call is no longer active.
+    ///
+    /// # Errors
+    ///
+    /// Returns a stable query or observation failure and never invents a terminal state.
+    pub async fn finalize_active_attempt(
+        &self,
+        active: ActiveAttemptExecution,
+    ) -> Result<CallAttempt, OrchestrationError> {
+        let call_id = active.call_id().clone();
+        self.finalize_when_terminal(active.into_attempt(), &call_id)
+            .await
     }
 
     async fn prepare_attempt(
@@ -256,7 +295,6 @@ where
             .await;
         self.require_known_post_answer_effect(&attempt, conversation_result)
             .await?;
-        self.store.persist_observation(&attempt).await?;
 
         Ok(attempt)
     }

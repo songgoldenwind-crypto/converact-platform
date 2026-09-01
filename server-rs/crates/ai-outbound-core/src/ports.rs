@@ -288,6 +288,58 @@ pub struct AgentLegBinding {
     pub session_id: ChannelAgentSessionId,
 }
 
+/// One fully started physical call awaiting an independently observed terminal event.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ActiveAttemptExecution {
+    attempt: CallAttempt,
+    call_id: CallId,
+    channel_agent_session_id: ChannelAgentSessionId,
+}
+
+impl ActiveAttemptExecution {
+    /// Binds one conversing aggregate to its exact Call and Channel Agent session.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a pre-conversation aggregate or a Call identity that differs from the frozen
+    /// one-Call-per-Attempt identity used by this runtime generation.
+    pub fn try_new(
+        attempt: CallAttempt,
+        call_id: CallId,
+        channel_agent_session_id: ChannelAgentSessionId,
+    ) -> Result<Self, PortError> {
+        if attempt.state() != CallAttemptState::Conversing
+            || attempt.id().as_str() != call_id.as_str()
+        {
+            return Err(PortError::rejected("ai_outbound_active_execution_invalid"));
+        }
+        Ok(Self {
+            attempt,
+            call_id,
+            channel_agent_session_id,
+        })
+    }
+
+    #[must_use]
+    pub const fn attempt(&self) -> &CallAttempt {
+        &self.attempt
+    }
+
+    #[must_use]
+    pub const fn call_id(&self) -> &CallId {
+        &self.call_id
+    }
+
+    #[must_use]
+    pub const fn channel_agent_session_id(&self) -> &ChannelAgentSessionId {
+        &self.channel_agent_session_id
+    }
+
+    pub(crate) fn into_attempt(self) -> CallAttempt {
+        self.attempt
+    }
+}
+
 /// Request to play mandatory identity and recording disclosure.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PlayDisclosure {
@@ -514,6 +566,13 @@ pub trait AttemptStorePort {
     fn persist_observation(
         &self,
         attempt: &CallAttempt,
+    ) -> impl Future<Output = Result<(), PortError>> + Send;
+
+    /// Atomically persists the first durable `conversing` snapshot together with the exact Call
+    /// and Channel Agent session identities needed by restart recovery and event consumption.
+    fn persist_active_execution(
+        &self,
+        active: &ActiveAttemptExecution,
     ) -> impl Future<Output = Result<(), PortError>> + Send;
 }
 

@@ -11,9 +11,9 @@ use axum::{
     http::{Method, Request, Response},
 };
 use converact_ai_outbound_core::{
-    AgentDraft, AgentLegBinding, AgentObservation, AgentReleaseBinding, AgentReservation,
-    AttemptCompletionPort, AttemptStorePort, CallAttempt, CallObservation, Campaign,
-    CampaignCommand, ChannelAgentPort, ComplianceDecision, CompliancePort, EffectIntent,
+    ActiveAttemptExecution, AgentDraft, AgentLegBinding, AgentObservation, AgentReleaseBinding,
+    AgentReservation, AttemptCompletionPort, AttemptStorePort, CallAttempt, CallObservation,
+    Campaign, CampaignCommand, ChannelAgentPort, ComplianceDecision, CompliancePort, EffectIntent,
     OriginateCall, OutboundDialBinding, OutboundDialBindingInput, PlayDisclosure, PortError,
     ReleaseComponentDigests, ReserveAgent, StartConversation, TelephonyPort, TerminalAttemptCommit,
     TerminateCall, publish_agent,
@@ -350,6 +350,14 @@ impl AttemptStorePort for FakeAttemptStore {
 
     async fn persist_observation(&self, attempt: &CallAttempt) -> Result<(), PortError> {
         self.state.lock().unwrap().attempt = attempt.clone();
+        Ok(())
+    }
+
+    async fn persist_active_execution(
+        &self,
+        active: &ActiveAttemptExecution,
+    ) -> Result<(), PortError> {
+        self.state.lock().unwrap().attempt = active.attempt().clone();
         Ok(())
     }
 }

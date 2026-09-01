@@ -52,6 +52,36 @@ async fn reserve_precedes_dial_and_disclosure_precedes_conversation() {
 }
 
 #[tokio::test]
+async fn started_attempt_returns_without_observing_a_terminal_call() {
+    let harness = Harness::new();
+
+    let (attempt, call_id, session_id) = harness.start_one_attempt().await.unwrap();
+
+    assert_eq!(attempt.state(), CallAttemptState::Conversing);
+    assert_eq!(call_id.as_str(), "attempt-001");
+    assert_eq!(session_id.as_str(), "agent-session-platform-selected");
+    assert_eq!(harness.attempt_state(), CallAttemptState::Conversing);
+    let persisted = harness.persisted_active_binding().unwrap();
+    assert_eq!(persisted.0, call_id);
+    assert_eq!(persisted.1, session_id);
+    assert_eq!(
+        harness.operations(),
+        [
+            "compliance.check",
+            "agent.reserve",
+            "rustpbx.originate",
+            "rustpbx.answered",
+            "rustpbx.agent_leg_add",
+            "agent.attachment_confirmed",
+            "agent.media_ready",
+            "agent.disclosure",
+            "agent.disclosure_completed",
+            "agent.start_conversation",
+        ],
+    );
+}
+
+#[tokio::test]
 async fn orchestrator_accepts_only_an_atomically_preclaimed_attempt() {
     let harness = Harness::with_unclaimed_attempt();
 

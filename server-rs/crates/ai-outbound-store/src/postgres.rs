@@ -1,13 +1,14 @@
 use std::{error::Error, fmt};
 
 use converact_ai_outbound_core::{
-    CallAttempt, CallAttemptRestoreInput, EffectIntent, MAX_PHYSICAL_ATTEMPTS, OutboundDialBinding,
-    OutboundDialBindingInput,
+    ActiveAttemptExecution, CallAttempt, CallAttemptRestoreInput, EffectIntent,
+    MAX_PHYSICAL_ATTEMPTS, OutboundDialBinding, OutboundDialBindingInput,
 };
 use converact_contracts::canonical_sha256;
 use converact_kernel_ids::TenantId;
 use converact_voice_agent_contracts::{
-    CallAttemptId, CallAttemptState, EventId, ExecutionGeneration, IdempotencyKey,
+    CallAttemptId, CallAttemptState, CallId, ChannelAgentSessionId, EventId, ExecutionGeneration,
+    IdempotencyKey,
 };
 use serde_json::Value;
 use tokio_postgres::{Row, Transaction};
@@ -551,6 +552,69 @@ impl AdvanceAttempt {
     }
 }
 
+/// Fenced first durable snapshot of one successfully started conversation.
+#[derive(Clone, Eq, PartialEq)]
+pub struct AdvanceActiveAttempt {
+    tenant_id: TenantId,
+    attempt_id: CallAttemptId,
+    expected_revision: u64,
+    expected_generation: ExecutionGeneration,
+    lease_owner: String,
+    lease_token_hash: String,
+    call_id: CallId,
+    channel_agent_session_id: ChannelAgentSessionId,
+}
+
+impl AdvanceActiveAttempt {
+    /// Binds a validated active execution to the exact current lease.
+    ///
+    /// # Errors
+    ///
+    /// Rejects cross-Attempt authority, non-conversing state or an invalid predecessor revision.
+    pub fn try_from_execution(
+        lease: &AttemptLease,
+        active: &ActiveAttemptExecution,
+    ) -> Result<Self, StoreError> {
+        let expected_revision = active
+            .attempt()
+            .revision()
+            .checked_sub(1)
+            .filter(|revision| *revision > 0)
+            .ok_or(StoreError::InvalidInput)?;
+        if lease.attempt_id != *active.attempt().id()
+            || active.attempt().state() != CallAttemptState::Conversing
+            || !active.attempt().disclosure_completed()
+        {
+            return Err(StoreError::InvalidInput);
+        }
+        Ok(Self {
+            tenant_id: lease.tenant_id.clone(),
+            attempt_id: lease.attempt_id.clone(),
+            expected_revision,
+            expected_generation: lease.execution_generation,
+            lease_owner: lease.lease_owner.to_string(),
+            lease_token_hash: lease.lease_token_hash.to_string(),
+            call_id: active.call_id().clone(),
+            channel_agent_session_id: active.channel_agent_session_id().clone(),
+        })
+    }
+}
+
+impl fmt::Debug for AdvanceActiveAttempt {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("AdvanceActiveAttempt")
+            .field("attempt_id", &self.attempt_id)
+            .field("expected_revision", &self.expected_revision)
+            .field("expected_generation", &self.expected_generation)
+            .field("lease_owner", &self.lease_owner)
+            .field("lease_token_hash", &"[REDACTED]")
+            .field("call_id", &self.call_id)
+            .field("channel_agent_session_id", &self.channel_agent_session_id)
+            .finish_non_exhaustive()
+    }
+}
+
 /// Append-only normalized event proposal.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AppendEvent {
@@ -782,6 +846,59 @@ impl AiOutboundStore {
                     &command.next_state.as_str(),
                     &terminal,
                     &command.disclosure_completed,
+                ],
+            )
+            .await
+            .map_err(|_| StoreError::DatabaseUnavailable)?
+            .ok_or(StoreError::LeaseStale)?;
+        positive_i64(row.try_get(0).map_err(|_| StoreError::StoredRowInvalid)?)
+    }
+
+    /// Persists the first active-call snapshot and both external authority identities atomically.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError::LeaseStale`] when any revision, generation, owner, token or expiry
+    /// fence differs from the active execution.
+    pub async fn advance_active_with_lease(
+        &self,
+        transaction: &Transaction<'_>,
+        command: &AdvanceActiveAttempt,
+    ) -> Result<u64, StoreError> {
+        if command.expected_revision == 0
+            || !valid_identifier(&command.lease_owner)
+            || !is_lowercase_sha256(&command.lease_token_hash)
+        {
+            return Err(StoreError::InvalidInput);
+        }
+        let expected_revision =
+            i64::try_from(command.expected_revision).map_err(|_| StoreError::InvalidInput)?;
+        let generation = i64::try_from(command.expected_generation.get())
+            .map_err(|_| StoreError::InvalidInput)?;
+        let row = transaction
+            .query_opt(
+                "UPDATE converact_outbound_call_attempts
+                 SET state = 'conversing',
+                     revision = revision + 1,
+                     disclosure_completed = TRUE,
+                     call_id = $7,
+                     channel_agent_session_id = $8,
+                     updated_at = transaction_timestamp()
+                 WHERE tenant_id = $1 AND id = $2 AND revision = $3
+                   AND execution_generation = $4 AND lease_owner = $5
+                   AND lease_token_hash = $6
+                   AND lease_expires_at > transaction_timestamp()
+                   AND call_id IS NULL AND channel_agent_session_id IS NULL
+                 RETURNING revision",
+                &[
+                    &command.tenant_id.as_str(),
+                    &command.attempt_id.as_str(),
+                    &expected_revision,
+                    &generation,
+                    &command.lease_owner,
+                    &command.lease_token_hash,
+                    &command.call_id.as_str(),
+                    &command.channel_agent_session_id.as_str(),
                 ],
             )
             .await

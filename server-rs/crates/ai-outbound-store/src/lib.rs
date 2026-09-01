@@ -9,7 +9,7 @@ pub use authoring::{
 };
 
 pub use postgres::{
-    AdvanceAttempt, AiOutboundStore, AppendEffectIntent, AppendEvent, AppendEventStatus,
-    AttemptLease, AttemptLeaseInput, ClaimedAttempt, PlanRetryAttempt, PlanRetryAttemptInput,
-    PlanRetryStatus, StoreConfig, StoreError,
+    AdvanceActiveAttempt, AdvanceAttempt, AiOutboundStore, AppendEffectIntent, AppendEvent,
+    AppendEventStatus, AttemptLease, AttemptLeaseInput, ClaimedAttempt, PlanRetryAttempt,
+    PlanRetryAttemptInput, PlanRetryStatus, StoreConfig, StoreError,
 };

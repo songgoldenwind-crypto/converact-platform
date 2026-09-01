@@ -122,10 +122,11 @@ mod tests {
     };
 
     use converact_ai_outbound_core::{
-        AgentLegBinding, AgentObservation, AgentReservation, AttemptCommand, CallAttempt,
-        CallObservation, ComplianceDecision, EffectIntent, OriginateCall, OutboundDialBinding,
-        OutboundDialBindingInput, PlayDisclosure, PortError, ReleaseComponentDigests, ReserveAgent,
-        StartConversation, TerminalAttemptCommit, TerminateCall,
+        ActiveAttemptExecution, AgentLegBinding, AgentObservation, AgentReservation,
+        AttemptCommand, CallAttempt, CallObservation, ComplianceDecision, EffectIntent,
+        OriginateCall, OutboundDialBinding, OutboundDialBindingInput, PlayDisclosure, PortError,
+        ReleaseComponentDigests, ReserveAgent, StartConversation, TerminalAttemptCommit,
+        TerminateCall,
     };
     use converact_contracts::health::{
         ConfigurationCheck, ConfigurationStatus, DatabaseCheck, DatabaseStatus, MigrationCheck,
@@ -286,6 +287,14 @@ mod tests {
 
         async fn persist_observation(&self, attempt: &CallAttempt) -> Result<(), PortError> {
             self.state.lock().unwrap().attempt = attempt.clone();
+            Ok(())
+        }
+
+        async fn persist_active_execution(
+            &self,
+            active: &ActiveAttemptExecution,
+        ) -> Result<(), PortError> {
+            self.state.lock().unwrap().attempt = active.attempt().clone();
             Ok(())
         }
     }

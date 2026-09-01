@@ -1,9 +1,14 @@
-use converact_ai_outbound_core::{AttemptCommand, CallAttempt, EffectIntent};
+use converact_ai_outbound_core::{
+    ActiveAttemptExecution, AttemptCommand, CallAttempt, EffectIntent,
+};
 use converact_ai_outbound_store::{
-    AdvanceAttempt, AppendEffectIntent, AttemptLease, AttemptLeaseInput, StoreError,
+    AdvanceActiveAttempt, AdvanceAttempt, AppendEffectIntent, AttemptLease, AttemptLeaseInput,
+    StoreError,
 };
 use converact_kernel_ids::TenantId;
-use converact_voice_agent_contracts::{CallAttemptId, ExecutionGeneration};
+use converact_voice_agent_contracts::{
+    CallAttemptId, CallId, ChannelAgentSessionId, ExecutionGeneration,
+};
 
 #[test]
 fn lease_authority_is_bounded_and_effect_intent_identity_is_deterministic() {
@@ -52,6 +57,33 @@ fn lease_and_effect_intent_reject_malformed_or_cross_attempt_authority() {
 }
 
 #[test]
+fn active_execution_binds_call_and_agent_session_to_the_exact_lease() {
+    let active = ActiveAttemptExecution::try_new(
+        conversing_attempt("attempt-001"),
+        CallId::parse("attempt-001").unwrap(),
+        ChannelAgentSessionId::parse("agent-session-001").unwrap(),
+    )
+    .unwrap();
+
+    let command = AdvanceActiveAttempt::try_from_execution(&lease(), &active).unwrap();
+    let debug = format!("{command:?}");
+    assert!(debug.contains("attempt-001"));
+    assert!(debug.contains("agent-session-001"));
+    assert!(!debug.contains(&"a".repeat(64)));
+
+    let other = ActiveAttemptExecution::try_new(
+        conversing_attempt("attempt-002"),
+        CallId::parse("attempt-002").unwrap(),
+        ChannelAgentSessionId::parse("agent-session-002").unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        AdvanceActiveAttempt::try_from_execution(&lease(), &other).unwrap_err(),
+        StoreError::InvalidInput
+    );
+}
+
+#[test]
 fn leased_store_sql_fences_reads_transitions_and_effect_intents() {
     let source = include_str!("../src/postgres.rs");
 
@@ -59,11 +91,15 @@ fn leased_store_sql_fences_reads_transitions_and_effect_intents() {
         "load_leased_attempt",
         "load_dial_binding_with_lease",
         "append_effect_intent_with_lease",
+        "advance_active_with_lease",
         "disclosure_completed",
         "execution_generation = $4",
         "lease_owner = $5",
         "lease_token_hash = $6",
         "lease_expires_at > transaction_timestamp()",
+        "call_id = $7",
+        "channel_agent_session_id = $8",
+        "call_id IS NULL AND channel_agent_session_id IS NULL",
         "INSERT INTO converact_outbound_attempt_events",
         "FROM converact_outbound_call_attempts AS attempt",
     ] {
@@ -90,4 +126,26 @@ fn lease() -> AttemptLease {
         lease_token_hash: "a".repeat(64),
     })
     .unwrap()
+}
+
+fn conversing_attempt(id: &str) -> CallAttempt {
+    CallAttempt::new(CallAttemptId::parse(id).unwrap())
+        .apply(AttemptCommand::Claim)
+        .unwrap()
+        .apply(AttemptCommand::ApproveCompliance)
+        .unwrap()
+        .apply(AttemptCommand::ReserveAgentCapacity)
+        .unwrap()
+        .apply(AttemptCommand::Dial)
+        .unwrap()
+        .apply(AttemptCommand::ObserveAnswered)
+        .unwrap()
+        .apply(AttemptCommand::AttachAgent)
+        .unwrap()
+        .apply(AttemptCommand::AwaitDisclosure)
+        .unwrap()
+        .apply(AttemptCommand::CompleteDisclosure)
+        .unwrap()
+        .apply(AttemptCommand::StartConversation)
+        .unwrap()
 }

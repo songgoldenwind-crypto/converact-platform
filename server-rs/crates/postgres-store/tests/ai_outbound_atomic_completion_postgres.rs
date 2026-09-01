@@ -1,8 +1,8 @@
 use std::{env, sync::Arc, time::Duration};
 
 use converact_ai_outbound_core::{
-    AttemptCompletionPort, CallAttempt, ComplianceDecision, CompliancePort, ComplianceReason,
-    PortFailureKind, TerminalAttemptCommit,
+    ActiveAttemptExecution, AttemptCompletionPort, AttemptStorePort, CallAttempt,
+    ComplianceDecision, CompliancePort, ComplianceReason, PortFailureKind, TerminalAttemptCommit,
 };
 use converact_ai_outbound_store::{AiOutboundStore, AttemptLease, AttemptLeaseInput, StoreConfig};
 use converact_kernel_ids::TenantId;
@@ -89,6 +89,46 @@ async fn terminal_attempt_and_post_call_job_commit_or_roll_back_together() {
     assert_eq!(rolled_back.get::<_, &str>(0), "conversing");
     assert_eq!(rolled_back.get::<_, i64>(1), 10);
     assert_eq!(rolled_back.get::<_, i64>(2), 0);
+}
+
+#[tokio::test]
+#[ignore = "requires an isolated disposable PostgreSQL database"]
+async fn started_attempt_persists_call_and_agent_session_in_one_fenced_transition() {
+    let database_url = env::var("CONVERACT_TEST_DATABASE_URL")
+        .expect("CONVERACT_TEST_DATABASE_URL must be an isolated disposable database");
+    let (admin, connection) = tokio_postgres::connect(&database_url, NoTls).await.unwrap();
+    tokio::spawn(async move { connection.await.unwrap() });
+    install_schema(&admin).await;
+    seed_disclosure_complete_attempt(&admin, "attempt-active", "lease-active").await;
+    let runtime =
+        Arc::new(PostgresRuntime::build(database_url.parse().unwrap(), NoTls, settings()).unwrap());
+    let store = leased_store(runtime, "attempt-active", "lease-active");
+    let active = ActiveAttemptExecution::try_new(
+        conversing_attempt("attempt-active"),
+        CallId::parse("attempt-active").unwrap(),
+        ChannelAgentSessionId::parse("session-attempt-active").unwrap(),
+    )
+    .unwrap();
+
+    store.persist_active_execution(&active).await.unwrap();
+
+    let row = admin
+        .query_one(
+            "SELECT state, revision, disclosure_completed, call_id, channel_agent_session_id
+             FROM converact_outbound_call_attempts
+             WHERE tenant_id = 'tenant-a' AND id = 'attempt-active'",
+            &[],
+        )
+        .await
+        .unwrap();
+    assert_eq!(row.get::<_, &str>(0), "conversing");
+    assert_eq!(row.get::<_, i64>(1), 10);
+    assert!(row.get::<_, bool>(2));
+    assert_eq!(row.get::<_, Option<&str>>(3), Some("attempt-active"));
+    assert_eq!(
+        row.get::<_, Option<&str>>(4),
+        Some("session-attempt-active")
+    );
 }
 
 async fn assert_compliance(runtime: Arc<PostgresRuntime>, admin: &tokio_postgres::Client) {
@@ -272,6 +312,24 @@ fn completed_attempt(attempt_id: &str) -> CallAttempt {
     attempt
 }
 
+fn conversing_attempt(attempt_id: &str) -> CallAttempt {
+    let mut attempt = CallAttempt::new(CallAttemptId::parse(attempt_id).unwrap());
+    for command in [
+        AttemptCommand::Claim,
+        AttemptCommand::ApproveCompliance,
+        AttemptCommand::ReserveAgentCapacity,
+        AttemptCommand::Dial,
+        AttemptCommand::ObserveAnswered,
+        AttemptCommand::AttachAgent,
+        AttemptCommand::AwaitDisclosure,
+        AttemptCommand::CompleteDisclosure,
+        AttemptCommand::StartConversation,
+    ] {
+        attempt = attempt.apply(command).unwrap();
+    }
+    attempt
+}
+
 async fn seed_attempt(admin: &tokio_postgres::Client, attempt_id: &str, owner: &str) {
     let attempt_number = if attempt_id == "attempt-001" {
         1_i32
@@ -302,6 +360,34 @@ async fn seed_attempt(admin: &tokio_postgres::Client, attempt_id: &str, owner: &
                 &"b".repeat(64),
                 &attempt_number,
             ],
+        )
+        .await
+        .unwrap();
+}
+
+async fn seed_disclosure_complete_attempt(
+    admin: &tokio_postgres::Client,
+    attempt_id: &str,
+    owner: &str,
+) {
+    admin
+        .execute(
+            "INSERT INTO converact_outbound_call_attempts (
+               tenant_id, id, campaign_id, campaign_contact_id, attempt_number,
+               interaction_id, agent_release_id, execution_generation, state,
+               idempotency_key, consent_id, recording_mode, retention_until,
+               lease_owner, lease_token_hash, lease_expires_at, revision,
+               disclosure_completed, dial_policy_revision, dial_policy_content_hash,
+               dial_destination, dial_timeout_secs, scheduled_for
+             ) VALUES (
+               'tenant-a', $1, 'campaign-001', 'contact-001', 1,
+               'interaction-active', 'release-001', 1, 'disclosure_pending',
+               'idempotency-active', 'consent-001', 'after_disclosure',
+               now() + interval '30 days', $2, repeat('a', 64),
+               now() + interval '5 minutes', 9, TRUE, 'dial-policy-001', repeat('b', 64),
+               '+8613800138000', 30, now()
+             )",
+            &[&attempt_id, &owner],
         )
         .await
         .unwrap();
