@@ -1,0 +1,92 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-09-01",
+  "evidence_class": [
+    "local_contract",
+    "pure_state_machine"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "commit": "cd99527b8bb04ad982d400d8f4df2fe220f84782",
+    "tree": "1b22c7d7ee1501dc5865a315830558ccfca6ab92"
+  },
+  "environment": {
+    "os": "Darwin 25.2.0 arm64",
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)"
+  },
+  "commands": [
+    {
+      "id": "speech_wire_contract",
+      "working_directory": "server-rs",
+      "command": "cargo test --locked -p converact-voice-agent-contracts --test speech_runtime_contract",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "id": "speech_session_aggregate",
+      "working_directory": "server-rs",
+      "command": "cargo test --locked -p converact-ai-outbound-core --test speech_session",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "id": "speech_contract_clippy",
+      "working_directory": "server-rs",
+      "command": "cargo clippy --locked -p converact-voice-agent-contracts --lib --test speech_runtime_contract -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "speech_core_clippy",
+      "working_directory": "server-rs",
+      "command": "cargo clippy --locked -p converact-ai-outbound-core --lib --test speech_session -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "exact_source_format",
+      "working_directory": ".",
+      "command": "rustfmt --edition 2024 --check server-rs/crates/voice-agent-contracts/src/id.rs server-rs/crates/voice-agent-contracts/src/speech.rs server-rs/crates/voice-agent-contracts/tests/speech_runtime_contract.rs server-rs/crates/ai-outbound-core/src/speech_session.rs server-rs/crates/ai-outbound-core/tests/speech_session.rs",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "repository_diff_check",
+      "working_directory": ".",
+      "command": "git diff --check",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "not_run": [
+    "durable_speech_session_effect_store",
+    "multi_worker_recovery",
+    "real_active_call",
+    "real_hf_speech_runtime",
+    "real_asr_llm_tts_provider",
+    "real_rustpbx_sip_pstn_rtp_srtp_media",
+    "response_plan_signature_verification",
+    "provider_event_and_tool_result_runtime",
+    "deployed_runtime",
+    "latency",
+    "quality",
+    "capacity",
+    "long_run",
+    "independent_code_review",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_read": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}

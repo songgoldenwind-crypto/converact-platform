@@ -23,21 +23,21 @@ Clippy.
 - Modify: `server-rs/crates/voice-agent-contracts/src/lib.rs`
 - Create: `server-rs/crates/voice-agent-contracts/tests/speech_runtime_contract.rs`
 
-- [ ] Add `AgentRunId`, `ChannelBindingId`, `SpeechSessionId` and `SpeechResponseId` through the
+- [x] Add `AgentRunId`, `ChannelBindingId`, `SpeechSessionId` and `SpeechResponseId` through the
   existing bounded identifier macro.
-- [ ] Define distinct positive `SpeechControlFence` and `ResponseFence` values so control and
+- [x] Define distinct positive `SpeechControlFence` and `ResponseFence` values so control and
   response authority cannot be accidentally interchanged.
-- [ ] Define `SpeechSessionBinding` with tenant, interaction, Agent run, speech session, channel,
+- [x] Define `SpeechSessionBinding` with tenant, interaction, Agent run, speech session, channel,
   session generation, media generation and control fence.
-- [ ] Define `ResponseLease` with response identity, context revision, lease generation, response
+- [x] Define `ResponseLease` with response identity, context revision, lease generation, response
   generation and response fence.
-- [ ] Define `PcmAudioFrame` accepting only 8/16/24/48 kHz, one or two channels, non-empty signed
+- [x] Define `PcmAudioFrame` accepting only 8/16/24/48 kHz, one or two channels, non-empty signed
   16-bit little-endian payloads up to 60 ms, positive sequence and a monotonic capture timestamp.
-- [ ] Define closed lifecycle, write-outcome and normalized event enums using lower snake case
+- [x] Define closed lifecycle, write-outcome and normalized event enums using lower snake case
   Serde values.
-- [ ] Test exact serialization plus rejection of zero fences, unsupported audio geometry,
+- [x] Test exact serialization plus rejection of zero fences, unsupported audio geometry,
   malformed payload sizes and oversized frames.
-- [ ] Run:
+- [x] Run:
   `cargo test --locked -p converact-voice-agent-contracts --test speech_runtime_contract`.
 
 ### Task 2: Implement the pure fenced session aggregate
@@ -48,16 +48,16 @@ Clippy.
 - Modify: `server-rs/crates/ai-outbound-core/src/lib.rs`
 - Create: `server-rs/crates/ai-outbound-core/tests/speech_session.rs`
 
-- [ ] Write a failing happy-path test for `prepared_blocked -> active -> response -> cancelled ->
+- [x] Write a failing happy-path test for `prepared_blocked -> active -> response -> cancelled ->
   closed`.
-- [ ] Write failing tests proving an old control fence cannot commit, write, create, cancel or
+- [x] Write failing tests proving an old control fence cannot commit, write, create, cancel or
   close and an old response fence cannot cancel the current response.
-- [ ] Write a failing test proving audio sequence rollback is rejected, bounded queue overflow is
+- [x] Write a failing test proving audio sequence rollback is rejected, bounded queue overflow is
   reported as `dropped_overflow`, and a closed session returns `closed` without reviving state.
-- [ ] Implement `SpeechSession` as a pure aggregate with one optional current response and one last
+- [x] Implement `SpeechSession` as a pure aggregate with one optional current response and one last
   accepted audio sequence; do not add a global registry, background task, allocation per packet or
   provider-specific type.
-- [ ] Run:
+- [x] Run:
   `cargo test --locked -p converact-ai-outbound-core --test speech_session`.
 
 ### Task 3: Verify and record the local contract slice
@@ -67,8 +67,8 @@ Clippy.
 - Create: `architecture-foundation/ai-outbound/evidence/r1-speech-runtime-contract/README.md`
 - Create: `architecture-foundation/ai-outbound/evidence/r1-speech-runtime-contract/verification.json`
 
-- [ ] Run the two precise test targets and scoped Clippy with warnings denied.
-- [ ] Run exact-file format checks and `git diff --check` without formatting unrelated modules.
-- [ ] Record only observed local results; keep physical PostgreSQL, Active Call, RustPBX,
+- [x] Run the two precise test targets and scoped Clippy with warnings denied.
+- [x] Run exact-file format checks and `git diff --check` without formatting unrelated modules.
+- [x] Record only observed local results; keep physical PostgreSQL, Active Call, RustPBX,
   SIP/PSTN/media, HF/ASR/LLM/TTS Providers, latency, capacity and production as `not_run`.
-- [ ] Commit source/tests first, then commit the evidence separately with exact-file staging.
+- [x] Commit source/tests first, then commit the evidence separately with exact-file staging.
