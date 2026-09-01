@@ -3715,6 +3715,16 @@ CREATE TABLE IF NOT EXISTS converact_active_call_event_sessions (
   agent_release_id TEXT NOT NULL CHECK (length(agent_release_id) BETWEEN 1 AND 255),
   channel_agent_session_id TEXT NOT NULL CHECK (length(channel_agent_session_id) BETWEEN 1 AND 255),
   execution_generation INTEGER NOT NULL CHECK (execution_generation > 0),
+  customer_track_id TEXT CHECK (
+    customer_track_id IS NULL OR length(customer_track_id) BETWEEN 1 AND 255
+  ),
+  call_started_at_ms INTEGER CHECK (
+    call_started_at_ms IS NULL OR call_started_at_ms BETWEEN 1 AND 9007199254740991
+  ),
+  language TEXT CHECK (language IS NULL OR length(language) BETWEEN 2 AND 35),
+  retention_policy_ref TEXT CHECK (
+    retention_policy_ref IS NULL OR length(retention_policy_ref) BETWEEN 1 AND 255
+  ),
   last_received_cursor INTEGER NOT NULL DEFAULT 0 CHECK (last_received_cursor >= 0),
   last_applied_cursor INTEGER NOT NULL DEFAULT 0 CHECK (
     last_applied_cursor >= 0 AND last_applied_cursor <= last_received_cursor
@@ -3734,6 +3744,11 @@ CREATE TABLE IF NOT EXISTS converact_active_call_event_sessions (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (tenant_id, interaction_id, execution_generation),
   UNIQUE (tenant_id, channel_agent_session_id, execution_generation),
+  CHECK (
+    (customer_track_id IS NULL) = (call_started_at_ms IS NULL)
+    AND (customer_track_id IS NULL) = (language IS NULL)
+    AND (customer_track_id IS NULL) = (retention_policy_ref IS NULL)
+  ),
   CHECK (
     (status = 'active' AND reconcile_reason IS NULL AND (
       terminal_cursor IS NULL OR terminal_cursor > last_applied_cursor

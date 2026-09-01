@@ -42,6 +42,19 @@ SELECT public.converact_active_call_event_require_reconcile(
   $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 ) AS decision";
 
+const BIND_MEDIA_SQL: &str = "
+SELECT public.converact_active_call_event_bind_media(
+  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+) AS decision";
+
+const LOAD_MEDIA_BINDING_SQL: &str = "
+SELECT contract_schema_version, campaign_id, campaign_contact_id, call_attempt_id, call_id,
+       agent_release_id, channel_agent_session_id, customer_track_id, call_started_at_ms,
+       language, retention_policy_ref
+FROM public.converact_active_call_event_sessions
+WHERE tenant_id = $1 AND interaction_id = $2 AND execution_generation = $3
+FOR SHARE";
+
 /// Durable lifecycle read from one exact Active Call session generation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PostgresActiveCallEventStatus {
@@ -75,6 +88,56 @@ pub enum PostgresActiveCallEventAppendDecision {
     Appended,
     ReplayedPending,
     ReplayedApplied,
+}
+
+/// Exact classification of an idempotent customer-media binding.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PostgresActiveCallMediaBindDecision {
+    Bound,
+    Replayed,
+}
+
+/// Durable customer-input source and transcript metadata for one session generation.
+#[derive(Clone, Eq, PartialEq)]
+pub struct PostgresActiveCallMediaBinding {
+    customer_track_id: Box<str>,
+    call_started_at_ms: u64,
+    language: Box<str>,
+    retention_policy_ref: Box<str>,
+}
+
+impl PostgresActiveCallMediaBinding {
+    #[must_use]
+    pub fn customer_track_id(&self) -> &str {
+        &self.customer_track_id
+    }
+
+    #[must_use]
+    pub const fn call_started_at_ms(&self) -> u64 {
+        self.call_started_at_ms
+    }
+
+    #[must_use]
+    pub fn language(&self) -> &str {
+        &self.language
+    }
+
+    #[must_use]
+    pub fn retention_policy_ref(&self) -> &str {
+        &self.retention_policy_ref
+    }
+}
+
+impl fmt::Debug for PostgresActiveCallMediaBinding {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("PostgresActiveCallMediaBinding")
+            .field("has_customer_track", &true)
+            .field("call_started_at_ms", &self.call_started_at_ms)
+            .field("language", &self.language)
+            .field("retention_policy_ref", &self.retention_policy_ref)
+            .finish_non_exhaustive()
+    }
 }
 
 /// One validated pending event loaded in cursor order.
@@ -435,6 +498,99 @@ impl PostgresActiveCallEventStore {
             .await
             .map_err(map_transaction_error)
     }
+
+    /// Idempotently freezes the first customer media source for one exact session generation.
+    ///
+    /// The database resolves language and retention from the immutable Release and Attempt; callers
+    /// cannot supply or override either value.
+    ///
+    /// # Errors
+    ///
+    /// Rejects malformed media facts, authority drift, conflicting replay and Store failures.
+    pub async fn bind_media(
+        &self,
+        context: &EnvelopeContext,
+        customer_track_id: &str,
+        call_started_at_ms: u64,
+    ) -> Result<PostgresActiveCallMediaBindDecision, PostgresActiveCallEventStoreError> {
+        if !valid_track_id(customer_track_id) || call_started_at_ms > 9_007_199_254_740_991 {
+            return Err(invalid_input());
+        }
+        let authority = ActiveCallEventAuthority::try_from(context)?;
+        let customer_track_id = customer_track_id.to_owned();
+        let call_started_at_ms = positive_cursor(call_started_at_ms)?;
+        let tenant = authority.tenant.clone();
+        self.runtime
+            .with_tenant_transaction(&tenant, move |transaction| {
+                Box::pin(async move {
+                    let row = transaction
+                        .query_one(
+                            BIND_MEDIA_SQL,
+                            &[
+                                &authority.tenant_id,
+                                &authority.contract_schema_version,
+                                &authority.interaction_id,
+                                &authority.campaign_id,
+                                &authority.campaign_contact_id,
+                                &authority.call_attempt_id,
+                                &authority.call_id,
+                                &authority.agent_release_id,
+                                &authority.channel_agent_session_id,
+                                &authority.execution_generation,
+                                &customer_track_id,
+                                &call_started_at_ms,
+                            ],
+                        )
+                        .await
+                        .map_err(|_| unavailable())?;
+                    match row
+                        .try_get::<_, String>("decision")
+                        .map_err(|_| invalid_snapshot())?
+                        .as_str()
+                    {
+                        "bound" => Ok(PostgresActiveCallMediaBindDecision::Bound),
+                        "replayed" => Ok(PostgresActiveCallMediaBindDecision::Replayed),
+                        _ => Err(invalid_snapshot()),
+                    }
+                })
+            })
+            .await
+            .map_err(map_transaction_error)
+    }
+
+    /// Loads and revalidates the complete media binding for one exact session generation.
+    ///
+    /// # Errors
+    ///
+    /// Rejects partial metadata, authority drift and malformed stored values.
+    pub async fn load_media_binding(
+        &self,
+        context: &EnvelopeContext,
+    ) -> Result<Option<PostgresActiveCallMediaBinding>, PostgresActiveCallEventStoreError> {
+        let authority = ActiveCallEventAuthority::try_from(context)?;
+        let tenant = authority.tenant.clone();
+        self.runtime
+            .with_tenant_transaction(&tenant, move |transaction| {
+                Box::pin(async move {
+                    transaction
+                        .query_opt(
+                            LOAD_MEDIA_BINDING_SQL,
+                            &[
+                                &authority.tenant_id,
+                                &authority.interaction_id,
+                                &authority.execution_generation,
+                            ],
+                        )
+                        .await
+                        .map_err(|_| unavailable())?
+                        .map(|row| decode_media_binding(&authority, &row))
+                        .transpose()
+                        .map(Option::flatten)
+                })
+            })
+            .await
+            .map_err(map_transaction_error)
+    }
 }
 
 impl fmt::Debug for PostgresActiveCallEventStore {
@@ -517,6 +673,45 @@ fn validate_stored_authority(
         Ok(())
     } else {
         Err(invalid_authority())
+    }
+}
+
+fn decode_media_binding(
+    authority: &ActiveCallEventAuthority,
+    row: &Row,
+) -> Result<Option<PostgresActiveCallMediaBinding>, PostgresActiveCallEventStoreError> {
+    validate_stored_authority(authority, row)?;
+    let customer_track_id: Option<String> = row
+        .try_get("customer_track_id")
+        .map_err(|_| invalid_snapshot())?;
+    let call_started_at_ms: Option<i64> = row
+        .try_get("call_started_at_ms")
+        .map_err(|_| invalid_snapshot())?;
+    let language: Option<String> = row.try_get("language").map_err(|_| invalid_snapshot())?;
+    let retention_policy_ref: Option<String> = row
+        .try_get("retention_policy_ref")
+        .map_err(|_| invalid_snapshot())?;
+    match (
+        customer_track_id,
+        call_started_at_ms,
+        language,
+        retention_policy_ref,
+    ) {
+        (None, None, None, None) => Ok(None),
+        (Some(track), Some(started), Some(language), Some(retention))
+            if valid_track_id(&track)
+                && (1..=9_007_199_254_740_991).contains(&started)
+                && valid_language(&language)
+                && valid_retention_reference(&retention) =>
+        {
+            Ok(Some(PostgresActiveCallMediaBinding {
+                customer_track_id: track.into(),
+                call_started_at_ms: u64::try_from(started).map_err(|_| invalid_snapshot())?,
+                language: language.into(),
+                retention_policy_ref: retention.into(),
+            }))
+        }
+        _ => Err(invalid_snapshot()),
     }
 }
 
@@ -679,6 +874,30 @@ fn lowercase_sha256(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn valid_track_id(value: &str) -> bool {
+    bounded_token(value, 255, b"._:-")
+}
+
+fn valid_language(value: &str) -> bool {
+    bounded_token(value, 35, b"_-") && value.len() >= 2
+}
+
+fn valid_retention_reference(value: &str) -> bool {
+    bounded_token(value, 255, b"._:/-")
+}
+
+fn bounded_token(value: &str, maximum: usize, punctuation: &[u8]) -> bool {
+    let bytes = value.as_bytes();
+    let Some((&first, remainder)) = bytes.split_first() else {
+        return false;
+    };
+    bytes.len() <= maximum
+        && first.is_ascii_alphanumeric()
+        && remainder
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || punctuation.contains(byte))
 }
 
 fn durable_cursor(value: u64) -> Result<i64, PostgresActiveCallEventStoreError> {

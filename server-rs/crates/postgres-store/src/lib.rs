@@ -24,7 +24,8 @@ mod voice_agent;
 pub use active_call_event::{
     PostgresActiveCallEventAppendDecision, PostgresActiveCallEventReconcileReason,
     PostgresActiveCallEventSnapshot, PostgresActiveCallEventStatus, PostgresActiveCallEventStore,
-    PostgresActiveCallEventStoreError, PostgresStoredActiveCallEvent,
+    PostgresActiveCallEventStoreError, PostgresActiveCallMediaBindDecision,
+    PostgresActiveCallMediaBinding, PostgresStoredActiveCallEvent,
 };
 pub use ai_outbound::{PostgresAiOutboundAttemptStore, PostgresLeasedAttemptStore};
 pub use ai_outbound_compliance::PostgresAiOutboundCompliancePort;
