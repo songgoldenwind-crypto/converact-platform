@@ -36,6 +36,8 @@ fn rust_hs256_verifier_replays_the_active_typescript_contract() {
             assert_eq!(identity.tenant_id(), "tenant-1");
             assert_eq!(identity.identity_id(), "user-1");
             assert_eq!(identity.role(), PlatformIdentityRole::Operator);
+            assert!(identity.has_capability("platform.api"));
+            assert!(!identity.has_capability("voice_agent.campaign.manage"));
             assert_eq!(identity.expires_at_epoch_seconds(), 4_102_444_800);
             assert_eq!(
                 format!("{identity:?}"),

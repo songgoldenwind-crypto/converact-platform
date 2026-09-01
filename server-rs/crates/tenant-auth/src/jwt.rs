@@ -7,8 +7,8 @@ use serde_json::value::RawValue;
 
 use super::{
     AccessRequest, DenialReason, JS_MAX_SAFE_INTEGER_F64, JsNonNegativeSafeInteger, JsText,
-    PolicyClaims, VerifiedPlatformIdentityClaims, bounded_string_set, bounded_text,
-    evaluate_platform_access, non_negative_safe_integer, positive_safe_integer,
+    MAX_TEXT_UTF16_UNITS, PolicyClaims, VerifiedPlatformIdentityClaims, bounded_string_set,
+    bounded_text, evaluate_platform_access, non_negative_safe_integer, positive_safe_integer,
 };
 
 const MAX_PLATFORM_TOKEN_BYTES: usize = 65_536;
@@ -94,6 +94,7 @@ pub struct AuthenticatedPlatformIdentity {
     tenant_id: Box<str>,
     identity_id: Box<str>,
     role: PlatformIdentityRole,
+    capabilities: Box<[Box<str>]>,
     expires_at_epoch_seconds: i64,
 }
 
@@ -111,6 +112,17 @@ impl AuthenticatedPlatformIdentity {
     #[must_use]
     pub const fn role(&self) -> PlatformIdentityRole {
         self.role
+    }
+
+    /// Returns whether the signed, policy-validated identity contains one exact capability.
+    #[must_use]
+    pub fn has_capability(&self, capability: &str) -> bool {
+        !capability.is_empty()
+            && capability.len() <= MAX_TEXT_UTF16_UNITS
+            && self
+                .capabilities
+                .iter()
+                .any(|candidate| candidate.as_ref() == capability)
     }
 
     #[must_use]
@@ -189,6 +201,13 @@ impl PlatformJwtPolicy {
             .identity_id
             .to_unicode_string()
             .ok_or(PlatformTokenVerificationError::ClaimsInvalid)?;
+        let capabilities = payload
+            .capabilities
+            .iter()
+            .map(|capability| capability.to_unicode_string().map(Into::into))
+            .collect::<Option<Vec<Box<str>>>>()
+            .ok_or(PlatformTokenVerificationError::ClaimsInvalid)?
+            .into_boxed_slice();
         let expires_at_epoch_seconds = payload.exp.value();
         let claims = VerifiedPlatformIdentityClaims(payload.into_policy_claims(tenant_id));
         let request = AccessRequest {
@@ -209,6 +228,7 @@ impl PlatformJwtPolicy {
             tenant_id: tenant_text.into(),
             identity_id: identity_text.into(),
             role,
+            capabilities,
             expires_at_epoch_seconds,
         })
     }
