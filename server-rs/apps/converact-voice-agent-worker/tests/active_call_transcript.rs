@@ -1,5 +1,5 @@
 use std::sync::{
-    Mutex,
+    Arc, Mutex,
     atomic::{AtomicUsize, Ordering},
 };
 
@@ -14,12 +14,13 @@ use converact_voice_agent_contracts::{
 use converact_voice_agent_worker::{
     ActiveCallEventProcessingError, ActiveCallTranscriptBinding, ActiveCallTranscriptBindingInput,
     ActiveCallTranscriptBindingPort, ActiveCallTranscriptDurabilityPort,
-    ActiveCallTranscriptIngestError, ActiveCallTranscriptProjectionPort,
-    ActiveCallUnderstandingEventOutcome, ActiveCallUnderstandingEventProcessor,
-    FinalTranscriptUnderstandingError, FinalTranscriptUnderstandingPort,
-    TranscriptUnderstandingAppendReceipt, TranscriptUnderstandingDisposition,
-    TranscriptUnderstandingHistoryPort, TranscriptUnderstandingSourceError,
-    append_active_call_final_transcript, process_active_call_understanding_event,
+    ActiveCallTranscriptIngestError, ActiveCallTranscriptIngestProcessor,
+    ActiveCallTranscriptProjectionPort, ActiveCallUnderstandingEventOutcome,
+    ActiveCallUnderstandingEventProcessor, FinalTranscriptUnderstandingError,
+    FinalTranscriptUnderstandingPort, TranscriptUnderstandingAppendReceipt,
+    TranscriptUnderstandingDisposition, TranscriptUnderstandingHistoryPort,
+    TranscriptUnderstandingSourceError, append_active_call_final_transcript,
+    process_active_call_understanding_event,
 };
 
 #[test]
@@ -310,6 +311,47 @@ async fn shared_processor_binds_media_then_resolves_the_exact_call_for_each_fina
     assert_eq!(bindings.load_count.load(Ordering::Relaxed), 1);
     assert_eq!(store.append_count.load(Ordering::Relaxed), 1);
     assert_eq!(understanding.calls.load(Ordering::Relaxed), 1);
+}
+
+#[tokio::test]
+async fn durable_ingest_projection_appends_without_requiring_a_model_runtime() {
+    let authority = context("session-001");
+    let bindings = Arc::new(BindingStore::default());
+    let store = Arc::new(CoordinatorStore::new(
+        TranscriptUnderstandingDisposition::AppendedCurrent,
+    ));
+    let projection =
+        ActiveCallTranscriptIngestProcessor::new(Arc::clone(&bindings), Arc::clone(&store));
+    let media_ready = normalize_event(
+        &AdapterContext::new(authority.clone()),
+        r#"{"event":"mediaReady","trackId":"customer-track","timestamp":1000}"#,
+    )
+    .unwrap();
+
+    projection
+        .project_transcript_event(&authority, &media_ready)
+        .await
+        .unwrap();
+    projection
+        .project_transcript_event(
+            &authority,
+            &final_event(
+                &authority,
+                "customer-track",
+                1_500,
+                None,
+                0,
+                "只先持久化实时转写",
+                false,
+                None,
+            ),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(bindings.load_count.load(Ordering::Relaxed), 1);
+    assert_eq!(store.append_count.load(Ordering::Relaxed), 1);
+    assert_eq!(store.history_count.load(Ordering::Relaxed), 0);
 }
 
 #[tokio::test]

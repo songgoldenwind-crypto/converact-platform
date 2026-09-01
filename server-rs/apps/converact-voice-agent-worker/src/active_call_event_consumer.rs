@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, error::Error, fmt, future::Future};
+use std::{collections::VecDeque, error::Error, fmt, future::Future, sync::Arc};
 
 use converact_active_call_adapter::{
     ActiveCallClient, ActiveCallEventCursor, ActiveCallEventKind, ActiveCallEventStream,
@@ -13,7 +13,7 @@ use crate::{
     ActiveCallTranscriptBinding, ActiveCallTranscriptDurabilityPort,
     ActiveCallUnderstandingEventError, FinalTranscriptUnderstandingPort, ShutdownToken,
     TranscriptUnderstandingAppendReceipt, TranscriptUnderstandingHistoryPort,
-    process_active_call_understanding_event,
+    append_active_call_final_transcript, process_active_call_understanding_event,
 };
 
 const MAX_EVENT_BYTES: usize = 131_072;
@@ -420,6 +420,67 @@ pub trait ActiveCallTranscriptBindingPort: Sync {
     > + Send;
 }
 
+/// Durable transcript-only projection used when post-turn model processing is independently wired.
+pub struct ActiveCallTranscriptIngestProcessor<B, D> {
+    bindings: Arc<B>,
+    store: Arc<D>,
+}
+
+impl<B, D> ActiveCallTranscriptIngestProcessor<B, D> {
+    #[must_use]
+    pub const fn new(bindings: Arc<B>, store: Arc<D>) -> Self {
+        Self { bindings, store }
+    }
+}
+
+impl<B, D> ActiveCallTranscriptProjectionPort for ActiveCallTranscriptIngestProcessor<B, D>
+where
+    B: ActiveCallTranscriptBindingPort + Send,
+    D: ActiveCallTranscriptDurabilityPort + Send + Sync,
+{
+    async fn project_transcript_event(
+        &self,
+        context: &EnvelopeContext,
+        event: &NormalizedEvent,
+    ) -> Result<(), ActiveCallEventProcessingError> {
+        if context != event.authority() {
+            return Err(ActiveCallEventProcessingError::new(
+                "active_call_transcript_projection_authority_invalid",
+            ));
+        }
+        if let NormalizedEvent::MediaReady {
+            track_id,
+            timestamp_ms,
+            ..
+        } = event
+        {
+            return self
+                .bindings
+                .bind_media(context, track_id, *timestamp_ms)
+                .await;
+        }
+        if !matches!(event, NormalizedEvent::TranscriptFinal { .. }) {
+            return Err(ActiveCallEventProcessingError::new(
+                "active_call_transcript_projection_event_invalid",
+            ));
+        }
+        let binding = self.bindings.load_binding(context).await?.ok_or_else(|| {
+            ActiveCallEventProcessingError::new("active_call_transcript_binding_not_available")
+        })?;
+        append_active_call_final_transcript(
+            self.store.as_ref(),
+            &binding,
+            event,
+            context.execution_generation(),
+        )
+        .await
+        .map(|_| ())
+        .map_err(|_| {
+            ActiveCallEventProcessingError::new("active_call_transcript_projection_failed")
+        })
+    }
+}
+
 /// Required projection for media-binding and final-transcript events.
 pub trait ActiveCallTranscriptProjectionPort: Sync {
     fn project_transcript_event(
@@ -438,23 +499,39 @@ pub trait ActiveCallToolProjectionPort: Sync {
     ) -> impl Future<Output = Result<(), ActiveCallEventProcessingError>> + Send;
 }
 
-/// Closed event router: effectful events require one explicit projection before acknowledgement.
-pub struct ActiveCallEventProjectionRouter<'a, T, K> {
-    transcripts: &'a T,
-    tools: &'a K,
+/// Explicit fail-closed Tool projection for Releases that have no configured Tool Broker.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RejectUnconfiguredActiveCallTools;
+
+impl ActiveCallToolProjectionPort for RejectUnconfiguredActiveCallTools {
+    async fn project_tool_event(
+        &self,
+        _context: &EnvelopeContext,
+        _event: &NormalizedEvent,
+    ) -> Result<(), ActiveCallEventProcessingError> {
+        Err(ActiveCallEventProcessingError::new(
+            "active_call_tool_projection_not_configured",
+        ))
+    }
 }
 
-impl<'a, T, K> ActiveCallEventProjectionRouter<'a, T, K> {
+/// Closed event router: effectful events require one explicit projection before acknowledgement.
+pub struct ActiveCallEventProjectionRouter<T, K> {
+    transcripts: Arc<T>,
+    tools: Arc<K>,
+}
+
+impl<T, K> ActiveCallEventProjectionRouter<T, K> {
     #[must_use]
-    pub const fn new(transcripts: &'a T, tools: &'a K) -> Self {
+    pub const fn new(transcripts: Arc<T>, tools: Arc<K>) -> Self {
         Self { transcripts, tools }
     }
 }
 
-impl<T, K> ActiveCallEventProcessorPort for ActiveCallEventProjectionRouter<'_, T, K>
+impl<T, K> ActiveCallEventProcessorPort for ActiveCallEventProjectionRouter<T, K>
 where
-    T: ActiveCallTranscriptProjectionPort,
-    K: ActiveCallToolProjectionPort,
+    T: ActiveCallTranscriptProjectionPort + Send,
+    K: ActiveCallToolProjectionPort + Send,
 {
     async fn process(
         &self,

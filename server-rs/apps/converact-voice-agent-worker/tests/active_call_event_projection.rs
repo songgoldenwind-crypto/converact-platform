@@ -1,4 +1,7 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 
 use converact_active_call_adapter::{AdapterContext, NormalizedEvent, normalize_event};
 use converact_voice_agent_contracts::{
@@ -9,14 +12,15 @@ use converact_voice_agent_contracts::{
 use converact_voice_agent_worker::{
     ActiveCallEventProcessingError, ActiveCallEventProcessorPort, ActiveCallEventProjectionRouter,
     ActiveCallToolProjectionPort, ActiveCallTranscriptProjectionPort,
+    RejectUnconfiguredActiveCallTools,
 };
 
 #[tokio::test]
 async fn router_sends_each_effectful_event_to_exactly_one_required_projection() {
     let authority = context("attempt-001");
-    let transcripts = TranscriptProjection::default();
-    let tools = ToolProjection::default();
-    let router = ActiveCallEventProjectionRouter::new(&transcripts, &tools);
+    let transcripts = Arc::new(TranscriptProjection::default());
+    let tools = Arc::new(ToolProjection::default());
+    let router = ActiveCallEventProjectionRouter::new(Arc::clone(&transcripts), Arc::clone(&tools));
 
     for wire in [
         r#"{"event":"mediaReady","trackId":"customer-track","timestamp":1000}"#,
@@ -40,6 +44,24 @@ async fn router_sends_each_effectful_event_to_exactly_one_required_projection() 
 
     assert_eq!(transcripts.calls.load(Ordering::Relaxed), 2);
     assert_eq!(tools.calls.load(Ordering::Relaxed), 1);
+}
+
+#[tokio::test]
+async fn unconfigured_tool_projection_fails_closed_instead_of_acknowledging_the_event() {
+    let authority = context("attempt-001");
+    let router = ActiveCallEventProjectionRouter::new(
+        Arc::new(TranscriptProjection::default()),
+        Arc::new(RejectUnconfiguredActiveCallTools),
+    );
+    let event = normalize_event(
+        &AdapterContext::new(authority.clone()),
+        r#"{"event":"functionCall","trackId":"customer-track","timestamp":1300,"callId":"tool-call-001","name":"customer.lookup","arguments":"{\"customer_id\":\"c-1\"}"}"#,
+    )
+    .unwrap();
+
+    let error = router.process(&authority, &event).await.unwrap_err();
+
+    assert_eq!(error.code(), "active_call_tool_projection_not_configured");
 }
 
 #[derive(Default)]
