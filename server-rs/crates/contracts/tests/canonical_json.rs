@@ -1,7 +1,7 @@
 use converact_contracts::{
     CanonicalJsonError, CanonicalKeyOrder, canonical_json, canonical_json_with_max_bytes,
     canonical_json_with_max_bytes_and_key_order, canonical_sha256, canonical_sha256_with_max_bytes,
-    format_canonical_timestamp_ms, parse_canonical_timestamp_ms,
+    format_canonical_timestamp_ms, parse_canonical_timestamp_ms, sha256_bytes,
 };
 #[test]
 fn canonical_json_and_sha256_replay_the_active_typescript_contract_fixture() {
@@ -66,6 +66,14 @@ fn canonical_json_is_independent_of_object_insertion_order() {
 
     assert_eq!(canonical_json(&left), canonical_json(&right));
     assert_eq!(canonical_sha256(&left), canonical_sha256(&right));
+}
+
+#[test]
+fn raw_byte_hash_matches_the_sha256_wire_digest() {
+    assert_eq!(
+        sha256_bytes(b"abc"),
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    );
 }
 
 #[test]

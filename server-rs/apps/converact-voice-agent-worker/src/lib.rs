@@ -2,6 +2,7 @@
 
 #![forbid(unsafe_code)]
 
+mod acoustic_emotion_classifier;
 mod active_call_channel_agent;
 mod active_call_handoff;
 mod active_call_intent;
@@ -41,6 +42,13 @@ mod understanding_postgres;
 mod understanding_runtime;
 mod worker;
 
+pub use acoustic_emotion_classifier::{
+    AcousticEmotionCandidateOutput, AcousticEmotionClassifierArtifactInput,
+    AcousticEmotionClassifierOutput, AcousticEmotionClassifierPort,
+    AcousticEmotionClassifierPortError, AcousticEmotionClassifierProvider,
+    AcousticEmotionClassifierProviderError, AcousticEmotionClassifierRequest, AudioEvidenceWindow,
+    AudioEvidenceWindowError, AudioEvidenceWindowInput,
+};
 pub use active_call_channel_agent::{
     ActiveCallChannelAgent, ActiveCallChannelAgentConfig, ActiveCallChannelAgentConfigError,
 };

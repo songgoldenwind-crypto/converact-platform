@@ -109,6 +109,15 @@ pub fn canonical_sha256(value: &Value) -> Result<String, CanonicalJsonError> {
     canonical_sha256_with_max_bytes(value, MAX_CANONICAL_BYTES)
 }
 
+/// Returns the lowercase SHA-256 digest of exact opaque bytes.
+///
+/// This helper does not apply canonical JSON encoding and is intended for already-framed binary
+/// evidence such as normalized PCM.
+#[must_use]
+pub fn sha256_bytes(bytes: &[u8]) -> String {
+    hex::encode(Sha256::digest(bytes))
+}
+
 /// Returns a lowercase SHA-256 under an explicit object-key-order contract.
 ///
 /// # Errors
