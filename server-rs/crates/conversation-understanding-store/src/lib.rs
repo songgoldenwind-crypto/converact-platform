@@ -15,6 +15,8 @@ pub use model::{
     AppendAction, AppendUnderstandingRecord, RecordPresence, UnderstandingDomain,
     UnderstandingHead, UnderstandingHeadExpectation, UnderstandingHeadExpectationInput,
     UnderstandingHeadInput, UnderstandingRecord, UnderstandingRecordInput, UnderstandingRecordKind,
-    UnderstandingStoreError,
+    UnderstandingStoreError, UnderstandingTurnBatch,
 };
-pub use postgres::{AppendOutcome, StoredUnderstandingHead, UnderstandingSqlStore};
+pub use postgres::{
+    AppendOutcome, StoredUnderstandingHead, UnderstandingSqlStore, UnderstandingTurnAppendOutcome,
+};

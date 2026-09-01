@@ -15,6 +15,7 @@ converact-ai-outbound-store = { path = "../ai-outbound-store" }
 converact-contracts = { path = "../contracts" }
 converact-conversation-result-core = { path = "../conversation-result-core" }
 converact-conversation-result-store = { path = "../conversation-result-store" }
+converact-conversation-understanding-store = { path = "../conversation-understanding-store" }
 converact-event-log = { path = "../event-log" }
 converact-idempotency = { path = "../idempotency" }
 converact-kernel-ids = { path = "../kernel-ids" }

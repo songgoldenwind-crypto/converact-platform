@@ -10,7 +10,7 @@ use tokio_postgres::{Row, Transaction, error::SqlState};
 use crate::{
     AppendAction, AppendUnderstandingRecord, RecordPresence, UnderstandingDomain,
     UnderstandingHead, UnderstandingHeadInput, UnderstandingRecord, UnderstandingRecordInput,
-    UnderstandingRecordKind, UnderstandingStoreError,
+    UnderstandingRecordKind, UnderstandingStoreError, UnderstandingTurnBatch,
 };
 
 /// Durable outcome of one atomic append and optional latest-head transition.
@@ -23,6 +23,46 @@ pub enum AppendOutcome {
     HeadSuperseded { current_head_revision: u64 },
 }
 
+/// Whole-transaction result for one complete four-domain understanding graph.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum UnderstandingTurnAppendOutcome {
+    Applied,
+    Replayed,
+    Superseded,
+}
+
+impl UnderstandingTurnAppendOutcome {
+    /// Classifies four per-domain results before the caller-owned transaction may commit.
+    ///
+    /// # Errors
+    ///
+    /// Rejects impossible record-only results and any stale graph mixed with a write, causing the
+    /// transaction owner to roll back earlier domain advances.
+    pub fn classify(outcomes: [AppendOutcome; 4]) -> Result<Self, UnderstandingStoreError> {
+        let mut wrote = false;
+        let mut superseded = false;
+        for outcome in outcomes {
+            match outcome {
+                AppendOutcome::HeadAdvanced { .. } => wrote = true,
+                AppendOutcome::HeadReplay { .. } => {}
+                AppendOutcome::HeadSuperseded { .. } => superseded = true,
+                AppendOutcome::RecordOnlyAppended | AppendOutcome::RecordOnlyReplay => {
+                    return Err(UnderstandingStoreError::StoredRowInvalid);
+                }
+            }
+        }
+        if wrote && superseded {
+            Err(UnderstandingStoreError::StaleFence)
+        } else if wrote {
+            Ok(Self::Applied)
+        } else if superseded {
+            Ok(Self::Superseded)
+        } else {
+            Ok(Self::Replayed)
+        }
+    }
+}
+
 /// Latest durable head plus the exact immutable record to which it points.
 #[derive(Clone, Eq, PartialEq)]
 pub struct StoredUnderstandingHead {
@@ -31,6 +71,27 @@ pub struct StoredUnderstandingHead {
 }
 
 impl StoredUnderstandingHead {
+    /// Creates one validated current-head/record pair for an adapter boundary.
+    ///
+    /// # Errors
+    ///
+    /// Rejects authority, kind, identity, hash, turn or clock drift between the head and record.
+    pub fn try_new(
+        head: UnderstandingHead,
+        record: UnderstandingRecord,
+    ) -> Result<Self, UnderstandingStoreError> {
+        if head.context() != record.context()
+            || head.kind() != record.kind()
+            || head.record_id() != record.record_id()
+            || head.payload_hash() != record.payload_hash()
+            || head.turn_index() != record.turn_index()
+            || head.observed_at_ms() != record.observed_at_ms()
+        {
+            return Err(UnderstandingStoreError::StoredRowInvalid);
+        }
+        Ok(Self { head, record })
+    }
+
     #[must_use]
     pub const fn head(&self) -> &UnderstandingHead {
         &self.head
@@ -141,6 +202,26 @@ impl UnderstandingSqlStore {
         }
     }
 
+    /// Appends the fixed Intent → Emotion → Customer State → Dialogue graph in one caller-owned
+    /// transaction. Any error must roll back the whole transaction.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first fenced append or database failure; no later domain is attempted.
+    pub async fn append_turn(
+        &self,
+        transaction: &Transaction<'_>,
+        batch: &UnderstandingTurnBatch,
+    ) -> Result<UnderstandingTurnAppendOutcome, UnderstandingStoreError> {
+        let commands = batch.commands();
+        UnderstandingTurnAppendOutcome::classify([
+            self.append(transaction, &commands[0]).await?,
+            self.append(transaction, &commands[1]).await?,
+            self.append(transaction, &commands[2]).await?,
+            self.append(transaction, &commands[3]).await?,
+        ])
+    }
+
     /// Loads one exact current domain head and its immutable payload using the bounded head key.
     ///
     /// # Errors
@@ -153,6 +234,72 @@ impl UnderstandingSqlStore {
         domain: UnderstandingDomain,
     ) -> Result<Option<StoredUnderstandingHead>, UnderstandingStoreError> {
         load_current_inner(transaction, context, domain, false).await
+    }
+
+    /// Loads the bounded set of all four authoritative heads with one SQL statement snapshot.
+    ///
+    /// # Errors
+    ///
+    /// Rejects duplicate/corrupt domains, malformed stored rows and database failures.
+    pub async fn load_consistent_heads(
+        &self,
+        transaction: &Transaction<'_>,
+        context: &EnvelopeContext,
+    ) -> Result<Vec<StoredUnderstandingHead>, UnderstandingStoreError> {
+        let execution_generation = i64_from(context.execution_generation().get())?;
+        let rows = transaction
+            .query(
+                "SELECT head.head_revision, head.record_id, head.record_kind, head.turn_index,
+                        floor(extract(epoch FROM head.observed_at) * 1000)::BIGINT,
+                        head.payload_hash, record.contract_schema_version, record.campaign_id,
+                        record.campaign_contact_id, record.call_id, record.agent_release_id,
+                        record.channel_agent_session_id, record.trace_id,
+                        record.retention_policy_ref,
+                        floor(extract(epoch FROM record.retention_until) * 1000)::BIGINT,
+                        record.payload, head.domain, record.domain
+                 FROM converact_conversation_understanding_heads AS head
+                 JOIN converact_conversation_understanding_records AS record
+                   ON record.tenant_id = head.tenant_id AND record.record_id = head.record_id
+                 WHERE head.tenant_id = $1
+                   AND head.interaction_id = $2
+                   AND head.call_attempt_id = $3
+                   AND head.execution_generation = $4
+                   AND head.domain IN ('intent', 'emotion', 'customer_state', 'dialogue')
+                 ORDER BY head.domain",
+                &[
+                    &context.tenant_id(),
+                    &context.interaction_id().as_str(),
+                    &context.call_attempt_id().as_str(),
+                    &execution_generation,
+                ],
+            )
+            .await
+            .map_err(|error| map_database_error(&error))?;
+        if rows.len() > 4 {
+            return Err(UnderstandingStoreError::StoredRowInvalid);
+        }
+        let mut heads = Vec::with_capacity(rows.len());
+        for row in rows {
+            let domain = domain_from_str(string_at(&row, 16)?)?;
+            if heads
+                .iter()
+                .any(|head: &StoredUnderstandingHead| head.head().domain() == domain)
+            {
+                return Err(UnderstandingStoreError::StoredRowInvalid);
+            }
+            heads.push(current_from_row(context, domain, &row)?);
+        }
+        Ok(heads)
+    }
+}
+
+fn domain_from_str(value: &str) -> Result<UnderstandingDomain, UnderstandingStoreError> {
+    match value {
+        "intent" => Ok(UnderstandingDomain::Intent),
+        "emotion" => Ok(UnderstandingDomain::Emotion),
+        "customer_state" => Ok(UnderstandingDomain::CustomerState),
+        "dialogue" => Ok(UnderstandingDomain::Dialogue),
+        _ => Err(UnderstandingStoreError::StoredRowInvalid),
     }
 }
 
@@ -369,7 +516,7 @@ async fn load_current_inner(
                 record.campaign_contact_id, record.call_id, record.agent_release_id,
                 record.channel_agent_session_id, record.trace_id, record.retention_policy_ref,
                 floor(extract(epoch FROM record.retention_until) * 1000)::BIGINT,
-                record.payload, record.domain
+                record.payload, head.domain, record.domain
          FROM converact_conversation_understanding_heads AS head
          JOIN converact_conversation_understanding_records AS record
            ON record.tenant_id = head.tenant_id AND record.record_id = head.record_id
@@ -386,7 +533,7 @@ async fn load_current_inner(
                 record.campaign_contact_id, record.call_id, record.agent_release_id,
                 record.channel_agent_session_id, record.trace_id, record.retention_policy_ref,
                 floor(extract(epoch FROM record.retention_until) * 1000)::BIGINT,
-                record.payload, record.domain
+                record.payload, head.domain, record.domain
          FROM converact_conversation_understanding_heads AS head
          JOIN converact_conversation_understanding_records AS record
            ON record.tenant_id = head.tenant_id AND record.record_id = head.record_id
@@ -431,7 +578,10 @@ fn current_from_row(
     let retention_policy_ref = string_at(row, 13)?.to_owned();
     let retention_until_ms = u64_from(i64_at(row, 14)?)?;
     let payload = value_at(row, 15)?;
-    if string_at(row, 16)? != domain.as_str() || kind.domain() != domain {
+    if string_at(row, 16)? != domain.as_str()
+        || string_at(row, 17)? != domain.as_str()
+        || kind.domain() != domain
+    {
         return Err(UnderstandingStoreError::StoredRowInvalid);
     }
     let record = UnderstandingRecord::try_new(UnderstandingRecordInput {
@@ -455,7 +605,7 @@ fn current_from_row(
         turn_index,
         observed_at_ms,
     })?;
-    Ok(StoredUnderstandingHead { head, record })
+    StoredUnderstandingHead::try_new(head, record)
 }
 
 fn context_from_head_row(

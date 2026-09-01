@@ -121,6 +121,7 @@ Kamailio / Trunk / PSTN
 | Tool/Action | Rust Proposal/Policy/Approval/Broker/Receipt、持久化 Adapter、Active Call Worker 桥接及通用查询/变更 Adapter 已通过本地受控测试 | 接入真实 Provider | controlled slice passed；real provider/physical PostgreSQL `not_run` |
 | AI/人工协作 | Rust Handoff Core/Store/Worker 的 commit/abort/replay/unknown-query 和具体 Active Call 私有进程端口已通过本地受控/loopback 测试 | 接入真实人席、RustPBX 媒体切换与 Active Call | physical integration/production `not_run` |
 | Transcript/Outcome/QM | Rust final transcript/snapshot/result/evaluation/Bad Case、durable reconcile、权限化查询 API，以及 Active Call intent 候选到精确 Release OutcomeSchema/结果证据的投影已通过本地受控测试 | 接入真实 Speech/模型/UI 并迁移旧 writer | physical integration/writer switch/production `not_run` |
+| 逐轮 Intent/Emotion/Dialogue 状态 | Rust Core、closed checkpoint、四领域原子 Store 合同、Worker 恢复/写入端口与具体 tenant PostgreSQL adapter 已通过本地精准测试 | 接入真实逐轮 Provider 和 Worker 进程组合 | physical PostgreSQL/real provider/restart/two-node/production `not_run` |
 | Post-call Finalization | Rust terminal/enqueue 受控原子边界、durable queue、Worker、D7 projection reuse 与进度查询已通过本地精准测试 | 接入物理 PostgreSQL 合并事务和真实终态输入 | physical transaction/real call/production `not_run` |
 | 性能/容量/长稳 | 旧证据不能继承到新链路 | 功能稳定后单独执行 | `not_run` |
 
@@ -597,9 +598,9 @@ Handoff Core 的路由、prepare/commit、generation fencing 与 receipt。相�
 Customer State/Dialogue recommendation 已具有 closed versioned checkpoint 和 durable Store codec：
 Customer State 恢复必须与精确 Intent/Emotion 来源状态重算一致；Dialogue 恢复必须用含 Release、
 revision 和阈值 fingerprint 的精确 Policy 对精确 Customer State 重算，不能信任存储中的
-recommendation kind。Worker 实时接线、物理
-PostgreSQL、Active Call Prompt/Scene 消费、Handoff 提案桥接、策略运营配置和真实通话验证仍为
-`not_run`。
+recommendation kind。Worker 的窄持久化端口、单次一致快照恢复、四领域写入批次与 tenant PostgreSQL
+adapter 已通过本地合同；真实逐轮 Provider/Active Call 事件接入、Worker 进程组合、物理 PostgreSQL、
+Active Call Prompt/Scene 消费、Handoff 提案桥接、策略运营配置和真实通话验证仍为 `not_run`。
 
 ### 9.8 理解证据耐久化
 
@@ -620,10 +621,22 @@ observation 可留证但不能成为权威 head。Intent observation+state 与 E
 closed versioned checkpoint payload；恢复时重算内层 evidence hash，并校验 record kind/ID、完整
 Envelope、catalog、turn 和 clock，因此 latest head 一次读取即可恢复当前 Intent/Emotion 状态，不需
 扫描通话历史。Customer State snapshot 必须从恢复后的精确 Intent/Emotion state 确定性重建；
-Dialogue recommendation 必须由精确 Policy + Customer State 重算。冷恢复是固定依赖图：Intent 与
-Emotion 各读取一个 head/record，再读取 Customer State，最后读取 Dialogue 并解析一个精确 Policy；
-它是常数次 O(1) 定位，不是“一次总读取”。伪造 stored kind、同投影但不同来源历史，以及同输出但
-阈值不同的 Policy 都会被拒绝。物理 PostgreSQL 执行、Worker writer switch 和生产仍为 `not_run`。
+Dialogue recommendation 必须由精确 Policy + Customer State 重算。
+
+Worker 现在只依赖 `UnderstandingDurabilityPort`，不接触连接池、SQL 或 transaction。具体
+`PostgresConversationUnderstandingStore` 在一个 tenant transaction 内完成：
+
+- 一条有界 SQL 同时读取 Intent、Emotion、Customer State 与 Dialogue 四个 current head/record；
+- 全空是合法新会话；部分、重复、跨 authority/generation、head/record domain 漂移一律 fail-closed；
+- 按 `Intent -> Emotion -> Customer State -> Dialogue` 固定顺序写入四个 domain；
+- 每个 head 都使用 revision、record ID 与 payload hash 三重围栏；
+- 全 replay 返回 `replayed`；至少一个 advance 且无 superseded 返回 `applied`；无写入且存在
+  superseded 返回 `superseded`；advance 与 superseded 混合在 commit 前报错，整笔事务回滚。
+
+因此冷恢复是“一条 SQL 快照 + 固定四节点内存重建”，每轮提交是“一个 tenant transaction + 固定
+四次有界 append”，均不扫描历史。伪造 stored kind、同投影但不同来源历史，以及同输出但阈值不同
+的 Policy 都会被拒绝。物理 PostgreSQL 执行、真实 Worker process composition、真实 Provider/Active
+Call 逐轮接入、重启/双节点恢复和生产仍为 `not_run`。
 
 ## 10. AI 与人工座席闭环
 
@@ -1063,6 +1076,7 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 - [Conversation Understanding Store Schema R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-understanding-store-schema/README.md)
 - [Conversation Understanding Store Adapter R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-understanding-store-adapter/README.md)
 - [Conversation Understanding Checkpoints R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-understanding-checkpoints/README.md)
+- [Conversation Understanding Worker R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-understanding-worker/README.md)
 - [Active Call Reservation Overlay R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-reservation-overlay/README.md)
 - [Active Call Reservation Adapter R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-reservation-adapter/README.md)
 - [Agent Release reservation binding evidence](../../architecture-foundation/ai-outbound/evidence/r1-agent-release-reservation-binding/README.md)
@@ -1103,3 +1117,4 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 | 2026-09-01 | R1 Understanding Store schema checkpoint | additive immutable record + fenced latest-head schema、复合 evidence FK、Attempt/generation/domain 有界恢复索引及专用保留期清理函数已有本地合同证据；SQL Adapter、物理 PostgreSQL、恢复重放和生产仍为 `not_run` |
 | 2026-09-01 | R1 Understanding Store Adapter checkpoint | bounded canonical record、record-only/atomic head append、三重 optimistic fence、per-scope transaction lock 与 O(1) current recovery Rust Adapter 已通过本地合同；物理 PostgreSQL、Core codec/replay、Worker writer switch 和生产仍为 `not_run` |
 | 2026-09-01 | R1 Understanding state checkpoint | versioned Intent、Emotion、Customer State 与 Dialogue payload、来源状态/Policy 重算、内外 hash、authority/record identity 校验及 O(1) restore 已通过本地合同；Worker writer/recovery、物理 PostgreSQL 和生产仍为 `not_run` |
+| 2026-09-01 | R1 Understanding Worker checkpoint | Worker 单次四领域一致恢复、typed write batch、具体 tenant PostgreSQL adapter 与 commit 前原子 outcome 分类已通过本地精准测试；真实逐轮 Provider/Active Call、物理 PostgreSQL、重启/双节点和生产仍为 `not_run` |

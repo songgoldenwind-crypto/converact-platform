@@ -27,6 +27,8 @@ mod post_call_finalization_postgres;
 mod repository;
 mod result_generation;
 mod tool_runtime;
+mod understanding_postgres;
+mod understanding_runtime;
 mod worker;
 
 pub use active_call_channel_agent::{
@@ -89,5 +91,10 @@ pub use result_generation::ResultGenerationEvidence;
 pub use tool_runtime::{
     ToolBinding, ToolBindingPort, ToolBrokerPort, ToolEventOutcome, ToolResultPort, ToolRuntime,
     ToolRuntimeError,
+};
+pub use understanding_runtime::{
+    RecoveredUnderstanding, UnderstandingAppendDecision, UnderstandingDurabilityPort,
+    UnderstandingPortError, UnderstandingRecoveryInputs, UnderstandingRuntime,
+    UnderstandingTurnWriteInput,
 };
 pub use worker::{VoiceAgentWorker, WorkerError};

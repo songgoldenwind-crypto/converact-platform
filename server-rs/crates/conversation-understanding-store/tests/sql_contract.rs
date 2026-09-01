@@ -52,3 +52,20 @@ fn adapter_has_no_unbounded_history_query_or_write_outside_the_caller_transactio
     assert!(!source.contains("Client::connect"));
     assert!(!source.contains("tokio::spawn"));
 }
+
+#[test]
+fn recovery_loads_all_four_domains_with_one_bounded_sql_statement() {
+    let source = include_str!("../src/postgres.rs");
+
+    for required in [
+        "load_consistent_heads",
+        "head.domain IN ('intent', 'emotion', 'customer_state', 'dialogue')",
+        "ORDER BY head.domain",
+        "append_turn",
+    ] {
+        assert!(
+            source.contains(required),
+            "missing snapshot contract {required}"
+        );
+    }
+}

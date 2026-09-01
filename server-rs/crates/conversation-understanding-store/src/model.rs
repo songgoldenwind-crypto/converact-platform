@@ -416,6 +416,74 @@ pub struct AppendUnderstandingRecord {
     head_expectation: Option<UnderstandingHeadExpectation>,
 }
 
+/// One complete, fixed-order understanding projection update for a conversation turn.
+///
+/// The four domain heads are committed together by the runtime adapter so readers never observe
+/// a Customer State or Dialogue decision without its exact Intent and Emotion dependencies.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UnderstandingTurnBatch {
+    commands: [AppendUnderstandingRecord; 4],
+}
+
+impl UnderstandingTurnBatch {
+    /// Validates the exact domain order, authority and dependency clocks before SQL execution.
+    ///
+    /// # Errors
+    ///
+    /// Rejects record-only commands, wrong kinds, mixed authority, zero turns, a Customer State
+    /// older than either source, or a Dialogue decision older than its Customer State.
+    pub fn try_new(
+        intent: AppendUnderstandingRecord,
+        emotion: AppendUnderstandingRecord,
+        customer_state: AppendUnderstandingRecord,
+        dialogue: AppendUnderstandingRecord,
+    ) -> Result<Self, UnderstandingStoreError> {
+        let commands = [intent, emotion, customer_state, dialogue];
+        let expected_kinds = [
+            UnderstandingRecordKind::IntentObservation,
+            UnderstandingRecordKind::EmotionFusion,
+            UnderstandingRecordKind::CustomerStateSnapshot,
+            UnderstandingRecordKind::DialogueRecommendation,
+        ];
+        let authority = commands[0].record().context();
+        if commands
+            .iter()
+            .zip(expected_kinds)
+            .any(|(command, expected_kind)| {
+                command.record().kind() != expected_kind
+                    || command.head_expectation().is_none()
+                    || command.record().context() != authority
+                    || command.record().turn_index() == 0
+            })
+        {
+            return Err(UnderstandingStoreError::InvalidBatch);
+        }
+        let intent = commands[0].record();
+        let emotion = commands[1].record();
+        let customer_state = commands[2].record();
+        let dialogue = commands[3].record();
+        if customer_state.turn_index() != intent.turn_index().max(emotion.turn_index())
+            || customer_state.observed_at_ms()
+                < intent.observed_at_ms().max(emotion.observed_at_ms())
+            || dialogue.turn_index() != customer_state.turn_index()
+            || dialogue.observed_at_ms() < customer_state.observed_at_ms()
+        {
+            return Err(UnderstandingStoreError::InvalidBatch);
+        }
+        Ok(Self { commands })
+    }
+
+    #[must_use]
+    pub const fn commands(&self) -> &[AppendUnderstandingRecord; 4] {
+        &self.commands
+    }
+
+    #[must_use]
+    pub const fn context(&self) -> &EnvelopeContext {
+        self.commands[0].record().context()
+    }
+}
+
 impl AppendUnderstandingRecord {
     /// Creates a record-only append or atomic record-and-head command.
     ///
@@ -537,6 +605,7 @@ impl UnderstandingHeadExpectation {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum UnderstandingStoreError {
     InvalidRecord,
+    InvalidBatch,
     InvalidHeadExpectation,
     CheckpointInvalid,
     HeadRevisionExhausted,
@@ -552,6 +621,7 @@ impl UnderstandingStoreError {
     pub const fn code(self) -> &'static str {
         match self {
             Self::InvalidRecord => "understanding_store_record_invalid",
+            Self::InvalidBatch => "understanding_store_batch_invalid",
             Self::InvalidHeadExpectation => "understanding_store_head_expectation_invalid",
             Self::CheckpointInvalid => "understanding_store_checkpoint_invalid",
             Self::HeadRevisionExhausted => "understanding_store_head_revision_exhausted",

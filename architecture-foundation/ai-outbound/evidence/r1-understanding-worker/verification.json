@@ -1,0 +1,76 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-09-01",
+  "evidence_class": [
+    "local_contract",
+    "controlled_test_double"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "parent_commit": "5e65b8c39a9bcb7333bbe28c0eaebf7c9b251223"
+  },
+  "commands": [
+    {
+      "id": "understanding_store_contracts",
+      "working_directory": "server-rs",
+      "command": "cargo test --locked -p converact-conversation-understanding-store",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 32,
+      "failed": 0
+    },
+    {
+      "id": "understanding_worker_contracts",
+      "working_directory": "server-rs",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test understanding_recovery --test postgres_understanding_port",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 5,
+      "failed": 0
+    },
+    {
+      "id": "understanding_scoped_format",
+      "working_directory": "server-rs",
+      "command": "rustfmt --edition 2024 --check <14 changed Rust files>",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "understanding_scoped_clippy",
+      "working_directory": "server-rs",
+      "command": "cargo clippy --locked -p converact-conversation-understanding-store -p converact-postgres-store -p converact-voice-agent-worker --lib --tests -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "understanding_diff_check",
+      "working_directory": ".",
+      "command": "git diff --check",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "not_run": [
+    "physical_postgresql_transaction_rls_and_crash_boundary",
+    "real_worker_process_composition_and_writer_switch",
+    "restart_and_two_node_recovery",
+    "real_rule_classifier_llm_acoustic_text_active_call_providers",
+    "active_call_per_turn_ingestion_and_prompt_scene_consumption",
+    "real_rustpbx_sip_pstn_rtp_srtp_audio_recording_campaign",
+    "performance",
+    "capacity",
+    "long_run",
+    "fault_campaign",
+    "independent_code_review",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_read": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}

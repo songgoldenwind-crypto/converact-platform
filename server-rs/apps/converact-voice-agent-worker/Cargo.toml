@@ -15,6 +15,8 @@ converact-ai-outbound-core = { path = "../../crates/ai-outbound-core" }
 converact-contracts = { path = "../../crates/contracts" }
 converact-conversation-result-core = { path = "../../crates/conversation-result-core" }
 converact-conversation-result-store = { path = "../../crates/conversation-result-store" }
+converact-conversation-understanding-core = { path = "../../crates/conversation-understanding-core" }
+converact-conversation-understanding-store = { path = "../../crates/conversation-understanding-store" }
 converact-kernel-ids = { path = "../../crates/kernel-ids" }
 converact-post-call-finalization-core = { path = "../../crates/post-call-finalization-core" }
 converact-post-call-finalization-store = { path = "../../crates/post-call-finalization-store" }

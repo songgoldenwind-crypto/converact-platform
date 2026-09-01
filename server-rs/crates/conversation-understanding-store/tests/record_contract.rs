@@ -1,8 +1,8 @@
 use converact_contracts::canonical_sha256;
 use converact_conversation_understanding_store::{
-    UnderstandingDomain, UnderstandingHeadExpectation, UnderstandingHeadExpectationInput,
-    UnderstandingRecord, UnderstandingRecordInput, UnderstandingRecordKind,
-    UnderstandingStoreError,
+    StoredUnderstandingHead, UnderstandingDomain, UnderstandingHead, UnderstandingHeadExpectation,
+    UnderstandingHeadExpectationInput, UnderstandingHeadInput, UnderstandingRecord,
+    UnderstandingRecordInput, UnderstandingRecordKind, UnderstandingStoreError,
 };
 use converact_voice_agent_contracts::{
     AgentReleaseId, CallAttemptId, CallId, CampaignContactId, CampaignId, ChannelAgentSessionId,
@@ -91,6 +91,37 @@ fn head_expectation_requires_exact_revision_record_and_hash_fence() {
             expected_payload_hash: None,
         }),
         Err(UnderstandingStoreError::InvalidHeadExpectation)
+    );
+}
+
+#[test]
+fn stored_head_must_match_its_exact_immutable_record() {
+    let record = record(UnderstandingRecordKind::IntentObservation);
+    let exact = UnderstandingHead::try_new(UnderstandingHeadInput {
+        context: record.context().clone(),
+        kind: record.kind(),
+        revision: 1,
+        record_id: record.record_id().to_owned(),
+        payload_hash: record.payload_hash().to_owned(),
+        turn_index: record.turn_index(),
+        observed_at_ms: record.observed_at_ms(),
+    })
+    .unwrap();
+    assert!(StoredUnderstandingHead::try_new(exact, record.clone()).is_ok());
+
+    let wrong_turn = UnderstandingHead::try_new(UnderstandingHeadInput {
+        context: record.context().clone(),
+        kind: record.kind(),
+        revision: 1,
+        record_id: record.record_id().to_owned(),
+        payload_hash: record.payload_hash().to_owned(),
+        turn_index: record.turn_index() + 1,
+        observed_at_ms: record.observed_at_ms(),
+    })
+    .unwrap();
+    assert_eq!(
+        StoredUnderstandingHead::try_new(wrong_turn, record),
+        Err(UnderstandingStoreError::StoredRowInvalid)
     );
 }
 

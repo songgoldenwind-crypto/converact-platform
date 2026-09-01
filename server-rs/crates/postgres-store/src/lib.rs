@@ -11,6 +11,7 @@ use deadpool_postgres::{
 
 mod ai_outbound;
 mod conversation_result;
+mod conversation_understanding;
 mod handoff;
 mod post_call_finalization;
 mod tool_action;
@@ -20,6 +21,9 @@ pub use conversation_result::{
     PostgresConversationResultStore, PostgresConversationResultStoreError,
     PostgresProjectionFinalizeDecision, PostgresProjectionPrepareDecision,
     PostgresProjectionWriteDecision, PostgresTranscriptAppendDecision,
+};
+pub use conversation_understanding::{
+    PostgresConversationUnderstandingStore, PostgresConversationUnderstandingStoreError,
 };
 pub use handoff::{
     PostgresHandoffCreateDecision, PostgresHandoffPrepareDecision, PostgresHandoffStore,
