@@ -1,10 +1,13 @@
-use std::{error::Error, fmt, future::Future};
+use std::{error::Error, fmt, future::Future, sync::Arc};
 
-use converact_active_call_adapter::NormalizedEvent;
+use converact_active_call_adapter::{
+    ActiveCallClient, ActiveCallCommand, AdapterCommand, NormalizedEvent,
+};
 use converact_contracts::canonical_sha256_with_max_bytes;
 use converact_tool_broker_core::{
-    ActionReceipt, ApprovalPort, BrokerResult, PolicyPort, ToolActionPort, ToolActionStorePort,
-    ToolBroker, ToolCatalogPort, ToolPortError, ToolProposal, ToolProposalInput, ToolSchemaPort,
+    ActionReceipt, ActionResolution, ApprovalPort, BrokerResult, PolicyPort, ToolActionPort,
+    ToolActionStorePort, ToolBroker, ToolCatalogPort, ToolPortError, ToolProposal,
+    ToolProposalInput, ToolSchemaPort,
 };
 use converact_voice_agent_contracts::{EnvelopeContext, ToolCallId, ToolRevisionId};
 
@@ -92,6 +95,52 @@ pub trait ToolResultPort {
         session_id: &converact_voice_agent_contracts::ChannelAgentSessionId,
         receipt: ActionReceipt,
     ) -> impl Future<Output = Result<(), ToolPortError>> + Send;
+}
+
+/// Sends finalized Tool receipts back through the private Active Call command surface.
+pub struct ActiveCallToolResultPort {
+    client: Arc<ActiveCallClient>,
+}
+
+impl ActiveCallToolResultPort {
+    #[must_use]
+    pub const fn new(client: Arc<ActiveCallClient>) -> Self {
+        Self { client }
+    }
+}
+
+impl ToolResultPort for ActiveCallToolResultPort {
+    async fn deliver(
+        &self,
+        session_id: &converact_voice_agent_contracts::ChannelAgentSessionId,
+        receipt: ActionReceipt,
+    ) -> Result<(), ToolPortError> {
+        let output = match receipt.resolution() {
+            ActionResolution::Applied(result) => serde_json::json!({
+                "ok": true,
+                "receipt_id": receipt.receipt_id().as_str(),
+                "result": result.value(),
+            }),
+            ActionResolution::NotApplied(code) => serde_json::json!({
+                "ok": false,
+                "receipt_id": receipt.receipt_id().as_str(),
+                "error": {"code": code.as_str()},
+            }),
+        };
+        let command = ActiveCallCommand::try_new(
+            session_id.clone(),
+            AdapterCommand::ToolResult {
+                call_id: receipt.tool_call_id().as_str().to_owned(),
+                output,
+            },
+        )
+        .map_err(|_| ToolPortError::new("active_call_tool_result_invalid"))?;
+        self.client
+            .send_command(command)
+            .await
+            .map(|_| ())
+            .map_err(|_| ToolPortError::new("active_call_tool_result_delivery_unavailable"))
+    }
 }
 
 /// Result of consuming one normalized Active Call event.

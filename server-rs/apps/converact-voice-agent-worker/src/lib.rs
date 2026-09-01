@@ -231,8 +231,8 @@ pub use text_emotion_runtime::{
     EmotionTurnResolution, TextEmotionTurnRuntime, TextEmotionTurnRuntimeError,
 };
 pub use tool_runtime::{
-    ActiveCallToolEventProcessor, ToolBinding, ToolBindingPort, ToolBrokerPort, ToolEventOutcome,
-    ToolResultPort, ToolRuntime, ToolRuntimeError,
+    ActiveCallToolEventProcessor, ActiveCallToolResultPort, ToolBinding, ToolBindingPort,
+    ToolBrokerPort, ToolEventOutcome, ToolResultPort, ToolRuntime, ToolRuntimeError,
 };
 pub use understanding_runtime::{
     CompleteUnderstandingTurnInput, PreparedUnderstandingTurn, RecoveredUnderstanding,

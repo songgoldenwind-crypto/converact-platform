@@ -1,6 +1,9 @@
 use std::sync::{Arc, Mutex};
 
-use converact_active_call_adapter::{AdapterContext, normalize_event};
+use axum::{Json, Router, extract::Path, routing::post};
+use converact_active_call_adapter::{
+    ActiveCallClient, AdapterContext, ClientConfig, normalize_event,
+};
 use converact_contracts::canonical_sha256_with_max_bytes;
 use converact_tool_broker_core::{
     ActionAuthority, ActionReceipt, ActionReceiptInput, ActionResolution, BrokerResult,
@@ -12,8 +15,9 @@ use converact_voice_agent_contracts::{
     InteractionId, ToolCallId, ToolRevisionId, VOICE_AGENT_SCHEMA_VERSION,
 };
 use converact_voice_agent_worker::{
-    ActiveCallToolEventProcessor, ActiveCallToolProjectionPort, FixedWallClock, ToolBinding,
-    ToolBindingPort, ToolBrokerPort, ToolEventOutcome, ToolResultPort, ToolRuntime,
+    ActiveCallToolEventProcessor, ActiveCallToolProjectionPort, ActiveCallToolResultPort,
+    FixedWallClock, ToolBinding, ToolBindingPort, ToolBrokerPort, ToolEventOutcome, ToolResultPort,
+    ToolRuntime,
 };
 use serde_json::json;
 
@@ -89,6 +93,55 @@ async fn event_projection_routes_the_current_tool_receipt_back_to_the_active_ses
         .unwrap();
 
     assert_eq!(delivered.lock().unwrap().as_slice(), ["consumable-receipt"]);
+}
+
+#[tokio::test]
+async fn active_call_result_port_delivers_one_bounded_result_to_the_exact_session() {
+    let commands = Arc::new(Mutex::new(Vec::new()));
+    let captured = Arc::clone(&commands);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let app = Router::new().route(
+        "/command/{id}",
+        post(
+            move |Path(id): Path<String>, Json(body): Json<serde_json::Value>| {
+                let captured = Arc::clone(&captured);
+                async move {
+                    captured.lock().unwrap().push((id.clone(), body));
+                    Json(json!({"status": "sent", "id": id}))
+                }
+            },
+        ),
+    );
+    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let client = Arc::new(
+        ActiveCallClient::connect(
+            ClientConfig::new(format!("http://{address}"), 1_000, 131_072).unwrap(),
+        )
+        .unwrap(),
+    );
+    let results = ActiveCallToolResultPort::new(client);
+
+    results
+        .deliver(
+            &ChannelAgentSessionId::parse("session-001").unwrap(),
+            receipt(3, "consumable-receipt"),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        commands.lock().unwrap().as_slice(),
+        [(
+            "session-001".to_owned(),
+            json!({
+                "command": "toolResult",
+                "callId": "tool-call-001",
+                "output": "{\"ok\":true,\"receipt_id\":\"consumable-receipt\",\"result\":{\"name\":\"Customer\"}}",
+            }),
+        )]
+    );
+    server.abort();
 }
 
 struct Binding;

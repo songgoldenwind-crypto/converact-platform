@@ -12,7 +12,11 @@ import {
   patchInvitationHandler,
   patchPlaybookHandler,
   patchPlaybookRunner,
-  patchRouter
+  patchRealtimeToolResult,
+  patchRouter,
+  patchToolResultCommand,
+  patchToolResultDispatch,
+  patchToolResultEvent
 } from './apply-overlay.mjs';
 
 const sourceRoot = '/Users/songjinfeng/Projects/converact-sources/active-call/src';
@@ -68,6 +72,20 @@ test('platform event journal provides bounded resumable semantic events', () => 
   assert.match(eventJournal, /mark_coverage_gap/);
 });
 
+test('platform tool results return to the exact realtime function call', () => {
+  const command = patchToolResultCommand(source('call/mod.rs'));
+  const event = patchToolResultEvent(source('event.rs'));
+  const dispatch = patchToolResultDispatch(source('call/active_call.rs'));
+  const realtime = patchRealtimeToolResult(source('media/realtime_processor.rs'));
+
+  assert.match(command, /ToolResult \{/);
+  assert.match(command, /call_id: String/);
+  assert.match(event, /ToolResult \{/);
+  assert.match(dispatch, /SessionEvent::ToolResult/);
+  assert.match(realtime, /"type": "function_call_output"/);
+  assert.match(realtime, /"type": "response.create"/);
+});
+
 test('all new transforms are idempotent', () => {
   const transforms = [
     [patchAppState, 'app.rs'],
@@ -76,7 +94,11 @@ test('all new transforms are idempotent', () => {
     [patchCallHandler, 'handler/handler.rs'],
     [patchInvitationHandler, 'useragent/playbook_handler.rs'],
     [patchPlaybookRunner, 'playbook/runner.rs'],
-    [patchRouter, 'handler/handler.rs']
+    [patchRouter, 'handler/handler.rs'],
+    [patchToolResultCommand, 'call/mod.rs'],
+    [patchToolResultEvent, 'event.rs'],
+    [patchToolResultDispatch, 'call/active_call.rs'],
+    [patchRealtimeToolResult, 'media/realtime_processor.rs']
   ];
 
   for (const [transform, path] of transforms) {

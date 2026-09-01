@@ -71,3 +71,40 @@ fn output_control_rejects_an_unbounded_fade() {
         "active_call_playback_timing_invalid"
     );
 }
+
+#[test]
+fn tool_result_is_encoded_for_the_exact_realtime_call() {
+    assert_eq!(
+        encode_command(AdapterCommand::ToolResult {
+            call_id: "tool-call-001".to_owned(),
+            output: serde_json::json!({
+                "ok": true,
+                "result": {"customer_id": "customer-001", "status": "active"},
+            }),
+        })
+        .unwrap(),
+        serde_json::json!({
+            "command": "toolResult",
+            "callId": "tool-call-001",
+            "output": "{\"ok\":true,\"result\":{\"customer_id\":\"customer-001\",\"status\":\"active\"}}",
+        })
+    );
+}
+
+#[test]
+fn tool_result_rejects_invalid_call_ids_and_unbounded_outputs() {
+    assert!(
+        encode_command(AdapterCommand::ToolResult {
+            call_id: "bad call id".to_owned(),
+            output: serde_json::json!({"ok": true}),
+        })
+        .is_err()
+    );
+    assert!(
+        encode_command(AdapterCommand::ToolResult {
+            call_id: "tool-call-001".to_owned(),
+            output: serde_json::json!({"result": "x".repeat(65_537)}),
+        })
+        .is_err()
+    );
+}

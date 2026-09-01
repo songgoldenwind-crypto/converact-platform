@@ -4,12 +4,14 @@ use crate::AdapterError;
 
 const MAX_DISCLOSURE_BYTES: usize = 4_096;
 const MAX_PLAY_ID_BYTES: usize = 255;
+const MAX_TOOL_RESULT_BYTES: usize = 65_536;
 const MAX_FADE_OUT_MS: u32 = 2_000;
 
 /// Safe subset of commands emitted to the private Active Call process.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AdapterCommand {
     PlayDisclosure { text: String, play_id: String },
+    ToolResult { call_id: String, output: Value },
     InterruptOutput { fade_out_ms: Option<u32> },
     PauseOutput,
     ResumeOutput,
@@ -37,6 +39,21 @@ pub fn encode_command(command: AdapterCommand) -> Result<Value, AdapterError> {
                 "text": text,
                 "playId": play_id,
                 "autoHangup": false,
+            }))
+        }
+        AdapterCommand::ToolResult { call_id, output } => {
+            if !is_valid_play_id(&call_id) {
+                return Err(AdapterError::InvalidIdentifier);
+            }
+            let output =
+                serde_json::to_string(&output).map_err(|_| AdapterError::InvalidToolArguments)?;
+            if output.len() > MAX_TOOL_RESULT_BYTES {
+                return Err(AdapterError::InvalidToolArguments);
+            }
+            Ok(json!({
+                "command": "toolResult",
+                "callId": call_id,
+                "output": output,
             }))
         }
         AdapterCommand::InterruptOutput { fade_out_ms } => {

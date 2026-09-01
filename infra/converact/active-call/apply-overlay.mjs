@@ -1110,6 +1110,171 @@ export function patchPlaybookRunner(source) {
   return patched;
 }
 
+export function patchToolResultCommand(source) {
+  const marker = '    ToolResult {\n';
+  if (source.includes(marker)) return source;
+  return replaceOnce(
+    source,
+    `    History {
+        speaker: String,
+        text: String,
+    },
+`,
+    `    /// Platform-authorized result for one exact Realtime function call.
+    ToolResult {
+        call_id: String,
+        output: String,
+    },
+    History {
+        speaker: String,
+        text: String,
+    },
+`,
+    'Tool result command'
+  );
+}
+
+export function patchToolResultEvent(source) {
+  const marker = '    ToolResult {\n';
+  if (source.includes(marker)) return source;
+  return replaceOnce(
+    source,
+    `    FunctionCall {
+        track_id: String,
+        call_id: String,
+        name: String,
+        arguments: String,
+        timestamp: u64,
+    },
+`,
+    `    FunctionCall {
+        track_id: String,
+        call_id: String,
+        name: String,
+        arguments: String,
+        timestamp: u64,
+    },
+    /// Platform-authorized result returned to one exact Realtime function call.
+    ToolResult {
+        call_id: String,
+        output: String,
+        timestamp: u64,
+    },
+`,
+    'Tool result event'
+  );
+}
+
+export function patchToolResultDispatch(source) {
+  const marker = 'self.do_tool_result(call_id, output)';
+  if (source.includes(marker)) return source;
+  let patched = replaceOnce(
+    source,
+    `            Command::History { speaker, text } => self.do_history(speaker, text).await,
+`,
+    `            Command::ToolResult { call_id, output } => {
+                self.do_tool_result(call_id, output).await
+            }
+            Command::History { speaker, text } => self.do_history(speaker, text).await,
+`,
+    'Tool result dispatch'
+  );
+  patched = replaceOnce(
+    patched,
+    `    async fn do_history(&self, speaker: String, text: String) -> Result<()> {
+`,
+    `    async fn do_tool_result(&self, call_id: String, output: String) -> Result<()> {
+        self.event_sender
+            .send(SessionEvent::ToolResult {
+                call_id,
+                output,
+                timestamp: crate::media::get_timestamp(),
+            })
+            .map(|_| ())
+            .map_err(Into::into)
+    }
+
+    async fn do_history(&self, speaker: String, text: String) -> Result<()> {
+`,
+    'Tool result event dispatch'
+  );
+  return patched;
+}
+
+export function patchRealtimeToolResult(source) {
+  const helperMarker = 'fn realtime_tool_result_events(';
+  const branchMarker = 'SessionEvent::ToolResult { call_id, output, .. }';
+  const hasHelper = source.includes(helperMarker);
+  const hasBranch = source.includes(branchMarker);
+  if (hasHelper && hasBranch) return source;
+  if (hasHelper || hasBranch) {
+    throw new Error('Active Call Realtime Tool result overlay is partially applied');
+  }
+  let patched = replaceOnce(
+    source,
+    `pub struct RealtimeProcessor {
+`,
+    `fn realtime_tool_result_events(call_id: &str, output: &str) -> [Value; 2] {
+    [
+        json!({
+            "type": "conversation.item.create",
+            "item": {
+                "type": "function_call_output",
+                "call_id": call_id,
+                "output": output,
+            }
+        }),
+        json!({"type": "response.create"}),
+    ]
+}
+
+#[cfg(test)]
+mod converact_tool_result_tests {
+    use super::realtime_tool_result_events;
+
+    #[test]
+    fn result_targets_one_function_call_before_response_creation() {
+        let events = realtime_tool_result_events("tool-call-001", "{\\"ok\\":true}");
+        assert_eq!(events[0]["type"], "conversation.item.create");
+        assert_eq!(events[0]["item"]["type"], "function_call_output");
+        assert_eq!(events[0]["item"]["call_id"], "tool-call-001");
+        assert_eq!(events[0]["item"]["output"], "{\\"ok\\":true}");
+        assert_eq!(events[1]["type"], "response.create");
+    }
+}
+
+pub struct RealtimeProcessor {
+`,
+    'Realtime Tool result event builder'
+  );
+  patched = replaceOnce(
+    patched,
+    `                    SessionEvent::Interrupt { .. } => {
+                        debug!("Interruption received, cancelling response");
+                        let cancel_event = json!({
+                            "type": "response.cancel"
+                        });
+                        ws_tx.send(Message::Text(cancel_event.to_string().into())).await?;
+                    }
+`,
+    `                    SessionEvent::Interrupt { .. } => {
+                        debug!("Interruption received, cancelling response");
+                        let cancel_event = json!({
+                            "type": "response.cancel"
+                        });
+                        ws_tx.send(Message::Text(cancel_event.to_string().into())).await?;
+                    }
+                    SessionEvent::ToolResult { call_id, output, .. } => {
+                        for event in realtime_tool_result_events(&call_id, &output) {
+                            ws_tx.send(Message::Text(event.to_string().into())).await?;
+                        }
+                    }
+`,
+    'Realtime Tool result delivery'
+  );
+  return patched;
+}
+
 function patchFile(path, transform) {
   const source = readFileSync(path, 'utf8');
   const patched = transform(source);
@@ -1145,6 +1310,10 @@ export function applyActiveCallOverlay(sourceRoot) {
   installPlatformEventJournal(root);
   patchFile(join(root, 'src/useragent/playbook_handler.rs'), patchInvitationHandler);
   patchFile(join(root, 'src/playbook/runner.rs'), patchPlaybookRunner);
+  patchFile(join(root, 'src/call/mod.rs'), patchToolResultCommand);
+  patchFile(join(root, 'src/event.rs'), patchToolResultEvent);
+  patchFile(join(root, 'src/call/active_call.rs'), patchToolResultDispatch);
+  patchFile(join(root, 'src/media/realtime_processor.rs'), patchRealtimeToolResult);
   return {
     commit: ACTIVE_CALL_UPSTREAM_COMMIT,
     tree: ACTIVE_CALL_UPSTREAM_TREE,
@@ -1155,7 +1324,11 @@ export function applyActiveCallOverlay(sourceRoot) {
       'src/handler/mod.rs',
       'src/handler/platform_event_journal.rs',
       'src/playbook/runner.rs',
-      'src/useragent/playbook_handler.rs'
+      'src/useragent/playbook_handler.rs',
+      'src/call/mod.rs',
+      'src/event.rs',
+      'src/call/active_call.rs',
+      'src/media/realtime_processor.rs'
     ]
   };
 }
