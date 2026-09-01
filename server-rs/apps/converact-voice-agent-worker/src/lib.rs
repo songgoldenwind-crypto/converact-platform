@@ -41,6 +41,7 @@ mod platform_auth;
 mod post_call_finalization;
 mod post_call_finalization_postgres;
 mod postgres_repository;
+mod process;
 mod repository;
 mod result_generation;
 mod safety_intent_provider;
@@ -174,6 +175,7 @@ pub use post_call_finalization::{
     FinalizationProjectionProgress, FinalizationQueuePort, FinalizationWorkerError,
 };
 pub use postgres_repository::PostgresVoiceAgentRepository;
+pub use process::{WorkerServeError, serve_worker_http};
 pub use repository::{
     ReconcileReceipt, RepositoryError, RepositoryErrorKind, VoiceAgentRepository,
 };
