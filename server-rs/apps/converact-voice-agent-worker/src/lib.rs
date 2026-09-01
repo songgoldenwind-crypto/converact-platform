@@ -20,6 +20,7 @@ mod campaign_admin;
 mod campaign_admin_http;
 mod campaign_retry;
 mod channel_agent_session;
+mod claim_supervisor;
 mod contextual_intent_provider;
 mod conversation_finalization;
 mod conversation_projection;
@@ -107,6 +108,9 @@ pub use campaign_admin_http::campaign_admin_router;
 pub use campaign_retry::{
     CampaignRetryRequest, CampaignRetryWorker, RetryDurabilityPort, RetryPersistenceRequest,
     RetryWorkerDecision, RetryWorkerError, RetryWriteDecision,
+};
+pub use claim_supervisor::{
+    AttemptClaimSource, ClaimBatchProgress, ClaimSupervisor, ClaimedAttemptExecutor,
 };
 pub use contextual_intent_provider::{
     ContextualIntentArtifactInput, ContextualIntentCandidateOutput,
