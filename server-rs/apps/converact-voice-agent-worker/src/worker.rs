@@ -182,6 +182,8 @@ where
     pub async fn resume_attempt_with_active_session<E>(
         &self,
         tenant: &AuthenticatedTenant,
+        campaign_id: &CampaignId,
+        release_id: &AgentReleaseId,
         attempt_id: &CallAttemptId,
         session: &E,
     ) -> Result<AttemptResource, WorkerError>
@@ -200,7 +202,11 @@ where
         else {
             return Err(WorkerError::new("voice_agent_active_context_mismatch"));
         };
-        if context.tenant_id() != tenant.as_str() || context.call_attempt_id() != attempt_id {
+        if context.tenant_id() != tenant.as_str()
+            || context.campaign_id() != campaign_id
+            || context.agent_release_id() != release_id
+            || context.call_attempt_id() != attempt_id
+        {
             return Err(WorkerError::new("voice_agent_active_context_mismatch"));
         }
         let active = converact_ai_outbound_core::ActiveAttemptExecution::try_new(

@@ -8,8 +8,9 @@ use converact_postgres_store::PostgresLeasedAttemptStore;
 use converact_voice_agent_contracts::{CallAttemptId, CallAttemptState, CampaignState};
 
 use crate::{
-    AdmissionReadiness, AuthenticatedTenant, ClaimedAttemptExecutor, ShutdownToken,
-    VoiceAgentRepository, VoiceAgentWorker, WorkerConfig, WorkerError,
+    ActiveAttemptContextPort, ActiveAttemptLeasePort, ActiveCallSessionPort, AdmissionReadiness,
+    AuthenticatedTenant, ClaimedAttemptExecutor, ShutdownToken, VoiceAgentRepository,
+    VoiceAgentWorker, WorkerConfig, WorkerError,
 };
 
 /// Lease-scoped Attempt Store plus the identities required before any external effect.
@@ -114,6 +115,124 @@ where
     }
 }
 
+/// Executes both new and crash-recovered calls through one long-lived session supervisor.
+pub struct VoiceAgentLongCallClaimExecutor<C, A, T, R, E> {
+    compliance: Arc<C>,
+    agent: Arc<A>,
+    telephony: Arc<T>,
+    repository: Arc<R>,
+    session: Arc<E>,
+    config: WorkerConfig,
+    readiness: AdmissionReadiness,
+    shutdown: ShutdownToken,
+}
+
+impl<C, A, T, R, E> VoiceAgentLongCallClaimExecutor<C, A, T, R, E> {
+    #[allow(clippy::too_many_arguments)]
+    #[must_use]
+    pub const fn new(
+        compliance: Arc<C>,
+        agent: Arc<A>,
+        telephony: Arc<T>,
+        repository: Arc<R>,
+        session: Arc<E>,
+        config: WorkerConfig,
+        readiness: AdmissionReadiness,
+        shutdown: ShutdownToken,
+    ) -> Self {
+        Self {
+            compliance,
+            agent,
+            telephony,
+            repository,
+            session,
+            config,
+            readiness,
+            shutdown,
+        }
+    }
+}
+
+impl<S, C, A, T, R, E> ClaimedAttemptExecutor<S> for VoiceAgentLongCallClaimExecutor<C, A, T, R, E>
+where
+    S: ClaimedAttemptContext + ActiveAttemptContextPort + ActiveAttemptLeasePort,
+    C: CompliancePort + Send + Sync + 'static,
+    A: ChannelAgentPort + Send + Sync + 'static,
+    T: TelephonyPort + Send + Sync + 'static,
+    R: VoiceAgentRepository,
+    E: ActiveCallSessionPort<S> + Send + Sync + 'static,
+{
+    async fn execute(&self, claim: S) -> Result<(), WorkerError> {
+        let tenant = AuthenticatedTenant::try_from_verified_tenant_id(claim.tenant_id().as_str())
+            .map_err(|_| WorkerError::new("voice_agent_tenant_invalid"))?;
+        let attempt_id = claim.attempt_id().clone();
+        let attempt = self
+            .repository
+            .attempt(&tenant, attempt_id.as_str())
+            .await?
+            .ok_or_else(|| WorkerError::new("voice_agent_claimed_attempt_not_found"))?;
+        if attempt.id() != attempt_id.as_str() {
+            return Err(WorkerError::new(
+                "voice_agent_claimed_attempt_state_invalid",
+            ));
+        }
+        let campaign = self
+            .repository
+            .campaign(&tenant, attempt.campaign_id())
+            .await?
+            .ok_or_else(|| WorkerError::new("voice_agent_campaign_not_found"))?;
+        if campaign.release_id() != attempt.release_id() {
+            return Err(WorkerError::new("voice_agent_claim_binding_invalid"));
+        }
+
+        let worker = VoiceAgentWorker::new(
+            Arc::clone(&self.compliance),
+            Arc::clone(&self.agent),
+            Arc::clone(&self.telephony),
+            claim,
+            Arc::clone(&self.repository),
+            self.config,
+            self.readiness.clone(),
+            self.shutdown.clone(),
+        );
+        match attempt.state() {
+            CallAttemptState::Claimed => {
+                if campaign.state() != CampaignState::Running {
+                    return Err(WorkerError::new("voice_agent_claim_binding_invalid"));
+                }
+                worker
+                    .run_attempt_with_active_session(
+                        &tenant,
+                        campaign.id(),
+                        &attempt_id,
+                        self.session.as_ref(),
+                    )
+                    .await
+            }
+            CallAttemptState::Conversing => {
+                let campaign_id = converact_voice_agent_contracts::CampaignId::parse(campaign.id())
+                    .map_err(|_| WorkerError::new("voice_agent_campaign_id_invalid"))?;
+                let release_id =
+                    converact_voice_agent_contracts::AgentReleaseId::parse(attempt.release_id())
+                        .map_err(|_| WorkerError::new("voice_agent_release_id_invalid"))?;
+                worker
+                    .resume_attempt_with_active_session(
+                        &tenant,
+                        &campaign_id,
+                        &release_id,
+                        &attempt_id,
+                        self.session.as_ref(),
+                    )
+                    .await
+            }
+            _ => Err(WorkerError::new(
+                "voice_agent_recovered_attempt_state_unsupported",
+            )),
+        }
+        .map(|_| ())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::{
@@ -123,9 +242,9 @@ mod tests {
 
     use converact_ai_outbound_core::{
         ActiveAttemptExecution, AgentLegBinding, AgentObservation, AgentReservation,
-        AttemptCommand, CallAttempt, CallObservation, ComplianceDecision, EffectIntent,
-        OriginateCall, OutboundDialBinding, OutboundDialBindingInput, PlayDisclosure, PortError,
-        ReleaseComponentDigests, ReserveAgent, StartConversation, TerminalAttemptCommit,
+        AttemptCommand, CallAttempt, CallAttemptRestoreInput, CallObservation, ComplianceDecision,
+        EffectIntent, OriginateCall, OutboundDialBinding, OutboundDialBindingInput, PlayDisclosure,
+        PortError, ReleaseComponentDigests, ReserveAgent, StartConversation, TerminalAttemptCommit,
         TerminateCall,
     };
     use converact_contracts::health::{
@@ -136,13 +255,16 @@ mod tests {
     };
     use converact_runtime_health::RuntimeHealth;
     use converact_voice_agent_contracts::{
-        AgentReleaseState, CallAttemptId, CallId, CampaignState, ChannelAgentSessionId,
-        IdempotencyKey,
+        AgentReleaseId, AgentReleaseState, CallAttemptId, CallId, CampaignContactId, CampaignId,
+        CampaignState, ChannelAgentSessionId, EnvelopeContext, EnvelopeContextInput,
+        ExecutionGeneration, IdempotencyKey, InteractionId, VOICE_AGENT_SCHEMA_VERSION,
     };
 
     use super::*;
     use crate::{
-        AgentReleaseResource, AttemptResource, CampaignResource, ReconcileReceipt, RepositoryError,
+        ActiveAttemptContextPort, ActiveAttemptLeasePort, ActiveCallSessionPort,
+        ActiveCallSessionSupervisorOutcome, AgentReleaseResource, AttemptResource,
+        CampaignResource, ReconcileReceipt, RepositoryError, VoiceAgentLongCallClaimExecutor,
     };
 
     #[tokio::test]
@@ -174,6 +296,40 @@ mod tests {
         assert_eq!(fixture.state.lock().unwrap().completions, 0);
     }
 
+    #[tokio::test]
+    async fn long_call_executor_supervises_new_claim_before_completion() {
+        let fixture = LongCallFixture::new(CallAttemptState::Claimed);
+
+        ClaimedAttemptExecutor::execute(&fixture.executor, fixture.claim)
+            .await
+            .unwrap();
+
+        assert_eq!(fixture.probe.originate_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(fixture.probe.active_session_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(fixture.state.lock().unwrap().completions, 1);
+        assert_eq!(
+            fixture.state.lock().unwrap().attempt.state(),
+            CallAttemptState::Completed
+        );
+    }
+
+    #[tokio::test]
+    async fn long_call_executor_resumes_conversing_claim_without_redial() {
+        let fixture = LongCallFixture::new(CallAttemptState::Conversing);
+
+        ClaimedAttemptExecutor::execute(&fixture.executor, fixture.claim)
+            .await
+            .unwrap();
+
+        assert_eq!(fixture.probe.originate_calls.load(Ordering::SeqCst), 0);
+        assert_eq!(fixture.probe.active_session_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(fixture.state.lock().unwrap().completions, 1);
+        assert_eq!(
+            fixture.state.lock().unwrap().attempt.state(),
+            CallAttemptState::Completed
+        );
+    }
+
     struct Fixture {
         executor: VoiceAgentClaimExecutor<Probe, Probe, Probe, FixedRepository>,
         claim: TestClaim,
@@ -189,6 +345,7 @@ mod tests {
                 .unwrap();
             let state = Arc::new(Mutex::new(ClaimState {
                 attempt: attempt.clone(),
+                active_execution: None,
                 completions: 0,
             }));
             let claim = TestClaim {
@@ -238,8 +395,94 @@ mod tests {
         }
     }
 
+    struct LongCallFixture {
+        executor: VoiceAgentLongCallClaimExecutor<Probe, Probe, Probe, FixedRepository, Probe>,
+        claim: TestClaim,
+        probe: Arc<Probe>,
+        state: Arc<Mutex<ClaimState>>,
+    }
+
+    impl LongCallFixture {
+        fn new(attempt_state: CallAttemptState) -> Self {
+            let attempt_id = CallAttemptId::parse("attempt-001").unwrap();
+            let attempt = match attempt_state {
+                CallAttemptState::Claimed => CallAttempt::new(attempt_id.clone())
+                    .apply(AttemptCommand::Claim)
+                    .unwrap(),
+                CallAttemptState::Conversing => CallAttempt::restore(CallAttemptRestoreInput {
+                    id: attempt_id.clone(),
+                    previous_attempt_id: None,
+                    state: CallAttemptState::Conversing,
+                    revision: 11,
+                    disclosure_completed: true,
+                })
+                .unwrap(),
+                _ => panic!("unsupported fixture state"),
+            };
+            let active_execution = (attempt_state == CallAttemptState::Conversing).then(|| {
+                ActiveAttemptExecution::try_new(
+                    attempt.clone(),
+                    CallId::parse(attempt_id.as_str()).unwrap(),
+                    ChannelAgentSessionId::parse("session-001").unwrap(),
+                )
+                .unwrap()
+            });
+            let state = Arc::new(Mutex::new(ClaimState {
+                attempt: attempt.clone(),
+                active_execution,
+                completions: 0,
+            }));
+            let claim = TestClaim {
+                tenant_id: TenantId::parse("tenant-a").unwrap(),
+                attempt_id,
+                state: Arc::clone(&state),
+            };
+            let repository = Arc::new(FixedRepository {
+                release: AgentReleaseResource::from_durable(
+                    "release-001".to_owned(),
+                    "agent-definition-001".to_owned(),
+                    AgentReleaseState::Published,
+                    "9".repeat(64),
+                    release_digests(),
+                ),
+                campaign: CampaignResource::from_durable(
+                    "campaign-001".to_owned(),
+                    "release-001".to_owned(),
+                    CampaignState::Running,
+                    1,
+                ),
+                attempt: AttemptResource::from_durable(
+                    "attempt-001".to_owned(),
+                    "campaign-001".to_owned(),
+                    "release-001".to_owned(),
+                    attempt_state,
+                    attempt.disclosure_completed(),
+                    None,
+                ),
+            });
+            let probe = Arc::new(Probe::default());
+            let executor = VoiceAgentLongCallClaimExecutor::new(
+                Arc::clone(&probe),
+                Arc::clone(&probe),
+                Arc::clone(&probe),
+                repository,
+                Arc::clone(&probe),
+                WorkerConfig::new(1, 1).unwrap(),
+                ready(),
+                ShutdownToken::default(),
+            );
+            Self {
+                executor,
+                claim,
+                probe,
+                state,
+            }
+        }
+    }
+
     struct ClaimState {
         attempt: CallAttempt,
+        active_execution: Option<ActiveAttemptExecution>,
         completions: usize,
     }
 
@@ -294,7 +537,39 @@ mod tests {
             &self,
             active: &ActiveAttemptExecution,
         ) -> Result<(), PortError> {
-            self.state.lock().unwrap().attempt = active.attempt().clone();
+            let mut state = self.state.lock().unwrap();
+            state.attempt = active.attempt().clone();
+            state.active_execution = Some(active.clone());
+            Ok(())
+        }
+    }
+
+    impl ActiveAttemptContextPort for TestClaim {
+        async fn load_active_envelope_context(&self) -> Result<EnvelopeContext, WorkerError> {
+            let state = self.state.lock().unwrap();
+            let active = state
+                .active_execution
+                .as_ref()
+                .ok_or_else(|| WorkerError::new("test_active_execution_missing"))?;
+            EnvelopeContext::try_new(EnvelopeContextInput {
+                schema_version: VOICE_AGENT_SCHEMA_VERSION,
+                tenant_id: self.tenant_id.as_str().to_owned(),
+                interaction_id: InteractionId::parse("interaction-001").unwrap(),
+                campaign_id: CampaignId::parse("campaign-001").unwrap(),
+                campaign_contact_id: CampaignContactId::parse("contact-001").unwrap(),
+                call_attempt_id: self.attempt_id.clone(),
+                call_id: Some(active.call_id().clone()),
+                agent_release_id: AgentReleaseId::parse("release-001").unwrap(),
+                channel_agent_session_id: Some(active.channel_agent_session_id().clone()),
+                execution_generation: ExecutionGeneration::new(1).unwrap(),
+                trace_id: "trace-active-001".to_owned(),
+            })
+            .map_err(|_| WorkerError::new("test_active_context_invalid"))
+        }
+    }
+
+    impl ActiveAttemptLeasePort for TestClaim {
+        async fn renew_active_lease(&self) -> Result<(), WorkerError> {
             Ok(())
         }
     }
@@ -315,6 +590,7 @@ mod tests {
     struct Probe {
         originate_calls: AtomicUsize,
         agent_queries: AtomicUsize,
+        active_session_calls: AtomicUsize,
     }
 
     impl CompliancePort for Probe {
@@ -375,6 +651,19 @@ mod tests {
 
         async fn terminate(&self, _request: TerminateCall) -> Result<(), PortError> {
             Ok(())
+        }
+    }
+
+    impl ActiveCallSessionPort<TestClaim> for Probe {
+        async fn supervise_active_call(
+            &self,
+            context: &EnvelopeContext,
+            lease: &TestClaim,
+        ) -> Result<ActiveCallSessionSupervisorOutcome, WorkerError> {
+            assert_eq!(context.call_attempt_id(), lease.attempt_id());
+            assert_eq!(lease.state.lock().unwrap().completions, 0);
+            self.active_session_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(ActiveCallSessionSupervisorOutcome::Completed)
         }
     }
 

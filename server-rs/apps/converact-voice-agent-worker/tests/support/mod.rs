@@ -179,6 +179,8 @@ impl TestWorker {
         self.worker
             .resume_attempt_with_active_session(
                 &tenant,
+                &CampaignId::parse("campaign-001").unwrap(),
+                &AgentReleaseId::parse("agent-sales-assistant-r1").unwrap(),
                 &attempt_id,
                 &ControlledActiveSession {
                     state: Arc::clone(&self.state),

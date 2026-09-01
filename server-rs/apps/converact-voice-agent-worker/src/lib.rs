@@ -124,7 +124,9 @@ pub use campaign_retry::{
 pub use claim_supervisor::{
     AttemptClaimSource, ClaimBatchProgress, ClaimSupervisor, ClaimedAttemptExecutor,
 };
-pub use claimed_attempt_executor::{ClaimedAttemptContext, VoiceAgentClaimExecutor};
+pub use claimed_attempt_executor::{
+    ClaimedAttemptContext, VoiceAgentClaimExecutor, VoiceAgentLongCallClaimExecutor,
+};
 pub use contextual_intent_provider::{
     ContextualIntentArtifactInput, ContextualIntentCandidateOutput,
     ContextualIntentClassifierOutput, ContextualIntentClassifierPort,
