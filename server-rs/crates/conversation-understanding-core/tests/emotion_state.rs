@@ -63,6 +63,31 @@ fn signal_requires_source_appropriate_evidence_and_redacts_customer_classificati
 }
 
 #[test]
+fn raw_emotion_observation_wire_round_trips_and_rejects_hash_drift() {
+    let catalog = catalog();
+    let observation = signal(
+        1,
+        EmotionSource::TextClassifier,
+        "customer.anxious",
+        8_200,
+        2,
+    );
+
+    let payload = observation.to_value();
+    assert_eq!(
+        EmotionObservation::from_value(payload.clone(), &catalog).unwrap(),
+        observation
+    );
+
+    let mut drifted = payload;
+    drifted["candidates"][0]["confidence_bps"] = serde_json::json!(8_201);
+    assert_eq!(
+        EmotionObservation::from_value(drifted, &catalog),
+        Err(UnderstandingError::InvalidEmotionObservation)
+    );
+}
+
+#[test]
 fn fusion_is_content_hashed_and_rejects_cross_generation_or_turn_inputs() {
     let acoustic = signal(1, EmotionSource::AcousticModel, "customer.angry", 8_600, 4);
     let text = signal(

@@ -34,6 +34,7 @@ mod repository;
 mod result_generation;
 mod safety_intent_provider;
 mod text_emotion_classifier;
+mod text_emotion_runtime;
 mod tool_runtime;
 mod understanding_postgres;
 mod understanding_runtime;
@@ -128,6 +129,9 @@ pub use text_emotion_classifier::{
     TextEmotionCandidateOutput, TextEmotionClassifierArtifactInput, TextEmotionClassifierOutput,
     TextEmotionClassifierPort, TextEmotionClassifierPortError, TextEmotionClassifierProvider,
     TextEmotionClassifierProviderError, TextEmotionClassifierRequest,
+};
+pub use text_emotion_runtime::{
+    EmotionTurnResolution, TextEmotionTurnRuntime, TextEmotionTurnRuntimeError,
 };
 pub use tool_runtime::{
     ToolBinding, ToolBindingPort, ToolBrokerPort, ToolEventOutcome, ToolResultPort, ToolRuntime,

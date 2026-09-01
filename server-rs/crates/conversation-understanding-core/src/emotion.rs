@@ -320,6 +320,11 @@ impl EmotionObservation {
     }
 
     #[must_use]
+    pub fn candidates(&self) -> &[EmotionCandidate] {
+        &self.candidates
+    }
+
+    #[must_use]
     pub const fn id(&self) -> &EmotionObservationId {
         &self.id
     }
@@ -367,6 +372,69 @@ impl EmotionObservation {
     #[must_use]
     pub fn payload_hash(&self) -> &str {
         &self.payload_hash
+    }
+
+    /// Serializes one validated raw Provider observation for durable evidence storage.
+    #[must_use]
+    pub fn to_value(&self) -> Value {
+        json!({
+            "observation_schema_version": 1,
+            "id": self.id,
+            "context": self.context,
+            "catalog_revision_id": self.catalog_revision_id,
+            "source": self.source,
+            "provider_revision": self.provider_revision,
+            "candidates": self.candidates,
+            "transcript_segment_ids": self.transcript_segment_ids,
+            "audio_evidence_window_ids": self.audio_evidence_window_ids,
+            "turn_index": self.turn_index,
+            "observed_at_ms": self.observed_at_ms,
+            "payload_hash": self.payload_hash,
+        })
+    }
+
+    /// Restores and revalidates one untrusted raw Provider observation payload.
+    ///
+    /// # Errors
+    ///
+    /// Rejects unknown fields/versions, catalog drift and canonical payload-hash mismatch.
+    pub fn from_value(
+        payload: Value,
+        catalog: &EmotionCatalog,
+    ) -> Result<Self, UnderstandingError> {
+        let wire: EmotionObservationWire = serde_json::from_value(payload)
+            .map_err(|_| UnderstandingError::InvalidEmotionObservation)?;
+        if wire.observation_schema_version != 1 {
+            return Err(UnderstandingError::InvalidEmotionObservation);
+        }
+        let stored_hash = wire.payload_hash;
+        let observation = Self::try_new(
+            EmotionObservationInput {
+                id: wire.id,
+                context: wire.context,
+                catalog_revision_id: wire.catalog_revision_id,
+                source: wire.source,
+                provider_revision: wire.provider_revision,
+                candidates: wire
+                    .candidates
+                    .into_iter()
+                    .map(|candidate| EmotionCandidateInput {
+                        code: candidate.code,
+                        confidence_bps: candidate.confidence_bps,
+                        intensity: candidate.intensity,
+                    })
+                    .collect(),
+                transcript_segment_ids: wire.transcript_segment_ids,
+                audio_evidence_window_ids: wire.audio_evidence_window_ids,
+                turn_index: wire.turn_index,
+                observed_at_ms: wire.observed_at_ms,
+            },
+            catalog,
+        )?;
+        if observation.payload_hash() != stored_hash {
+            return Err(UnderstandingError::InvalidEmotionObservation);
+        }
+        Ok(observation)
     }
 }
 
@@ -948,6 +1016,23 @@ struct EmotionCheckpointWire {
     checkpoint_schema_version: u16,
     fusion: EmotionFusionWire,
     state: EmotionStateWire,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EmotionObservationWire {
+    observation_schema_version: u16,
+    id: EmotionObservationId,
+    context: EnvelopeContext,
+    catalog_revision_id: EmotionCatalogRevisionId,
+    source: EmotionSource,
+    provider_revision: String,
+    candidates: Vec<EmotionCandidateWire>,
+    transcript_segment_ids: Vec<TranscriptSegmentId>,
+    audio_evidence_window_ids: Vec<AudioEvidenceWindowId>,
+    turn_index: u32,
+    observed_at_ms: u64,
+    payload_hash: String,
 }
 
 #[derive(Deserialize)]

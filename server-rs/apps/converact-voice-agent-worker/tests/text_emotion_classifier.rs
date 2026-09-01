@@ -10,7 +10,8 @@ use converact_conversation_result_core::{
     TranscriptSegment, TranscriptSegmentInput, TranscriptSpeaker,
 };
 use converact_conversation_understanding_core::{
-    EmotionCatalog, EmotionCatalogInput, EmotionDefinitionInput, EmotionSource, EmotionValence,
+    EmotionCatalog, EmotionCatalogInput, EmotionDecisionPolicy, EmotionDefinitionInput,
+    EmotionSource, EmotionState, EmotionStatus, EmotionValence,
 };
 use converact_voice_agent_contracts::{
     AgentReleaseId, CallAttemptId, CallId, CampaignContactId, CampaignId, ChannelAgentSessionId,
@@ -20,7 +21,7 @@ use converact_voice_agent_contracts::{
 use converact_voice_agent_worker::{
     TextEmotionCandidateOutput, TextEmotionClassifierArtifactInput, TextEmotionClassifierOutput,
     TextEmotionClassifierPort, TextEmotionClassifierPortError, TextEmotionClassifierProvider,
-    TextEmotionClassifierProviderError, TextEmotionClassifierRequest,
+    TextEmotionClassifierProviderError, TextEmotionClassifierRequest, TextEmotionTurnRuntime,
 };
 
 #[tokio::test]
@@ -57,6 +58,34 @@ async fn final_customer_transcript_becomes_release_bound_text_emotion_evidence()
     let diagnostics = format!("{provider:?} {observation:?}");
     assert!(!diagnostics.contains("这个问题"));
     assert!(!diagnostics.contains("customer.frustrated"));
+
+    let resolution = TextEmotionTurnRuntime::new(
+        &catalog,
+        EmotionDecisionPolicy::try_new(5_500, 8_000).unwrap(),
+    )
+    .resolve(
+        observation,
+        &EmotionState::new(context(), catalog.id().clone()),
+    )
+    .unwrap();
+    assert_eq!(resolution.contributor_count(), 1);
+    assert_eq!(
+        resolution.checkpoint().state().status(),
+        EmotionStatus::Confirmed
+    );
+    assert_eq!(
+        resolution.checkpoint().state().confirmed_intensity(),
+        Some(3)
+    );
+    let evidence = resolution
+        .encode_evidence_records("understanding-30-days-v1", 2_592_003_001)
+        .unwrap();
+    assert_eq!(evidence.len(), 1);
+    assert_eq!(
+        evidence[0].kind(),
+        converact_conversation_understanding_store::UnderstandingRecordKind::EmotionObservation
+    );
+    assert!(!evidence[0].can_advance_head());
 }
 
 #[tokio::test]
