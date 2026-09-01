@@ -121,7 +121,7 @@ Kamailio / Trunk / PSTN
 | Tool/Action | Rust Proposal/Policy/Approval/Broker/Receipt、持久化 Adapter、Active Call Worker 桥接及通用查询/变更 Adapter 已通过本地受控测试 | 接入真实 Provider | controlled slice passed；real provider/physical PostgreSQL `not_run` |
 | AI/人工协作 | Rust Handoff Core/Store/Worker 的 commit/abort/replay/unknown-query 和具体 Active Call 私有进程端口已通过本地受控/loopback 测试 | 接入真实人席、RustPBX 媒体切换与 Active Call | physical integration/production `not_run` |
 | Transcript/Outcome/QM | Rust final transcript/snapshot/result/evaluation/Bad Case、durable reconcile、权限化查询 API，以及 Active Call intent 候选到精确 Release OutcomeSchema/结果证据的投影已通过本地受控测试 | 接入真实 Speech/模型/UI 并迁移旧 writer | physical integration/writer switch/production `not_run` |
-| 逐轮 Intent/Emotion/Dialogue 状态 | Rust Core、closed checkpoint、四领域原子 Store、Worker 恢复/写入端口、tenant PostgreSQL adapter，以及 final customer transcript 到 Safety Rule Intent checkpoint 已通过本地精准测试 | 接入 Active Call durable ingest、Fast Classifier、Contextual LLM、Emotion Provider 和 Worker 进程组合 | physical PostgreSQL/real channel-model integration/restart/two-node/production `not_run` |
+| 逐轮 Intent/Emotion/Dialogue 状态 | Rust Core、closed checkpoint、四领域原子 Store、Worker 恢复/写入端口、tenant PostgreSQL adapter、Active Call final transcript 到原子 Store 的边界，以及 Safety Rule/Fast Classifier Intent checkpoint 已通过本地精准测试 | 接入 Active Call 实时 SSE、真实分类模型、Contextual LLM、Emotion Provider 和 Worker 进程组合 | physical PostgreSQL/real channel-model integration/restart/two-node/production `not_run` |
 | Post-call Finalization | Rust terminal/enqueue 受控原子边界、durable queue、Worker、D7 projection reuse 与进度查询已通过本地精准测试 | 接入物理 PostgreSQL 合并事务和真实终态输入 | physical transaction/real call/production `not_run` |
 | 性能/容量/长稳 | 旧证据不能继承到新链路 | 功能稳定后单独执行 | `not_run` |
 
@@ -558,6 +558,16 @@ Intent observation、推进状态并关闭 Intent checkpoint。它没有 Tool、
 Media 端口，因此即使确认安全意图也只能产出证据。匹配不使用正则，全文只归一化一次，规则和
 phrase 均有硬上限；这只是有界功能合同，不构成性能或准确率资格。
 
+截至 2026-09-01，Rust `FastIntentClassifierProvider` 已实现真实模型之前的 provider-neutral
+Layer-1 接入边界。不可变 classifier artifact 精确绑定 Agent Release、Intent Catalog、model、
+tokenizer、label map、confidence calibration、支持语言、输入/top-k 上限与 inference deadline；
+其中四个模型制品都使用 lowercase SHA-256 身份，规范化全集派生稳定 artifact revision。推理端口
+只接收 artifact revision、语言、文本和 top-k，不接收租户、电话或 Campaign 身份；响应必须回显
+精确 revision，漂移、超时、越界输入、未知/乱序标签和非法分数全部 fail-closed。空 top-k 是显式
+unknown；高分但 Top1/Top2 差值不足进入 `clarification_required`。Provider 只生成
+`FastClassifier` observation/state checkpoint，不拥有 Tool、DNC、Handoff、Telephony 或 Media
+端口。测试替身只验证合同，不是训练模型，也不构成分类准确率证据。
+
 截至 2026-09-01，durable transcript sequence 已有独立 Store 权威：经校验的
 `TranscriptSegmentDraft` 不携带 sequence；PostgreSQL adapter 在一个 tenant transaction 内锁定
 `tenant / Interaction / execution generation` stream head，先按稳定 `source_event_id` 判定重放，
@@ -566,9 +576,10 @@ stream-head fence 保证写入成功才推进 head，失败随事务回滚；迁
 保留历史空洞并约束同一 stream 不得混用 Attempt/Release。旧 caller-sequenced 写路径暂时保留用于
 滚动兼容，但也必须经过同一 head 并只能追加下一位置。
 
-Active Call SSE 到上述 Draft 的真实接入、断线 gap/replay 恢复、稳定 source-event identity、租户规则
-artifact 解析、Fast Classifier、Contextual LLM、跨 Provider 证据融合、阈值/phrase 校准、完整四领域
-逐轮提交和真实意图质量仍为 `not_run`。特别是部分上游 ASR 固定为 `0` 的 `index` 不会被当作
+Active Call SSE 到上述 Draft 的真实接入、断线 gap/replay 恢复、实时 binding 派生、租户规则
+artifact 解析、真实 Fast Classifier 模型/制品解析、Contextual LLM、跨 Provider 证据融合、
+阈值/phrase/置信度校准、完整四领域逐轮提交和真实意图质量仍为 `not_run`。特别是部分上游 ASR
+固定为 `0` 的 `index` 不会被当作
 durable turn sequence。Intent checkpoint、sequence authority 和有界 durable Store adapter 已有本地
 合同证据，但物理 PostgreSQL 尚未执行。目标实现继续保留 Active Call 的多轮理解，并把规则、
 小模型、上下文 LLM 与人工纠正作为独立可审计证据源。
@@ -1097,6 +1108,8 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 - [Conversation Understanding Checkpoints R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-understanding-checkpoints/README.md)
 - [Conversation Understanding Worker R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-understanding-worker/README.md)
 - [Safety Intent Provider R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-safety-intent-provider/README.md)
+- [Fast Intent Classifier Provider R1 计划](../plans/2026-09-01-fast-intent-classifier-provider-r1.md)
+- [Fast Intent Classifier Provider R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-fast-intent-classifier-provider/README.md)
 - [Active Call Reservation Overlay R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-reservation-overlay/README.md)
 - [Active Call Reservation Adapter R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-active-call-reservation-adapter/README.md)
 - [Agent Release reservation binding evidence](../../architecture-foundation/ai-outbound/evidence/r1-agent-release-reservation-binding/README.md)
@@ -1139,3 +1152,4 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 | 2026-09-01 | R1 Understanding state checkpoint | versioned Intent、Emotion、Customer State 与 Dialogue payload、来源状态/Policy 重算、内外 hash、authority/record identity 校验及 O(1) restore 已通过本地合同；Worker writer/recovery、物理 PostgreSQL 和生产仍为 `not_run` |
 | 2026-09-01 | R1 Understanding Worker checkpoint | Worker 单次四领域一致恢复、typed write batch、具体 tenant PostgreSQL adapter 与 commit 前原子 outcome 分类已通过本地精准测试；真实逐轮 Provider/Active Call、物理 PostgreSQL、重启/双节点和生产仍为 `not_run` |
 | 2026-09-01 | R1 Safety Intent Provider checkpoint | Release/Catalog-bound 有界 Rust Safety Rule Provider 已把 final customer transcript 转为稳定 Intent observation/state checkpoint，且无任何业务动作端口；Active Call durable ingest、真实租户规则、Fast/LLM/融合、物理 PostgreSQL、质量和生产仍为 `not_run` |
+| 2026-09-01 | R1 Fast Intent Classifier Provider checkpoint | Release/Catalog/model/tokenizer/label-map/calibration-bound Rust Layer-1 Provider 已把受期限约束的模型 top-k 转为稳定 Intent checkpoint；测试端口不代表真实模型，模型运行时、制品解析、准确率、Provider 融合、物理 PostgreSQL 和生产仍为 `not_run` |

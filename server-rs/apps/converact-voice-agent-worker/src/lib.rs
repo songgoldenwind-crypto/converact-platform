@@ -20,6 +20,7 @@ mod conversation_projection_postgres;
 mod conversation_quality;
 mod conversation_quality_http;
 mod conversation_quality_postgres;
+mod fast_intent_classifier;
 mod handoff_runtime;
 mod http;
 mod lifecycle;
@@ -78,6 +79,11 @@ pub use conversation_quality::{
     ConversationQualityAccess, ConversationQualityQueryError, ConversationQualityQueryPort,
 };
 pub use conversation_quality_http::conversation_quality_router;
+pub use fast_intent_classifier::{
+    FastIntentCandidateOutput, FastIntentClassifierArtifactInput, FastIntentClassifierOutput,
+    FastIntentClassifierPort, FastIntentClassifierPortError, FastIntentClassifierProvider,
+    FastIntentClassifierProviderError, FastIntentClassifierRequest,
+};
 pub use handoff_runtime::{
     AiResumeCommandIds, AiResumeRequest, ChannelAgentHandoffPort, DurableCreateDecision,
     DurablePrepareDecision, EffectObservation, GenerationCommit, HandoffDurabilityPort,

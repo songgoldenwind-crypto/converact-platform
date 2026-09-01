@@ -1,0 +1,72 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_date": "2026-09-01",
+  "evidence_class": [
+    "local_contract"
+  ],
+  "production_eligible": false,
+  "converact": {
+    "branch": "codex/converact-platform-rename",
+    "parent_commit": "d4b829dd4722afe0afd2a971dafa8a6a2212b4cd"
+  },
+  "commands": [
+    {
+      "id": "fast_intent_classifier_contract",
+      "working_directory": "server-rs",
+      "command": "cargo test --locked -p converact-voice-agent-worker --test fast_intent_classifier",
+      "exit_code": 0,
+      "result": "passed",
+      "passed": 5,
+      "failed": 0
+    },
+    {
+      "id": "fast_intent_classifier_scoped_format",
+      "working_directory": "server-rs",
+      "command": "rustfmt --edition 2024 --check <3 changed Rust files>",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "fast_intent_classifier_scoped_clippy",
+      "working_directory": "server-rs",
+      "command": "cargo clippy --locked -p converact-voice-agent-worker --lib --test fast_intent_classifier -- -D warnings",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "fast_intent_classifier_evidence_json",
+      "working_directory": ".",
+      "command": "python3 -m json.tool architecture-foundation/ai-outbound/evidence/r1-fast-intent-classifier-provider/verification.json",
+      "exit_code": 0,
+      "result": "passed"
+    },
+    {
+      "id": "fast_intent_classifier_diff_check",
+      "working_directory": ".",
+      "command": "git diff --check",
+      "exit_code": 0,
+      "result": "passed"
+    }
+  ],
+  "not_run": [
+    "trained_local_or_remote_classifier_adapter_and_artifact_resolver",
+    "real_accuracy_macro_f1_oos_high_risk_recall_calibration_and_fallback_rate",
+    "active_call_live_sse_gap_recovery_and_transcript_provider_composition",
+    "contextual_llm_fallback_cross_provider_arbitration_and_slot_extraction",
+    "emotion_providers_and_complete_four_domain_turn_commit",
+    "physical_postgresql_restart_two_node_and_real_sip_pstn_media_recording",
+    "performance",
+    "capacity",
+    "long_run",
+    "independent_review",
+    "production_deployment"
+  ],
+  "safety": {
+    "local_docker_used": false,
+    "server_services_read": false,
+    "server_services_changed": false,
+    "server_containers_changed": false,
+    "server_code_changed": false,
+    "unrelated_work_staged": false
+  }
+}
