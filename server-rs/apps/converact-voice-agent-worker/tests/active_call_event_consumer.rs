@@ -1,4 +1,10 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
+    time::Duration,
+};
 
 use converact_active_call_adapter::{
     ActiveCallClient, ActiveCallEventCursor, AdapterContext, ClientConfig, NormalizedEvent,
@@ -10,10 +16,13 @@ use converact_voice_agent_contracts::{
     VOICE_AGENT_SCHEMA_VERSION,
 };
 use converact_voice_agent_worker::{
-    ActiveCallDurableEvent, ActiveCallEventAppendDecision, ActiveCallEventConsumerOutcome,
-    ActiveCallEventInboxError, ActiveCallEventInboxPort, ActiveCallEventInboxSnapshot,
-    ActiveCallEventInboxStatus, ActiveCallEventProcessingError, ActiveCallEventProcessorPort,
-    ActiveCallEventReconcileReason, ShutdownToken, consume_active_call_events_once,
+    ActiveAttemptLeasePort, ActiveCallDurableEvent, ActiveCallEventAppendDecision,
+    ActiveCallEventConsumerOutcome, ActiveCallEventCycle, ActiveCallEventInboxError,
+    ActiveCallEventInboxPort, ActiveCallEventInboxSnapshot, ActiveCallEventInboxStatus,
+    ActiveCallEventProcessingError, ActiveCallEventProcessorPort, ActiveCallEventReconcileReason,
+    ActiveCallSessionSupervisor, ActiveCallSessionSupervisorConfig,
+    ActiveCallSessionSupervisorOutcome, ShutdownToken, WorkerError,
+    consume_active_call_events_once,
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
@@ -145,6 +154,46 @@ async fn clean_stream_end_queries_session_and_requests_resume_when_still_active(
     let requests = server.finish().await;
     assert_eq!(requests.len(), 2);
     assert!(requests[1].contains("GET /list HTTP/1.1"));
+}
+
+#[tokio::test]
+async fn session_supervisor_reconnects_the_real_durable_event_cycle() {
+    let server = TestServer::spawn(vec![
+        Response::sse(""),
+        Response::json(r#"{"active_calls":[{"id":"session-001"}]}"#),
+        Response::sse(
+            "id: 1\nevent: event\ndata: {\"event\":\"hangup\",\"trackId\":\"customer-track\",\"timestamp\":1500,\"startTime\":\"2026-09-01T00:00:00Z\",\"hangupTime\":\"2026-09-01T00:01:00Z\"}\n\n",
+        ),
+    ])
+    .await;
+    let client = client(server.endpoint());
+    let log = Arc::new(Mutex::new(Vec::new()));
+    let inbox = Inbox::empty(Arc::clone(&log));
+    let processor = Processor::new(Arc::clone(&log));
+    let adapter_context = AdapterContext::new(context());
+    let shutdown = ShutdownToken::default();
+    let cycle = ActiveCallEventCycle::new(&client, &inbox, &processor, &adapter_context, &shutdown);
+    let lease = RenewalCounter::default();
+    let supervisor = ActiveCallSessionSupervisor::new(
+        &cycle,
+        &lease,
+        ActiveCallSessionSupervisorConfig::new(Duration::from_millis(50), Duration::from_millis(1))
+            .unwrap(),
+        &shutdown,
+    );
+
+    let outcome = supervisor.run().await.unwrap();
+
+    assert_eq!(outcome, ActiveCallSessionSupervisorOutcome::Completed);
+    assert_eq!(lease.renewals.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        *log.lock().unwrap(),
+        ["append:1", "process:terminal", "apply:1"]
+    );
+    let requests = server.finish().await;
+    assert_eq!(requests.len(), 3);
+    assert!(requests[1].contains("GET /list HTTP/1.1"));
+    assert!(requests[2].contains("GET /events/session-001 HTTP/1.1"));
 }
 
 #[tokio::test]
@@ -302,6 +351,18 @@ fn snapshot_rejects_hidden_terminal_event_and_non_postgres_cursor() {
 
 struct Processor {
     log: Arc<Mutex<Vec<&'static str>>>,
+}
+
+#[derive(Default)]
+struct RenewalCounter {
+    renewals: AtomicUsize,
+}
+
+impl ActiveAttemptLeasePort for RenewalCounter {
+    async fn renew_active_lease(&self) -> Result<(), WorkerError> {
+        self.renewals.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
 }
 
 struct FailingProcessor;

@@ -1,11 +1,13 @@
 use std::{future::Future, time::Duration};
 
+use converact_active_call_adapter::{ActiveCallClient, AdapterContext};
 use converact_postgres_store::PostgresLeasedAttemptStore;
 use tokio::time::sleep;
 
 use crate::{
-    ActiveCallEventConsumerError, ActiveCallEventConsumerOutcome, ActiveCallEventReconcileReason,
-    ShutdownToken, WorkerError,
+    ActiveCallEventConsumerError, ActiveCallEventConsumerOutcome, ActiveCallEventInboxPort,
+    ActiveCallEventProcessorPort, ActiveCallEventReconcileReason, ShutdownToken, WorkerError,
+    consume_active_call_events_once,
 };
 
 const MIN_INTERVAL: Duration = Duration::from_millis(1);
@@ -17,6 +19,53 @@ pub trait ActiveCallEventCyclePort: Sync {
     fn consume_once(
         &self,
     ) -> impl Future<Output = Result<ActiveCallEventConsumerOutcome, ActiveCallEventConsumerError>> + Send;
+}
+
+/// Concrete single-cycle adapter over the durable Active Call event consumer.
+pub struct ActiveCallEventCycle<'a, D, P> {
+    client: &'a ActiveCallClient,
+    inbox: &'a D,
+    processor: &'a P,
+    adapter_context: &'a AdapterContext,
+    shutdown: &'a ShutdownToken,
+}
+
+impl<'a, D, P> ActiveCallEventCycle<'a, D, P> {
+    #[must_use]
+    pub const fn new(
+        client: &'a ActiveCallClient,
+        inbox: &'a D,
+        processor: &'a P,
+        adapter_context: &'a AdapterContext,
+        shutdown: &'a ShutdownToken,
+    ) -> Self {
+        Self {
+            client,
+            inbox,
+            processor,
+            adapter_context,
+            shutdown,
+        }
+    }
+}
+
+impl<D, P> ActiveCallEventCyclePort for ActiveCallEventCycle<'_, D, P>
+where
+    D: ActiveCallEventInboxPort + Sync,
+    P: ActiveCallEventProcessorPort + Sync,
+{
+    async fn consume_once(
+        &self,
+    ) -> Result<ActiveCallEventConsumerOutcome, ActiveCallEventConsumerError> {
+        consume_active_call_events_once(
+            self.client,
+            self.inbox,
+            self.processor,
+            self.adapter_context,
+            self.shutdown,
+        )
+        .await
+    }
 }
 
 /// Exact lease heartbeat required while one physical call remains active.
