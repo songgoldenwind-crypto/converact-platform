@@ -3,6 +3,9 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
+use converact_conversation_result_core::{
+    TranscriptSegment, TranscriptSegmentInput, TranscriptSpeaker,
+};
 use converact_conversation_understanding_core::{
     CustomerStateInput, CustomerStateSnapshot, DialoguePolicy, EmotionCandidateInput,
     EmotionCatalog, EmotionCatalogInput, EmotionCheckpoint, EmotionDecisionPolicy,
@@ -20,10 +23,14 @@ use converact_voice_agent_contracts::{
     AgentReleaseId, AudioEvidenceWindowId, CallAttemptId, CampaignContactId, CampaignId,
     CustomerStateSnapshotId, DialoguePolicyRevisionId, DialogueRecommendationId,
     EmotionCatalogRevisionId, EmotionFusionId, EmotionObservationId, EnvelopeContext,
-    EnvelopeContextInput, ExecutionGeneration, IntentCatalogRevisionId, IntentObservationId,
-    InteractionId, TranscriptSegmentId, VOICE_AGENT_SCHEMA_VERSION,
+    EnvelopeContextInput, EventId, ExecutionGeneration, IntentCatalogRevisionId,
+    IntentObservationId, InteractionId, TranscriptSegmentId, VOICE_AGENT_SCHEMA_VERSION,
 };
 use converact_voice_agent_worker::{
+    CompleteUnderstandingTurnInput, FastIntentClassifierArtifactInput, FastIntentClassifierOutput,
+    FastIntentClassifierPort, FastIntentClassifierPortError, FastIntentClassifierProvider,
+    FastIntentClassifierRequest, IntentConfidenceRouter, IntentTurnRoute, SafetyIntentMatchKind,
+    SafetyIntentProvider, SafetyIntentRuleInput, SafetyIntentRuleSetInput, TextEmotionTurnRuntime,
     UnderstandingAppendDecision, UnderstandingDurabilityPort, UnderstandingPortError,
     UnderstandingRecoveryInputs, UnderstandingRuntime, UnderstandingTurnWriteInput,
 };
@@ -158,6 +165,105 @@ async fn one_consistent_empty_read_is_a_valid_new_conversation() {
             .head_expectation()
             .is_some_and(|expectation| expectation.expected_revision() == 0)
     }));
+}
+
+#[tokio::test]
+async fn one_resolved_turn_builds_raw_evidence_and_four_heads_atomically() {
+    let fixture = fixture();
+    let durability = FakeDurability {
+        heads: Vec::new(),
+        loads: AtomicUsize::new(0),
+        appends: AtomicUsize::new(0),
+    };
+    let recovered = UnderstandingRuntime::new(&durability)
+        .recover(
+            &fixture.context,
+            UnderstandingRecoveryInputs {
+                intent_catalog: &fixture.intent_catalog,
+                emotion_catalog: &fixture.emotion_catalog,
+                dialogue_policy: &fixture.dialogue_policy,
+            },
+        )
+        .await
+        .unwrap();
+    let segment = final_customer_segment("别再给我打电话了");
+    let safety = safety_provider(&fixture.intent_catalog);
+    let fast = never_fast_provider(&fixture.intent_catalog);
+    let IntentTurnRoute::Resolved(intent_resolution) = IntentConfidenceRouter::new(&safety, &fast)
+        .route(
+            &segment,
+            1,
+            &IntentState::new(fixture.context.clone(), fixture.intent_catalog.id().clone()),
+            IntentDecisionPolicy::try_new(5_500, 8_000, 1_500, 9_500).unwrap(),
+        )
+        .await
+        .unwrap()
+        .unwrap()
+    else {
+        panic!("safety turn must resolve without Fast inference");
+    };
+    let text_observation = EmotionObservation::try_new(
+        EmotionObservationInput {
+            audio_evidence_window_ids: Vec::new(),
+            ..emotion_observation_input(&fixture.emotion_catalog, EmotionSource::TextClassifier)
+        },
+        &fixture.emotion_catalog,
+    )
+    .unwrap();
+    let emotion_resolution = TextEmotionTurnRuntime::new(
+        &fixture.emotion_catalog,
+        EmotionDecisionPolicy::try_new(5_500, 8_000).unwrap(),
+    )
+    .resolve(
+        text_observation,
+        &EmotionState::new(
+            fixture.context.clone(),
+            fixture.emotion_catalog.id().clone(),
+        ),
+    )
+    .unwrap();
+
+    let prepared = recovered
+        .prepare_complete_turn(CompleteUnderstandingTurnInput {
+            intent_resolution: &intent_resolution,
+            emotion_resolution: &emotion_resolution,
+            dialogue_policy: &fixture.dialogue_policy,
+            retention_policy_ref: "understanding-30-days-v1",
+            retention_until_ms: 2_592_003_000,
+        })
+        .unwrap();
+
+    let batch = prepared.batch();
+    assert_eq!(batch.evidence_commands().len(), 3);
+    assert_eq!(
+        batch.evidence_commands()[0].record().kind(),
+        converact_conversation_understanding_store::UnderstandingRecordKind::IntentProviderObservation
+    );
+    assert_eq!(
+        batch.evidence_commands()[1].record().kind(),
+        converact_conversation_understanding_store::UnderstandingRecordKind::IntentResolutionEvidence
+    );
+    assert_eq!(
+        batch.evidence_commands()[2].record().kind(),
+        converact_conversation_understanding_store::UnderstandingRecordKind::EmotionObservation
+    );
+    assert_eq!(batch.commands().len(), 4);
+    assert_eq!(
+        prepared.dialogue().kind(),
+        converact_conversation_understanding_core::DialogueRecommendationKind::ContinueWorkflow
+    );
+    let replay = recovered
+        .prepare_complete_turn(CompleteUnderstandingTurnInput {
+            intent_resolution: &intent_resolution,
+            emotion_resolution: &emotion_resolution,
+            dialogue_policy: &fixture.dialogue_policy,
+            retention_policy_ref: "understanding-30-days-v1",
+            retention_until_ms: 2_592_003_000,
+        })
+        .unwrap();
+    assert_eq!(replay.batch(), prepared.batch());
+    assert_eq!(replay.customer_state(), prepared.customer_state());
+    assert_eq!(replay.dialogue(), prepared.dialogue());
 }
 
 #[tokio::test]
@@ -374,40 +480,116 @@ fn emotion_checkpoint(catalog: &EmotionCatalog) -> EmotionCheckpoint {
 }
 
 fn emotion_observation(catalog: &EmotionCatalog, source: EmotionSource) -> EmotionObservation {
-    EmotionObservation::try_new(
-        EmotionObservationInput {
-            id: EmotionObservationId::parse(format!("emotion-observation-{source:?}")).unwrap(),
-            context: context(),
-            catalog_revision_id: catalog.id().clone(),
-            source,
-            provider_revision: "emotion-provider-v1".to_owned(),
-            candidates: vec![EmotionCandidateInput {
-                code: "customer.angry".to_owned(),
-                confidence_bps: 8_700,
-                intensity: 4,
-            }],
-            transcript_segment_ids: vec![TranscriptSegmentId::parse("segment-001").unwrap()],
-            audio_evidence_window_ids: vec![
-                AudioEvidenceWindowId::parse("audio-window-001").unwrap(),
-            ],
-            turn_index: 1,
-            observed_at_ms: 1_000,
-        },
-        catalog,
-    )
-    .unwrap()
+    EmotionObservation::try_new(emotion_observation_input(catalog, source), catalog).unwrap()
+}
+
+fn emotion_observation_input(
+    catalog: &EmotionCatalog,
+    source: EmotionSource,
+) -> EmotionObservationInput {
+    EmotionObservationInput {
+        id: EmotionObservationId::parse(format!("emotion-observation-{source:?}")).unwrap(),
+        context: context(),
+        catalog_revision_id: catalog.id().clone(),
+        source,
+        provider_revision: "emotion-provider-v1".to_owned(),
+        candidates: vec![EmotionCandidateInput {
+            code: "customer.angry".to_owned(),
+            confidence_bps: 8_700,
+            intensity: 4,
+        }],
+        transcript_segment_ids: vec![TranscriptSegmentId::parse("segment-001").unwrap()],
+        audio_evidence_window_ids: vec![AudioEvidenceWindowId::parse("audio-window-001").unwrap()],
+        turn_index: 1,
+        observed_at_ms: 1_000,
+    }
 }
 
 fn intent_catalog() -> IntentCatalog {
     IntentCatalog::try_new(IntentCatalogInput {
         id: IntentCatalogRevisionId::parse("intent-catalog-001").unwrap(),
         agent_release_id: AgentReleaseId::parse("release-001").unwrap(),
-        definitions: vec![IntentDefinitionInput {
-            code: "sales.interested".to_owned(),
-            parent_code: None,
-            slot_keys: Vec::new(),
-            safety_critical: false,
-        }],
+        definitions: vec![
+            IntentDefinitionInput {
+                code: "sales.interested".to_owned(),
+                parent_code: None,
+                slot_keys: Vec::new(),
+                safety_critical: false,
+            },
+            IntentDefinitionInput {
+                code: "safety.stop_calling".to_owned(),
+                parent_code: None,
+                slot_keys: Vec::new(),
+                safety_critical: true,
+            },
+        ],
+    })
+    .unwrap()
+}
+
+fn safety_provider(catalog: &IntentCatalog) -> SafetyIntentProvider {
+    SafetyIntentProvider::try_new(
+        SafetyIntentRuleSetInput {
+            agent_release_id: AgentReleaseId::parse("release-001").unwrap(),
+            intent_catalog_revision_id: catalog.id().clone(),
+            rules: vec![SafetyIntentRuleInput {
+                rule_id: "stop-calling-zh".to_owned(),
+                intent_code: "safety.stop_calling".to_owned(),
+                priority: 1,
+                confidence_bps: 9_800,
+                match_kind: SafetyIntentMatchKind::Phrase,
+                phrases: vec!["别再给我打电话".to_owned()],
+            }],
+        },
+        catalog,
+    )
+    .unwrap()
+}
+
+struct NeverFast;
+
+impl FastIntentClassifierPort for NeverFast {
+    async fn classify<'a>(
+        &'a self,
+        _request: FastIntentClassifierRequest<'a>,
+    ) -> Result<FastIntentClassifierOutput, FastIntentClassifierPortError> {
+        panic!("Safety must short-circuit Fast inference")
+    }
+}
+
+fn never_fast_provider(catalog: &IntentCatalog) -> FastIntentClassifierProvider<NeverFast> {
+    FastIntentClassifierProvider::try_new(
+        FastIntentClassifierArtifactInput {
+            agent_release_id: AgentReleaseId::parse("release-001").unwrap(),
+            intent_catalog_revision_id: catalog.id().clone(),
+            model_sha256: "1".repeat(64),
+            tokenizer_sha256: "2".repeat(64),
+            label_map_sha256: "3".repeat(64),
+            calibration_sha256: "4".repeat(64),
+            supported_languages: vec!["zh-CN".to_owned()],
+            max_input_bytes: 4_096,
+            max_candidates: 5,
+            inference_deadline_ms: 100,
+        },
+        catalog,
+        NeverFast,
+    )
+    .unwrap()
+}
+
+fn final_customer_segment(text: &str) -> TranscriptSegment {
+    TranscriptSegment::try_new(TranscriptSegmentInput {
+        id: TranscriptSegmentId::parse("segment-customer-final").unwrap(),
+        context: context(),
+        source_event_id: EventId::parse("event-customer-final").unwrap(),
+        sequence: 1,
+        speaker: TranscriptSpeaker::Customer,
+        language: "zh-CN".to_owned(),
+        text: text.to_owned(),
+        start_offset_ms: 1_000,
+        end_offset_ms: 2_000,
+        observed_at_ms: 3_000,
+        retention_policy_ref: "retention-standard-v1".to_owned(),
     })
     .unwrap()
 }

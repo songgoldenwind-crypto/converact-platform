@@ -121,7 +121,7 @@ Kamailio / Trunk / PSTN
 | Tool/Action | Rust Proposal/Policy/Approval/Broker/Receipt、持久化 Adapter、Active Call Worker 桥接及通用查询/变更 Adapter 已通过本地受控测试 | 接入真实 Provider | controlled slice passed；real provider/physical PostgreSQL `not_run` |
 | AI/人工协作 | Rust Handoff Core/Store/Worker 的 commit/abort/replay/unknown-query 和具体 Active Call 私有进程端口已通过本地受控/loopback 测试 | 接入真实人席、RustPBX 媒体切换与 Active Call | physical integration/production `not_run` |
 | Transcript/Outcome/QM | Rust final transcript/snapshot/result/evaluation/Bad Case、durable reconcile、权限化查询 API，以及 Active Call intent 候选到精确 Release OutcomeSchema/结果证据的投影已通过本地受控测试 | 接入真实 Speech/模型/UI 并迁移旧 writer | physical integration/writer switch/production `not_run` |
-| 逐轮 Intent/Emotion/Dialogue 状态 | Rust Core、closed checkpoint、四领域原子 Store、Worker 恢复/写入端口、tenant PostgreSQL adapter、Active Call final transcript 到原子 Store 的边界、Safety/Fast/Contextual Intent Provider、同轮 Router、显式 Layered Intent Runtime、Text Emotion Provider/text-only checkpoint，以及原始 Intent contributor + resolution 同事务批次已通过本地精准测试 | 接入 Active Call 实时 SSE/有界历史读取、真实 Fast/LLM/文本情绪模型、声学 Emotion Provider、多模态融合、原始 Emotion 证据事务和完整 Worker 进程组合 | physical PostgreSQL/real channel-model integration/restart/two-node/production `not_run` |
+| 逐轮 Intent/Emotion/Dialogue 状态 | Rust Core、closed checkpoint、四领域原子 Store、Worker 恢复/写入端口、tenant PostgreSQL adapter、Active Call final transcript 到原子 Store 的边界、Safety/Fast/Contextual Intent Provider、同轮 Router、显式 Layered Intent Runtime、Text Emotion Provider/text-only checkpoint，以及原始 Intent/Emotion evidence + 四 heads 的完整 turn 批次已通过本地精准测试 | 接入 Active Call 实时 SSE/有界历史读取、真实 Fast/LLM/文本情绪模型、声学 Emotion Provider、多模态融合和完整 Worker 进程组合 | physical PostgreSQL/real channel-model integration/restart/two-node/production `not_run` |
 | Post-call Finalization | Rust terminal/enqueue 受控原子边界、durable queue、Worker、D7 projection reuse 与进度查询已通过本地精准测试 | 接入物理 PostgreSQL 合并事务和真实终态输入 | physical transaction/real call/production `not_run` |
 | 性能/容量/长稳 | 旧证据不能继承到新链路 | 功能稳定后单独执行 | `not_run` |
 
@@ -674,6 +674,13 @@ recommendation kind。Worker 的窄持久化端口、单次一致快照恢复、
 adapter 已通过本地合同；真实逐轮 Provider/Active Call 事件接入、Worker 进程组合、物理 PostgreSQL、
 Active Call Prompt/Scene 消费、Handoff 提案桥接、策略运营配置和真实通话验证仍为 `not_run`。
 
+截至 2026-09-01，`prepare_complete_turn` 已把同 authority/turn 的 Intent resolution 与 text-only
+Emotion resolution 确定性组合：先以两个 selected states 派生 content-addressed Customer State，再
+以精确 Dialogue Policy revision 派生 recommendation，最后冻结原始 Intent contributors、Intent
+resolution、原始 Emotion contributors 和四个 heads 的单批次。相同输入产生完全相同的 ID/载荷；
+错误顺序、跨 turn/authority、重复 identity 和 evidence/head 冲突均在 SQL 前拒绝。该结果仍只是
+本地合同，不证明真实事件消费者、模型或物理事务已经运行。
+
 ### 9.8 理解证据耐久化
 
 Additive migration `133_converact_conversation_understanding.sql` 已冻结不可变 understanding record
@@ -1148,6 +1155,8 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 - [Text Emotion Classifier Provider R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-text-emotion-classifier-provider/README.md)
 - [Text-only Emotion Turn Runtime R1 计划](../plans/2026-09-01-text-emotion-turn-runtime-r1.md)
 - [Text-only Emotion Turn Runtime R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-text-emotion-turn-runtime/README.md)
+- [Complete Understanding Turn R1 计划](../plans/2026-09-01-complete-understanding-turn-r1.md)
+- [Complete Understanding Turn R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-complete-understanding-turn/README.md)
 - [Customer State and Dialogue Policy R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-customer-state-dialogue-policy/README.md)
 - [Conversation Understanding Store Schema R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-understanding-store-schema/README.md)
 - [Conversation Understanding Store Adapter R1 evidence](../../architecture-foundation/ai-outbound/evidence/r1-understanding-store-adapter/README.md)
@@ -1213,3 +1222,4 @@ provider、可听披露、录音连续性和进程重启恢复仍保持 `not_run
 | 2026-09-01 | R1 layered Intent Runtime checkpoint | Store 顺序窗口已在无状态 Runtime 中按 Safety → Fast → Contextual 组合，resolution path 与 transient fallback reason 可持久审计，非 transient 漂移 fail-closed；真实 Active Call consumer、历史仓库、模型、完整四领域 turn 和生产仍为 `not_run` |
 | 2026-09-01 | R1 Text Emotion Classifier Provider checkpoint | Release/Catalog/model/tokenizer/label-map/calibration-bound Rust Provider 已把 final customer transcript 转成 text-only Emotion observation；真实模型、声学证据、融合、完整 Worker turn、质量和生产仍为 `not_run` |
 | 2026-09-01 | R1 text-only Emotion Turn Runtime checkpoint | raw Emotion observation wire、显式 text-only fusion、单次 Emotion state 推进/checkpoint 与 record-only contributor 已通过；声学窗口、Acoustic Provider、多模态融合、四领域事务组合和生产仍为 `not_run` |
+| 2026-09-01 | R1 complete Understanding Turn checkpoint | 同 turn Intent/Emotion resolution 已确定性派生 Customer State/Dialogue，并把 raw Intent/Emotion evidence 与四 heads 冻结为可重放单批次；物理 PostgreSQL、真实事件/模型进程、声学/多模态和生产仍为 `not_run` |

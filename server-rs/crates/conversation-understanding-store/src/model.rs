@@ -6,7 +6,10 @@ use serde_json::Value;
 
 const MAX_IDENTIFIER_BYTES: usize = 255;
 const MAX_PAYLOAD_BYTES: usize = 131_072;
-const MAX_TURN_EVIDENCE_COMMANDS: usize = 4;
+const MAX_INTENT_PROVIDER_COMMANDS: usize = 3;
+const MAX_EMOTION_PROVIDER_COMMANDS: usize = 8;
+const MAX_TURN_EVIDENCE_COMMANDS: usize =
+    MAX_INTENT_PROVIDER_COMMANDS + 1 + MAX_EMOTION_PROVIDER_COMMANDS;
 
 /// One independently fenced understanding authority domain.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -456,11 +459,11 @@ impl UnderstandingTurnBatch {
         Self::try_new_with_evidence(Vec::new(), intent, emotion, customer_state, dialogue)
     }
 
-    /// Adds bounded record-only Intent contributors and one resolution before the four heads.
+    /// Adds bounded record-only Intent and Emotion contributors before the four heads.
     ///
     /// Empty evidence remains valid during rolling writer migration. A non-empty sequence must be
-    /// one to three Provider observations followed by exactly one resolution for the selected
-    /// Intent checkpoint's authority and turn.
+    /// one to three Intent Provider observations, exactly one Intent resolution and then zero to
+    /// eight Emotion Provider observations. Each group binds its corresponding selected head.
     ///
     /// # Errors
     ///
@@ -506,16 +509,30 @@ impl UnderstandingTurnBatch {
             return Err(UnderstandingStoreError::InvalidBatch);
         }
         if !evidence_commands.is_empty() {
-            let Some((resolution, contributors)) = evidence_commands.split_last() else {
+            let Some(resolution_index) = evidence_commands.iter().position(|command| {
+                command.record().kind() == UnderstandingRecordKind::IntentResolutionEvidence
+            }) else {
+                return Err(UnderstandingStoreError::InvalidBatch);
+            };
+            let (intent_contributors, resolution_and_emotion) =
+                evidence_commands.split_at(resolution_index);
+            let Some((resolution, emotion_contributors)) = resolution_and_emotion.split_first()
+            else {
                 return Err(UnderstandingStoreError::InvalidBatch);
             };
             let mut record_ids = std::collections::HashSet::with_capacity(evidence_commands.len());
             if evidence_commands.len() > MAX_TURN_EVIDENCE_COMMANDS
-                || contributors.is_empty()
+                || intent_contributors.is_empty()
+                || intent_contributors.len() > MAX_INTENT_PROVIDER_COMMANDS
+                || emotion_contributors.len() > MAX_EMOTION_PROVIDER_COMMANDS
                 || resolution.record().kind() != UnderstandingRecordKind::IntentResolutionEvidence
                 || resolution.head_expectation().is_some()
-                || contributors.iter().any(|command| {
+                || intent_contributors.iter().any(|command| {
                     command.record().kind() != UnderstandingRecordKind::IntentProviderObservation
+                        || command.head_expectation().is_some()
+                })
+                || emotion_contributors.iter().any(|command| {
+                    command.record().kind() != UnderstandingRecordKind::EmotionObservation
                         || command.head_expectation().is_some()
                 })
                 || evidence_commands.iter().any(|evidence| {
@@ -525,9 +542,15 @@ impl UnderstandingTurnBatch {
                 })
                 || evidence_commands.iter().any(|command| {
                     let record = command.record();
-                    record.context() != intent.context()
-                        || record.turn_index() != intent.turn_index()
-                        || record.observed_at_ms() > intent.observed_at_ms()
+                    let source = if record.kind() == UnderstandingRecordKind::EmotionObservation {
+                        emotion
+                    } else {
+                        intent
+                    };
+                    record.context() != source.context()
+                        || record.turn_index() != source.turn_index()
+                        || record.observed_at_ms() > source.observed_at_ms()
+                        || command.head_expectation().is_some()
                         || !record_ids.insert(record.record_id())
                 })
             {

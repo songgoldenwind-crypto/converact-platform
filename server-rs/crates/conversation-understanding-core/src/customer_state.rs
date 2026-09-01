@@ -386,6 +386,11 @@ impl DialoguePolicy {
         })
     }
 
+    #[must_use]
+    pub const fn revision_id(&self) -> &DialoguePolicyRevisionId {
+        &self.revision_id
+    }
+
     /// Evaluates a Customer State snapshot into a non-executable recommendation.
     ///
     /// A human handoff recommendation still requires the separate Handoff authority to select,

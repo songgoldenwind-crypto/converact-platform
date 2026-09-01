@@ -51,7 +51,7 @@ fn one_turn_batch_has_exactly_four_ordered_authoritative_domains() {
 }
 
 #[test]
-fn intent_evidence_precedes_the_four_authoritative_heads_in_one_batch() {
+fn intent_and_emotion_evidence_precede_the_four_authoritative_heads_in_one_batch() {
     let batch = UnderstandingTurnBatch::try_new_with_evidence(
         vec![
             record_only(
@@ -71,6 +71,12 @@ fn intent_evidence_precedes_the_four_authoritative_heads_in_one_batch() {
                 UnderstandingRecordKind::IntentResolutionEvidence,
                 1,
                 1_001,
+            ),
+            record_only(
+                "emotion-provider-text-001",
+                UnderstandingRecordKind::EmotionObservation,
+                1,
+                1_025,
             ),
         ],
         command(
@@ -100,7 +106,7 @@ fn intent_evidence_precedes_the_four_authoritative_heads_in_one_batch() {
     )
     .unwrap();
 
-    assert_eq!(batch.evidence_commands().len(), 3);
+    assert_eq!(batch.evidence_commands().len(), 4);
     assert_eq!(
         batch.evidence_commands()[0].record().kind(),
         UnderstandingRecordKind::IntentProviderObservation
@@ -109,11 +115,49 @@ fn intent_evidence_precedes_the_four_authoritative_heads_in_one_batch() {
         batch.evidence_commands()[2].record().kind(),
         UnderstandingRecordKind::IntentResolutionEvidence
     );
+    assert_eq!(
+        batch.evidence_commands()[3].record().kind(),
+        UnderstandingRecordKind::EmotionObservation
+    );
     assert!(
         batch
             .evidence_commands()
             .iter()
             .all(|command| command.head_expectation().is_none())
+    );
+}
+
+#[test]
+fn emotion_evidence_before_intent_resolution_fails_before_sql() {
+    let (intent, emotion, customer_state, dialogue) = heads();
+    assert_eq!(
+        UnderstandingTurnBatch::try_new_with_evidence(
+            vec![
+                record_only(
+                    "intent-provider-fast-001",
+                    UnderstandingRecordKind::IntentProviderObservation,
+                    1,
+                    1_000,
+                ),
+                record_only(
+                    "emotion-provider-text-001",
+                    UnderstandingRecordKind::EmotionObservation,
+                    1,
+                    1_000,
+                ),
+                record_only(
+                    "intent-resolution-001",
+                    UnderstandingRecordKind::IntentResolutionEvidence,
+                    1,
+                    1_001,
+                ),
+            ],
+            intent,
+            emotion,
+            customer_state,
+            dialogue,
+        ),
+        Err(UnderstandingStoreError::InvalidBatch)
     );
 }
 

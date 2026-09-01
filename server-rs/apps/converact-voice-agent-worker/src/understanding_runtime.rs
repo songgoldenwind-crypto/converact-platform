@@ -1,8 +1,9 @@
 use std::{error::Error, fmt, future::Future};
 
+use converact_contracts::canonical_sha256;
 use converact_conversation_understanding_core::{
-    CustomerStateSnapshot, DialoguePolicy, DialogueRecommendation, EmotionCatalog,
-    EmotionCheckpoint, IntentCatalog, IntentCheckpoint,
+    CustomerStateInput, CustomerStateSnapshot, DialoguePolicy, DialogueRecommendation,
+    EmotionCatalog, EmotionCheckpoint, IntentCatalog, IntentCheckpoint,
 };
 use converact_conversation_understanding_store::{
     AppendUnderstandingRecord, StoredUnderstandingHead, UnderstandingDomain,
@@ -11,9 +12,15 @@ use converact_conversation_understanding_store::{
     encode_intent_checkpoint, restore_customer_state_snapshot, restore_dialogue_recommendation,
     restore_emotion_checkpoint, restore_intent_checkpoint,
 };
-use converact_voice_agent_contracts::EnvelopeContext;
+use converact_voice_agent_contracts::{
+    CustomerStateSnapshotId, DialogueRecommendationId, EnvelopeContext,
+};
+use serde_json::json;
 
-use crate::intent_confidence_router::IntentTurnResolution;
+use crate::{EmotionTurnResolution, intent_confidence_router::IntentTurnResolution};
+
+const CUSTOMER_STATE_DOMAIN: &str = "converact_understanding_customer_state_v1";
+const DIALOGUE_DOMAIN: &str = "converact_understanding_dialogue_recommendation_v1";
 
 /// Bounded persistence or recovery failure without customer data or storage topology.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -86,12 +93,52 @@ pub struct UnderstandingTurnWriteInput<'a> {
 #[derive(Clone, Copy)]
 pub struct ResolvedUnderstandingTurnWriteInput<'a> {
     pub intent_resolution: &'a IntentTurnResolution,
-    pub emotion_checkpoint: &'a EmotionCheckpoint,
+    pub emotion_resolution: &'a EmotionTurnResolution,
     pub customer_state: &'a CustomerStateSnapshot,
     pub dialogue: &'a DialogueRecommendation,
     pub dialogue_policy: &'a DialoguePolicy,
     pub retention_policy_ref: &'a str,
     pub retention_until_ms: u64,
+}
+
+/// Exact resolved Provider inputs required to derive and persist one complete understanding turn.
+#[derive(Clone, Copy)]
+pub struct CompleteUnderstandingTurnInput<'a> {
+    pub intent_resolution: &'a IntentTurnResolution,
+    pub emotion_resolution: &'a EmotionTurnResolution,
+    pub dialogue_policy: &'a DialoguePolicy,
+    pub retention_policy_ref: &'a str,
+    pub retention_until_ms: u64,
+}
+
+/// Derived Customer State/Dialogue projections and their atomic durable batch.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PreparedUnderstandingTurn {
+    batch: UnderstandingTurnBatch,
+    customer_state: CustomerStateSnapshot,
+    dialogue: DialogueRecommendation,
+}
+
+impl PreparedUnderstandingTurn {
+    #[must_use]
+    pub const fn batch(&self) -> &UnderstandingTurnBatch {
+        &self.batch
+    }
+
+    #[must_use]
+    pub const fn customer_state(&self) -> &CustomerStateSnapshot {
+        &self.customer_state
+    }
+
+    #[must_use]
+    pub const fn dialogue(&self) -> &DialogueRecommendation {
+        &self.dialogue
+    }
+
+    #[must_use]
+    pub fn into_batch(self) -> UnderstandingTurnBatch {
+        self.batch
+    }
 }
 
 /// Complete recovered understanding state, or the valid all-empty initial state.
@@ -195,10 +242,17 @@ impl RecoveredUnderstanding {
         &self,
         input: ResolvedUnderstandingTurnWriteInput<'_>,
     ) -> Result<UnderstandingTurnBatch, UnderstandingPortError> {
-        let evidence = input
+        let mut records = input
             .intent_resolution
             .encode_evidence_records(input.retention_policy_ref, input.retention_until_ms)
-            .map_err(|_| append_input_invalid())?
+            .map_err(|_| append_input_invalid())?;
+        records.extend(
+            input
+                .emotion_resolution
+                .encode_evidence_records(input.retention_policy_ref, input.retention_until_ms)
+                .map_err(|_| append_input_invalid())?,
+        );
+        let evidence = records
             .into_iter()
             .map(|record| {
                 AppendUnderstandingRecord::try_new(record, None).map_err(|_| append_input_invalid())
@@ -207,7 +261,7 @@ impl RecoveredUnderstanding {
         self.prepare_turn_with_evidence(
             UnderstandingTurnWriteInput {
                 intent_checkpoint: input.intent_resolution.checkpoint(),
-                emotion_checkpoint: input.emotion_checkpoint,
+                emotion_checkpoint: input.emotion_resolution.checkpoint(),
                 customer_state: input.customer_state,
                 dialogue: input.dialogue,
                 dialogue_policy: input.dialogue_policy,
@@ -216,6 +270,76 @@ impl RecoveredUnderstanding {
             },
             evidence,
         )
+    }
+
+    /// Derives Customer State and Dialogue from exact resolved sources, then freezes one batch.
+    ///
+    /// # Errors
+    ///
+    /// Rejects cross-authority/turn evidence, identity derivation, Policy, retention or current-head
+    /// fence drift before any SQL is executed.
+    pub fn prepare_complete_turn(
+        &self,
+        input: CompleteUnderstandingTurnInput<'_>,
+    ) -> Result<PreparedUnderstandingTurn, UnderstandingPortError> {
+        let intent = input.intent_resolution.checkpoint();
+        let emotion = input.emotion_resolution.checkpoint();
+        if intent.context() != &self.context
+            || emotion.context() != &self.context
+            || intent.turn_index() != emotion.turn_index()
+        {
+            return Err(append_input_invalid());
+        }
+        let observed_at_ms = intent.observed_at_ms().max(emotion.observed_at_ms());
+        let customer_digest = canonical_sha256(&json!({
+            "domain": CUSTOMER_STATE_DOMAIN,
+            "intent_resolution_hash": input.intent_resolution.resolution_hash(),
+            "emotion_fusion_hash": emotion.fusion().payload_hash(),
+            "turn_index": intent.turn_index(),
+        }))
+        .map_err(|_| append_input_invalid())?;
+        let customer_state = CustomerStateSnapshot::try_new(
+            CustomerStateInput {
+                id: CustomerStateSnapshotId::parse(format!("customer-state.{customer_digest}"))
+                    .map_err(|_| append_input_invalid())?,
+                observed_at_ms,
+            },
+            intent.state(),
+            emotion.state(),
+        )
+        .map_err(|_| append_input_invalid())?;
+        let dialogue_digest = canonical_sha256(&json!({
+            "domain": DIALOGUE_DOMAIN,
+            "dialogue_policy_revision_id": input.dialogue_policy.revision_id().as_str(),
+            "customer_state_hash": customer_state.payload_hash(),
+            "turn_index": intent.turn_index(),
+        }))
+        .map_err(|_| append_input_invalid())?;
+        let dialogue = input
+            .dialogue_policy
+            .evaluate(
+                DialogueRecommendationId::parse(format!(
+                    "dialogue-recommendation.{dialogue_digest}"
+                ))
+                .map_err(|_| append_input_invalid())?,
+                &customer_state,
+                observed_at_ms,
+            )
+            .map_err(|_| append_input_invalid())?;
+        let batch = self.prepare_resolved_turn(ResolvedUnderstandingTurnWriteInput {
+            intent_resolution: input.intent_resolution,
+            emotion_resolution: input.emotion_resolution,
+            customer_state: &customer_state,
+            dialogue: &dialogue,
+            dialogue_policy: input.dialogue_policy,
+            retention_policy_ref: input.retention_policy_ref,
+            retention_until_ms: input.retention_until_ms,
+        })?;
+        Ok(PreparedUnderstandingTurn {
+            batch,
+            customer_state,
+            dialogue,
+        })
     }
 
     fn prepare_turn_with_evidence(
